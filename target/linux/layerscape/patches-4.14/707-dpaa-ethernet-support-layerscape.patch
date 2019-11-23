@@ -922,7 +922,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	 *
  	 * We must do this before dma_map_single(DMA_TO_DEVICE), because we may
  	 * need to write into the skb.
-@@ -2036,12 +2091,129 @@ static inline int dpaa_xmit(struct dpaa_
+@@ -2036,6 +2091,121 @@ static inline int dpaa_xmit(struct dpaa_
  	return 0;
  }
  
@@ -935,15 +935,15 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
 + * the buffers
 + */
 +
-+#define DPAA_A010022_HEADROOM	256
++#define DPAA_A010022_HEADROOM  256
 +#define CROSS_4K_BOUND(start, size) \
-+	(((start) + (size)) > (((start) + 0x1000) & ~0xFFF))
++       (((start) + (size)) > (((start) + 0x1000) & ~0xFFF))
 +
 +static bool dpaa_errata_a010022_has_dma_issue(struct sk_buff *skb,
 +					      struct dpaa_priv *priv)
 +{
 +	int nr_frags, i = 0;
-+	 skb_frag_t *frag;
++	skb_frag_t *frag;
 +
 +	/* Transfers that do not start at 16B aligned addresses will be split;
 +	 * Transfers that cross a 4K page boundary will also be split
@@ -1023,7 +1023,6 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
 +		goto err;
 +	}
 +	copy_skb_header(nskb, skb);
-+
 +	/* We move the headroom when we align it so we have to reset the
 +	 * network and transport header offsets relative to the new data
 +	 * pointer. The checksum offload relies on these offsets.
@@ -1042,9 +1041,10 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
 +}
 +#endif
 +
- static int dpaa_start_xmit(struct sk_buff *skb, struct net_device *net_dev)
+ static netdev_tx_t
+ dpaa_start_xmit(struct sk_buff *skb, struct net_device *net_dev)
  {
- 	const int queue_mapping = skb_get_queue_mapping(skb);
+@@ -2043,6 +2213,7 @@ dpaa_start_xmit(struct sk_buff *skb, str
  	bool nonlinear = skb_is_nonlinear(skb);
  	struct rtnl_link_stats64 *percpu_stats;
  	struct dpaa_percpu_priv *percpu_priv;
@@ -1052,7 +1052,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	struct dpaa_priv *priv;
  	struct qm_fd fd;
  	int offset = 0;
-@@ -2069,24 +2241,47 @@ static int dpaa_start_xmit(struct sk_buf
+@@ -2070,24 +2241,47 @@ dpaa_start_xmit(struct sk_buff *skb, str
  	/* MAX_SKB_FRAGS is equal or larger than our dpaa_SGT_MAX_ENTRIES;
  	 * make sure we don't feed FMan with more fragments than it supports.
  	 */
@@ -1108,7 +1108,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	if (likely(dpaa_xmit(priv, percpu_stats, queue_mapping, &fd) == 0))
  		return NETDEV_TX_OK;
  
-@@ -2218,14 +2413,8 @@ static enum qman_cb_dqrr_result rx_error
+@@ -2219,14 +2413,8 @@ static enum qman_cb_dqrr_result rx_error
  	if (dpaa_eth_napi_schedule(percpu_priv, portal))
  		return qman_cb_dqrr_stop;
  
@@ -1125,7 +1125,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  
  	return qman_cb_dqrr_consume;
  }
-@@ -2234,6 +2423,7 @@ static enum qman_cb_dqrr_result rx_defau
+@@ -2235,6 +2423,7 @@ static enum qman_cb_dqrr_result rx_defau
  						struct qman_fq *fq,
  						const struct qm_dqrr_entry *dq)
  {
@@ -1133,7 +1133,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	struct rtnl_link_stats64 *percpu_stats;
  	struct dpaa_percpu_priv *percpu_priv;
  	const struct qm_fd *fd = &dq->fd;
-@@ -2247,6 +2437,7 @@ static enum qman_cb_dqrr_result rx_defau
+@@ -2248,6 +2437,7 @@ static enum qman_cb_dqrr_result rx_defau
  	struct sk_buff *skb;
  	int *count_ptr;
  	void *vaddr;
@@ -1141,7 +1141,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  
  	fd_status = be32_to_cpu(fd->status);
  	fd_format = qm_fd_get_format(fd);
-@@ -2289,12 +2480,12 @@ static enum qman_cb_dqrr_result rx_defau
+@@ -2290,12 +2480,12 @@ static enum qman_cb_dqrr_result rx_defau
  	if (!dpaa_bp)
  		return qman_cb_dqrr_consume;
  
@@ -1157,7 +1157,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	/* The only FD types that we may receive are contig and S/G */
  	WARN_ON((fd_format != qm_fd_contig) && (fd_format != qm_fd_sg));
  
-@@ -2305,12 +2496,22 @@ static enum qman_cb_dqrr_result rx_defau
+@@ -2306,12 +2496,22 @@ static enum qman_cb_dqrr_result rx_defau
  	(*count_ptr)--;
  
  	if (likely(fd_format == qm_fd_contig))
@@ -1182,7 +1182,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	skb->protocol = eth_type_trans(skb, net_dev);
  
  	if (net_dev->features & NETIF_F_RXHASH && priv->keygen_in_use &&
-@@ -2439,6 +2640,44 @@ static void dpaa_eth_napi_disable(struct
+@@ -2440,6 +2640,44 @@ static void dpaa_eth_napi_disable(struct
  	}
  }
  
@@ -1227,7 +1227,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  static int dpaa_open(struct net_device *net_dev)
  {
  	struct mac_device *mac_dev;
-@@ -2449,12 +2688,9 @@ static int dpaa_open(struct net_device *
+@@ -2450,12 +2688,9 @@ static int dpaa_open(struct net_device *
  	mac_dev = priv->mac_dev;
  	dpaa_eth_napi_enable(priv);
  
@@ -1242,7 +1242,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  
  	for (i = 0; i < ARRAY_SIZE(mac_dev->port); i++) {
  		err = fman_port_enable(mac_dev->port[i]);
-@@ -2495,11 +2731,58 @@ static int dpaa_eth_stop(struct net_devi
+@@ -2496,11 +2731,58 @@ static int dpaa_eth_stop(struct net_devi
  	return err;
  }
  
@@ -1304,7 +1304,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  }
  
  static const struct net_device_ops dpaa_ops = {
-@@ -2653,7 +2936,6 @@ static inline u16 dpaa_get_headroom(stru
+@@ -2654,7 +2936,6 @@ static inline u16 dpaa_get_headroom(stru
  static int dpaa_eth_probe(struct platform_device *pdev)
  {
  	struct dpaa_bp *dpaa_bps[DPAA_BPS_NUM] = {NULL};
@@ -1312,7 +1312,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	struct net_device *net_dev = NULL;
  	struct dpaa_fq *dpaa_fq, *tmp;
  	struct dpaa_priv *priv = NULL;
-@@ -2662,7 +2944,51 @@ static int dpaa_eth_probe(struct platfor
+@@ -2663,7 +2944,51 @@ static int dpaa_eth_probe(struct platfor
  	int err = 0, i, channel;
  	struct device *dev;
  
@@ -1365,7 +1365,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  
  	/* Allocate this early, so we can store relevant information in
  	 * the private area
-@@ -2670,7 +2996,7 @@ static int dpaa_eth_probe(struct platfor
+@@ -2671,7 +2996,7 @@ static int dpaa_eth_probe(struct platfor
  	net_dev = alloc_etherdev_mq(sizeof(*priv), DPAA_ETH_TXQ_NUM);
  	if (!net_dev) {
  		dev_err(dev, "alloc_etherdev_mq() failed\n");
@@ -1374,7 +1374,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	}
  
  	/* Do this here, so we can be verbose early */
-@@ -2682,13 +3008,6 @@ static int dpaa_eth_probe(struct platfor
+@@ -2683,13 +3008,6 @@ static int dpaa_eth_probe(struct platfor
  
  	priv->msg_enable = netif_msg_init(debug, DPAA_MSG_DEFAULT);
  
@@ -1388,7 +1388,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	/* If fsl_fm_max_frm is set to a higher value than the all-common 1500,
  	 * we choose conservatively and let the user explicitly set a higher
  	 * MTU via ifconfig. Otherwise, the user may end up with different MTUs
-@@ -2704,21 +3023,13 @@ static int dpaa_eth_probe(struct platfor
+@@ -2705,21 +3023,13 @@ static int dpaa_eth_probe(struct platfor
  	priv->buf_layout[RX].priv_data_size = DPAA_RX_PRIV_DATA_SIZE; /* Rx */
  	priv->buf_layout[TX].priv_data_size = DPAA_TX_PRIV_DATA_SIZE; /* Tx */
  
@@ -1414,7 +1414,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  		/* the raw size of the buffers used for reception */
  		dpaa_bps[i]->raw_size = bpool_buffer_raw_size(i, DPAA_BPS_NUM);
  		/* avoid runtime computations by keeping the usable size here */
-@@ -2726,11 +3037,8 @@ static int dpaa_eth_probe(struct platfor
+@@ -2727,11 +3037,8 @@ static int dpaa_eth_probe(struct platfor
  		dpaa_bps[i]->dev = dev;
  
  		err = dpaa_bp_alloc_pool(dpaa_bps[i]);
@@ -1428,7 +1428,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  		priv->dpaa_bps[i] = dpaa_bps[i];
  	}
  
-@@ -2741,7 +3049,7 @@ static int dpaa_eth_probe(struct platfor
+@@ -2742,7 +3049,7 @@ static int dpaa_eth_probe(struct platfor
  	err = dpaa_alloc_all_fqs(dev, &priv->dpaa_fq_list, &port_fqs);
  	if (err < 0) {
  		dev_err(dev, "dpaa_alloc_all_fqs() failed\n");
@@ -1437,7 +1437,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	}
  
  	priv->mac_dev = mac_dev;
-@@ -2750,12 +3058,12 @@ static int dpaa_eth_probe(struct platfor
+@@ -2751,12 +3058,12 @@ static int dpaa_eth_probe(struct platfor
  	if (channel < 0) {
  		dev_err(dev, "dpaa_get_channel() failed\n");
  		err = channel;
@@ -1452,7 +1452,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	 * and add this pool channel to each's dequeue mask.
  	 */
  	dpaa_eth_add_channel(priv->channel);
-@@ -2770,20 +3078,20 @@ static int dpaa_eth_probe(struct platfor
+@@ -2771,20 +3078,20 @@ static int dpaa_eth_probe(struct platfor
  	err = dpaa_eth_cgr_init(priv);
  	if (err < 0) {
  		dev_err(dev, "Error initializing CGR\n");
@@ -1476,7 +1476,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	}
  
  	priv->tx_headroom = dpaa_get_headroom(&priv->buf_layout[TX]);
-@@ -2793,7 +3101,7 @@ static int dpaa_eth_probe(struct platfor
+@@ -2794,7 +3101,7 @@ static int dpaa_eth_probe(struct platfor
  	err = dpaa_eth_init_ports(mac_dev, dpaa_bps, DPAA_BPS_NUM, &port_fqs,
  				  &priv->buf_layout[0], dev);
  	if (err)
@@ -1485,7 +1485,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  
  	/* Rx traffic distribution based on keygen hashing defaults to on */
  	priv->keygen_in_use = true;
-@@ -2802,11 +3110,7 @@ static int dpaa_eth_probe(struct platfor
+@@ -2803,11 +3110,7 @@ static int dpaa_eth_probe(struct platfor
  	if (!priv->percpu_priv) {
  		dev_err(dev, "devm_alloc_percpu() failed\n");
  		err = -ENOMEM;
@@ -1498,7 +1498,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	}
  
  	priv->num_tc = 1;
-@@ -2815,11 +3119,11 @@ static int dpaa_eth_probe(struct platfor
+@@ -2816,11 +3119,11 @@ static int dpaa_eth_probe(struct platfor
  	/* Initialize NAPI */
  	err = dpaa_napi_add(net_dev);
  	if (err < 0)
@@ -1512,7 +1512,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  
  	dpaa_eth_sysfs_init(&net_dev->dev);
  
-@@ -2828,32 +3132,21 @@ static int dpaa_eth_probe(struct platfor
+@@ -2829,32 +3132,21 @@ static int dpaa_eth_probe(struct platfor
  
  	return 0;
  
@@ -1551,7 +1551,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	return err;
  }
  
-@@ -2890,6 +3183,23 @@ static int dpaa_remove(struct platform_d
+@@ -2891,6 +3183,23 @@ static int dpaa_remove(struct platform_d
  	return err;
  }
  
@@ -1575,7 +1575,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  static const struct platform_device_id dpaa_devtype[] = {
  	{
  		.name = "dpaa-ethernet",
-@@ -2914,6 +3224,10 @@ static int __init dpaa_load(void)
+@@ -2915,6 +3224,10 @@ static int __init dpaa_load(void)
  
  	pr_debug("FSL DPAA Ethernet driver\n");
  
