@@ -28,7 +28,7 @@ math.randomseed(os.time())
            <div class="pure-u-1-6">
             <div class="block pure-g">
                 <div class="pure-u-3-5">
-                    <h4 id="baidu_status"><%:domestic website%><br /><span class="red"><%:Problem detected%>✘</span></h4>
+                    <h4 id="baidu_status"><%:baidu%><br /><span class="red"><%:Problem detected%>✘</span></h4>
                 </div>
                 <div class="pure-u-2-5">
                     <div class="img-con">
@@ -41,7 +41,7 @@ math.randomseed(os.time())
       <div class="pure-u-1-6">
             <div class="block pure-g">
                 <div class="pure-u-3-5">
-                    <h4 id="google_status"><%:foreign websites%><br /><span class="red"><%:Problem detected%>✘</span></h4>
+                    <h4 id="google_status"><%:youtube%><br /><span class="red"><%:Problem detected%>✘</span></h4>
                 </div>
                 <div class="pure-u-2-5">
                     <div class="img-con">
@@ -115,14 +115,14 @@ math.randomseed(os.time())
                         tb.innerHTML = '<%:Client%><br><span class="red"><%:Not Running%>✘</span>';
                                  }
                     if (data.google) {
-                        tb1.innerHTML = '<%:foreign websites%><br><span class="green"><%:Connect OK%>✔</span>';
+                        tb1.innerHTML = '<%:youtube%><br><span class="green"><%:Connect OK%>✔</span>';
                     } else {
-                        tb1.innerHTML = '<%:foreign websites%><br><span class="red"><%:Problem detected%>✘</span>';
+                        tb1.innerHTML = '<%:youtube%><br><span class="red"><%:Problem detected%>✘</span>';
                     }
                     if (data.baidu) {
-                        tb2.innerHTML = '<%:domestic website%><br><span class="green"><%:Connect OK%>✔</span>';
+                        tb2.innerHTML = '<%:baidu%><br><span class="green"><%:Connect OK%>✔</span>';
                     } else {
-                        tb2.innerHTML = '<%:domestic website%><br><span class="red"><%:Problem detected%>✘</span>';
+                        tb2.innerHTML = '<%:baidu%><br><span class="red"><%:Problem detected%>✘</span>';
                     }
                     if (data.game) {
                         tb3.innerHTML = '<%:Game Mode%><br><span class="green"><%:Running%>✔</span>';
