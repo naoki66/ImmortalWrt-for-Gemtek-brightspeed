@@ -1304,7 +1304,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  }
  
  static const struct net_device_ops dpaa_ops = {
-@@ -2654,7 +2936,6 @@ static inline u16 dpaa_get_headroom(stru
+@@ -2652,7 +2934,6 @@ static inline u16 dpaa_get_headroom(stru
  static int dpaa_eth_probe(struct platform_device *pdev)
  {
  	struct dpaa_bp *dpaa_bps[DPAA_BPS_NUM] = {NULL};
@@ -1312,7 +1312,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	struct net_device *net_dev = NULL;
  	struct dpaa_fq *dpaa_fq, *tmp;
  	struct dpaa_priv *priv = NULL;
-@@ -2663,7 +2944,51 @@ static int dpaa_eth_probe(struct platfor
+@@ -2661,7 +2942,51 @@ static int dpaa_eth_probe(struct platfor
  	int err = 0, i, channel;
  	struct device *dev;
  
@@ -1365,7 +1365,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  
  	/* Allocate this early, so we can store relevant information in
  	 * the private area
-@@ -2671,7 +2996,7 @@ static int dpaa_eth_probe(struct platfor
+@@ -2669,7 +2994,7 @@ static int dpaa_eth_probe(struct platfor
  	net_dev = alloc_etherdev_mq(sizeof(*priv), DPAA_ETH_TXQ_NUM);
  	if (!net_dev) {
  		dev_err(dev, "alloc_etherdev_mq() failed\n");
@@ -1374,7 +1374,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	}
  
  	/* Do this here, so we can be verbose early */
-@@ -2683,13 +3008,6 @@ static int dpaa_eth_probe(struct platfor
+@@ -2681,13 +3006,6 @@ static int dpaa_eth_probe(struct platfor
  
  	priv->msg_enable = netif_msg_init(debug, DPAA_MSG_DEFAULT);
  
@@ -1388,7 +1388,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	/* If fsl_fm_max_frm is set to a higher value than the all-common 1500,
  	 * we choose conservatively and let the user explicitly set a higher
  	 * MTU via ifconfig. Otherwise, the user may end up with different MTUs
-@@ -2705,21 +3023,13 @@ static int dpaa_eth_probe(struct platfor
+@@ -2703,21 +3021,13 @@ static int dpaa_eth_probe(struct platfor
  	priv->buf_layout[RX].priv_data_size = DPAA_RX_PRIV_DATA_SIZE; /* Rx */
  	priv->buf_layout[TX].priv_data_size = DPAA_TX_PRIV_DATA_SIZE; /* Tx */
  
@@ -1414,7 +1414,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  		/* the raw size of the buffers used for reception */
  		dpaa_bps[i]->raw_size = bpool_buffer_raw_size(i, DPAA_BPS_NUM);
  		/* avoid runtime computations by keeping the usable size here */
-@@ -2727,11 +3037,8 @@ static int dpaa_eth_probe(struct platfor
+@@ -2725,11 +3035,8 @@ static int dpaa_eth_probe(struct platfor
  		dpaa_bps[i]->dev = dev;
  
  		err = dpaa_bp_alloc_pool(dpaa_bps[i]);
@@ -1428,7 +1428,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  		priv->dpaa_bps[i] = dpaa_bps[i];
  	}
  
-@@ -2742,7 +3049,7 @@ static int dpaa_eth_probe(struct platfor
+@@ -2740,7 +3047,7 @@ static int dpaa_eth_probe(struct platfor
  	err = dpaa_alloc_all_fqs(dev, &priv->dpaa_fq_list, &port_fqs);
  	if (err < 0) {
  		dev_err(dev, "dpaa_alloc_all_fqs() failed\n");
@@ -1437,7 +1437,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	}
  
  	priv->mac_dev = mac_dev;
-@@ -2751,12 +3058,12 @@ static int dpaa_eth_probe(struct platfor
+@@ -2749,12 +3056,12 @@ static int dpaa_eth_probe(struct platfor
  	if (channel < 0) {
  		dev_err(dev, "dpaa_get_channel() failed\n");
  		err = channel;
@@ -1452,7 +1452,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	 * and add this pool channel to each's dequeue mask.
  	 */
  	dpaa_eth_add_channel(priv->channel);
-@@ -2771,20 +3078,20 @@ static int dpaa_eth_probe(struct platfor
+@@ -2769,20 +3076,20 @@ static int dpaa_eth_probe(struct platfor
  	err = dpaa_eth_cgr_init(priv);
  	if (err < 0) {
  		dev_err(dev, "Error initializing CGR\n");
@@ -1476,7 +1476,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	}
  
  	priv->tx_headroom = dpaa_get_headroom(&priv->buf_layout[TX]);
-@@ -2794,7 +3101,7 @@ static int dpaa_eth_probe(struct platfor
+@@ -2792,7 +3099,7 @@ static int dpaa_eth_probe(struct platfor
  	err = dpaa_eth_init_ports(mac_dev, dpaa_bps, DPAA_BPS_NUM, &port_fqs,
  				  &priv->buf_layout[0], dev);
  	if (err)
@@ -1485,7 +1485,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  
  	/* Rx traffic distribution based on keygen hashing defaults to on */
  	priv->keygen_in_use = true;
-@@ -2803,11 +3110,7 @@ static int dpaa_eth_probe(struct platfor
+@@ -2801,11 +3108,7 @@ static int dpaa_eth_probe(struct platfor
  	if (!priv->percpu_priv) {
  		dev_err(dev, "devm_alloc_percpu() failed\n");
  		err = -ENOMEM;
@@ -1498,7 +1498,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	}
  
  	priv->num_tc = 1;
-@@ -2816,11 +3119,11 @@ static int dpaa_eth_probe(struct platfor
+@@ -2814,11 +3117,11 @@ static int dpaa_eth_probe(struct platfor
  	/* Initialize NAPI */
  	err = dpaa_napi_add(net_dev);
  	if (err < 0)
@@ -1512,7 +1512,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  
  	dpaa_eth_sysfs_init(&net_dev->dev);
  
-@@ -2829,32 +3132,21 @@ static int dpaa_eth_probe(struct platfor
+@@ -2827,32 +3130,21 @@ static int dpaa_eth_probe(struct platfor
  
  	return 0;
  
@@ -1551,7 +1551,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	return err;
  }
  
-@@ -2891,6 +3183,23 @@ static int dpaa_remove(struct platform_d
+@@ -2889,6 +3181,23 @@ static int dpaa_remove(struct platform_d
  	return err;
  }
  
@@ -1575,7 +1575,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  static const struct platform_device_id dpaa_devtype[] = {
  	{
  		.name = "dpaa-ethernet",
-@@ -2915,6 +3224,10 @@ static int __init dpaa_load(void)
+@@ -2913,6 +3222,10 @@ static int __init dpaa_load(void)
  
  	pr_debug("FSL DPAA Ethernet driver\n");
  
@@ -1698,7 +1698,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
 +fsl_dpaa_mac-objs:= mac.o fman_dtsec.o fman_memac.o fman_tgec.o
 --- a/drivers/net/ethernet/freescale/fman/fman.c
 +++ b/drivers/net/ethernet/freescale/fman/fman.c
-@@ -629,6 +629,7 @@ static void set_port_order_restoration(s
+@@ -634,6 +634,7 @@ static void set_port_order_restoration(s
  	iowrite32be(tmp, &fpm_rg->fmfp_prc);
  }
  
@@ -1706,7 +1706,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  static void set_port_liodn(struct fman *fman, u8 port_id,
  			   u32 liodn_base, u32 liodn_ofst)
  {
-@@ -646,6 +647,27 @@ static void set_port_liodn(struct fman *
+@@ -651,6 +652,27 @@ static void set_port_liodn(struct fman *
  	iowrite32be(tmp, &fman->dma_regs->fmdmplr[port_id / 2]);
  	iowrite32be(liodn_ofst, &fman->bmi_regs->fmbm_spliodn[port_id - 1]);
  }
@@ -1734,7 +1734,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  
  static void enable_rams_ecc(struct fman_fpm_regs __iomem *fpm_rg)
  {
-@@ -1914,7 +1936,10 @@ _return:
+@@ -1919,7 +1941,10 @@ _return:
  static int fman_init(struct fman *fman)
  {
  	struct fman_cfg *cfg = NULL;
@@ -1746,7 +1746,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  
  	if (is_init_done(fman->cfg))
  		return -EINVAL;
-@@ -1934,6 +1959,7 @@ static int fman_init(struct fman *fman)
+@@ -1939,6 +1964,7 @@ static int fman_init(struct fman *fman)
  	memset_io((void __iomem *)(fman->base_addr + CGP_OFFSET), 0,
  		  fman->state->fm_port_num_of_cg);
  
@@ -1754,7 +1754,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  	/* Save LIODN info before FMan reset
  	 * Skipping non-existent port 0 (i = 1)
  	 */
-@@ -1953,6 +1979,9 @@ static int fman_init(struct fman *fman)
+@@ -1958,6 +1984,9 @@ static int fman_init(struct fman *fman)
  		}
  		fman->liodn_base[i] = liodn_base;
  	}
@@ -1764,7 +1764,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  
  	err = fman_reset(fman);
  	if (err)
-@@ -2181,8 +2210,12 @@ int fman_set_port_params(struct fman *fm
+@@ -2186,8 +2215,12 @@ int fman_set_port_params(struct fman *fm
  	if (err)
  		goto return_err;
  
@@ -1777,7 +1777,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  
  	if (fman->state->rev_info.major < 6)
  		set_port_order_restoration(fman->fpm_regs, port_id);
-@@ -2800,7 +2833,8 @@ static struct fman *read_dts_node(struct
+@@ -2813,7 +2846,8 @@ static struct fman *read_dts_node(struct
  
  	of_node_put(muram_node);
  
@@ -1789,7 +1789,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  			__func__, irq, err);
 --- a/drivers/net/ethernet/freescale/fman/fman.h
 +++ b/drivers/net/ethernet/freescale/fman/fman.h
-@@ -41,6 +41,7 @@
+@@ -42,6 +42,7 @@
  /* Frame queue Context Override */
  #define FM_FD_CMD_FCO                   0x80000000
  #define FM_FD_CMD_RPD                   0x40000000  /* Read Prepended Data */
@@ -1797,7 +1797,7 @@ Signed-off-by: Zhao Qiang <qiang.zhao@nxp.com>
  #define FM_FD_CMD_DTC                   0x10000000  /* Do L4 Checksum */
  
  /* TX-Port: Unsupported Format */
-@@ -345,8 +346,12 @@ struct fman {
+@@ -346,8 +347,12 @@ struct fman {
  	unsigned long fifo_offset;
  	size_t fifo_size;
  
