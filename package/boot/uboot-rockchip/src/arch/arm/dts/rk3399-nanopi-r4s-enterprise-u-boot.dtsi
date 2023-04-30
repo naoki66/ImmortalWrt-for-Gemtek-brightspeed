@@ -1,3 +1,19 @@
-// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
 
 #include "rk3399-nanopi-r4s-u-boot.dtsi"
+
+/ {
+	smbios {
+		compatible = "u-boot,sysinfo-smbios";
+
+		smbios {
+			system {
+				product = "NanoPi R4S Enterprise Edition";
+			};
+
+			baseboard {
+				product = "NanoPi R4S Enterprise Edition";
+			};
+		};
+	};
+};
