@@ -7,35 +7,45 @@ Subject: [PATCH] mips: kernel: fix detect_memory_region() function
 2. Use a fixed pattern instead of a random function pointer as the
    magic value.
 3. Flip magic value and double check it.
+4. Enable this feature only for 32-bit CPUs. Currently, only ath79 and
+   ralink CPUs are using it.
 
 [1] 439a1bcac648 ("fortify: Use __builtin_dynamic_object_size() when available")
 Signed-off-by: Shiji Yang <yangshiji66@outlook.com>
 ---
- arch/mips/kernel/setup.c | 16 +++++++++++-----
- 1 file changed, 11 insertions(+), 5 deletions(-)
+ arch/mips/include/asm/bootinfo.h |  2 ++
+ arch/mips/kernel/setup.c         | 17 ++++++++++++-----
+ 2 files changed, 14 insertions(+), 5 deletions(-)
 
+--- a/arch/mips/include/asm/bootinfo.h
++++ b/arch/mips/include/asm/bootinfo.h
+@@ -93,7 +93,9 @@ const char *get_system_type(void);
+ 
+ extern unsigned long mips_machtype;
+ 
++#ifndef CONFIG_64BIT
+ extern void detect_memory_region(phys_addr_t start, phys_addr_t sz_min,  phys_addr_t sz_max);
++#endif
+ 
+ extern void prom_init(void);
+ extern void prom_free_prom_memory(void);
 --- a/arch/mips/kernel/setup.c
 +++ b/arch/mips/kernel/setup.c
-@@ -46,6 +46,8 @@
- #include <asm/prom.h>
- #include <asm/fw/fw.h>
- 
-+#define MIPS_MEM_TEST_PATTERN		0xaa5555aa
-+
- #ifdef CONFIG_MIPS_ELF_APPENDED_DTB
- char __section(".appended_dtb") __appended_dtb[0x100000];
- #endif /* CONFIG_MIPS_ELF_APPENDED_DTB */
-@@ -90,7 +92,7 @@ static struct resource bss_resource = {
+@@ -90,21 +90,27 @@ static struct resource bss_resource = {
  unsigned long __kaslr_offset __ro_after_init;
  EXPORT_SYMBOL(__kaslr_offset);
  
 -static void *detect_magic __initdata = detect_memory_region;
-+static u32 detect_magic __initdata;
- 
+-
  #ifdef CONFIG_MIPS_AUTO_PFN_OFFSET
  unsigned long ARCH_PFN_OFFSET;
-@@ -99,12 +101,16 @@ EXPORT_SYMBOL(ARCH_PFN_OFFSET);
+ EXPORT_SYMBOL(ARCH_PFN_OFFSET);
+ #endif
  
++#ifndef CONFIG_64BIT
++static u32 detect_magic __initdata;
++#define MIPS_MEM_TEST_PATTERN		0xaa5555aa
++
  void __init detect_memory_region(phys_addr_t start, phys_addr_t sz_min, phys_addr_t sz_max)
  {
 -	void *dm = &detect_magic;
@@ -54,3 +64,11 @@ Signed-off-by: Shiji Yang <yangshiji66@outlook.com>
  	}
  
  	pr_debug("Memory: %lluMB of RAM detected at 0x%llx (min: %lluMB, max: %lluMB)\n",
+@@ -115,6 +121,7 @@ void __init detect_memory_region(phys_ad
+ 
+ 	memblock_add(start, size);
+ }
++#endif /* CONFIG_64BIT */
+ 
+ /*
+  * Manage initrd
