@@ -56,3 +56,9 @@ define Device/zyxel_xs1930
   $(Device/zyxel_zynos)
 endef
 
+define Device/zyxel_xs1930-10
+  DEVICE_MODEL := XS1930-10
+  $(Device/zyxel_xs1930)
+endef
+TARGET_DEVICES += zyxel_xs1930-10
+
