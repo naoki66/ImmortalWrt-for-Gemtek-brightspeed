@@ -119,16 +119,7 @@ endif
   DEVICE_MODEL := GS1920-24HP
   DEVICE_PACKAGES := \
 	  kmod-hwmon-lm85
-  KERNEL := \
-    kernel-bin | \
-    append-dtb | \
-    rt-compress | \
-    uImage lzma
-  KERNEL_INITRAMFS := \
-    kernel-bin | \
-    append-dtb | \
-    rt-compress | \
-    rt-loader
+  $(Device/rt-loader-bootbase)
 endef
 
 define Device/zyxel_gs1920-24hp-v1
