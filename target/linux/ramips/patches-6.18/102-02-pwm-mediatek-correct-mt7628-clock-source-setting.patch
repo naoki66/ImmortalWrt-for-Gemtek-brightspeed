@@ -16,34 +16,34 @@ Signed-off-by: Shiji Yang <yangshiji66@outlook.com>
 
 --- a/drivers/pwm/pwm-mediatek.c
 +++ b/drivers/pwm/pwm-mediatek.c
-@@ -21,6 +21,8 @@
+@@ -22,6 +22,8 @@
  
  /* PWM registers and bits definitions */
  #define PWMCON			0x00
 +#define PWMCON_CLKSEL			BIT(3)
 +#define PWMCON_OLD_PWM_MODE		BIT(15)
+ #define PWMCON_CLKDIV			GENMASK(2, 0)
  #define PWMHDUR			0x04
  #define PWMLDUR			0x08
- #define PWMGDUR			0x0c
-@@ -35,6 +37,7 @@
+@@ -38,6 +40,7 @@
  
  struct pwm_mediatek_of_data {
  	unsigned int num_pwms;
 +	bool clksel_fixup;
  	bool pwm45_fixup;
- 	bool has_ck_26m_sel;
- 	const unsigned int *reg_offset;
-@@ -141,6 +144,7 @@ static int pwm_mediatek_config(struct pw
- 	struct pwm_mediatek_chip *pc = to_pwm_mediatek_chip(chip);
- 	u32 clkdiv = 0, cnt_period, cnt_duty, reg_width = PWMDWIDTH,
- 	    reg_thres = PWMTHRES;
+ 	u16 pwm_ck_26m_sel_reg;
+ 	unsigned int chanreg_base;
+@@ -162,6 +165,7 @@ static int pwm_mediatek_config(struct pw
+ 	u32 clkdiv, enable;
+ 	u32 reg_width = PWMDWIDTH, reg_thres = PWMTHRES;
+ 	u64 cnt_period, cnt_duty;
 +	u32 con_val;
  	unsigned long clk_rate;
- 	u64 resolution;
  	int ret;
-@@ -191,7 +195,12 @@ static int pwm_mediatek_config(struct pw
  
- 	cnt_duty = DIV_ROUND_CLOSEST_ULL((u64)duty_ns * 1000, resolution);
+@@ -218,7 +222,12 @@ static int pwm_mediatek_config(struct pw
+ 		reg_thres = PWM45THRES_FIXUP;
+ 	}
  
 -	pwm_mediatek_writel(pc, pwm->hwpwm, PWMCON, BIT(15) | clkdiv);
 +	con_val = PWMCON_OLD_PWM_MODE | clkdiv;
@@ -52,14 +52,14 @@ Signed-off-by: Shiji Yang <yangshiji66@outlook.com>
 +		con_val |= PWMCON_CLKSEL;
 +
 +	pwm_mediatek_writel(pc, pwm->hwpwm, PWMCON, con_val);
- 	pwm_mediatek_writel(pc, pwm->hwpwm, reg_width, cnt_period - 1);
+ 	pwm_mediatek_writel(pc, pwm->hwpwm, reg_width, cnt_period);
  
- 	if (cnt_duty) {
-@@ -324,6 +333,7 @@ static const struct pwm_mediatek_of_data
+ 	if (enable) {
+@@ -458,6 +467,7 @@ static const struct pwm_mediatek_of_data
  
  static const struct pwm_mediatek_of_data mt7628_pwm_data = {
  	.num_pwms = 4,
 +	.clksel_fixup = true,
  	.pwm45_fixup = false,
- 	.has_ck_26m_sel = false,
- 	.reg_offset = mtk_pwm_reg_offset_v1,
+ 	.chanreg_base = 0x10,
+ 	.chanreg_width = 0x40,

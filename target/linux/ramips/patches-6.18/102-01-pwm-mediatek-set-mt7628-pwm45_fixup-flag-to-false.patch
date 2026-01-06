@@ -14,12 +14,12 @@ Signed-off-by: Shiji Yang <yangshiji66@outlook.com>
 
 --- a/drivers/pwm/pwm-mediatek.c
 +++ b/drivers/pwm/pwm-mediatek.c
-@@ -324,7 +324,7 @@ static const struct pwm_mediatek_of_data
+@@ -458,7 +458,7 @@ static const struct pwm_mediatek_of_data
  
  static const struct pwm_mediatek_of_data mt7628_pwm_data = {
  	.num_pwms = 4,
 -	.pwm45_fixup = true,
 +	.pwm45_fixup = false,
- 	.has_ck_26m_sel = false,
- 	.reg_offset = mtk_pwm_reg_offset_v1,
+ 	.chanreg_base = 0x10,
+ 	.chanreg_width = 0x40,
  };
