@@ -138,6 +138,7 @@ enum rtpcs_sds_media {
 	RTPCS_SDS_MEDIA_FIBER,
 	RTPCS_SDS_MEDIA_DAC_SHORT,	/*  < 3m */
 	RTPCS_SDS_MEDIA_DAC_LONG,	/* >= 3m */
+	RTPCS_SDS_MEDIA_PCB,
 };
 
 enum rtpcs_sds_pll_type {
@@ -477,6 +478,16 @@ static int rtpcs_sds_determine_hw_mode(struct rtpcs_serdes *sds,
 	/* TODO: check if the particular SerDes supports the mode */
 
 	return 0;
+}
+
+static bool rtpcs_sds_mode_is_usxgmii(enum rtpcs_sds_mode hw_mode)
+{
+	return (hw_mode == RTPCS_SDS_MODE_USXGMII_10GSXGMII ||
+		hw_mode == RTPCS_SDS_MODE_USXGMII_10GDXGMII ||
+		hw_mode == RTPCS_SDS_MODE_USXGMII_10GQXGMII ||
+		hw_mode == RTPCS_SDS_MODE_USXGMII_5GSXGMII ||
+		hw_mode == RTPCS_SDS_MODE_USXGMII_5GDXGMII ||
+		hw_mode == RTPCS_SDS_MODE_USXGMII_2_5GSXGMII);
 }
 
 /* Generic auto-negotiation config */
@@ -3657,7 +3668,9 @@ static int rtpcs_931x_sds_set_media(struct rtpcs_serdes *sds, enum rtpcs_sds_med
 
 	is_dac = (sds_media == RTPCS_SDS_MEDIA_DAC_SHORT ||
 		  sds_media == RTPCS_SDS_MEDIA_DAC_LONG);
-	is_10g = (hw_mode == RTPCS_SDS_MODE_10GBASER);
+	is_10g = (hw_mode == RTPCS_SDS_MODE_10GBASER ||
+		  hw_mode == RTPCS_SDS_MODE_XSGMII ||
+		  rtpcs_sds_mode_is_usxgmii(hw_mode));
 
 	rtpcs_sds_write_bits(sds, 0x20, 0x0, 11, 10, 0x0);
 	rtpcs_sds_write_bits(sds, 0x2a, 0x7, 15, 15, is_dac ? 0x1 : 0x0);
@@ -3787,6 +3800,7 @@ static int rtpcs_931x_setup_serdes(struct rtpcs_serdes *sds,
 {
 	struct rtpcs_serdes *even_sds = rtpcs_sds_get_even(sds);
 	struct rtpcs_ctrl *ctrl = sds->ctrl;
+	enum rtpcs_sds_media sds_media;
 	u32 sds_id = sds->id;
 	u32 val;
 	int ret;
@@ -3835,16 +3849,22 @@ static int rtpcs_931x_setup_serdes(struct rtpcs_serdes *sds,
 
 	switch (hw_mode) {
 	case RTPCS_SDS_MODE_OFF:
-		ret = rtpcs_931x_sds_set_media(sds, RTPCS_SDS_MEDIA_NONE, hw_mode);
+		sds_media = RTPCS_SDS_MEDIA_NONE;
 		break;
 	case RTPCS_SDS_MODE_SGMII:
 	case RTPCS_SDS_MODE_1000BASEX:
 	case RTPCS_SDS_MODE_2500BASEX:
 	case RTPCS_SDS_MODE_10GBASER:
-		ret = rtpcs_931x_sds_set_media(sds, RTPCS_SDS_MEDIA_FIBER, hw_mode);
+		sds_media = RTPCS_SDS_MEDIA_FIBER;
 		break;
 	default:
+		sds_media = RTPCS_SDS_MEDIA_PCB;
 		break;
+	}
+	ret = rtpcs_931x_sds_set_media(sds, sds_media, hw_mode);
+	if (ret < 0) {
+		dev_err(ctrl->dev, "failed to config SerDes for media: %d\n", ret);
+		return ret;
 	}
 
 	rtpcs_931x_sds_set_polarity(sds, sds->tx_pol_inv, sds->rx_pol_inv);
