@@ -105,6 +105,10 @@
 #define RTPCS_931X_MAC_SERDES_MODE_CTRL(sds)	(0x136C + (((sds) << 2)))
 #define RTPCS_931X_ISR_SERDES_RXIDLE		(0x12f8)
 
+#define RTPCS_931X_SDS_PRE_AMP_MASK		GENMASK(4, 0)
+#define RTPCS_931X_SDS_MAIN_AMP_MASK		GENMASK(9, 5)
+#define RTPCS_931X_SDS_POST_AMP_MASK		GENMASK(14, 10)
+
 enum rtpcs_sds_mode {
 	RTPCS_SDS_MODE_OFF = 0,
 
@@ -246,6 +250,12 @@ struct rtpcs_sds_config {
 	u8 page;
 	u8 reg;
 	u16 data;
+};
+
+struct rtpcs_sds_tx_config {
+	u8 pre_amp;
+	u8 main_amp;
+	u8 post_amp;
 };
 
 static int rtpcs_sds_to_mmd(int sds_page, int sds_regnum)
@@ -3490,6 +3500,36 @@ static int rtpcs_931x_sds_set_polarity(struct rtpcs_serdes *sds,
 	return rtpcs_sds_write_bits(sds, 0x80, 0x0, 9, 8, val);
 }
 
+/**
+ * rtpcs_931x_sds_config_tx_amps - Configure SerDes TX amplifiers
+ *
+ * A SerDes has three amplifiers (pre, main, post) in the TX path that allow to tune the signal,
+ * usually based on eye diagrams. This is needed to account for different tx media, i.e. PCB
+ * trace, fiber, DAC. Using the amplifier coefficients, one can precondition the signal in such
+ * a way so that it arrives "clean" at the partner.
+ */
+static int rtpcs_931x_sds_config_tx_amps(struct rtpcs_serdes *sds, u8 pre_amp, u8 main_amp,
+					 u8 post_amp)
+{
+	u16 cfg_val, en_val = 0;
+	int ret;
+
+	cfg_val = FIELD_PREP(RTPCS_931X_SDS_PRE_AMP_MASK, pre_amp) |
+		  FIELD_PREP(RTPCS_931X_SDS_MAIN_AMP_MASK, main_amp) |
+		  FIELD_PREP(RTPCS_931X_SDS_POST_AMP_MASK, post_amp);
+	ret = rtpcs_sds_write(sds, 0x2e, 0x1, cfg_val);
+	if (ret < 0)
+		return ret;
+
+	/* enable/disable pre + post amp, main amp has no enable bit so seems always active */
+	if (post_amp)
+		en_val |= BIT(0);
+	if (pre_amp)
+		en_val |= BIT(1);
+
+	return rtpcs_sds_write_bits(sds, 0x2e, 0x0, 1, 0, en_val);
+}
+
 static int rtpcs_931x_sds_set_media(struct rtpcs_serdes *sds, enum rtpcs_sds_media sds_media,
 				    enum rtpcs_sds_mode hw_mode)
 {
@@ -3535,13 +3575,13 @@ static int rtpcs_931x_sds_set_media(struct rtpcs_serdes *sds, enum rtpcs_sds_med
 
 	switch (sds_media) {
 	case RTPCS_SDS_MEDIA_DAC_SHORT:
-		rtpcs_sds_write_bits(sds, 0x2e, 0x1, 15, 0, 0x1340);
+		rtpcs_931x_sds_config_tx_amps(sds, 0x0, 0x1a, 0x4);
 		rtpcs_sds_write(sds, 0x21, 0x19, 0xf0a5);	/* from XS1930-10 SDK */
 		rtpcs_sds_write(even_sds, 0x2e, 0x8, 0x02a0);	/* [10:7] impedance */
 		break;
 
 	case RTPCS_SDS_MEDIA_DAC_LONG:
-		rtpcs_sds_write_bits(sds, 0x2e, 0x1, 15, 0, 0x5200);
+		rtpcs_931x_sds_config_tx_amps(sds, 0x0, 0x10, 0x14);
 		rtpcs_sds_write(sds, 0x21, 0x19, 0xf0a5);	/* from XS1930-10 SDK */
 		rtpcs_sds_write(even_sds, 0x2e, 0x8, 0x02a0);	/* [10:7] impedance */
 		break;
@@ -3667,15 +3707,36 @@ static int rtpcs_931x_sds_config_hw_mode(struct rtpcs_serdes *sds,
 static int rtpcs_931x_setup_serdes(struct rtpcs_serdes *sds,
 				   enum rtpcs_sds_mode hw_mode)
 {
-	u32 board_sds_tx[] = {
-		0x1a00, 0x1a00, 0x0200, 0x0200, 0x0200, 0x0200,
-		0x01a3, 0x01a3, 0x01a3, 0x01a3, 0x01e3, 0x01e3
+	const struct rtpcs_sds_tx_config tx_cfg_v1[] = {
+		{ .pre_amp = 0x00, .main_amp = 0x10, .post_amp = 0x06 },
+		{ .pre_amp = 0x00, .main_amp = 0x10, .post_amp = 0x06 },
+		{ .pre_amp = 0x00, .main_amp = 0x10 },
+		{ .pre_amp = 0x00, .main_amp = 0x10 },
+		{ .pre_amp = 0x00, .main_amp = 0x10 },
+		{ .pre_amp = 0x00, .main_amp = 0x10 },
+		{ .pre_amp = 0x03, .main_amp = 0x0d },
+		{ .pre_amp = 0x03, .main_amp = 0x0d },
+		{ .pre_amp = 0x03, .main_amp = 0x0d },
+		{ .pre_amp = 0x03, .main_amp = 0x0d },
+		{ .pre_amp = 0x03, .main_amp = 0x0f },
+		{ .pre_amp = 0x03, .main_amp = 0x0f },
 	};
-	u32 board_sds_tx2[] = {
-		0x0dc0, 0x01c0, 0x0200, 0x0180, 0x0160, 0x0123,
-		0x0123, 0x0163, 0x01a3, 0x01a0, 0x01c3, 0x09c3,
+	const struct rtpcs_sds_tx_config tx_cfg_v2[] = {
+		{ .pre_amp = 0x00, .main_amp = 0x0e, .post_amp = 0x03 },
+		{ .pre_amp = 0x00, .main_amp = 0x0e },
+		{ .pre_amp = 0x00, .main_amp = 0x10 },
+		{ .pre_amp = 0x00, .main_amp = 0x0c },
+		{ .pre_amp = 0x00, .main_amp = 0x0b },
+		{ .pre_amp = 0x03, .main_amp = 0x09 },
+		{ .pre_amp = 0x03, .main_amp = 0x09 },
+		{ .pre_amp = 0x03, .main_amp = 0x0b },
+		{ .pre_amp = 0x03, .main_amp = 0x0d },
+		{ .pre_amp = 0x00, .main_amp = 0x0d },
+		{ .pre_amp = 0x03, .main_amp = 0x0e },
+		{ .pre_amp = 0x03, .main_amp = 0x0e, .post_amp = 0x02 },
 	};
 	struct rtpcs_serdes *even_sds = rtpcs_sds_get_even(sds);
+	const struct rtpcs_sds_tx_config *tx_cfg;
 	struct rtpcs_ctrl *ctrl = sds->ctrl;
 	u32 sds_id = sds->id;
 	u32 val;
@@ -3738,11 +3799,11 @@ static int rtpcs_931x_setup_serdes(struct rtpcs_serdes *sds,
 	}
 
 	if (sds_id >= 2) {
-		if (ctrl->chip_version == RTPCS_CHIP_V2)
-			/* consider 9311 etc. RTL9313_CHIP_ID == HWP_CHIP_ID(unit)) */
-			rtpcs_sds_write(sds, 0x2E, 0x1, board_sds_tx2[sds_id - 2]);
-		else
-			rtpcs_sds_write(sds, 0x2E, 0x1, board_sds_tx[sds_id - 2]);
+		/* consider 9311 etc. RTL9313_CHIP_ID == HWP_CHIP_ID(unit)) */
+		tx_cfg = (ctrl->chip_version == RTPCS_CHIP_V2) ? &tx_cfg_v2[sds_id - 2]
+							       : &tx_cfg_v1[sds_id - 2];
+		rtpcs_931x_sds_config_tx_amps(sds, tx_cfg->pre_amp, tx_cfg->main_amp,
+					      tx_cfg->post_amp);
 	}
 
 	rtpcs_931x_sds_set_polarity(sds, sds->tx_pol_inv, sds->rx_pol_inv);
