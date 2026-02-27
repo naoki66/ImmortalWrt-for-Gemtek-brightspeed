@@ -142,9 +142,14 @@
 &i2c_mst1 {
 	status = "okay";
 
-	/* SDA0-7 correspond to GPIO9-16 */
 	i2c0: i2c@0 {
 		reg = <0>;
+
+		/* NXP LM75BD */
+		sensor@48 {
+			compatible = "national,lm75b";
+			reg = <0x48>;
+		};
 	};
 	i2c1: i2c@1 {
 		reg = <1>;
