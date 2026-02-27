@@ -34,16 +34,6 @@
 		};
 	};
 
-	leds {
-		compatible = "gpio-leds";
-
-		led_sys: led-0 {
-			gpios = <&gpio0 23 GPIO_ACTIVE_HIGH>;
-			color = <LED_COLOR_ID_GREEN>;
-			function = LED_FUNCTION_STATUS;
-		};
-	};
-
 	led_set {
 		compatible = "realtek,rtl9300-leds";
 		active-low;
