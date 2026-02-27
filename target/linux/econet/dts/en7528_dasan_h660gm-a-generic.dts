@@ -81,6 +81,11 @@
 };
 
 &partitions {
+	partition@60c0000 {
+		label = "unknown";
+		reg = <0x60c0000 0xd00000>;
+	};
+
 	partition@6dc0000 {
 		label = "reservearea";
 		reg = <0x6dc0000 0x240000>;
