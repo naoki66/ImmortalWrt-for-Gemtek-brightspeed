@@ -228,6 +228,7 @@ platform_do_upgrade() {
 		nand_do_upgrade "$1"
 		;;
 	elecom,wrc-x3000gs3|\
+	elecom,wrc-x6000gsd|\
 	elecom,wrc-x6000qs)
 		local bootnum="$(mstc_rw_bootnum)"
 		case "$bootnum" in
@@ -445,6 +446,7 @@ platform_pre_upgrade() {
 	buffalo,wsr-6000ax8)
 		buffalo_initial_setup
 		;;
+	elecom,wrc-x6000gsd|\
 	elecom,wrc-x6000qs)
 		local delay=$(fw_printenv -n bootmenu_delay)
 
