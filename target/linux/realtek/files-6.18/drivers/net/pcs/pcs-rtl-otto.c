@@ -162,7 +162,7 @@ enum rtpcs_chip_version {
 struct rtpcs_ctrl;
 struct rtpcs_serdes;
 
-struct rtpcs_serdes_ops {
+struct rtpcs_sds_ops {
 	int (*read)(struct rtpcs_serdes *sds, int page, int regnum, int bithigh, int bitlow);
 	int (*write)(struct rtpcs_serdes *sds, int page, int regnum, int bithigh, int bitlow,
 		     u16 value);
@@ -199,7 +199,7 @@ struct rtpcs_sds_regs {
 
 struct rtpcs_serdes {
 	struct rtpcs_ctrl *ctrl;
-	const struct rtpcs_serdes_ops *ops;
+	const struct rtpcs_sds_ops *ops;
 	const struct rtpcs_sds_regs *regs;
 	enum rtpcs_sds_mode hw_mode;
 	u8 id;
@@ -241,7 +241,7 @@ struct rtpcs_config {
 	u8 serdes_count;
 
 	const struct phylink_pcs_ops *pcs_ops;
-	const struct rtpcs_serdes_ops *sds_ops;
+	const struct rtpcs_sds_ops *sds_ops;
 	const struct rtpcs_sds_regs *sds_regs;
 	int (*init_serdes_common)(struct rtpcs_ctrl *ctrl);
 	int (*setup_serdes)(struct rtpcs_serdes *sds, enum rtpcs_sds_mode hw_mode);
@@ -4090,7 +4090,7 @@ static const struct phylink_pcs_ops rtpcs_838x_pcs_ops = {
 	.pcs_get_state		= rtpcs_pcs_get_state,
 };
 
-static const struct rtpcs_serdes_ops rtpcs_838x_sds_ops = {
+static const struct rtpcs_sds_ops rtpcs_838x_sds_ops = {
 	.read			= rtpcs_generic_sds_op_read,
 	.write			= rtpcs_generic_sds_op_write,
 	.set_autoneg		= rtpcs_generic_sds_set_autoneg,
@@ -4125,7 +4125,7 @@ static const struct phylink_pcs_ops rtpcs_839x_pcs_ops = {
 	.pcs_get_state		= rtpcs_pcs_get_state,
 };
 
-static const struct rtpcs_serdes_ops rtpcs_839x_sds_ops = {
+static const struct rtpcs_sds_ops rtpcs_839x_sds_ops = {
 	.read			= rtpcs_generic_sds_op_read,
 	.write			= rtpcs_generic_sds_op_write,
 	.set_autoneg		= rtpcs_generic_sds_set_autoneg,
@@ -4160,7 +4160,7 @@ static const struct phylink_pcs_ops rtpcs_930x_pcs_ops = {
 	.pcs_get_state		= rtpcs_pcs_get_state,
 };
 
-static const struct rtpcs_serdes_ops rtpcs_930x_sds_ops = {
+static const struct rtpcs_sds_ops rtpcs_930x_sds_ops = {
 	.read			= rtpcs_930x_sds_op_read,
 	.write			= rtpcs_930x_sds_op_write,
 	.xsg_write		= rtpcs_930x_sds_op_xsg_write,
@@ -4200,7 +4200,7 @@ static const struct phylink_pcs_ops rtpcs_931x_pcs_ops = {
 	.pcs_get_state		= rtpcs_pcs_get_state,
 };
 
-static const struct rtpcs_serdes_ops rtpcs_931x_sds_ops = {
+static const struct rtpcs_sds_ops rtpcs_931x_sds_ops = {
 	.read			= rtpcs_generic_sds_op_read,
 	.write			= rtpcs_generic_sds_op_write,
 	.xsg_write		= rtpcs_931x_sds_op_xsg_write,
