@@ -832,6 +832,16 @@ define Device/bazis_ax3000wm
 endef
 TARGET_DEVICES += bazis_ax3000wm
 
+define Device/buffalo_wsr-3000ax4p
+  DEVICE_VENDOR := BUFFALO
+  DEVICE_MODEL := WSR-3000AX4P
+  DEVICE_DTS_DIR := ../dts
+  DEVICE_DTS := mt7981b-buffalo-wsr-3000ax4p
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  DEVICE_PACKAGES := kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware
+endef
+TARGET_DEVICES += buffalo_wsr-3000ax4p
+
 define Device/buffalo_wsr-6000ax8
   DEVICE_MODEL := WSR-6000AX8
   DEVICE_VENDOR := Buffalo
