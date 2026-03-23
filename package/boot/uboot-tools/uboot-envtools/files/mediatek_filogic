@@ -104,6 +104,7 @@ jdcloud,re-cp-03)
 		;;
 	esac
 	;;
+buffalo,wsr-3000ax4p|\
 buffalo,wsr-6000ax8|\
 mercusys,mr80x-v3|\
 mercusys,mr85x|\
