@@ -3525,9 +3525,6 @@ static int rtpcs_931x_sds_set_media(struct rtpcs_serdes *sds, enum rtpcs_sds_med
 	if (sds_media == RTPCS_SDS_MEDIA_NONE)
 		return 0;
 
-	rtpcs_sds_write(sds, 0x21, 0x19, 0xf0f0); /* from XS1930-10 SDK */
-	rtpcs_sds_write(even_sds, 0x2e, 0x8, 0x0294);	/* [10:7] impedance */
-
 	is_dac = (sds_media == RTPCS_SDS_MEDIA_DAC_SHORT ||
 		  sds_media == RTPCS_SDS_MEDIA_DAC_LONG);
 	is_10g = (hw_mode == RTPCS_SDS_MODE_10GBASER);
@@ -3536,23 +3533,17 @@ static int rtpcs_931x_sds_set_media(struct rtpcs_serdes *sds, enum rtpcs_sds_med
 	rtpcs_sds_write_bits(sds, 0x2a, 0x7, 15, 15, is_dac ? 0x1 : 0x0);
 	rtpcs_sds_write_bits(sds, 0x20, 0x0, 11, 10, 0x3);
 
-	/* Skip the TX settings for non-10G for now because we do not know
-	 * if they have an effect for non-10G.
-	 */
-	if (!is_10g)
-		goto skip_tx;
-
 	switch (sds_media) {
 	case RTPCS_SDS_MEDIA_DAC_SHORT:
 		rtpcs_sds_write_bits(sds, 0x2e, 0x1, 15, 0, 0x1340);
-		rtpcs_sds_write(sds, 0x21, 0x19, 0xf0a5); /* from XS1930-10 SDK */
-		rtpcs_sds_write(even_sds, 0x2e, 0x8, 0x02a0); /* [10:7] impedance */
+		rtpcs_sds_write(sds, 0x21, 0x19, 0xf0a5);	/* from XS1930-10 SDK */
+		rtpcs_sds_write(even_sds, 0x2e, 0x8, 0x02a0);	/* [10:7] impedance */
 		break;
 
 	case RTPCS_SDS_MEDIA_DAC_LONG:
 		rtpcs_sds_write_bits(sds, 0x2e, 0x1, 15, 0, 0x5200);
-		rtpcs_sds_write(sds, 0x21, 0x19, 0xf0a5); /* from XS1930-10 SDK */
-		rtpcs_sds_write(even_sds, 0x2e, 0x8, 0x02a0); /* [10:7] impedance */
+		rtpcs_sds_write(sds, 0x21, 0x19, 0xf0a5);	/* from XS1930-10 SDK */
+		rtpcs_sds_write(even_sds, 0x2e, 0x8, 0x02a0);	/* [10:7] impedance */
 		break;
 
 	case RTPCS_SDS_MEDIA_FIBER:
@@ -3562,13 +3553,16 @@ static int rtpcs_931x_sds_set_media(struct rtpcs_serdes *sds, enum rtpcs_sds_med
 		 * see phy_rtl9310_init in SDK
 		 */
 		// rtpcs_sds_write(sds, 0x2e, 0x1, phy_rtl9310_10g_tx[unit][sds]);
-		rtpcs_sds_write_bits(sds, 0x2e, 0xf, 5, 0, 0x2); /* from DMS1250 SDK */
-		break;
+		if (is_10g)
+			rtpcs_sds_write_bits(sds, 0x2e, 0xf, 5, 0, 0x2); /* from DMS1250 SDK */
+
+		fallthrough;
 	default:
+		rtpcs_sds_write(sds, 0x21, 0x19, 0xf0f0);	/* from XS1930 SDK */
+		rtpcs_sds_write(even_sds, 0x2e, 0x8, 0x0294);	/* [10:7] TX impedance */
 		break;
 	}
 
-skip_tx:
 	/* CFG_LINKDW_SEL? (same semantics as 930x) */
 	rtpcs_sds_write_bits(sds, 0x6, 0xd, 6, 6, is_dac ? 0x0 : 0x1);
 
