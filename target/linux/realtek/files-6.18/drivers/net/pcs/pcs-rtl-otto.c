@@ -3503,13 +3503,23 @@ static int rtpcs_931x_sds_set_media(struct rtpcs_serdes *sds, enum rtpcs_sds_med
 	 */
 	rtpcs_sds_write_bits(sds, 0x5f, 0x1, 0, 0, 0x1);
 
-	/* media none behavior */
+	/* from _phy_rtl9310_sds_init */
+	rtpcs_sds_write_bits(sds, 0x2e, 0xe, 13, 11, 0x0);
+	rtpcs_931x_sds_reset_leq_dfe(sds);
+
+	/*
+	 * SDK says: media none behavior
+	 *
+	 * - the first three calls are the same as in rx_reset
+	 * - the last one slightly differs in the value. Something is taken into power down
+	 *   while rx_reset doesn't do this.
+	 */
 	rtpcs_sds_write(sds, 0x2e, 0x12, 0x2740);
 	rtpcs_sds_write(sds, 0x2f, 0x0, 0x0);		/* [11:6] DFE_TAP3_ODD | [5:0] DFE_TAP3_EVEN */
 	rtpcs_sds_write(sds, 0x2f, 0x2, 0x2010);
 	rtpcs_sds_write(sds, 0x20, 0x0, 0xcd1);		/* from 930x: [7:6] POWER_DOWN OF ?? */
-	rtpcs_sds_write_bits(sds, 0x2e, 0xf, 5, 0, 0x4);
 
+	rtpcs_sds_write_bits(sds, 0x2e, 0xf, 5, 0, 0x4);
 	rtpcs_sds_write_bits(sds, 0x2a, 0x12, 7, 6, 0x1);
 
 	if (sds_media == RTPCS_SDS_MEDIA_NONE)
@@ -3517,11 +3527,6 @@ static int rtpcs_931x_sds_set_media(struct rtpcs_serdes *sds, enum rtpcs_sds_med
 
 	rtpcs_sds_write(sds, 0x21, 0x19, 0xf0f0); /* from XS1930-10 SDK */
 	rtpcs_sds_write(even_sds, 0x2e, 0x8, 0x0294);	/* [10:7] impedance */
-
-	/* from _phy_rtl9310_sds_init, DMS1250 SDK */
-	rtpcs_sds_write_bits(sds, 0x2e, 0xe, 13, 11, 0x0);
-	rtpcs_931x_sds_rx_reset(sds);
-	rtpcs_931x_sds_reset_leq_dfe(sds);
 
 	is_dac = (sds_media == RTPCS_SDS_MEDIA_DAC_SHORT ||
 		  sds_media == RTPCS_SDS_MEDIA_DAC_LONG);
