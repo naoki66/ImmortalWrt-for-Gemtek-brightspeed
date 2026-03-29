@@ -1127,6 +1127,16 @@ static int rtpcs_93xx_sds_set_autoneg(struct rtpcs_serdes *sds, unsigned int neg
 		en_val = neg_mode == PHYLINK_PCS_NEG_INBAND_ENABLED ? 0x0 : 0x1;
 
 		return rtpcs_sds_xsg_write_bits(sds, 0x0, 0x2, 9, 8, en_val);
+
+	case RTPCS_SDS_MODE_USXGMII_10GSXGMII ... RTPCS_SDS_MODE_USXGMII_2_5GSXGMII:
+		/*
+		 * CFG_QHSG_AN_EN_CHX: bits [3:0] enable AN on channels 3..0
+		 *
+		 * We do not support forced USXGMII link yet, always activate USXGMII-AN
+		 * for now.
+		 */
+		return rtpcs_sds_write_bits(sds, 0x7, 0x11, 3, 0, 0xf);
+
 	default:
 		return rtpcs_generic_sds_set_autoneg(sds, neg_mode, advertising);
 	}
@@ -2782,7 +2792,7 @@ static const struct rtpcs_sds_config rtpcs_930x_sds_cfg_final_odd[] =
 	{0x2D, 0x13, 0x3C87}, {0x2D, 0x14, 0x1808}
 };
 
-static void rtpcs_930x_sds_usxgmii_config(struct rtpcs_serdes *sds, bool nway_en,
+static void rtpcs_930x_sds_usxgmii_config(struct rtpcs_serdes *sds,
 					  u32 opcode, u32 am_period,
 					  u32 all_am_markers, u32 an_table,
 					  u32 sync_bit)
@@ -2799,8 +2809,6 @@ static void rtpcs_930x_sds_usxgmii_config(struct rtpcs_serdes *sds, bool nway_en
 	 * - 0xaa: Realtek-proprietary mode (e.g. RTL8224)
 	 */
 	rtpcs_sds_write_bits(sds, 0x7, 0x10, 7, 0, opcode);		/* CFG_QHSG_AN_OPC */
-	/* CFG_QHSG_AN_EN_CHX: bits [3:0] enable AN on channels 3..0 */
-	rtpcs_sds_write_bits(sds, 0x7, 0x11, 3, 0, nway_en ? 0xf : 0);
 
 	rtpcs_sds_write_bits(sds, 0x6, 0x12, 15, 0, am_period);
 	rtpcs_sds_write_bits(sds, 0x6, 0x13, 7,  0, all_am_markers);	/* CFG_AM0_M0 */
@@ -2918,7 +2926,7 @@ static int rtpcs_930x_sds_config_hw_mode(struct rtpcs_serdes *sds, enum rtpcs_sd
 
 		if (!is_xsgmii)
 			/* opcode 0x03: standard/generic USXGMII mode */
-			rtpcs_930x_sds_usxgmii_config(sds, true, 0x03, 0xa4, 0, 1, 0x1);
+			rtpcs_930x_sds_usxgmii_config(sds, 0x03, 0xa4, 0, 1, 0x1);
 		break;
 
 	default:
