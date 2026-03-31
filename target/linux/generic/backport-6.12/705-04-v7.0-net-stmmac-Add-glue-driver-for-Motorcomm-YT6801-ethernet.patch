@@ -431,7 +431,7 @@ Signed-off-by: Jakub Kicinski <kuba@kernel.org>
 +	pci_restore_state(pdev);
 +	pci_set_power_state(pdev, PCI_D0);
 +
-+	ret = pcim_enable_device(pdev);
++	ret = pci_enable_device(pdev);
 +	if (ret)
 +		return ret;
 +
