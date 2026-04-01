@@ -188,6 +188,7 @@ struct rtmdio_bus {
 };
 
 struct rtmdio_ctrl {
+	struct mutex lock;
 	struct regmap *map;
 	const struct rtmdio_config *cfg;
 	struct rtmdio_port port[RTMDIO_MAX_PHY];
@@ -508,9 +509,11 @@ static int rtmdio_read_c45(struct mii_bus *bus, int addr, int devnum, int regnum
 	if (addr >= ctrl->cfg->num_phys)
 		return -ENODEV;
 
+	guard(mutex)(&ctrl->lock);
 	err = (*ctrl->cfg->read_mmd_phy)(bus, addr, devnum, regnum, &val);
 	pr_debug("rd_MMD(adr=%d, dev=%d, reg=%d) = %d, err = %d\n",
 		 addr, devnum, regnum, val, err);
+
 	return err ? err : val;
 }
 
@@ -522,6 +525,7 @@ static int rtmdio_read(struct mii_bus *bus, int addr, int regnum)
 	if (addr >= ctrl->cfg->num_phys)
 		return -ENODEV;
 
+	guard(mutex)(&ctrl->lock);
 	if (regnum == RTMDIO_PAGE_SELECT && ctrl->port[addr].page != ctrl->cfg->raw_page)
 		return ctrl->port[addr].page;
 
@@ -530,6 +534,7 @@ static int rtmdio_read(struct mii_bus *bus, int addr, int regnum)
 	err = (*ctrl->cfg->read_phy)(bus, addr, ctrl->port[addr].page, regnum, &val);
 	pr_debug("rd_PHY(adr=%d, pag=%d, reg=%d) = %d, err = %d\n",
 		 addr, ctrl->port[addr].page, regnum, val, err);
+
 	return err ? err : val;
 }
 
@@ -541,9 +546,11 @@ static int rtmdio_write_c45(struct mii_bus *bus, int addr, int devnum, int regnu
 	if (addr >= ctrl->cfg->num_phys)
 		return -ENODEV;
 
+	guard(mutex)(&ctrl->lock);
 	err = (*ctrl->cfg->write_mmd_phy)(bus, addr, devnum, regnum, val);
 	pr_debug("wr_MMD(adr=%d, dev=%d, reg=%d, val=%d) err = %d\n",
 		 addr, devnum, regnum, val, err);
+
 	return err;
 }
 
@@ -555,6 +562,7 @@ static int rtmdio_write(struct mii_bus *bus, int addr, int regnum, u16 val)
 	if (addr >= ctrl->cfg->num_phys)
 		return -ENODEV;
 
+	guard(mutex)(&ctrl->lock);
 	page = ctrl->port[addr].page;
 
 	if (regnum == RTMDIO_PAGE_SELECT)
@@ -571,6 +579,7 @@ static int rtmdio_write(struct mii_bus *bus, int addr, int regnum, u16 val)
 	}
 
 	ctrl->port[addr].raw = false;
+
 	return 0;
 }
 
@@ -965,6 +974,10 @@ static int rtmdio_probe(struct platform_device *pdev)
 	ctrl = devm_kzalloc(dev, sizeof(*ctrl), GFP_KERNEL);
 	if (!ctrl)
 		return -ENOMEM;
+
+	ret = devm_mutex_init(dev, &ctrl->lock);
+	if (ret)
+		return ret;
 
 	platform_set_drvdata(pdev, ctrl);
 	ctrl->cfg = (const struct rtmdio_config *)device_get_match_data(dev);
