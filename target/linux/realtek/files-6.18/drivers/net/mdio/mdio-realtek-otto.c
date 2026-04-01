@@ -223,6 +223,19 @@ struct rtmdio_phy_info {
 	unsigned int poll_lpa_1000;
 };
 
+static int rtmdio_phy_to_port(struct mii_bus *bus, int phy)
+{
+	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
+
+	if (phy < 0 || phy >= ctrl->cfg->num_phys)
+		return -ENOENT;
+
+	if (!test_bit(phy, ctrl->valid_ports))
+		return -ENOENT;
+
+	return phy;
+}
+
 static int rtmdio_run_cmd(struct mii_bus *bus, int cmd, int mask, int regnum, int fail)
 {
 	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
@@ -501,13 +514,14 @@ static int rtmdio_931x_write_mmd_phy(struct mii_bus *bus, u32 addr, u32 devnum, 
 	return rtmdio_931x_run_cmd(bus, RTMDIO_931X_CMD_WRITE_C45);
 }
 
-static int rtmdio_read_c45(struct mii_bus *bus, int addr, int devnum, int regnum)
+static int rtmdio_read_c45(struct mii_bus *bus, int phy, int devnum, int regnum)
 {
 	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
-	int err, val;
+	int err, val, addr;
 
-	if (addr >= ctrl->cfg->num_phys)
-		return -ENODEV;
+	addr = rtmdio_phy_to_port(bus, phy);
+	if (addr < 0)
+		return addr;
 
 	guard(mutex)(&ctrl->lock);
 	err = (*ctrl->cfg->read_mmd_phy)(bus, addr, devnum, regnum, &val);
@@ -517,13 +531,14 @@ static int rtmdio_read_c45(struct mii_bus *bus, int addr, int devnum, int regnum
 	return err ? err : val;
 }
 
-static int rtmdio_read(struct mii_bus *bus, int addr, int regnum)
+static int rtmdio_read(struct mii_bus *bus, int phy, int regnum)
 {
 	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
-	int err, val;
+	int err, val, addr;
 
-	if (addr >= ctrl->cfg->num_phys)
-		return -ENODEV;
+	addr = rtmdio_phy_to_port(bus, phy);
+	if (addr < 0)
+		return addr;
 
 	guard(mutex)(&ctrl->lock);
 	if (regnum == RTMDIO_PAGE_SELECT && ctrl->port[addr].page != ctrl->cfg->raw_page)
@@ -538,13 +553,14 @@ static int rtmdio_read(struct mii_bus *bus, int addr, int regnum)
 	return err ? err : val;
 }
 
-static int rtmdio_write_c45(struct mii_bus *bus, int addr, int devnum, int regnum, u16 val)
+static int rtmdio_write_c45(struct mii_bus *bus, int phy, int devnum, int regnum, u16 val)
 {
 	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
-	int err;
+	int err, addr;
 
-	if (addr >= ctrl->cfg->num_phys)
-		return -ENODEV;
+	addr = rtmdio_phy_to_port(bus, phy);
+	if (addr < 0)
+		return addr;
 
 	guard(mutex)(&ctrl->lock);
 	err = (*ctrl->cfg->write_mmd_phy)(bus, addr, devnum, regnum, val);
@@ -554,13 +570,14 @@ static int rtmdio_write_c45(struct mii_bus *bus, int addr, int devnum, int regnu
 	return err;
 }
 
-static int rtmdio_write(struct mii_bus *bus, int addr, int regnum, u16 val)
+static int rtmdio_write(struct mii_bus *bus, int phy, int regnum, u16 val)
 {
 	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
-	int err, page;
+	int err, page, addr;
 
-	if (addr >= ctrl->cfg->num_phys)
-		return -ENODEV;
+	addr = rtmdio_phy_to_port(bus, phy);
+	if (addr < 0)
+		return addr;
 
 	guard(mutex)(&ctrl->lock);
 	page = ctrl->port[addr].page;
