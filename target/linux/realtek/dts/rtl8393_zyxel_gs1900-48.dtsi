@@ -98,6 +98,7 @@
 	port_leds: expander@0 {
 		compatible = "realtek,rtl8231";
 		reg = <0>;
+		reset-gpios = <&gpio1 8 GPIO_ACTIVE_LOW>;
 
 		gpio-controller;
 		#gpio-cells = <2>;
@@ -179,6 +180,7 @@
 	gpio1: expander@3 {
 		compatible = "realtek,rtl8231";
 		reg = <3>;
+		reset-gpios = <&gpio0 1 GPIO_ACTIVE_LOW>;
 
 		gpio-controller;
 		#gpio-cells = <2>;
@@ -187,6 +189,14 @@
 		led-controller {
 			compatible = "realtek,rtl8231-leds";
 			status = "disabled";
+		};
+
+		/* PHY reset (active low), no driver support, keep deasserted */
+		phy-reset {
+			gpio-hog;
+			gpios = <6 GPIO_ACTIVE_LOW>;
+			output-low;
+			line-name = "phy-reset";
 		};
 	};
 };
