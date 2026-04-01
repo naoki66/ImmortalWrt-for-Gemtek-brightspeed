@@ -16,8 +16,8 @@
 +	  This board is a Concurrent Dual-Band wireless access point with a
 +	  Freescale P1020 SoC.
 +
- config MPC8540_ADS
- 	bool "Freescale MPC8540 ADS"
+ config MPC85xx_MDS
+ 	bool "Freescale MPC8568 MDS / MPC8569 MDS / P1021 MDS"
  	select DEFAULT_UIMAGE
 --- a/arch/powerpc/platforms/85xx/Makefile
 +++ b/arch/powerpc/platforms/85xx/Makefile

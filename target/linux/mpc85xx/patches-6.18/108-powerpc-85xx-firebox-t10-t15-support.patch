@@ -14,8 +14,8 @@
 +	  This option enables support for the Watchguard Firebox T10/T15 board.
 +	  This board is a VPN Gateway-Router with a Freescale P1010 SoC.
 +
- config MPC8540_ADS
- 	bool "Freescale MPC8540 ADS"
+ config MPC85xx_MDS
+ 	bool "Freescale MPC8568 MDS / MPC8569 MDS / P1021 MDS"
  	select DEFAULT_UIMAGE
 --- a/arch/powerpc/platforms/85xx/Makefile
 +++ b/arch/powerpc/platforms/85xx/Makefile

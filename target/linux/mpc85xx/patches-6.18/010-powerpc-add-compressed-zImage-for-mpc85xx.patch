@@ -23,8 +23,8 @@ Signed-off-by: David Bauer <mail@david-bauer.net>
 +src-plat-$(CONFIG_PPC_ZIMAGE_LA3000000) += fixed-head.S
  src-plat-$(CONFIG_PPC_PSERIES) += pseries-head.S
  src-plat-$(CONFIG_PPC_POWERNV) += pseries-head.S
- src-plat-$(CONFIG_PPC_IBM_CELL_BLADE) += pseries-head.S
-@@ -332,6 +333,7 @@ image-$(CONFIG_MPC834x_ITX)		+= cuImage.
+ src-plat-$(CONFIG_MVME7100) += motload-head.S mvme7100.c
+@@ -329,6 +330,7 @@ image-$(CONFIG_MPC834x_ITX)		+= cuImage.
  image-$(CONFIG_ASP834x)			+= dtbImage.asp834x-redboot
  
  # Board ports in arch/powerpc/platform/85xx/Kconfig
@@ -34,7 +34,7 @@ Signed-off-by: David Bauer <mail@david-bauer.net>
  					   cuImage.mpc8572ds
 --- a/arch/powerpc/boot/wrapper
 +++ b/arch/powerpc/boot/wrapper
-@@ -256,6 +256,11 @@ if [ -n "$esm_blob" -a "$platform" != "p
+@@ -252,6 +252,11 @@ if [ -n "$esm_blob" -a "$platform" != "p
  fi
  
  case "$platform" in

@@ -1,6 +1,6 @@
 --- a/arch/powerpc/platforms/85xx/Kconfig
 +++ b/arch/powerpc/platforms/85xx/Kconfig
-@@ -187,6 +187,7 @@ config PPC_P2020
+@@ -166,6 +166,7 @@ config PPC_P2020
  	default y if MPC85xx_DS || MPC85xx_RDB
  	select DEFAULT_UIMAGE
  	select SWIOTLB

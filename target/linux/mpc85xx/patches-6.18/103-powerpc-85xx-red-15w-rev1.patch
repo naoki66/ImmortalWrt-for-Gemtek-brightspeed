@@ -1,6 +1,6 @@
 --- a/arch/powerpc/platforms/85xx/Kconfig
 +++ b/arch/powerpc/platforms/85xx/Kconfig
-@@ -179,6 +179,16 @@ config XES_MPC85xx
+@@ -158,6 +158,16 @@ config XES_MPC85xx
  	  Manufacturer: Extreme Engineering Solutions, Inc.
  	  URL: <https://www.xes-inc.com/>
  

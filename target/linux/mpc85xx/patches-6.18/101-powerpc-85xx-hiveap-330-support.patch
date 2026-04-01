@@ -5,18 +5,18 @@
  	  Manufacturer : Freescale Semiconductor, Inc
  
 +config HIVEAP_330
-+    bool "Aerohive HiveAP-330"
-+    select DEFAULT_UIMAGE
-+    select ARCH_REQUIRE_GPIOLIB
-+    select GPIO_MPC8XXX
-+    help
-+      This option enables support for the Aerohive HiveAP-330 board.
++	bool "Aerohive HiveAP-330"
++	select DEFAULT_UIMAGE
++	select ARCH_REQUIRE_GPIOLIB
++	select GPIO_MPC8XXX
++	help
++	  This option enables support for the Aerohive HiveAP-330 board.
 +
-+      This board is a Concurrent Dual-Band wireless access point with a
-+      Freescale P1020 SoC.
++	  This board is a Concurrent Dual-Band wireless access point with a
++	  Freescale P1020 SoC.
 +
- config MPC8540_ADS
- 	bool "Freescale MPC8540 ADS"
+ config MPC85xx_MDS
+ 	bool "Freescale MPC8568 MDS / MPC8569 MDS / P1021 MDS"
  	select DEFAULT_UIMAGE
 --- a/arch/powerpc/platforms/85xx/Makefile
 +++ b/arch/powerpc/platforms/85xx/Makefile
@@ -30,15 +30,15 @@
  obj-$(CONFIG_MPC85xx_DS)  += mpc85xx_ds.o $(obj8259-y)
 --- a/arch/powerpc/boot/Makefile
 +++ b/arch/powerpc/boot/Makefile
-@@ -177,6 +177,7 @@ src-plat-$(CONFIG_PPC_PSERIES) += pserie
+@@ -176,6 +176,7 @@ src-plat-$(CONFIG_PPC_ZIMAGE_LA3000000)
+ src-plat-$(CONFIG_PPC_PSERIES) += pseries-head.S
  src-plat-$(CONFIG_PPC_POWERNV) += pseries-head.S
- src-plat-$(CONFIG_PPC_IBM_CELL_BLADE) += pseries-head.S
  src-plat-$(CONFIG_MVME7100) += motload-head.S mvme7100.c
 +src-plat-$(CONFIG_HIVEAP_330) += simpleboot.c fixed-head.S
  src-plat-$(CONFIG_TL_WDR4900_V1) += simpleboot.c fixed-head.S
  
  src-plat-$(CONFIG_PPC_MICROWATT) += fixed-head.S microwatt.c
-@@ -344,6 +345,7 @@ image-$(CONFIG_TQM8548)			+= cuImage.tqm
+@@ -341,6 +342,7 @@ image-$(CONFIG_TQM8548)			+= cuImage.tqm
  image-$(CONFIG_TQM8555)			+= cuImage.tqm8555
  image-$(CONFIG_TQM8560)			+= cuImage.tqm8560
  image-$(CONFIG_KSI8560)			+= cuImage.ksi8560
@@ -48,7 +48,7 @@
  image-$(CONFIG_MVME7100)                += dtbImage.mvme7100
 --- a/arch/powerpc/boot/wrapper
 +++ b/arch/powerpc/boot/wrapper
-@@ -348,6 +348,7 @@ adder875-redboot)
+@@ -339,6 +339,7 @@ adder875-redboot)
      platformo="$object/fixed-head.o $object/redboot-8xx.o"
      binary=y
      ;;
