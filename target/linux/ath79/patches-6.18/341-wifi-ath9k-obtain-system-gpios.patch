@@ -172,15 +172,15 @@ Best regards,
 
 --- a/drivers/gpio/gpio-ath79.c
 +++ b/drivers/gpio/gpio-ath79.c
-@@ -10,6 +10,7 @@
- 
+@@ -11,6 +11,7 @@
  #include <linux/device.h>
  #include <linux/gpio/driver.h>
+ #include <linux/gpio/generic.h>
 +#include <linux/gpio/machine.h> /* For WLAN GPIOs */
  #include <linux/interrupt.h>
  #include <linux/irq.h>
  #include <linux/mod_devicetable.h>
-@@ -222,6 +223,37 @@ static const struct of_device_id ath79_g
+@@ -214,6 +215,37 @@ static const struct of_device_id ath79_g
  };
  MODULE_DEVICE_TABLE(of, ath79_gpio_of_match);
  
@@ -217,17 +217,17 @@ Best regards,
 +
  static int ath79_gpio_probe(struct platform_device *pdev)
  {
- 	struct device *dev = &pdev->dev;
-@@ -280,7 +312,11 @@ static int ath79_gpio_probe(struct platf
+ 	struct gpio_generic_chip_config config;
+@@ -276,7 +308,11 @@ static int ath79_gpio_probe(struct platf
  		girq->handler = handle_simple_irq;
  	}
  
--	return devm_gpiochip_add_data(dev, &ctrl->gc, ctrl);
-+	err = devm_gpiochip_add_data(dev, &ctrl->gc, ctrl);
+-	return devm_gpiochip_add_data(dev, &ctrl->chip.gc, ctrl);
++	err = devm_gpiochip_add_data(dev, &ctrl->chip.gc, ctrl);
 +	if (err)
 +		return err;
 +
-+	return ath79_gpio_register_wifi_descriptors(dev, ctrl->gc.label);
++	return ath79_gpio_register_wifi_descriptors(dev, ctrl->chip.gc.label);
  }
  
  static struct platform_driver ath79_gpio_driver = {
