@@ -802,80 +802,88 @@ static int rteth_stop(struct net_device *ndev)
 
 static void rteth_838x_set_rx_mode(struct net_device *ndev)
 {
+	struct rteth_ctrl *ctrl = netdev_priv(ndev);
+
 	/* Flood all classes of RMA addresses (01-80-C2-00-00-{01..2F})
 	 * CTRL_0_FULL = GENMASK(21, 0) = 0x3FFFFF
 	 */
 	if (!(ndev->flags & (IFF_PROMISC | IFF_ALLMULTI))) {
-		sw_w32(0x0, RTL838X_RMA_CTRL_0);
-		sw_w32(0x0, RTL838X_RMA_CTRL_1);
+		regmap_write(ctrl->map, RTETH_838X_RMA_CTRL_0, 0);
+		regmap_write(ctrl->map, RTETH_838X_RMA_CTRL_1, 0);
 	}
 	if (ndev->flags & IFF_ALLMULTI)
-		sw_w32(GENMASK(21, 0), RTL838X_RMA_CTRL_0);
+		regmap_write(ctrl->map, RTETH_838X_RMA_CTRL_0, GENMASK(21, 0));
 	if (ndev->flags & IFF_PROMISC) {
-		sw_w32(GENMASK(21, 0), RTL838X_RMA_CTRL_0);
-		sw_w32(0x7fff, RTL838X_RMA_CTRL_1);
+		regmap_write(ctrl->map, RTETH_838X_RMA_CTRL_0, GENMASK(21, 0));
+		regmap_write(ctrl->map, RTETH_838X_RMA_CTRL_1, GENMASK(14, 0));
 	}
 }
 
 static void rteth_839x_set_rx_mode(struct net_device *ndev)
 {
+	struct rteth_ctrl *ctrl = netdev_priv(ndev);
+
 	/* Flood all classes of RMA addresses (01-80-C2-00-00-{01..2F})
 	 * CTRL_0_FULL = GENMASK(31, 2) = 0xFFFFFFFC
 	 * Lower two bits are reserved, corresponding to RMA 01-80-C2-00-00-00
 	 * CTRL_1_FULL = CTRL_2_FULL = GENMASK(31, 0)
 	 */
 	if (!(ndev->flags & (IFF_PROMISC | IFF_ALLMULTI))) {
-		sw_w32(0x0, RTL839X_RMA_CTRL_0);
-		sw_w32(0x0, RTL839X_RMA_CTRL_1);
-		sw_w32(0x0, RTL839X_RMA_CTRL_2);
-		sw_w32(0x0, RTL839X_RMA_CTRL_3);
+		regmap_write(ctrl->map, RTETH_839X_RMA_CTRL_0, 0);
+		regmap_write(ctrl->map, RTETH_839X_RMA_CTRL_1, 0);
+		regmap_write(ctrl->map, RTETH_839X_RMA_CTRL_2, 0);
+		regmap_write(ctrl->map, RTETH_839X_RMA_CTRL_3, 0);
 	}
 	if (ndev->flags & IFF_ALLMULTI) {
-		sw_w32(GENMASK(31, 2), RTL839X_RMA_CTRL_0);
-		sw_w32(GENMASK(31, 0), RTL839X_RMA_CTRL_1);
-		sw_w32(GENMASK(31, 0), RTL839X_RMA_CTRL_2);
+		regmap_write(ctrl->map, RTETH_839X_RMA_CTRL_0, GENMASK(31, 2));
+		regmap_write(ctrl->map, RTETH_839X_RMA_CTRL_1, GENMASK(31, 0));
+		regmap_write(ctrl->map, RTETH_839X_RMA_CTRL_2, GENMASK(31, 0));
 	}
 	if (ndev->flags & IFF_PROMISC) {
-		sw_w32(GENMASK(31, 2), RTL839X_RMA_CTRL_0);
-		sw_w32(GENMASK(31, 0), RTL839X_RMA_CTRL_1);
-		sw_w32(GENMASK(31, 0), RTL839X_RMA_CTRL_2);
-		sw_w32(0x3ff, RTL839X_RMA_CTRL_3);
+		regmap_write(ctrl->map, RTETH_839X_RMA_CTRL_0, GENMASK(31, 2));
+		regmap_write(ctrl->map, RTETH_839X_RMA_CTRL_1, GENMASK(31, 0));
+		regmap_write(ctrl->map, RTETH_839X_RMA_CTRL_2, GENMASK(31, 0));
+		regmap_write(ctrl->map, RTETH_839X_RMA_CTRL_3, GENMASK(9, 0));
 	}
 }
 
 static void rteth_930x_set_rx_mode(struct net_device *ndev)
 {
+	struct rteth_ctrl *ctrl = netdev_priv(ndev);
+
 	/* Flood all classes of RMA addresses (01-80-C2-00-00-{01..2F})
 	 * CTRL_0_FULL = GENMASK(31, 2) = 0xFFFFFFFC
 	 * Lower two bits are reserved, corresponding to RMA 01-80-C2-00-00-00
 	 * CTRL_1_FULL = CTRL_2_FULL = GENMASK(31, 0)
 	 */
 	if (ndev->flags & (IFF_ALLMULTI | IFF_PROMISC)) {
-		sw_w32(GENMASK(31, 2), RTL930X_RMA_CTRL_0);
-		sw_w32(GENMASK(31, 0), RTL930X_RMA_CTRL_1);
-		sw_w32(GENMASK(31, 0), RTL930X_RMA_CTRL_2);
+		regmap_write(ctrl->map, RTETH_930X_RMA_CTRL_0, GENMASK(31, 2));
+		regmap_write(ctrl->map, RTETH_930X_RMA_CTRL_1, GENMASK(31, 0));
+		regmap_write(ctrl->map, RTETH_930X_RMA_CTRL_2, GENMASK(31, 0));
 	} else {
-		sw_w32(0x0, RTL930X_RMA_CTRL_0);
-		sw_w32(0x0, RTL930X_RMA_CTRL_1);
-		sw_w32(0x0, RTL930X_RMA_CTRL_2);
+		regmap_write(ctrl->map, RTETH_930X_RMA_CTRL_0, 0);
+		regmap_write(ctrl->map, RTETH_930X_RMA_CTRL_1, 0);
+		regmap_write(ctrl->map, RTETH_930X_RMA_CTRL_2, 0);
 	}
 }
 
-static void rtl931x_eth_set_multicast_list(struct net_device *ndev)
+static void rteth_931x_set_rx_mode(struct net_device *ndev)
 {
+	struct rteth_ctrl *ctrl = netdev_priv(ndev);
+
 	/* Flood all classes of RMA addresses (01-80-C2-00-00-{01..2F})
 	 * CTRL_0_FULL = GENMASK(31, 2) = 0xFFFFFFFC
 	 * Lower two bits are reserved, corresponding to RMA 01-80-C2-00-00-00.
 	 * CTRL_1_FULL = CTRL_2_FULL = GENMASK(31, 0)
 	 */
 	if (ndev->flags & (IFF_ALLMULTI | IFF_PROMISC)) {
-		sw_w32(GENMASK(31, 2), RTL931X_RMA_CTRL_0);
-		sw_w32(GENMASK(31, 0), RTL931X_RMA_CTRL_1);
-		sw_w32(GENMASK(31, 0), RTL931X_RMA_CTRL_2);
+		regmap_write(ctrl->map, RTETH_931X_RMA_CTRL_0, GENMASK(31, 2));
+		regmap_write(ctrl->map, RTETH_931X_RMA_CTRL_1, GENMASK(31, 0));
+		regmap_write(ctrl->map, RTETH_931X_RMA_CTRL_2, GENMASK(31, 0));
 	} else {
-		sw_w32(0x0, RTL931X_RMA_CTRL_0);
-		sw_w32(0x0, RTL931X_RMA_CTRL_1);
-		sw_w32(0x0, RTL931X_RMA_CTRL_2);
+		regmap_write(ctrl->map, RTETH_931X_RMA_CTRL_0, 0);
+		regmap_write(ctrl->map, RTETH_931X_RMA_CTRL_1, 0);
+		regmap_write(ctrl->map, RTETH_931X_RMA_CTRL_2, 0);
 	}
 }
 
@@ -1410,7 +1418,7 @@ static const struct net_device_ops rteth_931x_netdev_ops = {
 	.ndo_start_xmit = rteth_start_xmit,
 	.ndo_set_mac_address = rteth_set_mac_address,
 	.ndo_validate_addr = eth_validate_addr,
-	.ndo_set_rx_mode = rtl931x_eth_set_multicast_list,
+	.ndo_set_rx_mode = rteth_931x_set_rx_mode,
 	.ndo_tx_timeout = rteth_tx_timeout,
 	.ndo_set_features = rteth_93xx_set_features,
 	.ndo_fix_features = rteth_fix_features,
