@@ -28,7 +28,7 @@ Signed-off-by: Michael Gray <michael.gray@lantisproject.com>
 
 --- a/arch/arm/Kconfig
 +++ b/arch/arm/Kconfig
-@@ -1503,6 +1503,17 @@ config ARM_ATAG_DTB_COMPAT_CMDLINE_EXTEN
+@@ -1488,6 +1488,17 @@ config ARM_ATAG_DTB_COMPAT_CMDLINE_EXTEN
  	  The command-line arguments provided by the boot loader will be
  	  appended to the the device tree bootargs property.
  
@@ -247,7 +247,7 @@ Signed-off-by: Michael Gray <michael.gray@lantisproject.com>
  }
 --- a/init/main.c
 +++ b/init/main.c
-@@ -114,6 +114,10 @@
+@@ -116,6 +116,10 @@
  
  #include <kunit/test.h>
  
@@ -258,7 +258,7 @@ Signed-off-by: Michael Gray <michael.gray@lantisproject.com>
  static int kernel_init(void *);
  
  /*
-@@ -971,6 +975,18 @@ void start_kernel(void)
+@@ -966,6 +970,18 @@ void start_kernel(void)
  	boot_cpu_hotplug_init();
  
  	pr_notice("Kernel command line: %s\n", saved_command_line);

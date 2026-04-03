@@ -64,11 +64,11 @@ Cc: Robert Marko <robert.marko@sartura.hr>
 +================= == =====================================================
 --- a/Documentation/hwmon/index.rst
 +++ b/Documentation/hwmon/index.rst
-@@ -87,6 +87,7 @@ Hardware Monitoring Kernel Drivers
+@@ -91,6 +91,7 @@ Hardware Monitoring Kernel Drivers
     ibmaem
     ibm-cffps
     ibmpowernv
 +   iei-wt61p803-puzzle-hwmon
     ina209
     ina2xx
-    ina238
+    ina233

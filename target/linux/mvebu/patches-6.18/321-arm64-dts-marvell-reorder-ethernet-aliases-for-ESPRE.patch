@@ -15,7 +15,7 @@ Signed-off-by: Stefan Kalscheuer <stefan@stklcode.de>
 --- a/arch/arm64/boot/dts/marvell/armada-3720-espressobin-ultra.dts
 +++ b/arch/arm64/boot/dts/marvell/armada-3720-espressobin-ultra.dts
 @@ -16,12 +16,12 @@
- 		     "marvell,armada3720", "marvell,armada3700";
+ 		     "marvell,armada3720", "marvell,armada3710";
  
  	aliases {
 -		/* ethernet1 is WAN port */
