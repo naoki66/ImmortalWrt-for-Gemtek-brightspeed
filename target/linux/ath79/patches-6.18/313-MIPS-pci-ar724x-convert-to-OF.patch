@@ -71,7 +71,7 @@ Signed-off-by: John Crispin <john@phrozen.org>
  	if (pending & AR724X_PCI_INT_DEV0)
 -		generic_handle_irq(apc->irq_base + 0);
 -
-+		generic_handle_irq(irq_linear_revmap(apc->domain, 1));
++		generic_handle_irq(irq_find_mapping(apc->domain, 1));
  	else
  		spurious_interrupt();
 +	chained_irq_exit(chip, desc);
@@ -89,7 +89,7 @@ Signed-off-by: John Crispin <john@phrozen.org>
 -	offset = apc->irq_base - d->irq;
  
 -	switch (offset) {
-+	switch (irq_linear_revmap(apc->domain, d->irq)) {
++	switch (irq_find_mapping(apc->domain, d->irq)) {
  	case 0:
  		t = __raw_readl(base + AR724X_PCI_REG_INT_MASK);
  		__raw_writel(t | AR724X_PCI_INT_DEV0,
@@ -105,7 +105,7 @@ Signed-off-by: John Crispin <john@phrozen.org>
 -	offset = apc->irq_base - d->irq;
  
 -	switch (offset) {
-+	switch (irq_linear_revmap(apc->domain, d->irq)) {
++	switch (irq_find_mapping(apc->domain, d->irq)) {
  	case 0:
  		t = __raw_readl(base + AR724X_PCI_REG_INT_MASK);
  		__raw_writel(t & ~AR724X_PCI_INT_DEV0,

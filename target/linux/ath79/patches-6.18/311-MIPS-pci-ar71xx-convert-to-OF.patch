@@ -60,19 +60,19 @@ Signed-off-by: John Crispin <john@phrozen.org>
  
  	if (pending & AR71XX_PCI_INT_DEV0)
 -		generic_handle_irq(apc->irq_base + 0);
-+		generic_handle_irq(irq_linear_revmap(apc->domain, 1));
++		generic_handle_irq(irq_find_mapping(apc->domain, 1));
  
  	else if (pending & AR71XX_PCI_INT_DEV1)
 -		generic_handle_irq(apc->irq_base + 1);
-+		generic_handle_irq(irq_linear_revmap(apc->domain, 2));
++		generic_handle_irq(irq_find_mapping(apc->domain, 2));
  
  	else if (pending & AR71XX_PCI_INT_DEV2)
 -		generic_handle_irq(apc->irq_base + 2);
-+		generic_handle_irq(irq_linear_revmap(apc->domain, 3));
++		generic_handle_irq(irq_find_mapping(apc->domain, 3));
  
  	else if (pending & AR71XX_PCI_INT_CORE)
 -		generic_handle_irq(apc->irq_base + 4);
-+		generic_handle_irq(irq_linear_revmap(apc->domain, 4));
++		generic_handle_irq(irq_find_mapping(apc->domain, 4));
  
  	else
  		spurious_interrupt();
@@ -85,7 +85,7 @@ Signed-off-by: John Crispin <john@phrozen.org>
  
  	apc = irq_data_get_irq_chip_data(d);
 -	irq = d->irq - apc->irq_base;
-+	irq = irq_linear_revmap(apc->domain, d->irq);
++	irq = irq_find_mapping(apc->domain, d->irq);
  
  	t = __raw_readl(base + AR71XX_RESET_REG_PCI_INT_ENABLE);
  	__raw_writel(t | (1 << irq), base + AR71XX_RESET_REG_PCI_INT_ENABLE);
@@ -94,7 +94,7 @@ Signed-off-by: John Crispin <john@phrozen.org>
  
  	apc = irq_data_get_irq_chip_data(d);
 -	irq = d->irq - apc->irq_base;
-+	irq = irq_linear_revmap(apc->domain, d->irq);
++	irq = irq_find_mapping(apc->domain, d->irq);
  
  	t = __raw_readl(base + AR71XX_RESET_REG_PCI_INT_ENABLE);
  	__raw_writel(t & ~(1 << irq), base + AR71XX_RESET_REG_PCI_INT_ENABLE);
