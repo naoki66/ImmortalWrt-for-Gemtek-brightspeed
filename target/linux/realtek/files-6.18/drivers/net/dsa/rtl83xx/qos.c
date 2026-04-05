@@ -298,14 +298,14 @@ void rtldsa_838x_qos_init(struct rtl838x_switch_priv *priv)
 	sw_w32(v, RTL838X_PRI_SEL_IPRI_REMAP);
 
 	/* On all ports set scheduler type to WFQ */
-	for (int i = 0; i <= soc_info.cpu_port; i++)
+	for (int i = 0; i <= priv->r->cpu_port; i++)
 		sw_w32(0, RTL838X_SCHED_P_TYPE_CTRL(i));
 
 	/* Enable egress scheduler for CPU-Port */
-	sw_w32_mask(0, BIT(8), RTL838X_SCHED_LB_CTRL(soc_info.cpu_port));
+	sw_w32_mask(0, BIT(8), RTL838X_SCHED_LB_CTRL(priv->r->cpu_port));
 
 	/* Enable egress drop allways on */
-	sw_w32_mask(0, BIT(11), RTL838X_FC_P_EGR_DROP_CTRL(soc_info.cpu_port));
+	sw_w32_mask(0, BIT(11), RTL838X_FC_P_EGR_DROP_CTRL(priv->r->cpu_port));
 
 	/* Give special trap frames priority 7 (BPDUs) and routing exceptions: */
 	sw_w32_mask(0, 7 << 3 | 7, RTL838X_QM_PKT2CPU_INTPRI_2);
@@ -321,13 +321,13 @@ void rtldsa_839x_qos_init(struct rtl838x_switch_priv *priv)
 	pr_info("RTL839X_PRI_SEL_TBL_CTRL(i): %08x\n", sw_r32(RTL839X_PRI_SEL_TBL_CTRL(0)));
 	rtl839x_setup_default_prio2queue();
 
-	for (int port = 0; port < soc_info.cpu_port; port++)
+	for (int port = 0; port < priv->r->cpu_port; port++)
 		sw_w32(7, RTL839X_QM_PORT_QNUM(port));
 
 	/* CPU-port gets queue number 7 */
-	sw_w32(7, RTL839X_QM_PORT_QNUM(soc_info.cpu_port));
+	sw_w32(7, RTL839X_QM_PORT_QNUM(priv->r->cpu_port));
 
-	for (int port = 0; port <= soc_info.cpu_port; port++) {
+	for (int port = 0; port <= priv->r->cpu_port; port++) {
 		rtldsa_839x_set_ingress_priority(port, 0);
 		rtl839x_set_scheduling_algorithm(priv, port, WEIGHTED_FAIR_QUEUE);
 		rtl839x_set_scheduling_queue_weights(priv, port, rtldsa_default_queue_weights);
