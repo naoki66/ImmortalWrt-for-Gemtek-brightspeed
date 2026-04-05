@@ -133,26 +133,26 @@ static void rtl839x_setup_prio2queue_matrix(int *min_queues)
 }
 
 /* Sets the CPU queue depending on the internal priority of a packet */
-static void rtl83xx_setup_prio2queue_cpu_matrix(int *max_queues)
+static void rtl83xx_setup_prio2queue_cpu_matrix(int reg)
 {
-	int reg = soc_info.family == RTL8380_FAMILY_ID ? RTL838X_QM_PKT2CPU_INTPRI_MAP
-					: RTL839X_QM_PKT2CPU_INTPRI_MAP;
 	u32 v = 0;
 
 	pr_info("QM_PKT2CPU_INTPRI_MAP: %08x\n", sw_r32(reg));
 	for (int i = 0; i < MAX_PRIOS; i++)
-		v |= max_queues[i] << (i * 3);
+		v |= rtldsa_max_available_queue[i] << (i * 3);
 	sw_w32(v, reg);
 }
 
-static void rtl83xx_setup_default_prio2queue(void)
+static void rtl838x_setup_default_prio2queue(void)
 {
-	if (soc_info.family == RTL8380_FAMILY_ID)
-		rtl838x_setup_prio2queue_matrix(rtldsa_max_available_queue);
-	else
-		rtl839x_setup_prio2queue_matrix(rtldsa_max_available_queue);
+	rtl838x_setup_prio2queue_matrix(rtldsa_max_available_queue);
+	rtl83xx_setup_prio2queue_cpu_matrix(RTL838X_QM_PKT2CPU_INTPRI_MAP);
+}
 
-	rtl83xx_setup_prio2queue_cpu_matrix(rtldsa_max_available_queue);
+static void rtl839x_setup_default_prio2queue(void)
+{
+	rtl839x_setup_prio2queue_matrix(rtldsa_max_available_queue);
+	rtl83xx_setup_prio2queue_cpu_matrix(RTL839X_QM_PKT2CPU_INTPRI_MAP);
 }
 
 /* Sets the output queue assigned to a port, the port can be the CPU-port */
@@ -275,7 +275,7 @@ void rtldsa_838x_qos_init(struct rtl838x_switch_priv *priv)
 
 	pr_info("Setting up RTL838X QoS\n");
 	pr_info("RTL838X_PRI_SEL_TBL_CTRL(i): %08x\n", sw_r32(RTL838X_PRI_SEL_TBL_CTRL(0)));
-	rtl83xx_setup_default_prio2queue();
+	rtl838x_setup_default_prio2queue();
 
 	/* Enable inner (bit 12) and outer (bit 13) priority remapping from DSCP */
 	sw_w32_mask(0, BIT(12) | BIT(13), RTL838X_PRI_DSCP_INVLD_CTRL0);
@@ -320,7 +320,7 @@ void rtldsa_839x_qos_init(struct rtl838x_switch_priv *priv)
 
 	pr_info("Setting up RTL839X QoS\n");
 	pr_info("RTL839X_PRI_SEL_TBL_CTRL(i): %08x\n", sw_r32(RTL839X_PRI_SEL_TBL_CTRL(0)));
-	rtl83xx_setup_default_prio2queue();
+	rtl839x_setup_default_prio2queue();
 
 	for (int port = 0; port < soc_info.cpu_port; port++)
 		sw_w32(7, RTL839X_QM_PORT_QNUM(port));
