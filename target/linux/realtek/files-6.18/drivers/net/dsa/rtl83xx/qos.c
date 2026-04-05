@@ -162,12 +162,11 @@ void rtl839x_set_egress_queue(int port, int queue)
 }
 
 /* Sets the priority assigned of an ingress port, the port can be the CPU-port */
-static void rtl83xx_set_ingress_priority(int port, int priority)
+static void rtldsa_839x_set_ingress_priority(int port, int priority)
 {
-	if (soc_info.family == RTL8380_FAMILY_ID)
-		sw_w32(priority << ((port % 10) * 3), RTL838X_PRI_SEL_PORT_PRI(port));
-	else
-		sw_w32(priority << ((port % 10) * 3), RTL839X_PRI_SEL_PORT_PRI(port));
+	int shift = ((port % 10) * 3);
+
+	sw_w32_mask(7 << shift, priority << shift, RTL839X_PRI_SEL_PORT_PRI(port));
 }
 
 static int rtl839x_get_scheduling_algorithm(struct rtl838x_switch_priv *priv, int port)
@@ -329,7 +328,7 @@ void rtldsa_839x_qos_init(struct rtl838x_switch_priv *priv)
 	sw_w32(7, RTL839X_QM_PORT_QNUM(soc_info.cpu_port));
 
 	for (int port = 0; port <= soc_info.cpu_port; port++) {
-		rtl83xx_set_ingress_priority(port, 0);
+		rtldsa_839x_set_ingress_priority(port, 0);
 		rtl839x_set_scheduling_algorithm(priv, port, WEIGHTED_FAIR_QUEUE);
 		rtl839x_set_scheduling_queue_weights(priv, port, rtldsa_default_queue_weights);
 		/* Do re-marking based on outer tag */
