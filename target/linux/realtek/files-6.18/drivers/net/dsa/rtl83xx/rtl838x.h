@@ -1523,7 +1523,6 @@ struct rtl838x_switch_priv {
 	struct mutex pie_mutex;		/* Mutex for Packet Inspection Engine */
 	int link_state_irq;
 	int mirror_group_ports[4];
-	struct mii_bus *parent_bus;
 	const struct rtldsa_config *r;
 	u64 irq_mask;
 	struct dentry *dbgfs_dir;

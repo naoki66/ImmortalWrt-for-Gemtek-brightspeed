@@ -2498,20 +2498,6 @@ out:
 	return 0;
 }
 
-static int rtldsa_phy_read(struct dsa_switch *ds, int addr, int regnum)
-{
-	struct rtl838x_switch_priv *priv = ds->priv;
-
-	return mdiobus_read_nested(priv->parent_bus, addr, regnum);
-}
-
-static int rtldsa_phy_write(struct dsa_switch *ds, int addr, int regnum, u16 val)
-{
-	struct rtl838x_switch_priv *priv = ds->priv;
-
-	return mdiobus_write_nested(priv->parent_bus, addr, regnum, val);
-}
-
 static const struct flow_action_entry *rtldsa_rate_policy_extract(struct flow_cls_offload *cls)
 {
 	struct flow_rule *rule;
@@ -2635,9 +2621,6 @@ const struct dsa_switch_ops rtldsa_83xx_switch_ops = {
 	.get_tag_protocol	= rtldsa_get_tag_protocol,
 	.setup			= rtldsa_83xx_setup,
 
-	.phy_read		= rtldsa_phy_read,
-	.phy_write		= rtldsa_phy_write,
-
 	.phylink_get_caps	= rtldsa_83xx_phylink_get_caps,
 
 	.get_strings		= rtldsa_get_strings,
@@ -2697,9 +2680,6 @@ const struct phylink_mac_ops rtldsa_93xx_phylink_mac_ops = {
 const struct dsa_switch_ops rtldsa_93xx_switch_ops = {
 	.get_tag_protocol	= rtldsa_get_tag_protocol,
 	.setup			= rtldsa_93xx_setup,
-
-	.phy_read		= rtldsa_phy_read,
-	.phy_write		= rtldsa_phy_write,
 
 	.phylink_get_caps	= rtldsa_93xx_phylink_get_caps,
 
