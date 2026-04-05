@@ -1516,7 +1516,6 @@ struct rtl838x_switch_priv {
 	/* Switch operation */
 	struct dsa_switch *ds;
 	struct device *dev;
-	u16 id;
 	u16 family_id;
 	struct rtldsa_port ports[57];
 	struct mutex reg_mutex;		/* Mutex for individual register manipulations */

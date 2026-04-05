@@ -1558,7 +1558,6 @@ static int rtl83xx_sw_probe(struct platform_device *pdev)
 		return err;
 
 	priv->family_id = soc_info.family;
-	priv->id = soc_info.id;
 	sw_w32(0, priv->r->spanning_tree_ctrl);
 	priv->irq_mask = GENMASK_ULL(priv->r->cpu_port - 1, 0);
 
