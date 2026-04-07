@@ -210,7 +210,7 @@ struct rtmdio_config {
 	int (*read_mmd_phy)(struct mii_bus *bus, u32 addr, u32 devnum, u32 regnum, u32 *val);
 	int (*read_phy)(struct mii_bus *bus, u32 addr, u32 page, u32 reg, u32 *val);
 	int (*reset)(struct mii_bus *bus);
-	void (*setup_polling)(struct mii_bus *bus);
+	void (*setup_polling)(struct rtmdio_ctrl *ctrl);
 	int (*write_mmd_phy)(struct mii_bus *bus, u32 addr, u32 devnum, u32 regnum, u32 val);
 	int (*write_phy)(struct mii_bus *bus, u32 addr, u32 page, u32 reg, u32 val);
 };
@@ -705,9 +705,8 @@ static int rtmdio_838x_reset(struct mii_bus *bus)
 	return 0;
 }
 
-static void rtmdio_838x_setup_polling(struct mii_bus *bus)
+static void rtmdio_838x_setup_polling(struct rtmdio_ctrl *ctrl)
 {
-	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
 	int combo_phy;
 
 	/* Disable MAC polling for PHY config. It will be activated later in the DSA driver */
@@ -756,9 +755,8 @@ static int rtmdio_930x_reset(struct mii_bus *bus)
 	return 0;
 }
 
-static void rtmdio_930x_setup_polling(struct mii_bus *bus)
+static void rtmdio_930x_setup_polling(struct rtmdio_ctrl *ctrl)
 {
-	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
 	struct rtmdio_phy_info phyinfo;
 	unsigned int mask, val, pn;
 
@@ -814,9 +812,8 @@ static int rtmdio_931x_reset(struct mii_bus *bus)
 	return 0;
 }
 
-static void rtmdio_931x_setup_polling(struct mii_bus *bus)
+static void rtmdio_931x_setup_polling(struct rtmdio_ctrl *ctrl)
 {
-	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
 	struct rtmdio_phy_info phyinfo;
 	u32 pn;
 
@@ -976,14 +973,6 @@ static int rtmdio_probe_one(struct device *dev, struct rtmdio_ctrl *ctrl)
 	if (ret)
 		return ret;
 
-	/*
-	 * TODO: This polling setup needs to be relocated into rtmdio_probe(). It is a generic
-	 * function and not bus specific. But this will require more rework of the data
-	 * structures. For now it is easier to hand over the single bus that was just created.
-	 */
-	if (ctrl->cfg->setup_polling)
-		ctrl->cfg->setup_polling(bus);
-
 	return 0;
 }
 
@@ -1015,7 +1004,14 @@ static int rtmdio_probe(struct platform_device *pdev)
 	}
 	rtmdio_setup_smi_topology(ctrl);
 
-	return rtmdio_probe_one(dev, ctrl);
+	ret = rtmdio_probe_one(dev, ctrl);
+	if (ret)
+		return ret;
+
+	if (ctrl->cfg->setup_polling)
+		ctrl->cfg->setup_polling(ctrl);
+
+	return 0;
 }
 
 static const struct rtmdio_config rtmdio_838x_cfg = {
