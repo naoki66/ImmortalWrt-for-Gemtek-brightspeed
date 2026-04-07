@@ -209,7 +209,7 @@ struct rtmdio_config {
 	int port_map_base;
 	int (*read_mmd_phy)(struct mii_bus *bus, u32 addr, u32 devnum, u32 regnum, u32 *val);
 	int (*read_phy)(struct mii_bus *bus, u32 addr, u32 page, u32 reg, u32 *val);
-	int (*reset)(struct mii_bus *bus);
+	int (*setup_ctrl)(struct rtmdio_ctrl *ctrl);
 	void (*setup_polling)(struct rtmdio_ctrl *ctrl);
 	int (*write_mmd_phy)(struct mii_bus *bus, u32 addr, u32 devnum, u32 regnum, u32 val);
 	int (*write_phy)(struct mii_bus *bus, u32 addr, u32 page, u32 reg, u32 val);
@@ -691,10 +691,8 @@ static int rtmdio_get_phy_info(struct rtmdio_ctrl *ctrl, int pn, struct rtmdio_p
 	return ret;
 }
 
-static int rtmdio_838x_reset(struct mii_bus *bus)
+static int rtmdio_838x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 {
-	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
-
 	/*
 	 * PHY_PATCH_DONE enables phy control via SoC. This is required for phy access,
 	 * including patching. Must always be set before the phys are probed.
@@ -722,10 +720,8 @@ static void rtmdio_838x_setup_polling(struct rtmdio_ctrl *ctrl)
 	regmap_update_bits(ctrl->map, RTMDIO_838X_SMI_GLB_CTRL, BIT(7), combo_phy);
 }
 
-static int rtmdio_839x_reset(struct mii_bus *bus)
+static int rtmdio_839x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 {
-	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
-
 	return 0;
 
 	pr_debug("%s called\n", __func__);
@@ -740,15 +736,14 @@ static int rtmdio_839x_reset(struct mii_bus *bus)
 	return 0;
 }
 
-static int rtmdio_930x_reset(struct mii_bus *bus)
+static int rtmdio_930x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 {
-	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
 	unsigned int mask, val;
 
 	/* Define C22/C45 bus feature set */
-	for (int addr = 0; addr < RTMDIO_MAX_SMI_BUS; addr++) {
-		mask = BIT(16 + addr);
-		val = ctrl->bus[addr].is_c45 ? mask : 0;
+	for (int smi_bus = 0; smi_bus < RTMDIO_MAX_SMI_BUS; smi_bus++) {
+		mask = BIT(16 + smi_bus);
+		val = ctrl->bus[smi_bus].is_c45 ? mask : 0;
 		regmap_update_bits(ctrl->map, RTMDIO_930X_SMI_GLB_CTRL, mask, val);
 	}
 
@@ -792,9 +787,8 @@ static void rtmdio_930x_setup_polling(struct rtmdio_ctrl *ctrl)
 	}
 }
 
-static int rtmdio_931x_reset(struct mii_bus *bus)
+static int rtmdio_931x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 {
-	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
 	u32 c45_mask = 0;
 
 	/* Disable polling for configuration purposes */
@@ -803,9 +797,9 @@ static int rtmdio_931x_reset(struct mii_bus *bus)
 	msleep(100);
 
 	/* Define C22/C45 bus feature set */
-	for (int i = 0; i < RTMDIO_MAX_SMI_BUS; i++) {
-		if (ctrl->bus[i].is_c45)
-			c45_mask |= 0x2 << (i * 2);  /* Std. C45, non-standard is 0x3 */
+	for (int smi_bus = 0; smi_bus < RTMDIO_MAX_SMI_BUS; smi_bus++) {
+		if (ctrl->bus[smi_bus].is_c45)
+			c45_mask |= 0x2 << (smi_bus * 2);  /* Std. C45, non-standard is 0x3 */
 	}
 	regmap_update_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL1, GENMASK(7, 0), c45_mask);
 
@@ -861,13 +855,6 @@ static void rtmdio_931x_setup_polling(struct rtmdio_ctrl *ctrl)
 			regmap_write(ctrl->map, RTMDIO_931X_SMI_10GPHY_POLLING_SEL4, phyinfo.poll_lpa_1000);
 		}
 	}
-}
-
-static int rtmdio_reset(struct mii_bus *bus)
-{
-	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
-
-	return ctrl->cfg->reset(bus);
 }
 
 static int rtmdio_map_ports(struct device *dev)
@@ -950,7 +937,6 @@ static int rtmdio_probe_one(struct device *dev, struct rtmdio_ctrl *ctrl)
 	ctrl->bus[0].mii_bus = bus;
 
 	bus->name = "Realtek MDIO bus";
-	bus->reset = rtmdio_reset;
 	bus->read = rtmdio_read;
 	bus->write = rtmdio_write;
 	bus->read_c45 = rtmdio_read_c45;
@@ -1003,6 +989,7 @@ static int rtmdio_probe(struct platform_device *pdev)
 		return ret;
 	}
 	rtmdio_setup_smi_topology(ctrl);
+	ctrl->cfg->setup_ctrl(ctrl);
 
 	ret = rtmdio_probe_one(dev, ctrl);
 	if (ret)
@@ -1020,7 +1007,7 @@ static const struct rtmdio_config rtmdio_838x_cfg = {
 	.port_map_base	= RTMDIO_838X_SMI_PORT0_5_ADDR_CTRL,
 	.read_mmd_phy	= rtmdio_838x_read_mmd_phy,
 	.read_phy	= rtmdio_838x_read_phy,
-	.reset		= rtmdio_838x_reset,
+	.setup_ctrl	= rtmdio_838x_setup_ctrl,
 	.setup_polling	= rtmdio_838x_setup_polling,
 	.write_mmd_phy	= rtmdio_838x_write_mmd_phy,
 	.write_phy	= rtmdio_838x_write_phy,
@@ -1031,7 +1018,7 @@ static const struct rtmdio_config rtmdio_839x_cfg = {
 	.raw_page	= 8191,
 	.read_mmd_phy	= rtmdio_839x_read_mmd_phy,
 	.read_phy	= rtmdio_839x_read_phy,
-	.reset		= rtmdio_839x_reset,
+	.setup_ctrl	= rtmdio_839x_setup_ctrl,
 	.write_mmd_phy	= rtmdio_839x_write_mmd_phy,
 	.write_phy	= rtmdio_839x_write_phy,
 };
@@ -1043,7 +1030,7 @@ static const struct rtmdio_config rtmdio_930x_cfg = {
 	.port_map_base	= RTMDIO_930X_SMI_PORT0_5_ADDR_CTRL,
 	.read_mmd_phy	= rtmdio_930x_read_mmd_phy,
 	.read_phy	= rtmdio_930x_read_phy,
-	.reset		= rtmdio_930x_reset,
+	.setup_ctrl	= rtmdio_930x_setup_ctrl,
 	.setup_polling	= rtmdio_930x_setup_polling,
 	.write_mmd_phy	= rtmdio_930x_write_mmd_phy,
 	.write_phy	= rtmdio_930x_write_phy,
@@ -1056,7 +1043,7 @@ static const struct rtmdio_config rtmdio_931x_cfg = {
 	.port_map_base	= RTMDIO_931X_SMI_PORT_ADDR_CTRL,
 	.read_mmd_phy	= rtmdio_931x_read_mmd_phy,
 	.read_phy	= rtmdio_931x_read_phy,
-	.reset		= rtmdio_931x_reset,
+	.setup_ctrl	= rtmdio_931x_setup_ctrl,
 	.setup_polling	= rtmdio_931x_setup_polling,
 	.write_mmd_phy	= rtmdio_931x_write_mmd_phy,
 	.write_phy	= rtmdio_931x_write_phy,
