@@ -185,6 +185,7 @@ struct rtmdio_port {
 
 struct rtmdio_bus {
 	bool is_c45;
+	struct mii_bus *mii_bus;
 };
 
 struct rtmdio_ctrl {
@@ -198,6 +199,7 @@ struct rtmdio_ctrl {
 
 struct rtmdio_chan {
 	struct rtmdio_ctrl *ctrl;
+	u8 smi_bus;
 };
 
 struct rtmdio_config {
@@ -946,6 +948,9 @@ static int rtmdio_probe_one(struct device *dev, struct rtmdio_ctrl *ctrl)
 
 	chan = bus->priv;
 	chan->ctrl = ctrl;
+
+	chan->smi_bus = 0;
+	ctrl->bus[0].mii_bus = bus;
 
 	bus->name = "Realtek MDIO bus";
 	bus->reset = rtmdio_reset;
