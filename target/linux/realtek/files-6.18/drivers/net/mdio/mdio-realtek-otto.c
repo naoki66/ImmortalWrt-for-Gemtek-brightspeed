@@ -177,7 +177,6 @@
  */
 
 struct rtmdio_port {
-	struct device_node *dn;
 	int page;
 	bool raw;
 	u8 smi_addr;
@@ -916,7 +915,6 @@ static int rtmdio_map_ports(struct device *dev)
 
 		ctrl->port[addr].smi_bus = smi_bus;
 		ctrl->port[addr].smi_addr = smi_addr;
-		ctrl->port[addr].dn = of_node_get(phy);
 		__set_bit(addr, ctrl->valid_ports);
 	}
 
@@ -963,7 +961,7 @@ static int rtmdio_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct rtmdio_ctrl *ctrl;
-	int ret, pn;
+	int ret;
 
 	ctrl = devm_kzalloc(dev, sizeof(*ctrl), GFP_KERNEL);
 	if (!ctrl)
@@ -980,11 +978,9 @@ static int rtmdio_probe(struct platform_device *pdev)
 		return PTR_ERR(ctrl->map);
 
 	ret = rtmdio_map_ports(dev);
-	if (ret) {
-		for_each_port(ctrl, pn)
-			of_node_put(ctrl->port[pn].dn);
+	if (ret)
 		return ret;
-	}
+
 	rtmdio_setup_smi_topology(ctrl);
 	ctrl->cfg->setup_ctrl(ctrl);
 
