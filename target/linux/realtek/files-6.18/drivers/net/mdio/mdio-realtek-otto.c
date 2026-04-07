@@ -4,6 +4,7 @@
 #include <linux/fwnode_mdio.h>
 #include <linux/mfd/syscon.h>
 #include <linux/of.h>
+#include <linux/of_mdio.h>
 #include <linux/phy.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
@@ -227,15 +228,15 @@ struct rtmdio_phy_info {
 
 static int rtmdio_phy_to_port(struct mii_bus *bus, int phy)
 {
-	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
+	struct rtmdio_chan *chan = bus->priv;
+	struct rtmdio_ctrl *ctrl = chan->ctrl;
+	int pn;
 
-	if (phy < 0 || phy >= ctrl->cfg->num_phys)
-		return -ENOENT;
+	for_each_port(ctrl, pn)
+		if (ctrl->port[pn].smi_bus == chan->smi_bus && ctrl->port[pn].smi_addr == phy)
+			return pn;
 
-	if (!test_bit(phy, ctrl->valid_ports))
-		return -ENOENT;
-
-	return phy;
+	return -ENOENT;
 }
 
 static int rtmdio_run_cmd(struct mii_bus *bus, int cmd, int mask, int regnum, int fail)
@@ -642,9 +643,10 @@ static u32 rtmdio_get_phy_id(struct phy_device *phydev)
 
 static int rtmdio_get_phy_info(struct rtmdio_ctrl *ctrl, int pn, struct rtmdio_phy_info *phyinfo)
 {
-	struct phy_device *phydev = mdiobus_get_phy(ctrl->bus[0].mii_bus, pn);
-	u32 phyid = rtmdio_get_phy_id(phydev);
+	struct mii_bus *bus = ctrl->bus[ctrl->port[pn].smi_bus].mii_bus;
+	int addr = ctrl->port[pn].smi_addr;
 	int ret = 0;
+	u32 phyid;
 
 	/*
 	 * Depending on the attached PHY the polling mechanism must be fine tuned. Basically
@@ -652,6 +654,7 @@ static int rtmdio_get_phy_info(struct rtmdio_ctrl *ctrl, int pn, struct rtmdio_p
 	 * features.
 	 */
 	memset(phyinfo, 0, sizeof(*phyinfo));
+	phyid = rtmdio_get_phy_id(mdiobus_get_phy(bus, addr));
 
 	switch(phyid) {
 	case RTMDIO_PHY_AQR113C_A:
@@ -920,21 +923,26 @@ static int rtmdio_map_ports(struct device *dev)
 	return 0;
 }
 
-static int rtmdio_probe_one(struct device *dev, struct rtmdio_ctrl *ctrl)
+static int rtmdio_probe_one(struct device *dev, struct rtmdio_ctrl *ctrl,
+			    struct fwnode_handle *node)
 {
 	struct rtmdio_chan *chan;
 	struct mii_bus *bus;
-	int ret, pn;
+	int smi_bus, ret;
+
+	ret = fwnode_property_read_u32(node, "reg", &smi_bus);
+	if (ret)
+		return ret;
 
 	bus = devm_mdiobus_alloc_size(dev, sizeof(*chan));
 	if (!bus)
 		return -ENOMEM;
 
+	ctrl->bus[smi_bus].mii_bus = bus;
+
 	chan = bus->priv;
 	chan->ctrl = ctrl;
-
-	chan->smi_bus = 0;
-	ctrl->bus[0].mii_bus = bus;
+	chan->smi_bus = smi_bus;
 
 	bus->name = "Realtek MDIO bus";
 	bus->read = rtmdio_read;
@@ -942,22 +950,11 @@ static int rtmdio_probe_one(struct device *dev, struct rtmdio_ctrl *ctrl)
 	bus->read_c45 = rtmdio_read_c45;
 	bus->write_c45 = rtmdio_write_c45;
 	bus->parent = dev;
-	bus->phy_mask = ~0;
-	snprintf(bus->id, MII_BUS_ID_SIZE, "realtek-mdio");
-	device_set_node(&bus->dev, of_fwnode_handle(dev->of_node));
+	snprintf(bus->id, MII_BUS_ID_SIZE, "realtek-mdio-%d", smi_bus);
 
-	ret = devm_mdiobus_register(dev, bus);
+	ret = devm_of_mdiobus_register(dev, bus, to_of_node(node));
 	if (ret)
-		return dev_err_probe(dev, ret, "cannot register MDIO bus\n");
-
-	for_each_port(ctrl, pn) {
-		if (!ret)
-			ret = fwnode_mdiobus_register_phy(bus,
-				of_fwnode_handle(ctrl->port[pn].dn), pn);
-		of_node_put(ctrl->port[pn].dn);
-	}
-	if (ret)
-		return ret;
+		return dev_err_probe(dev, ret, "cannot register MDIO %d bus\n", smi_bus);
 
 	return 0;
 }
@@ -991,9 +988,11 @@ static int rtmdio_probe(struct platform_device *pdev)
 	rtmdio_setup_smi_topology(ctrl);
 	ctrl->cfg->setup_ctrl(ctrl);
 
-	ret = rtmdio_probe_one(dev, ctrl);
-	if (ret)
-		return ret;
+	device_for_each_child_node_scoped(dev, child) {
+		ret = rtmdio_probe_one(dev, ctrl, child);
+		if (ret)
+			return ret;
+	}
 
 	if (ctrl->cfg->setup_polling)
 		ctrl->cfg->setup_polling(ctrl);
