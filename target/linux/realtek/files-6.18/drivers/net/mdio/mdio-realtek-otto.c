@@ -640,9 +640,9 @@ static u32 rtmdio_get_phy_id(struct phy_device *phydev)
 	return phydev->phy_id;
 }
 
-static int rtmdio_get_phy_info(struct mii_bus *bus, int addr, struct rtmdio_phy_info *phyinfo)
+static int rtmdio_get_phy_info(struct rtmdio_ctrl *ctrl, int pn, struct rtmdio_phy_info *phyinfo)
 {
-	struct phy_device *phydev = mdiobus_get_phy(bus, addr);
+	struct phy_device *phydev = mdiobus_get_phy(ctrl->bus[0].mii_bus, pn);
 	u32 phyid = rtmdio_get_phy_id(phydev);
 	int ret = 0;
 
@@ -683,7 +683,7 @@ static int rtmdio_get_phy_info(struct mii_bus *bus, int addr, struct rtmdio_phy_
 		phyinfo->has_res_reg = true;
 		break;
 	default:
-		pr_warn("skip polling setup for unknown PHY %08x on address %d\n", phyid, addr);
+		pr_warn("skip polling setup for unknown PHY %08x on port %d\n", phyid, pn);
 		ret = -EINVAL;
 		break;
 	}
@@ -767,7 +767,7 @@ static void rtmdio_930x_setup_polling(struct mii_bus *bus)
 
 	/* Define PHY specific polling parameters */
 	for_each_port(ctrl, pn) {
-		if (rtmdio_get_phy_info(bus, pn, &phyinfo))
+		if (rtmdio_get_phy_info(ctrl, pn, &phyinfo))
 			continue;
 
 		/* set to "PHY driven" */
@@ -830,7 +830,7 @@ static void rtmdio_931x_setup_polling(struct mii_bus *bus)
 		u8 smi = ctrl->port[pn].smi_bus;
 		unsigned int mask, val;
 
-		if (rtmdio_get_phy_info(bus, pn, &phyinfo))
+		if (rtmdio_get_phy_info(ctrl, pn, &phyinfo))
 			continue;
 
 		/* set to "PHY driven" */
