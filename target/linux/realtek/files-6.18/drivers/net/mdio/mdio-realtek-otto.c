@@ -107,8 +107,8 @@
 #define RTMDIO_931X_SMI_10GPHY_POLLING_SEL3	(0x0CFC)
 #define RTMDIO_931X_SMI_10GPHY_POLLING_SEL4	(0x0D00)
 
-#define for_each_phy(ctrl, addr) \
-	for_each_set_bit(addr, ctrl->valid_ports, RTMDIO_MAX_PHY)
+#define for_each_port(ctrl, pn) \
+	for_each_set_bit(pn, ctrl->valid_ports, RTMDIO_MAX_PHY)
 
 #define rtmdio_ctrl_from_bus(bus) \
 	(((struct rtmdio_chan *)(bus)->priv)->ctrl)
@@ -602,20 +602,20 @@ static int rtmdio_write(struct mii_bus *bus, int phy, int regnum, u16 val)
 
 static void rtmdio_setup_smi_topology(struct rtmdio_ctrl *ctrl)
 {
-	u32 reg, mask, val, addr;
+	u32 reg, mask, val, pn;
 
-	for_each_phy(ctrl, addr) {
+	for_each_port(ctrl, pn) {
 		if (ctrl->cfg->bus_map_base) {
-			reg = (addr / 16) * 4;
-			mask = 0x3 << ((addr % 16) * 2);
-			val = ctrl->port[addr].smi_bus << ((addr % 16) * 2);
+			reg = (pn / 16) * 4;
+			mask = 0x3 << ((pn % 16) * 2);
+			val = ctrl->port[pn].smi_bus << ((pn % 16) * 2);
 			regmap_update_bits(ctrl->map, ctrl->cfg->bus_map_base + reg, mask, val);
 		}
 
 		if (ctrl->cfg->port_map_base) {
-			reg = (addr / 6) * 4;
-			mask = 0x1f << ((addr % 6) * 5);
-			val = ctrl->port[addr].smi_addr << ((addr % 6) * 5);
+			reg = (pn / 6) * 4;
+			mask = 0x1f << ((pn % 6) * 5);
+			val = ctrl->port[pn].smi_addr << ((pn % 6) * 5);
 			regmap_update_bits(ctrl->map, ctrl->cfg->port_map_base + reg, mask, val);
 		}
 	}
@@ -758,28 +758,28 @@ static void rtmdio_930x_setup_polling(struct mii_bus *bus)
 {
 	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
 	struct rtmdio_phy_info phyinfo;
-	unsigned int mask, val, addr;
+	unsigned int mask, val, pn;
 
 	/* set everthing to "SerDes driven" */
 	regmap_write(ctrl->map, RTMDIO_930X_SMI_MAC_TYPE_CTRL, 0);
 
 	/* Define PHY specific polling parameters */
-	for_each_phy(ctrl, addr) {
-		if (rtmdio_get_phy_info(bus, addr, &phyinfo))
+	for_each_port(ctrl, pn) {
+		if (rtmdio_get_phy_info(bus, pn, &phyinfo))
 			continue;
 
 		/* set to "PHY driven" */
-		mask = addr > 23 ? 0x7 << ((addr - 24) * 3 + 12): 0x3 << ((addr / 4) * 2);
+		mask = pn > 23 ? 0x7 << ((pn - 24) * 3 + 12): 0x3 << ((pn / 4) * 2);
 		val = phyinfo.mac_type << (ffs(mask) - 1);
 		regmap_update_bits(ctrl->map, RTMDIO_930X_SMI_MAC_TYPE_CTRL, mask, val);
 
 		/* polling via standard or resolution register */
-		mask = BIT(20 + ctrl->port[addr].smi_bus);
+		mask = BIT(20 + ctrl->port[pn].smi_bus);
 		val = phyinfo.has_res_reg ? mask : 0;
 		regmap_update_bits(ctrl->map, RTMDIO_930X_SMI_GLB_CTRL, mask, val);
 
 		/* proprietary Realtek 1G/2.5 lite polling */
-		mask = BIT(addr);
+		mask = BIT(pn);
 		val = phyinfo.has_giga_lite ? mask : 0;
 		regmap_update_bits(ctrl->map, RTMDIO_930X_SMI_PRVTE_POLLING_CTRL, mask, val);
 
@@ -816,7 +816,7 @@ static void rtmdio_931x_setup_polling(struct mii_bus *bus)
 {
 	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
 	struct rtmdio_phy_info phyinfo;
-	u32 addr;
+	u32 pn;
 
 	/* set everything to "SerDes driven" */
 	for (int reg = 0; reg < 4; reg++)
@@ -824,17 +824,17 @@ static void rtmdio_931x_setup_polling(struct mii_bus *bus)
 			     RTMDIO_931X_SMI_PHY_ABLTY_SDS * 0x55555555U);
 
 	/* Define PHY specific polling parameters */
-	for_each_phy(ctrl, addr) {
-		u8 smi = ctrl->port[addr].smi_bus;
+	for_each_port(ctrl, pn) {
+		u8 smi = ctrl->port[pn].smi_bus;
 		unsigned int mask, val;
 
-		if (rtmdio_get_phy_info(bus, addr, &phyinfo))
+		if (rtmdio_get_phy_info(bus, pn, &phyinfo))
 			continue;
 
 		/* set to "PHY driven" */
-		mask = GENMASK(1, 0) << ((addr % 16) * 2);
+		mask = GENMASK(1, 0) << ((pn % 16) * 2);
 		val = RTMDIO_931X_SMY_PHY_ABLTY_MDIO << (ffs(mask) - 1);
-		regmap_update_bits(ctrl->map, RTMDIO_931X_SMI_PHY_ABLTY_GET_SEL + (addr / 16) * 4,
+		regmap_update_bits(ctrl->map, RTMDIO_931X_SMI_PHY_ABLTY_GET_SEL + (pn / 16) * 4,
 				   mask, val);
 		mask = val = 0;
 
@@ -938,7 +938,7 @@ static int rtmdio_probe_one(struct device *dev, struct rtmdio_ctrl *ctrl)
 {
 	struct rtmdio_chan *chan;
 	struct mii_bus *bus;
-	int ret, addr;
+	int ret, pn;
 
 	bus = devm_mdiobus_alloc_size(dev, sizeof(*chan));
 	if (!bus)
@@ -962,11 +962,11 @@ static int rtmdio_probe_one(struct device *dev, struct rtmdio_ctrl *ctrl)
 	if (ret)
 		return dev_err_probe(dev, ret, "cannot register MDIO bus\n");
 
-	for_each_phy(ctrl, addr) {
+	for_each_port(ctrl, pn) {
 		if (!ret)
 			ret = fwnode_mdiobus_register_phy(bus,
-				of_fwnode_handle(ctrl->port[addr].dn), addr);
-		of_node_put(ctrl->port[addr].dn);
+				of_fwnode_handle(ctrl->port[pn].dn), pn);
+		of_node_put(ctrl->port[pn].dn);
 	}
 	if (ret)
 		return ret;
@@ -986,7 +986,7 @@ static int rtmdio_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct rtmdio_ctrl *ctrl;
-	int ret, addr;
+	int ret, pn;
 
 	ctrl = devm_kzalloc(dev, sizeof(*ctrl), GFP_KERNEL);
 	if (!ctrl)
@@ -1004,8 +1004,8 @@ static int rtmdio_probe(struct platform_device *pdev)
 
 	ret = rtmdio_map_ports(dev);
 	if (ret) {
-		for_each_phy(ctrl, addr)
-			of_node_put(ctrl->port[addr].dn);
+		for_each_port(ctrl, pn)
+			of_node_put(ctrl->port[pn].dn);
 		return ret;
 	}
 	rtmdio_setup_smi_topology(ctrl);
