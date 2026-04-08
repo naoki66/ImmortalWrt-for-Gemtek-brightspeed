@@ -8,6 +8,10 @@
 	model = "EnGenius EAP600";
 	compatible = "engenius,eap600", "qca,ar9344";
 
+	aliases {
+		label-mac-device = &eth0;
+	};
+
 	leds {
 		compatible = "gpio-leds";
 
