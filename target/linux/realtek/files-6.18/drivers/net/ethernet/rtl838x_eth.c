@@ -419,27 +419,27 @@ static void rteth_839x_hw_reset(struct rteth_ctrl *ctrl)
 	u32 int_saved, nbuf;
 
 	/* Preserve L2 notification and NBUF settings */
-	int_saved = sw_r32(ctrl->r->dma_if_intr_msk);
-	nbuf = sw_r32(RTL839X_DMA_IF_NBUF_BASE_DESC_ADDR_CTRL);
+	regmap_read(ctrl->map, ctrl->r->dma_if_intr_msk, &int_saved);
+	regmap_read(ctrl->map, RTL839X_DMA_IF_NBUF_BASE_DESC_ADDR_CTRL, &nbuf);
 
 	/* Disable link change interrupt on RTL839x */
-	sw_w32(0, RTL839X_IMR_PORT_LINK_STS_CHG);
-	sw_w32(0, RTL839X_IMR_PORT_LINK_STS_CHG + 4);
+	regmap_write(ctrl->map, RTL839X_IMR_PORT_LINK_STS_CHG, 0);
+	regmap_write(ctrl->map, RTL839X_IMR_PORT_LINK_STS_CHG + 4, 0);
 
 	rteth_nic_reset(ctrl, 0xc);
 
 	/* Re-enable link change interrupt */
-	sw_w32(0xffffffff, RTL839X_ISR_PORT_LINK_STS_CHG);
-	sw_w32(0xffffffff, RTL839X_ISR_PORT_LINK_STS_CHG + 4);
-	sw_w32(0xffffffff, RTL839X_IMR_PORT_LINK_STS_CHG);
-	sw_w32(0xffffffff, RTL839X_IMR_PORT_LINK_STS_CHG + 4);
+	regmap_write(ctrl->map, RTL839X_ISR_PORT_LINK_STS_CHG, 0xffffffff);
+	regmap_write(ctrl->map, RTL839X_ISR_PORT_LINK_STS_CHG + 4, 0xffffffff);
+	regmap_write(ctrl->map, RTL839X_IMR_PORT_LINK_STS_CHG, 0xffffffff);
+	regmap_write(ctrl->map, RTL839X_IMR_PORT_LINK_STS_CHG + 4, 0xffffffff);
 
 	/* Restore notification settings: on RTL838x these bits are null */
-	sw_w32_mask(7 << 20, int_saved & (7 << 20), ctrl->r->dma_if_intr_msk);
-	sw_w32(nbuf, RTL839X_DMA_IF_NBUF_BASE_DESC_ADDR_CTRL);
+	regmap_update_bits(ctrl->map, ctrl->r->dma_if_intr_msk, 7 << 20, int_saved & (7 << 20));
+	regmap_write(ctrl->map, RTL839X_DMA_IF_NBUF_BASE_DESC_ADDR_CTRL, nbuf);
 
 	/* Free floating rings without space tracking */
-	sw_w32(0, RTL839X_DMA_IF_RX_RING_SIZE);
+	regmap_write(ctrl->map, RTL839X_DMA_IF_RX_RING_SIZE, 0);
 }
 
 static void rteth_93xx_hw_reset(struct rteth_ctrl *ctrl)
