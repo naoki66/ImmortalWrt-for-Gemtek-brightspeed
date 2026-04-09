@@ -247,9 +247,9 @@ static int rtmdio_run_cmd(struct mii_bus *bus, int cmd, int mask, int regnum, in
 	ret = regmap_update_bits(ctrl->map, regnum, mask, cmd | RTMDIO_RUN);
 	ret = regmap_read_poll_timeout(ctrl->map, regnum, val, !(val & RTMDIO_RUN), 20, 500000);
 	if (ret)
-		WARN_ONCE(1, "mdio bus access timed out\n");
+		dev_warn_once(&bus->dev, "access timed out\n");
 	else if (val & fail) {
-		WARN_ONCE(1, "mdio bus access failed\n");
+		dev_warn_once(&bus->dev, "access failed\n");
 		ret = -EIO;
 	}
 
