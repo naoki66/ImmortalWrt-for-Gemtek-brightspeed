@@ -821,7 +821,7 @@ static void rtmdio_931x_setup_polling(struct rtmdio_ctrl *ctrl)
 
 	/* Define PHY specific polling parameters */
 	for_each_port(ctrl, pn) {
-		u8 smi = ctrl->port[pn].smi_bus;
+		u8 smi_bus = ctrl->port[pn].smi_bus;
 		unsigned int mask, val;
 
 		if (rtmdio_get_phy_info(ctrl, pn, &phyinfo))
@@ -835,19 +835,19 @@ static void rtmdio_931x_setup_polling(struct rtmdio_ctrl *ctrl)
 		mask = val = 0;
 
 		/* PRVTE0 polling */
-		mask |= BIT(20 + smi);
+		mask |= BIT(20 + smi_bus);
 		if (phyinfo.has_res_reg)
-			val |= BIT(20 + smi);
+			val |= BIT(20 + smi_bus);
 
 		/* PRVTE1 polling */
-		mask |= BIT(24 + smi);
+		mask |= BIT(24 + smi_bus);
 		if (phyinfo.force_res)
-			val |= BIT(24 + smi);
+			val |= BIT(24 + smi_bus);
 
 		regmap_update_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL0, mask, val);
 
 		/* polling std. or proprietary format (bit 0 of SMI_SETX_FMT_SEL) */
-		mask = BIT(smi * 2);
+		mask = BIT(smi_bus * 2);
 		val = phyinfo.force_res ? mask : 0;
 		regmap_update_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL1, mask, val);
 
