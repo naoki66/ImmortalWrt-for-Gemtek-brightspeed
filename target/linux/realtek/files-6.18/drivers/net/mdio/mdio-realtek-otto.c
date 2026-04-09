@@ -10,8 +10,9 @@
 #include <linux/regmap.h>
 #include <linux/types.h>
 
-#define RTMDIO_MAX_PHY				57
-#define RTMDIO_MAX_SMI_BUS			4
+#define RTMDIO_MAX_PORTS			57
+#define RTMDIO_MAX_SMI_BUSSES			4
+
 #define RTMDIO_PAGE_SELECT			0x1f
 
 #define RTMDIO_PHY_AQR113C_A			0x31c31c12
@@ -109,7 +110,7 @@
 #define RTMDIO_931X_SMI_10GPHY_POLLING_SEL4	(0x0D00)
 
 #define for_each_port(ctrl, pn) \
-	for_each_set_bit(pn, ctrl->valid_ports, RTMDIO_MAX_PHY)
+	for_each_set_bit(pn, ctrl->valid_ports, RTMDIO_MAX_PORTS)
 
 #define rtmdio_ctrl_from_bus(bus) \
 	(((struct rtmdio_chan *)(bus)->priv)->ctrl)
@@ -192,9 +193,9 @@ struct rtmdio_ctrl {
 	struct mutex lock;
 	struct regmap *map;
 	const struct rtmdio_config *cfg;
-	struct rtmdio_port port[RTMDIO_MAX_PHY];
-	struct rtmdio_bus bus[RTMDIO_MAX_SMI_BUS];
-	DECLARE_BITMAP(valid_ports, RTMDIO_MAX_PHY);
+	struct rtmdio_port port[RTMDIO_MAX_PORTS];
+	struct rtmdio_bus bus[RTMDIO_MAX_SMI_BUSSES];
+	DECLARE_BITMAP(valid_ports, RTMDIO_MAX_PORTS);
 };
 
 struct rtmdio_chan {
@@ -744,7 +745,7 @@ static int rtmdio_930x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 	unsigned int mask, val;
 
 	/* Define C22/C45 bus feature set */
-	for (int smi_bus = 0; smi_bus < RTMDIO_MAX_SMI_BUS; smi_bus++) {
+	for (int smi_bus = 0; smi_bus < RTMDIO_MAX_SMI_BUSSES; smi_bus++) {
 		mask = BIT(16 + smi_bus);
 		val = ctrl->bus[smi_bus].is_c45 ? mask : 0;
 		regmap_update_bits(ctrl->map, RTMDIO_930X_SMI_GLB_CTRL, mask, val);
@@ -800,7 +801,7 @@ static int rtmdio_931x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 	msleep(100);
 
 	/* Define C22/C45 bus feature set */
-	for (int smi_bus = 0; smi_bus < RTMDIO_MAX_SMI_BUS; smi_bus++) {
+	for (int smi_bus = 0; smi_bus < RTMDIO_MAX_SMI_BUSSES; smi_bus++) {
 		if (ctrl->bus[smi_bus].is_c45)
 			c45_mask |= 0x2 << (smi_bus * 2);  /* Std. C45, non-standard is 0x3 */
 	}
@@ -907,7 +908,7 @@ static int rtmdio_map_ports(struct device *dev)
 			return dev_err_probe(dev, -EINVAL, "%pfwP no bus address\n",
 					     of_fwnode_handle(phy->parent));
 
-		if (smi_bus >= RTMDIO_MAX_SMI_BUS)
+		if (smi_bus >= RTMDIO_MAX_SMI_BUSSES)
 			return dev_err_probe(dev, -EINVAL, "%pfwP illegal bus number\n",
 					     of_fwnode_handle(phy->parent));
 
