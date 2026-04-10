@@ -1623,7 +1623,7 @@ static unsigned int an8855_pcs_inband_caps(struct phylink_pcs *pcs,
 	return  LINK_INBAND_DISABLE;
 }
 
-static void an8855_pcs_get_state(struct phylink_pcs *pcs,
+static void an8855_pcs_get_state(struct phylink_pcs *pcs, unsigned int neg_mode,
 				 struct phylink_link_state *state)
 {
 	struct an8855_priv *priv = container_of(pcs, struct an8855_priv, pcs);
@@ -2261,15 +2261,17 @@ static int an8855_switch_probe(struct platform_device *pdev)
 	if (!priv->ds)
 		return -ENOMEM;
 
+	ret = devm_mutex_init(priv->dev, &priv->reg_mutex);
+	if (ret)
+		return ret;
+
 	priv->ds->dev = priv->dev;
 	priv->ds->num_ports = AN8855_NUM_PORTS;
 	priv->ds->priv = priv;
 	priv->ds->ops = &an8855_switch_ops;
-	devm_mutex_init(priv->dev, &priv->reg_mutex);
 	priv->ds->phylink_mac_ops = &an8855_phylink_mac_ops;
 
 	priv->pcs.ops = &an8855_pcs_ops;
-	priv->pcs.neg_mode = true;
 	priv->pcs.poll = true;
 
 	dev_set_drvdata(priv->dev, priv);
@@ -2293,7 +2295,7 @@ MODULE_DEVICE_TABLE(of, an8855_switch_of_match);
 
 static struct platform_driver an8855_switch_driver = {
 	.probe = an8855_switch_probe,
-	.remove_new = an8855_switch_remove,
+	.remove = an8855_switch_remove,
 	.driver = {
 		.name = "an8855-switch",
 		.of_match_table = an8855_switch_of_match,
