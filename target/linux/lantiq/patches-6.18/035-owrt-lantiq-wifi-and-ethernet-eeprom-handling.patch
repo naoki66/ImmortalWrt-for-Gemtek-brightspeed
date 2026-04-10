@@ -16,9 +16,9 @@ Signed-off-by: John Crispin <blogic@openwrt.org>
 
 --- a/arch/mips/include/asm/mach-lantiq/xway/lantiq_soc.h
 +++ b/arch/mips/include/asm/mach-lantiq/xway/lantiq_soc.h
-@@ -99,5 +99,8 @@ extern __iomem void *ltq_cgu_membase;
- extern void ltq_pmu_enable(unsigned int module);
- extern void ltq_pmu_disable(unsigned int module);
+@@ -102,5 +102,8 @@ extern void ltq_pmu_disable(unsigned int
+ /* VMMC */
+ extern unsigned int *ltq_get_cp1_base(void);
  
 +/* allow the ethernet driver to load a flash mapped mac addr */
 +const u8* ltq_get_eth_mac(void);
@@ -224,7 +224,7 @@ Signed-off-by: John Crispin <blogic@openwrt.org>
  
 --- a/drivers/net/ethernet/lantiq_etop.c
 +++ b/drivers/net/ethernet/lantiq_etop.c
-@@ -770,7 +770,11 @@ ltq_etop_init(struct net_device *dev)
+@@ -769,7 +769,11 @@ ltq_etop_init(struct net_device *dev)
  	if (err)
  		goto err_hw;
  

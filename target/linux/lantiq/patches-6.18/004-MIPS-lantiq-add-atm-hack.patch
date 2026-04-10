@@ -431,7 +431,7 @@ Signed-off-by: John Crispin <blogic@openwrt.org>
  
  #include <asm/bootinfo.h>
  #include <asm/irq_cpu.h>
-@@ -92,6 +93,7 @@ void ltq_disable_irq(struct irq_data *d)
+@@ -93,6 +94,7 @@ void ltq_disable_irq(struct irq_data *d)
  	}
  	raw_spin_unlock_irqrestore(&ltq_icu_lock, flags);
  }

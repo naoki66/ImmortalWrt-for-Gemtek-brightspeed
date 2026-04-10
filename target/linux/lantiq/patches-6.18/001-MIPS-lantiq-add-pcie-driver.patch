@@ -4156,7 +4156,7 @@ Signed-off-by: John Crispin <blogic@openwrt.org>
 +#endif /* IFXMIPS_PCIE_VR9_H */
 --- a/arch/mips/pci/pci-legacy.c
 +++ b/arch/mips/pci/pci-legacy.c
-@@ -312,3 +312,30 @@ char *__init pcibios_setup(char *str)
+@@ -278,3 +278,30 @@ char *__init pcibios_setup(char *str)
  		return pcibios_plat_setup(str);
  	return str;
  }
@@ -5518,18 +5518,18 @@ Signed-off-by: John Crispin <blogic@openwrt.org>
  	  (transaction layer end-to-end CRC checking).
 --- a/include/linux/pci.h
 +++ b/include/linux/pci.h
-@@ -1658,6 +1658,8 @@ void pci_walk_bus_locked(struct pci_bus
- 			 void *userdata);
+@@ -1660,6 +1660,8 @@ void pci_walk_bus(struct pci_bus *top, i
+ 		  void *userdata);
  int pci_cfg_space_size(struct pci_dev *dev);
  unsigned char pci_bus_max_busnr(struct pci_bus *bus);
 +int pcibios_host_nr(void);
 +int pcibios_1st_host_bus_nr(void);
- void pci_setup_bridge(struct pci_bus *bus);
  resource_size_t pcibios_window_alignment(struct pci_bus *bus,
  					 unsigned long type);
+ 
 --- a/include/linux/pci_ids.h
 +++ b/include/linux/pci_ids.h
-@@ -1111,6 +1111,12 @@
+@@ -1114,6 +1114,12 @@
  #define PCI_DEVICE_ID_SGI_IOC3		0x0003
  #define PCI_DEVICE_ID_SGI_LITHIUM	0x1002
  
