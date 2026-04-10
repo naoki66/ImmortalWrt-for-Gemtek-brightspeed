@@ -28,7 +28,11 @@ define Host/Configure
 		V=$(if $(findstring c,$(OPENWRT_VERBOSE)),1) \
 		tools-only_config
 
-	sed -i 's/CONFIG_TOOLS_MKEFICAPSULE=y/# CONFIG_TOOLS_MKEFICAPSULE is not set/' $(HOST_BUILD_DIR)/.config
+	$(HOST_BUILD_DIR)/scripts/config \
+		--file $(HOST_BUILD_DIR)/.config \
+		--disable TOOLS_KWBIMAGE \
+		--disable TOOLS_LIBCRYPTO \
+		--disable TOOLS_MKEFICAPSULE
 endef
 
 define Host/Compile
