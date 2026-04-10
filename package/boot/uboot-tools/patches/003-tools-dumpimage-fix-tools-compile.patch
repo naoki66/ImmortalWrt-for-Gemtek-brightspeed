@@ -44,8 +44,8 @@ Signed-off-by: Scott Mercer <TheRootEd24@gmail.com>
  # Enable all the config-independent tools
  ifneq ($(HOST_TOOLS_ALL),)
  CONFIG_ARCH_KIRKWOOD = y
-@@ -261,15 +281,10 @@ hostprogs-$(CONFIG_MIPS) += mips-relocs
- hostprogs-$(CONFIG_ASN1_COMPILER)	+= asn1_compiler
+@@ -262,15 +282,10 @@ hostprogs-always-$(CONFIG_MIPS) += mips-
+ hostprogs-always-$(CONFIG_ASN1_COMPILER)	+= asn1_compiler
  HOSTCFLAGS_asn1_compiler.o = -idirafter $(srctree)/include
  
 -HOSTCFLAGS_mkeficapsule.o += \
@@ -56,15 +56,15 @@ Signed-off-by: Scott Mercer <TheRootEd24@gmail.com>
 -	generated/lib/sha1.o \
 -	$(LIBFDT_OBJS) \
 -	mkeficapsule.o
--hostprogs-$(CONFIG_TOOLS_MKEFICAPSULE) += mkeficapsule
+-hostprogs-always-$(CONFIG_TOOLS_MKEFICAPSULE) += mkeficapsule
 +HOSTCFLAGS_mkeficapsule.o +=
 +HOSTLDLIBS_mkeficapsule +=
 +mkeficapsule-objs :=
-+hostprogs-$(CONFIG_TOOLS_MKEFICAPSULE) +=
++hostprogs-always-$(CONFIG_TOOLS_MKEFICAPSULE) +=
  
  mkfwumdata-objs := mkfwumdata.o generated/lib/crc32.o
  HOSTLDLIBS_mkfwumdata += -luuid
-@@ -330,8 +345,7 @@ HOST_EXTRACFLAGS += -include $(srctree)/
+@@ -329,8 +344,7 @@ HOST_EXTRACFLAGS += -include $(srctree)/
  		-I$(srctree)/scripts/dtc/libfdt \
  		-I$(srctree)/tools \
  		-DUSE_HOSTCC \
