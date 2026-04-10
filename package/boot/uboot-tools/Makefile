@@ -70,8 +70,12 @@ endef
 
 define Build/Configure
 	$(call Build/Compile/Default,tools-only_defconfig)
-	$(SED) 's/CONFIG_TOOLS_LIBCRYPTO=y/# CONFIG_TOOLS_LIBCRYPTO is not set/' $(PKG_BUILD_DIR)/.config
-	$(SED) 's/CONFIG_TOOLS_KWBIMAGE=y/# CONFIG_TOOLS_KWBIMAGE is not set/' $(PKG_BUILD_DIR)/.config
+
+	$(PKG_BUILD_DIR)/scripts/config \
+		--file $(PKG_BUILD_DIR)/.config \
+		--disable TOOLS_KWBIMAGE \
+		--disable TOOLS_LIBCRYPTO \
+		--disable TOOLS_MKEFICAPSULE
 endef
 
 MAKE_FLAGS += \
