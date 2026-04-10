@@ -13,7 +13,7 @@ Signed-off-by: John Crispin <john@phrozen.org>
 ---
 --- a/arch/arm/boot/dts/mediatek/mt7623.dtsi
 +++ b/arch/arm/boot/dts/mediatek/mt7623.dtsi
-@@ -995,17 +995,15 @@
+@@ -1003,17 +1003,15 @@
  	};
  
  	crypto: crypto@1b240000 {

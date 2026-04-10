@@ -12,86 +12,85 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 ---
 --- a/drivers/net/phy/mediatek/mtk-2p5ge.c
 +++ b/drivers/net/phy/mediatek/mtk-2p5ge.c
-@@ -12,13 +12,77 @@
+@@ -9,17 +9,76 @@
  
  #include "mtk.h"
  
-+#define MTK_2P5GPHY_ID_MT7987	(0x00339c91)
- #define MTK_2P5GPHY_ID_MT7988	(0x00339c11)
++#define MTK_2P5GPHY_ID_MT7987		0x00339c91
+ #define MTK_2P5GPHY_ID_MT7988		0x00339c11
  
 +#define MT7987_2P5GE_PMB_FW		"mediatek/mt7987/i2p5ge-phy-pmb.bin"
-+#define MT7987_2P5GE_PMB_FW_SIZE	(0x18000)
-+#define MT7987_2P5GE_DSPBITTB \
-+	"mediatek/mt7987/i2p5ge-phy-DSPBitTb.bin"
-+#define MT7987_2P5GE_DSPBITTB_SIZE	(0x7000)
++#define MT7987_2P5GE_PMB_FW_SIZE	0x18000
++#define MT7987_2P5GE_DSPBITTB		"mediatek/mt7987/i2p5ge-phy-DSPBitTb.bin"
++#define MT7987_2P5GE_DSPBITTB_SIZE	0x7000
 +
  #define MT7988_2P5GE_PMB_FW		"mediatek/mt7988/i2p5ge-phy-pmb.bin"
- #define MT7988_2P5GE_PMB_FW_SIZE	(0x20000)
+ #define MT7988_2P5GE_PMB_FW_SIZE	0x20000
+ #define MT7988_2P5GE_PMB_FW_BASE	0x0f100000
+ #define MT7988_2P5GE_PMB_FW_LEN		0x20000
 +
-+#define MTK_2P5GPHY_PMD_REG_BASE	(0x0f010000)
-+#define MTK_2P5GPHY_PMD_REG_LEN		(0x210)
-+#define DO_NOT_RESET			(0x28)
-+#define   DO_NOT_RESET_XBZ		BIT(0)
-+#define   DO_NOT_RESET_PMA		BIT(3)
-+#define   DO_NOT_RESET_RX		BIT(5)
-+#define FNPLL_PWR_CTRL1			(0x208)
-+#define   RG_SPEED_MASK			GENMASK(3, 0)
-+#define   RG_SPEED_2500			BIT(3)
-+#define   RG_SPEED_100			BIT(0)
-+#define FNPLL_PWR_CTRL_STATUS		(0x20c)
-+#define   RG_STABLE_MASK		GENMASK(3, 0)
-+#define   RG_SPEED_2500_STABLE		BIT(3)
-+#define   RG_SPEED_100_STABLE		BIT(0)
++#define MTK_2P5GPHY_PMD_REG_BASE	0x0f010000
++#define MTK_2P5GPHY_PMD_REG_LEN		0x210
++#define DO_NOT_RESET			0x28
++#define DO_NOT_RESET_XBZ		BIT(0)
++#define DO_NOT_RESET_PMA		BIT(3)
++#define DO_NOT_RESET_RX			BIT(5)
++#define FNPLL_PWR_CTRL1			0x208
++#define RG_SPEED_MASK			GENMASK(3, 0)
++#define RG_SPEED_2500			BIT(3)
++#define RG_SPEED_100			BIT(0)
++#define FNPLL_PWR_CTRL_STATUS		0x20c
++#define RG_STABLE_MASK			GENMASK(3, 0)
++#define RG_SPEED_2500_STABLE		BIT(3)
++#define RG_SPEED_100_STABLE		BIT(0)
 +
-+#define MTK_2P5GPHY_XBZ_PCS_REG_BASE	(0x0f030000)
-+#define MTK_2P5GPHY_XBZ_PCS_REG_LEN	(0x844)
-+#define PHY_CTRL_CONFIG			(0x200)
-+#define PMU_WP				(0x800)
-+#define   WRITE_PROTECT_KEY		(0xCAFEF00D)
-+#define PMU_PMA_AUTO_CFG		(0x820)
-+#define   POWER_ON_AUTO_MODE		BIT(16)
-+#define   PMU_AUTO_MODE_EN		BIT(0)
-+#define PMU_PMA_STATUS			(0x840)
-+#define   CLK_IS_DISABLED		BIT(3)
++#define MTK_2P5GPHY_XBZ_PCS_REG_BASE	0x0f030000
++#define MTK_2P5GPHY_XBZ_PCS_REG_LEN	0x844
++#define PHY_CTRL_CONFIG			0x200
++#define PMU_WP				0x800
++#define WRITE_PROTECT_KEY		0xCAFEF00D
++#define PMU_PMA_AUTO_CFG		0x820
++#define POWER_ON_AUTO_MODE		BIT(16)
++#define PMU_AUTO_MODE_EN		BIT(0)
++#define PMU_PMA_STATUS			0x840
++#define CLK_IS_DISABLED			BIT(3)
 +
-+#define MTK_2P5GPHY_XBZ_PMA_RX_BASE	(0x0f080000)
-+#define MTK_2P5GPHY_XBZ_PMA_RX_LEN	(0x5228)
-+#define SMEM_WDAT0			(0x5000)
-+#define SMEM_WDAT1			(0x5004)
-+#define SMEM_WDAT2			(0x5008)
-+#define SMEM_WDAT3			(0x500c)
-+#define SMEM_CTRL			(0x5024)
-+#define   SMEM_HW_RDATA_ZERO		BIT(24)
-+#define SMEM_ADDR_REF_ADDR		(0x502c)
-+#define CM_CTRL_P01			(0x5100)
-+#define CM_CTRL_P23			(0x5124)
-+#define DM_CTRL_P01			(0x5200)
-+#define DM_CTRL_P23			(0x5224)
++#define MTK_2P5GPHY_XBZ_PMA_RX_BASE	0x0f080000
++#define MTK_2P5GPHY_XBZ_PMA_RX_LEN	0x5228
++#define SMEM_WDAT0			0x5000
++#define SMEM_WDAT1			0x5004
++#define SMEM_WDAT2			0x5008
++#define SMEM_WDAT3			0x500c
++#define SMEM_CTRL			0x5024
++#define SMEM_HW_RDATA_ZERO		BIT(24)
++#define SMEM_ADDR_REF_ADDR		0x502c
++#define CM_CTRL_P01			0x5100
++#define CM_CTRL_P23			0x5124
++#define DM_CTRL_P01			0x5200
++#define DM_CTRL_P23			0x5224
 +
-+#define MTK_2P5GPHY_CHIP_SCU_BASE	(0x0f0cf800)
-+#define MTK_2P5GPHY_CHIP_SCU_LEN	(0x12c)
-+#define SYS_SW_RESET			(0x128)
-+#define   RESET_RST_CNT			BIT(0)
++#define MTK_2P5GPHY_CHIP_SCU_BASE	0x0f0cf800
++#define MTK_2P5GPHY_CHIP_SCU_LEN	0x12c
++#define SYS_SW_RESET			0x128
++#define RESET_RST_CNT			BIT(0)
 +
-+#define MTK_2P5GPHY_MCU_CSR_BASE	(0x0f0f0000)
-+#define MTK_2P5GPHY_MCU_CSR_LEN		(0x20)
- #define MD32_EN_CFG			(0x18)
+ #define MTK_2P5GPHY_MCU_CSR_BASE	0x0f0f0000
+ #define MTK_2P5GPHY_MCU_CSR_LEN		0x20
+ #define MD32_EN_CFG			0x18
  #define   MD32_EN			BIT(0)
  
-+#define MTK_2P5GPHY_PMB_FW_BASE		(0x0f100000)
-+//#define MTK_2P5GPHY_PMB_FW_LEN		MT7988_2P5GE_PMB_FW_SIZE
++#define MTK_2P5GPHY_PMB_FW_BASE		0x0f100000
 +
-+#define MTK_2P5GPHY_APB_BASE		(0x11c30000)
-+#define MTK_2P5GPHY_APB_LEN		(0x9c)
-+#define SW_RESET			(0x94)
-+#define   MD32_RESTART_EN_CLEAR		BIT(9)
++#define MTK_2P5GPHY_APB_BASE		0x11c30000
++#define MTK_2P5GPHY_APB_LEN		0x9c
++#define SW_RESET			0x94
++#define MD32_RESTART_EN_CLEAR		BIT(9)
 +
-+
- #define BASE100T_STATUS_EXTEND		(0x10)
- #define BASE1000T_STATUS_EXTEND		(0x11)
- #define EXTEND_CTRL_AND_STATUS		(0x16)
-@@ -31,6 +95,14 @@
- #define MTK_PHY_LPI_PCS_DSP_CTRL		(0x121)
+ #define BASE100T_STATUS_EXTEND		0x10
+ #define BASE1000T_STATUS_EXTEND		0x11
+ #define EXTEND_CTRL_AND_STATUS		0x16
+@@ -32,6 +91,14 @@
+ #define MTK_PHY_LPI_PCS_DSP_CTRL		0x121
  #define   MTK_PHY_LPI_SIG_EN_LO_THRESH100_MASK	GENMASK(12, 8)
  
 +#define MTK_PHY_LINK_STATUS_RELATED		(0x147)
@@ -105,14 +104,13 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  #define MTK_PHY_HOST_CMD1		0x800e
  #define MTK_PHY_HOST_CMD2		0x800f
  /* Registers on Token Ring debug nodes */
-@@ -48,7 +120,249 @@ enum {
+@@ -45,7 +112,243 @@ enum {
  	PHY_AUX_SPD_2500,
  };
  
 -static int mt798x_2p5ge_phy_load_fw(struct phy_device *phydev)
 +static int mt7987_2p5ge_phy_load_fw(struct phy_device *phydev)
 +{
-+	struct mtk_i2p5ge_phy_priv *priv = phydev->priv;
 +	struct device *dev = &phydev->mdio.dev;
 +	void __iomem *xbz_pcs_reg_base;
 +	void __iomem *xbz_pma_rx_base;
@@ -124,9 +122,6 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +	void __iomem *pmb_addr;
 +	int ret, i;
 +	u32 reg;
-+
-+	if (priv->fw_loaded)
-+		return 0;
 +
 +	apb_base = ioremap(MTK_2P5GPHY_APB_BASE,
 +			   MTK_2P5GPHY_APB_LEN);
@@ -330,8 +325,6 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +	usleep_range(7000, 8000);
 +	dev_info(dev, "Firmware loading/trigger ok.\n");
 +
-+	priv->fw_loaded = true;
-+
 +release_fw:
 +	release_firmware(fw);
 +free_pmb_addr:
@@ -354,49 +347,78 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +
 +static int mt7988_2p5ge_phy_load_fw(struct phy_device *phydev)
  {
- 	struct mtk_i2p5ge_phy_priv *priv = phydev->priv;
+ 	struct device *dev = &phydev->mdio.dev;
  	void __iomem *mcu_csr_base, *pmb_addr;
-@@ -135,15 +449,27 @@ static int mt798x_2p5ge_phy_config_init(
- 	if (phydev->interface != PHY_INTERFACE_MODE_INTERNAL)
- 		return -ENODEV;
+@@ -326,7 +629,15 @@ static int mt798x_2p5ge_phy_probe(struct
+ 	struct pinctrl *pinctrl;
+ 	int ret;
+ 
++	priv = devm_kzalloc(&phydev->mdio.dev, sizeof(struct mtk_socphy_priv),
++			    GFP_KERNEL);
++	if (!priv)
++		return -ENOMEM;
++
++	phydev->priv = priv;
++
+ 	switch (phydev->drv->phy_id) {
++	case MTK_2P5GPHY_ID_MT7987:
+ 	case MTK_2P5GPHY_ID_MT7988:
+ 		/* This built-in 2.5GbE hardware only sets MDIO_DEVS_PMAPMD.
+ 		 * Set the rest by this driver since PCS/AN/VEND1/VEND2 MDIO
+@@ -341,15 +652,36 @@ static int mt798x_2p5ge_phy_probe(struct
+ 		return -EINVAL;
+ 	}
  
 -	ret = mt798x_2p5ge_phy_load_fw(phydev);
 +	switch (phydev->drv->phy_id) {
 +	case MTK_2P5GPHY_ID_MT7987:
 +		ret = mt7987_2p5ge_phy_load_fw(phydev);
++		break;
++	case MTK_2P5GPHY_ID_MT7988:
++		ret = mt7988_2p5ge_phy_load_fw(phydev);
++		break;
++	default:
++		return -EINVAL;
++	}
++
+ 	if (ret < 0)
+ 		return ret;
+ 
++	switch (phydev->drv->phy_id) {
++	case MTK_2P5GPHY_ID_MT7987:
 +		phy_clear_bits_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_LED0_ON_CTRL,
 +				   MTK_PHY_LED_ON_POLARITY);
 +		break;
 +	case MTK_2P5GPHY_ID_MT7988:
-+		ret = mt7988_2p5ge_phy_load_fw(phydev);
 +		phy_set_bits_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_LED0_ON_CTRL,
 +				 MTK_PHY_LED_ON_POLARITY);
 +		break;
 +	default:
 +		return -EINVAL;
 +	}
- 	if (ret < 0)
- 		return ret;
++
+ 	/* Setup LED. On default, LED0 is on/off when link is up/down. As for
+ 	 * LED1, it blinks as tx/rx transmission takes place.
+ 	 */
+-	phy_set_bits_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_LED0_ON_CTRL,
+-			 MTK_PHY_LED_ON_POLARITY | MTK_2P5GPHY_LED_ON_SET);
+ 	phy_clear_bits_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_LED0_BLINK_CTRL,
+ 			   MTK_2P5GPHY_LED_TX_BLINK_SET |
+ 			   MTK_2P5GPHY_LED_RX_BLINK_SET);
+@@ -365,12 +697,6 @@ static int mt798x_2p5ge_phy_probe(struct
+ 	if (IS_ERR(pinctrl))
+ 		dev_err(&phydev->mdio.dev, "Fail to set LED pins!\n");
  
- 	/* Setup LED */
- 	phy_set_bits_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_LED0_ON_CTRL,
--			 MTK_PHY_LED_ON_POLARITY | MTK_PHY_LED_ON_LINK10 |
--			 MTK_PHY_LED_ON_LINK100 | MTK_PHY_LED_ON_LINK1000 |
--			 MTK_PHY_LED_ON_LINK2500);
-+			 MTK_PHY_LED_ON_LINK10 | MTK_PHY_LED_ON_LINK100 |
-+			 MTK_PHY_LED_ON_LINK1000 | MTK_PHY_LED_ON_LINK2500);
- 	phy_set_bits_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_LED1_ON_CTRL,
- 			 MTK_PHY_LED_ON_FDX | MTK_PHY_LED_ON_HDX);
+-	priv = devm_kzalloc(&phydev->mdio.dev, sizeof(struct mtk_socphy_priv),
+-			    GFP_KERNEL);
+-	if (!priv)
+-		return -ENOMEM;
+-	phydev->priv = priv;
+-
+ 	mtk_phy_leds_state_init(phydev);
  
-@@ -293,6 +619,7 @@ static int mt798x_2p5ge_phy_probe(struct
- 		return -ENOMEM;
- 
- 	switch (phydev->drv->phy_id) {
-+	case MTK_2P5GPHY_ID_MT7987:
- 	case MTK_2P5GPHY_ID_MT7988:
- 		/* The original hardware only sets MDIO_DEVS_PMAPMD */
- 		phydev->c45_ids.mmds_present |= MDIO_DEVS_PCS |
-@@ -312,6 +639,20 @@ static int mt798x_2p5ge_phy_probe(struct
+ 	return 0;
+@@ -378,6 +704,25 @@ static int mt798x_2p5ge_phy_probe(struct
  
  static struct phy_driver mtk_2p5gephy_driver[] = {
  	{
@@ -412,6 +434,11 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +		.resume = genphy_resume,
 +		.read_page = mtk_phy_read_page,
 +		.write_page = mtk_phy_write_page,
++		.led_blink_set = mt798x_2p5ge_phy_led_blink_set,
++		.led_brightness_set = mt798x_2p5ge_phy_led_brightness_set,
++		.led_hw_is_supported = mt798x_2p5ge_phy_led_hw_is_supported,
++		.led_hw_control_get = mt798x_2p5ge_phy_led_hw_control_get,
++		.led_hw_control_set = mt798x_2p5ge_phy_led_hw_control_set,
 +	},
 +	{
  		PHY_ID_MATCH_MODEL(MTK_2P5GPHY_ID_MT7988),

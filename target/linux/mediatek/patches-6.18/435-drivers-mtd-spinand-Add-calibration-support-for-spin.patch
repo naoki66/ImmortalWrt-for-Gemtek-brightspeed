@@ -11,14 +11,14 @@ Signed-off-by: SkyLake.Huang <skylake.huang@mediatek.com>
 
 --- a/drivers/mtd/nand/spi/core.c
 +++ b/drivers/mtd/nand/spi/core.c
-@@ -1228,6 +1228,56 @@ static int spinand_manufacturer_match(st
+@@ -1279,6 +1279,56 @@ static int spinand_manufacturer_match(st
  	return -EOPNOTSUPP;
  }
  
 +static int spinand_cal_read(void *priv, u32 *addr, int addrlen, u8 *buf, int readlen) {
 +	struct spinand_device *spinand = (struct spinand_device *)priv;
 +	struct device *dev = &spinand->spimem->spi->dev;
-+	struct spi_mem_op op = SPINAND_PAGE_READ_FROM_CACHE_OP(false, 0, 1, buf, readlen);
++	struct spi_mem_op op = SPINAND_PAGE_READ_FROM_CACHE_1S_1S_1S_OP(0, 1, buf, readlen, 0);
 +	struct nand_pos pos;
 +	struct nand_page_io_req req;
 +	u8 status;
@@ -68,7 +68,7 @@ Signed-off-by: SkyLake.Huang <skylake.huang@mediatek.com>
  static int spinand_id_detect(struct spinand_device *spinand)
  {
  	u8 *id = spinand->id.data;
-@@ -1481,6 +1531,10 @@ static int spinand_init(struct spinand_d
+@@ -1555,6 +1605,10 @@ static int spinand_init(struct spinand_d
  	if (!spinand->scratchbuf)
  		return -ENOMEM;
  

@@ -53,7 +53,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  }
  
  static struct sk_buff *
-@@ -317,6 +328,9 @@ mtk_wed_mcu_load_firmware(struct mtk_wed
+@@ -313,8 +324,14 @@ mtk_wed_mcu_load_firmware(struct mtk_wed
  	u32 val, boot_cr;
  	int ret, i;
  
@@ -62,18 +62,13 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 +
  	/* load firmware region metadata */
  	for (i = 0; i < ARRAY_SIZE(mem_region); i++) {
- 		int index = of_property_match_string(wo->hw->node,
-@@ -325,6 +339,9 @@ mtk_wed_mcu_load_firmware(struct mtk_wed
- 		if (index < 0)
- 			continue;
- 
-+		if (index == MTK_WED_WO_REGION_BOOT && !IS_ERR(wo->boot_regmap))
++		if (i == MTK_WED_WO_REGION_BOOT && !IS_ERR(wo->boot_regmap))
 +			continue;
 +
- 		ret = mtk_wed_get_reserved_memory_region(wo->hw, index, &mem_region[i]);
+ 		ret = mtk_wed_get_reserved_memory_region(wo->hw, mem_region[i].name,
+ 							 &mem_region[i]);
  		if (ret)
- 			return ret;
-@@ -373,13 +390,13 @@ mtk_wed_mcu_load_firmware(struct mtk_wed
+@@ -364,13 +381,13 @@ mtk_wed_mcu_load_firmware(struct mtk_wed
  		boot_cr = MTK_WO_MCU_CFG_LS_WA_BOOT_ADDR_ADDR;
  	else
  		boot_cr = MTK_WO_MCU_CFG_LS_WM_BOOT_ADDR_ADDR;

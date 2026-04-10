@@ -213,20 +213,18 @@ Christian Marangi (9):
 +
  source "drivers/net/dsa/hirschmann/Kconfig"
  
- config NET_DSA_LANTIQ_GSWIP
+ source "drivers/net/dsa/lantiq/Kconfig"
 --- a/drivers/net/dsa/Makefile
 +++ b/drivers/net/dsa/Makefile
-@@ -6,6 +6,7 @@ ifdef CONFIG_NET_DSA_LOOP
- obj-$(CONFIG_FIXED_PHY)		+= dsa_loop_bdinfo.o
- endif
- obj-$(CONFIG_NET_DSA_KS8995) 	+= ks8995.o
+@@ -1,4 +1,5 @@
+ # SPDX-License-Identifier: GPL-2.0
 +obj-$(CONFIG_NET_DSA_AN8855)	+= an8855.o
- obj-$(CONFIG_NET_DSA_LANTIQ_GSWIP) += lantiq_gswip.o
- obj-$(CONFIG_NET_DSA_MT7530)	+= mt7530.o
- obj-$(CONFIG_NET_DSA_MT7530_MDIO) += mt7530-mdio.o
+ obj-$(CONFIG_NET_DSA_BCM_SF2)	+= bcm-sf2.o
+ bcm-sf2-objs			:= bcm_sf2.o bcm_sf2_cfp.o
+ obj-$(CONFIG_NET_DSA_LOOP)	+= dsa_loop.o
 --- a/drivers/net/mdio/Kconfig
 +++ b/drivers/net/mdio/Kconfig
-@@ -61,6 +61,15 @@ config MDIO_XGENE
+@@ -44,6 +44,15 @@ config MDIO_XGENE
  	  This module provides a driver for the MDIO busses found in the
  	  APM X-Gene SoC's.
  
@@ -244,17 +242,17 @@ Christian Marangi (9):
  	depends on ARCH_ASPEED || COMPILE_TEST
 --- a/drivers/net/mdio/Makefile
 +++ b/drivers/net/mdio/Makefile
-@@ -5,6 +5,7 @@ obj-$(CONFIG_ACPI_MDIO)		+= acpi_mdio.o
- obj-$(CONFIG_FWNODE_MDIO)	+= fwnode_mdio.o
+@@ -6,6 +6,7 @@ obj-$(CONFIG_FWNODE_MDIO)	+= fwnode_mdio
  obj-$(CONFIG_OF_MDIO)		+= of_mdio.o
  
+ obj-$(CONFIG_MDIO_AIROHA)		+= mdio-airoha.o
 +obj-$(CONFIG_MDIO_AN8855)		+= mdio-an8855.o
  obj-$(CONFIG_MDIO_ASPEED)		+= mdio-aspeed.o
  obj-$(CONFIG_MDIO_BCM_IPROC)		+= mdio-bcm-iproc.o
  obj-$(CONFIG_MDIO_BCM_UNIMAC)		+= mdio-bcm-unimac.o
 --- a/drivers/net/phy/Kconfig
 +++ b/drivers/net/phy/Kconfig
-@@ -170,6 +170,11 @@ config AIROHA_EN8801SC_PHY
+@@ -175,6 +175,11 @@ config AIROHA_EN8801SC_PHY
  	help
  	  Currently supports the Airoha EN8801SC PHY.
  
@@ -268,7 +266,7 @@ Christian Marangi (9):
  	help
 --- a/drivers/net/phy/Makefile
 +++ b/drivers/net/phy/Makefile
-@@ -51,6 +51,7 @@ obj-y				+= $(sfp-obj-y) $(sfp-obj-m)
+@@ -45,6 +45,7 @@ obj-y				+= $(sfp-obj-y) $(sfp-obj-m)
  obj-$(CONFIG_ADIN_PHY)		+= adin.o
  obj-$(CONFIG_ADIN1100_PHY)	+= adin1100.o
  obj-$(CONFIG_AIROHA_EN8801SC_PHY)   += en8801sc.o
@@ -276,34 +274,3 @@ Christian Marangi (9):
  obj-$(CONFIG_AIR_EN8811H_PHY)   += air_en8811h.o
  obj-$(CONFIG_AMD_PHY)		+= amd.o
  obj-$(CONFIG_AMCC_QT2025_PHY)	+= qt2025.o
---- a/drivers/nvmem/Kconfig
-+++ b/drivers/nvmem/Kconfig
-@@ -29,6 +29,17 @@ source "drivers/nvmem/layouts/Kconfig"
- 
- # Devices
- 
-+config NVMEM_AN8855_EFUSE
-+	tristate "Airoha AN8855 eFuse support"
-+	depends on MFD_AIROHA_AN8855 || COMPILE_TEST
-+	help
-+	  Say y here to enable support for reading eFuses on Airoha AN8855
-+	  Switch. These are e.g. used to store factory programmed
-+	  calibration data required for the PHY.
-+
-+	  This driver can also be built as a module. If so, the module will
-+	  be called nvmem-an8855-efuse.
-+
- config NVMEM_APPLE_EFUSES
- 	tristate "Apple eFuse support"
- 	depends on ARCH_APPLE || COMPILE_TEST
---- a/drivers/nvmem/Makefile
-+++ b/drivers/nvmem/Makefile
-@@ -10,6 +10,8 @@ nvmem_layouts-y			:= layouts.o
- obj-y				+= layouts/
- 
- # Devices
-+obj-$(CONFIG_NVMEM_AN8855_EFUSE)	+= nvmem-an8855-efuse.o
-+nvmem-an8855-efuse-y 			:= an8855-efuse.o
- obj-$(CONFIG_NVMEM_APPLE_EFUSES)	+= nvmem-apple-efuses.o
- nvmem-apple-efuses-y 			:= apple-efuses.o
- obj-$(CONFIG_NVMEM_BCM_OCOTP)		+= nvmem-bcm-ocotp.o

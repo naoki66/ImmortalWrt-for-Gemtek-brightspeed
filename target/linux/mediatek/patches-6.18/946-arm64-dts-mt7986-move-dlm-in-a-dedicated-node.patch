@@ -62,7 +62,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  			mediatek,wo-cpuboot = <&wo_cpuboot>;
  		};
  
-@@ -601,6 +593,16 @@
+@@ -617,6 +609,16 @@
  			reg = <0 0x151f0000 0 0x8000>;
  		};
  

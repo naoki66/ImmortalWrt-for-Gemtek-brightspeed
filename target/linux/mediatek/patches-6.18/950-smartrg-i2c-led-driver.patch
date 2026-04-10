@@ -15,7 +15,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 
 --- a/drivers/leds/Kconfig
 +++ b/drivers/leds/Kconfig
-@@ -977,6 +977,16 @@ source "drivers/leds/flash/Kconfig"
+@@ -1028,6 +1028,16 @@ source "drivers/leds/flash/Kconfig"
  comment "RGB LED drivers"
  source "drivers/leds/rgb/Kconfig"
  
@@ -34,8 +34,8 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
 --- a/drivers/leds/Makefile
 +++ b/drivers/leds/Makefile
-@@ -81,6 +81,7 @@ obj-$(CONFIG_LEDS_POWERNV)		+= leds-powe
- obj-$(CONFIG_LEDS_PWM)			+= leds-pwm.o
+@@ -85,6 +85,7 @@ obj-$(CONFIG_LEDS_PWM)			+= leds-pwm.o
+ obj-$(CONFIG_LEDS_QNAP_MCU)		+= leds-qnap-mcu.o
  obj-$(CONFIG_LEDS_REGULATOR)		+= leds-regulator.o
  obj-$(CONFIG_LEDS_SC27XX_BLTC)		+= leds-sc27xx-bltc.o
 +obj-$(CONFIG_LEDS_SMARTRG_LED)		+= leds-smartrg-system.o

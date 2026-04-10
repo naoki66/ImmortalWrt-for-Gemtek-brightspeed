@@ -22,15 +22,16 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 
 --- a/drivers/net/ethernet/mediatek/mtk_wed.c
 +++ b/drivers/net/ethernet/mediatek/mtk_wed.c
-@@ -1333,6 +1333,24 @@ mtk_wed_rro_alloc(struct mtk_wed_device
- 	struct device_node *np;
- 	int index;
+@@ -1329,14 +1329,31 @@ mtk_wed_rro_ring_alloc(struct mtk_wed_de
+ static int
+ mtk_wed_rro_alloc(struct mtk_wed_device *dev)
+ {
++	struct device_node *np;
+ 	struct resource res;
+ 	int ret;
  
 +	np = of_parse_phandle(dev->hw->node, "mediatek,wo-dlm", 0);
 +	if (np) {
-+		struct resource res;
-+		int ret;
-+
 +		ret = of_address_to_resource(np, 0, &res);
 +		of_node_put(np);
 +
@@ -44,13 +45,11 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 +	/* For backward compatibility, we need to check if DLM
 +	 * node is defined through reserved memory property.
 +	 */
- 	index = of_property_match_string(dev->hw->node, "memory-region-names",
- 					 "wo-dlm");
- 	if (index < 0)
-@@ -1349,6 +1367,7 @@ mtk_wed_rro_alloc(struct mtk_wed_device
- 		return -ENODEV;
+ 	ret = of_reserved_mem_region_to_resource_byname(dev->hw->node, "wo-dlm", &res);
+ 	if (ret)
+ 		return ret;
  
- 	dev->rro.miod_phys = rmem->base;
+ 	dev->rro.miod_phys = res.start;
 +out:
  	dev->rro.fdbk_phys = MTK_WED_MIOD_COUNT + dev->rro.miod_phys;
  

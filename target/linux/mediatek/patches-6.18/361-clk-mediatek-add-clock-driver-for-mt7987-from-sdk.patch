@@ -1,31 +1,26 @@
-From 08b3847982f4c470ff1ac0761bed0d8d83f1fd49 Mon Sep 17 00:00:00 2001
-From: Sam Shih <sam.shih@mediatek.com>
-Date: Mon, 20 Jan 2025 19:50:03 +0800
-Subject: [PATCH 2/2] clk: mediatek: add mt7987 clock drivers support
+From a20f5db46e87c60dac43c67a03e1b48e57d1349a Mon Sep 17 00:00:00 2001
+From: Frank Wunderlich <frank-w@public-files.de>
+Date: Wed, 3 Sep 2025 08:43:14 +0200
+Subject: [PATCH] clk: mediatek: add clock driver for mt7987 from sdk
 
-Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 ---
- drivers/clk/mediatek/Kconfig                  |   9 +
- drivers/clk/mediatek/Makefile                 |   5 +
- drivers/clk/mediatek/clk-mt7987-apmixed.c     | 116 +++++++
- drivers/clk/mediatek/clk-mt7987-eth.c         |  94 +++++
- drivers/clk/mediatek/clk-mt7987-infracfg.c    | 328 ++++++++++++++++++
- drivers/clk/mediatek/clk-mt7987-mcusys.c      |  47 +++
- drivers/clk/mediatek/clk-mt7987-topckgen.c    | 311 +++++++++++++++++
- .../dt-bindings/clock/mediatek,mt7987-clk.h   | 206 +++++++++++
- .../reset/mediatek,mt7987-resets.h            |  10 +
- 9 files changed, 1126 insertions(+)
+ drivers/clk/mediatek/Kconfig               |  17 ++
+ drivers/clk/mediatek/Makefile              |   5 +
+ drivers/clk/mediatek/clk-mt7987-apmixed.c  | 102 ++++++++
+ drivers/clk/mediatek/clk-mt7987-eth.c      |  80 ++++++
+ drivers/clk/mediatek/clk-mt7987-infracfg.c | 288 +++++++++++++++++++++
+ drivers/clk/mediatek/clk-mt7987-mcusys.c   |  41 +++
+ drivers/clk/mediatek/clk-mt7987-topckgen.c | 273 +++++++++++++++++++
+ 7 files changed, 806 insertions(+)
  create mode 100644 drivers/clk/mediatek/clk-mt7987-apmixed.c
  create mode 100644 drivers/clk/mediatek/clk-mt7987-eth.c
  create mode 100644 drivers/clk/mediatek/clk-mt7987-infracfg.c
  create mode 100644 drivers/clk/mediatek/clk-mt7987-mcusys.c
  create mode 100644 drivers/clk/mediatek/clk-mt7987-topckgen.c
- create mode 100644 include/dt-bindings/clock/mediatek,mt7987-clk.h
- create mode 100644 include/dt-bindings/reset/mediatek,mt7987-resets.h
 
 --- a/drivers/clk/mediatek/Kconfig
 +++ b/drivers/clk/mediatek/Kconfig
-@@ -423,6 +423,15 @@ config COMMON_CLK_MT7986_ETHSYS
+@@ -460,6 +460,23 @@ config COMMON_CLK_MT7986_ETHSYS
  	  This driver adds support for clocks for Ethernet and SGMII
  	  required on MediaTek MT7986 SoC.
  
@@ -36,35 +31,42 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +	default ARCH_MEDIATEK
 +	help
 +	  This driver supports MediaTek MT7987 basic clocks and clocks
-+	  required for various periperals found on this SoC.
++	  required for various peripherals found on MediaTek.
++
++config COMMON_CLK_MT7987_ETHSYS
++	tristate "Clock driver for MediaTek MT7987 ETHSYS"
++	depends on COMMON_CLK_MT7987
++	default COMMON_CLK_MT7987
++	help
++	  This driver adds support for clocks for Ethernet and SGMII
++	  required on MediaTek MT7987 SoC.
 +
  config COMMON_CLK_MT7988
  	tristate "Clock driver for MediaTek MT7988"
  	depends on ARCH_MEDIATEK || COMPILE_TEST
 --- a/drivers/clk/mediatek/Makefile
 +++ b/drivers/clk/mediatek/Makefile
-@@ -62,6 +62,11 @@ obj-$(CONFIG_COMMON_CLK_MT7986) += clk-m
+@@ -67,6 +67,11 @@ obj-$(CONFIG_COMMON_CLK_MT7986) += clk-m
  obj-$(CONFIG_COMMON_CLK_MT7986) += clk-mt7986-topckgen.o
  obj-$(CONFIG_COMMON_CLK_MT7986) += clk-mt7986-infracfg.o
  obj-$(CONFIG_COMMON_CLK_MT7986_ETHSYS) += clk-mt7986-eth.o
 +obj-$(CONFIG_COMMON_CLK_MT7987) += clk-mt7987-apmixed.o
-+obj-$(CONFIG_COMMON_CLK_MT7987) += clk-mt7987-eth.o
++obj-$(CONFIG_COMMON_CLK_MT7987) += clk-mt7987-topckgen.o
 +obj-$(CONFIG_COMMON_CLK_MT7987) += clk-mt7987-infracfg.o
 +obj-$(CONFIG_COMMON_CLK_MT7987) += clk-mt7987-mcusys.o
-+obj-$(CONFIG_COMMON_CLK_MT7987) += clk-mt7987-topckgen.o
++obj-$(CONFIG_COMMON_CLK_MT7987_ETHSYS) += clk-mt7987-eth.o
  obj-$(CONFIG_COMMON_CLK_MT7988) += clk-mt7988-apmixed.o
  obj-$(CONFIG_COMMON_CLK_MT7988) += clk-mt7988-topckgen.o
  obj-$(CONFIG_COMMON_CLK_MT7988) += clk-mt7988-infracfg.o
 --- /dev/null
 +++ b/drivers/clk/mediatek/clk-mt7987-apmixed.c
-@@ -0,0 +1,116 @@
+@@ -0,0 +1,114 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Copyright (c) 2024 MediaTek Inc.
 + * Author: Lu Tang <Lu.Tang@mediatek.com>
 + * Author: Sam Shih <sam.shih@mediatek.com>
 + */
-+
 +#include <linux/clk-provider.h>
 +#include <linux/of.h>
 +#include <linux/of_address.h>
@@ -94,7 +96,6 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +		.pcw_chg_bit = MT7987_PCW_CHG_SHIFT,                           \
 +		.div_table = _div_table, .parent_name = _parent_name,          \
 +	}
-+
 +#define PLL(_id, _name, _reg, _pwr_reg, _en_mask, _flags, _rst_bar_mask,     \
 +	    _pcwbits, _pd_reg, _pd_shift, _tuner_reg, _tuner_en_reg,         \
 +	    _tuner_en_bit, _pcw_reg, _pcw_shift, _pcw_chg_reg, _parent_name) \
@@ -176,14 +177,13 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +MODULE_LICENSE("GPL");
 --- /dev/null
 +++ b/drivers/clk/mediatek/clk-mt7987-eth.c
-@@ -0,0 +1,94 @@
+@@ -0,0 +1,92 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Copyright (c) 2024 MediaTek Inc.
 + * Author: Lu Tang <Lu.Tang@mediatek.com>
 + * Author: Sam Shih <sam.shih@mediatek.com>
 + */
-+
 +#include <linux/clk-provider.h>
 +#include <linux/of.h>
 +#include <linux/of_address.h>
@@ -265,22 +265,20 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +		.of_match_table = of_match_clk_mt7987_eth,
 +	},
 +	.probe = mtk_clk_simple_probe,
-+	.remove_new = mtk_clk_simple_remove,
++	.remove = mtk_clk_simple_remove,
 +};
 +module_platform_driver(clk_mt7987_eth_drv);
-+
 +MODULE_DESCRIPTION("MediaTek MT7987 Ethernet clocks driver");
 +MODULE_LICENSE("GPL");
 --- /dev/null
 +++ b/drivers/clk/mediatek/clk-mt7987-infracfg.c
-@@ -0,0 +1,325 @@
+@@ -0,0 +1,318 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Copyright (c) 2024 MediaTek Inc.
 + * Author: Lu Tang <Lu.Tang@mediatek.com>
 + * Author: Sam Shih <sam.shih@mediatek.com>
 + */
-+
 +#include <linux/clk.h>
 +#include <linux/delay.h>
 +#include <linux/of.h>
@@ -324,9 +322,11 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +	"spi_sel"
 +};
 +
-+static const char *const infra_pwm_bck_parents[] = { "cb_rtc_32p7k",
-+						     "csw_infra_f26m_sel",
-+						     "sysaxi_sel", "pwm_sel" };
++static const char *const infra_pwm_bck_parents[] = {
++	"cb_rtc_32p7k",
++	"csw_infra_f26m_sel",
++	"sysaxi_sel", "pwm_sel"
++};
 +
 +static const char *const infra_pcie_gfmux_tl_ck_o_p0_parents[] = {
 +	"cb_rtc_32p7k", "csw_infra_f26m_sel", "csw_infra_f26m_sel",
@@ -340,37 +340,29 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +
 +static struct mtk_mux infra_muxes[] = {
 +	/* MODULE_CLK_SEL_0 */
-+	MUX_GATE_CLR_SET_UPD(CLK_INFRA_MUX_UART0_SEL, "infra_mux_uart0_sel",
-+			     infra_mux_uart0_parents, 0x0018, 0x0010, 0x0014,
-+			     0, 1, -1, -1, -1),
-+	MUX_GATE_CLR_SET_UPD(CLK_INFRA_MUX_UART1_SEL, "infra_mux_uart1_sel",
-+			     infra_mux_uart1_parents, 0x0018, 0x0010, 0x0014,
-+			     1, 1, -1, -1, -1),
-+	MUX_GATE_CLR_SET_UPD(CLK_INFRA_MUX_UART2_SEL, "infra_mux_uart2_sel",
-+			     infra_mux_uart2_parents, 0x0018, 0x0010, 0x0014,
-+			     2, 1, -1, -1, -1),
-+	MUX_GATE_CLR_SET_UPD(CLK_INFRA_MUX_SPI0_SEL, "infra_mux_spi0_sel",
-+			     infra_mux_spi0_parents, 0x0018, 0x0010, 0x0014, 4,
-+			     1, -1, -1, -1),
-+	MUX_GATE_CLR_SET_UPD(CLK_INFRA_MUX_SPI1_SEL, "infra_mux_spi1_sel",
-+			     infra_mux_spi1_parents, 0x0018, 0x0010, 0x0014, 5,
-+			     1, -1, -1, -1),
-+	MUX_GATE_CLR_SET_UPD(CLK_INFRA_MUX_SPI2_BCK_SEL,
-+			     "infra_mux_spi2_bck_sel",
-+			     infra_mux_spi2_bck_parents, 0x0018, 0x0010,
-+			     0x0014, 6, 1, -1, -1, -1),
-+	MUX_GATE_CLR_SET_UPD(CLK_INFRA_PWM_BCK_SEL, "infra_pwm_bck_sel",
-+			     infra_pwm_bck_parents, 0x0018, 0x0010, 0x0014, 14,
-+			     2, -1, -1, -1),
++	MUX_CLR_SET(CLK_INFRA_MUX_UART0_SEL, "infra_mux_uart0_sel",
++		    infra_mux_uart0_parents, 0x0018, 0x0010, 0x0014, 0, 1),
++	MUX_CLR_SET(CLK_INFRA_MUX_UART1_SEL, "infra_mux_uart1_sel",
++		    infra_mux_uart1_parents, 0x0018, 0x0010, 0x0014, 1, 1),
++	MUX_CLR_SET(CLK_INFRA_MUX_UART2_SEL, "infra_mux_uart2_sel",
++		    infra_mux_uart2_parents, 0x0018, 0x0010, 0x0014, 2, 1),
++	MUX_CLR_SET(CLK_INFRA_MUX_SPI0_SEL, "infra_mux_spi0_sel",
++		    infra_mux_spi0_parents, 0x0018, 0x0010, 0x0014, 4, 1),
++	MUX_CLR_SET(CLK_INFRA_MUX_SPI1_SEL, "infra_mux_spi1_sel",
++		    infra_mux_spi1_parents, 0x0018, 0x0010, 0x0014, 5, 1),
++	MUX_CLR_SET(CLK_INFRA_MUX_SPI2_BCK_SEL, "infra_mux_spi2_bck_sel",
++		    infra_mux_spi2_bck_parents, 0x0018, 0x0010, 0x0014, 6, 1),
++	MUX_CLR_SET(CLK_INFRA_PWM_BCK_SEL, "infra_pwm_bck_sel",
++		    infra_pwm_bck_parents, 0x0018, 0x0010, 0x0014, 14, 2),
 +	/* MODULE_CLK_SEL_1 */
-+	MUX_GATE_CLR_SET_UPD(CLK_INFRA_PCIE_GFMUX_TL_O_P0_SEL,
-+			     "infra_pcie_gfmux_tl_ck_o_p0_sel",
-+			     infra_pcie_gfmux_tl_ck_o_p0_parents, 0x0028,
-+			     0x0020, 0x0024, 0, 2, -1, -1, -1),
-+	MUX_GATE_CLR_SET_UPD(CLK_INFRA_PCIE_GFMUX_TL_O_P1_SEL,
-+			     "infra_pcie_gfmux_tl_ck_o_p1_sel",
-+			     infra_pcie_gfmux_tl_ck_o_p1_parents, 0x0028,
-+			     0x0020, 0x0024, 2, 2, -1, -1, -1),
++	MUX_CLR_SET(CLK_INFRA_PCIE_GFMUX_TL_O_P0_SEL,
++		    "infra_pcie_gfmux_tl_ck_o_p0_sel",
++		    infra_pcie_gfmux_tl_ck_o_p0_parents, 0x0028, 0x0020,
++		    0x0024, 0, 2),
++	MUX_CLR_SET(CLK_INFRA_PCIE_GFMUX_TL_O_P1_SEL,
++		    "infra_pcie_gfmux_tl_ck_o_p1_sel",
++		    infra_pcie_gfmux_tl_ck_o_p1_parents, 0x0028, 0x0020,
++		    0x0024, 2, 2),
 +};
 +
 +static const struct mtk_gate_regs infra0_cg_regs = {
@@ -432,7 +424,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +		.ops = &mtk_clk_gate_ops_setclr,                          \
 +	}
 +
-+static const struct mtk_gate infra_clks[] __initconst = {
++static const struct mtk_gate infra_clks[] = {
 +	/* INFRA1 */
 +	GATE_INFRA1(CLK_INFRA_66M_GPT_BCK, "infra_hf_66m_gpt_bck",
 +		    "sysaxi_sel", 0),
@@ -595,7 +587,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +		.of_match_table = of_match_clk_mt7987_infracfg,
 +	},
 +	.probe = mtk_clk_simple_probe,
-+	.remove_new = mtk_clk_simple_remove,
++	.remove = mtk_clk_simple_remove,
 +};
 +module_platform_driver(clk_mt7987_infracfg_drv);
 +MODULE_LICENSE("GPL");
@@ -608,7 +600,6 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 + * Author: Lu Tang <Lu.Tang@mediatek.com>
 + * Author: Sam Shih <sam.shih@mediatek.com>
 + */
-+
 +#include <linux/clk-provider.h>
 +#include <linux/of.h>
 +#include <linux/of_address.h>
@@ -620,6 +611,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +#include <dt-bindings/clock/mediatek,mt7987-clk.h>
 +
 +static DEFINE_SPINLOCK(mt7987_clk_lock);
++
 +static const char *const mcu_bus_div_parents[] = { "cb_cksq_40m", "arm_ll" };
 +
 +static struct mtk_composite mcu_muxes[] = {
@@ -645,20 +637,19 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +		.of_match_table = of_match_clk_mt7987_mcusys,
 +	},
 +	.probe = mtk_clk_simple_probe,
-+	.remove_new = mtk_clk_simple_remove,
++	.remove = mtk_clk_simple_remove,
 +};
 +module_platform_driver(clk_mt7987_mcusys_drv);
 +MODULE_LICENSE("GPL");
 --- /dev/null
 +++ b/drivers/clk/mediatek/clk-mt7987-topckgen.c
-@@ -0,0 +1,311 @@
+@@ -0,0 +1,310 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Copyright (c) 2024 MediaTek Inc.
 + * Author: Lu Tang <Lu.Tang@mediatek.com>
 + * Author: Sam Shih <sam.shih@mediatek.com>
 + */
-+
 +#include <linux/clk-provider.h>
 +#include <linux/of.h>
 +#include <linux/of_address.h>
@@ -955,7 +946,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +
 +static struct platform_driver clk_mt7987_topckgen_drv = {
 +	.probe = mtk_clk_simple_probe,
-+	.remove_new = mtk_clk_simple_remove,
++	.remove = mtk_clk_simple_remove,
 +	.driver = {
 +		.name = "clk-mt7987-topckgen",
 +		.of_match_table = of_match_clk_mt7987_topckgen,
@@ -965,19 +956,16 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +MODULE_LICENSE("GPL");
 --- /dev/null
 +++ b/include/dt-bindings/clock/mediatek,mt7987-clk.h
-@@ -0,0 +1,206 @@
+@@ -0,0 +1,190 @@
 +/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
 +/*
 + * Copyright (c) 2024 MediaTek Inc.
 + * Author: Lu Tang <Lu.Tang@mediatek.com>
 + * Author: Sam Shih <sam.shih@mediatek.com>
 + */
-+
 +#ifndef _DT_BINDINGS_CLK_MT7987_H
 +#define _DT_BINDINGS_CLK_MT7987_H
-+
 +/* INFRACFG */
-+
 +#define CLK_INFRA_MUX_UART0_SEL			0
 +#define CLK_INFRA_MUX_UART1_SEL			1
 +#define CLK_INFRA_MUX_UART2_SEL			2
@@ -1050,9 +1038,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +#define CLK_INFRA_PCIE_PERI_26M_CK_P0		69
 +#define CLK_INFRA_PCIE_PERI_26M_CK_P1		70
 +#define CLK_INFRA_NR_CLK			71
-+
 +/* TOPCKGEN */
-+
 +#define CLK_TOP_CB_M_D2				0
 +#define CLK_TOP_CB_M_D3				1
 +#define CLK_TOP_M_D3_D2				2
@@ -1132,9 +1118,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +#define CLK_TOP_EMMC_200M_SEL			76
 +#define CLK_TOP_AUD_I2S_M			77
 +#define CLK_TOP_NR_CLK				78
-+
 +/* APMIXEDSYS */
-+
 +#define CLK_APMIXED_MPLL			0
 +#define CLK_APMIXED_APLL2			1
 +#define CLK_APMIXED_NET1PLL			2
@@ -1144,26 +1128,18 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +#define CLK_APMIXED_ARM_LL			6
 +#define CLK_APMIXED_MSDCPLL			7
 +#define CLK_APMIXED_NR_CLK			8
-+
 +/* MCUSYS */
-+
 +#define CLK_MCU_BUS_DIV_SEL			0
 +#define CLK_MCU_NR_CLK				1
-+
 +/* SGMIISYS_0 */
-+
 +#define CLK_SGM0_TX_EN				0
 +#define CLK_SGM0_RX_EN				1
 +#define CLK_SGMII0_NR_CLK			2
-+
 +/* SGMIISYS_1 */
-+
 +#define CLK_SGM1_TX_EN				0
 +#define CLK_SGM1_RX_EN				1
 +#define CLK_SGMII1_NR_CLK			2
-+
 +/* ETHDMA */
-+
 +#define CLK_ETHDMA_FE_EN			0
 +#define CLK_ETHDMA_GP2_EN			1
 +#define CLK_ETHDMA_GP1_EN			2
@@ -1171,12 +1147,10 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +#define CLK_ETHDMA_NR_CLK			4
 +
 +#endif /* _DT_BINDINGS_CLK_MT7987_H */
-+
 --- /dev/null
 +++ b/include/dt-bindings/reset/mediatek,mt7987-resets.h
-@@ -0,0 +1,10 @@
+@@ -0,0 +1,9 @@
 +/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
-+
 +#ifndef _DT_BINDINGS_RESET_CONTROLLER_MT7987
 +#define _DT_BINDINGS_RESET_CONTROLLER_MT7987
 +

@@ -55,7 +55,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  };
  
  static int mtk_rng_init(struct hwrng *rng)
-@@ -104,6 +113,56 @@ static int mtk_rng_read(struct hwrng *rn
+@@ -103,6 +112,56 @@ static int mtk_rng_read(struct hwrng *rn
  	return retval || !wait ? retval : -EIO;
  }
  
@@ -112,7 +112,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  static int mtk_rng_probe(struct platform_device *pdev)
  {
  	int ret;
-@@ -115,23 +174,42 @@ static int mtk_rng_probe(struct platform
+@@ -114,23 +173,42 @@ static int mtk_rng_probe(struct platform
  
  	priv->dev = &pdev->dev;
  	priv->rng.name = pdev->name;
@@ -168,7 +168,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
  	ret = devm_hwrng_register(&pdev->dev, &priv->rng);
  	if (ret) {
-@@ -140,12 +218,15 @@ static int mtk_rng_probe(struct platform
+@@ -139,12 +217,15 @@ static int mtk_rng_probe(struct platform
  		return ret;
  	}
  
@@ -190,7 +190,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
  	dev_info(&pdev->dev, "registered RNG driver\n");
  
-@@ -182,8 +263,12 @@ static const struct dev_pm_ops mtk_rng_p
+@@ -181,8 +262,12 @@ static const struct dev_pm_ops mtk_rng_p
  #endif	/* CONFIG_PM */
  
  static const struct of_device_id mtk_rng_match[] = {
@@ -204,7 +204,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  	{},
  };
  MODULE_DEVICE_TABLE(of, mtk_rng_match);
-@@ -201,4 +286,5 @@ module_platform_driver(mtk_rng_driver);
+@@ -200,4 +285,5 @@ module_platform_driver(mtk_rng_driver);
  
  MODULE_DESCRIPTION("Mediatek Random Number Generator Driver");
  MODULE_AUTHOR("Sean Wang <sean.wang@mediatek.com>");

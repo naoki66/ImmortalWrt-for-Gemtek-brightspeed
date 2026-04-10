@@ -67,7 +67,7 @@ Signed-off-by: Bo-Cun Chen <bc-bocun.chen@mediatek.com>
  
  	/* Release PHYA power down state
  	 * Only removing bit SGMII_PHYA_PWD isn't enough.
-@@ -413,6 +424,9 @@ static int mtk_pcs_lynxi_probe(struct pl
+@@ -416,6 +427,9 @@ static int mtk_pcs_lynxi_probe(struct pl
  	if (of_property_read_bool(np->parent, "mediatek,pnswap"))
  		flags |= MTK_SGMII_FLAG_PN_SWAP;
  

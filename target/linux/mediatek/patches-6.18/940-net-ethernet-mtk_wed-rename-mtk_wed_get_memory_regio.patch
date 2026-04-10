@@ -19,19 +19,20 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  }
  
  static int
--mtk_wed_get_memory_region(struct mtk_wed_hw *hw, int index,
+-mtk_wed_get_memory_region(struct mtk_wed_hw *hw, const char *name,
 -			  struct mtk_wed_wo_memory_region *region)
-+mtk_wed_get_reserved_memory_region(struct mtk_wed_hw *hw, int index,
++mtk_wed_get_reserved_memory_region(struct mtk_wed_hw *hw, const char *name,
 +				   struct mtk_wed_wo_memory_region *region)
  {
- 	struct reserved_mem *rmem;
- 	struct device_node *np;
-@@ -325,7 +325,7 @@ mtk_wed_mcu_load_firmware(struct mtk_wed
- 		if (index < 0)
- 			continue;
+ 	struct resource res;
+ 	int ret;
+@@ -315,7 +315,8 @@ mtk_wed_mcu_load_firmware(struct mtk_wed
  
--		ret = mtk_wed_get_memory_region(wo->hw, index, &mem_region[i]);
-+		ret = mtk_wed_get_reserved_memory_region(wo->hw, index, &mem_region[i]);
+ 	/* load firmware region metadata */
+ 	for (i = 0; i < ARRAY_SIZE(mem_region); i++) {
+-		ret = mtk_wed_get_memory_region(wo->hw, mem_region[i].name, &mem_region[i]);
++		ret = mtk_wed_get_reserved_memory_region(wo->hw, mem_region[i].name,
++							 &mem_region[i]);
  		if (ret)
  			return ret;
  	}

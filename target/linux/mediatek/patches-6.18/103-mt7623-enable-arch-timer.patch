@@ -10,7 +10,7 @@ Signed-off-by: Chuanhong Guo <gch981213@gmail.com>
 
 --- a/arch/arm/mach-mediatek/Kconfig
 +++ b/arch/arm/mach-mediatek/Kconfig
-@@ -26,6 +26,7 @@ config MACH_MT6592
+@@ -30,6 +30,7 @@ config MACH_MT6592
  config MACH_MT7623
  	bool "MediaTek MT7623 SoCs support"
  	default ARCH_MEDIATEK

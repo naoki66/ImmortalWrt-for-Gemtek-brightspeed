@@ -21,7 +21,7 @@ Signed-off-by: SkyLake.Huang <skylake.huang@mediatek.com>
  #include <linux/pm_runtime.h>
  #include <linux/spi/spi.h>
  #include <linux/spi/spi-mem.h>
-@@ -172,6 +171,8 @@ struct mtk_spi {
+@@ -175,6 +174,8 @@ struct mtk_spi {
  	struct device *dev;
  	dma_addr_t tx_dma;
  	dma_addr_t rx_dma;
@@ -30,8 +30,8 @@ Signed-off-by: SkyLake.Huang <skylake.huang@mediatek.com>
  };
  
  static const struct mtk_spi_compatible mtk_common_compat;
-@@ -217,15 +218,6 @@ static const struct mtk_spi_compatible m
- 	.no_need_unprepare = true,
+@@ -228,15 +229,6 @@ static const struct mtk_spi_compatible m
+ 	.ipm_design = true,
  };
  
 -/*
@@ -46,15 +46,15 @@ Signed-off-by: SkyLake.Huang <skylake.huang@mediatek.com>
  static const struct of_device_id mtk_spi_of_match[] = {
  	{ .compatible = "mediatek,spi-ipm",
  		.data = (void *)&mtk_ipm_compat,
-@@ -353,7 +345,6 @@ static int mtk_spi_hw_init(struct spi_co
+@@ -367,7 +359,6 @@ static int mtk_spi_hw_init(struct spi_co
  {
  	u16 cpha, cpol;
  	u32 reg_val;
 -	struct mtk_chip_config *chip_config = spi->controller_data;
  	struct mtk_spi *mdata = spi_controller_get_devdata(host);
  
- 	cpha = spi->mode & SPI_CPHA ? 1 : 0;
-@@ -403,7 +394,7 @@ static int mtk_spi_hw_init(struct spi_co
+ 	cpu_latency_qos_update_request(&mdata->qos_request, 500);
+@@ -418,7 +409,7 @@ static int mtk_spi_hw_init(struct spi_co
  		else
  			reg_val &= ~SPI_CMD_CS_POL;
  
@@ -63,7 +63,7 @@ Signed-off-by: SkyLake.Huang <skylake.huang@mediatek.com>
  			reg_val |= SPI_CMD_SAMPLE_SEL;
  		else
  			reg_val &= ~SPI_CMD_SAMPLE_SEL;
-@@ -430,20 +421,20 @@ static int mtk_spi_hw_init(struct spi_co
+@@ -445,20 +436,20 @@ static int mtk_spi_hw_init(struct spi_co
  		if (mdata->dev_comp->ipm_design) {
  			reg_val = readl(mdata->base + SPI_CMD_REG);
  			reg_val &= ~SPI_CMD_IPM_GET_TICKDLY_MASK;
@@ -87,7 +87,7 @@ Signed-off-by: SkyLake.Huang <skylake.huang@mediatek.com>
  			    << SPI_CFG1_GET_TICK_DLY_OFFSET_V1);
  		writel(reg_val, mdata->base + SPI_CFG1_REG);
  	}
-@@ -733,9 +724,6 @@ static int mtk_spi_setup(struct spi_devi
+@@ -779,9 +770,6 @@ static int mtk_spi_setup(struct spi_devi
  {
  	struct mtk_spi *mdata = spi_controller_get_devdata(spi->controller);
  
@@ -97,7 +97,7 @@ Signed-off-by: SkyLake.Huang <skylake.huang@mediatek.com>
  	if (mdata->dev_comp->need_pad_sel && spi_get_csgpiod(spi, 0))
  		/* CS de-asserted, gpiolib will handle inversion */
  		gpiod_direction_output(spi_get_csgpiod(spi, 0), 0);
-@@ -1146,6 +1134,11 @@ static int mtk_spi_probe(struct platform
+@@ -1197,6 +1185,11 @@ static int mtk_spi_probe(struct platform
  	host->use_gpio_descriptors = true;
  
  	mdata = spi_controller_get_devdata(host);

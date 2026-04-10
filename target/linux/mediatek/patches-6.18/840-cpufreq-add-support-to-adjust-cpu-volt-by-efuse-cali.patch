@@ -88,7 +88,7 @@ Subject: [PATCH 1/2] cpufreq: add support to adjust cpu volt by efuse
  static int mtk_cpufreq_set_target(struct cpufreq_policy *policy,
  				  unsigned int index)
  {
-@@ -584,6 +640,15 @@ static int mtk_cpufreq_init(struct cpufr
+@@ -591,6 +647,15 @@ static int mtk_cpufreq_init(struct cpufr
  		return -EINVAL;
  	}
  

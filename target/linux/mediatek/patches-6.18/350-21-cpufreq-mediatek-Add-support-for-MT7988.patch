@@ -35,7 +35,7 @@ Signed-off-by: Sam Shih <sam.shih@mediatek.com>
 
 --- a/drivers/cpufreq/mediatek-cpufreq.c
 +++ b/drivers/cpufreq/mediatek-cpufreq.c
-@@ -744,6 +744,7 @@ static const struct of_device_id mtk_cpu
+@@ -750,6 +750,7 @@ static const struct of_device_id mtk_cpu
  	{ .compatible = "mediatek,mt7622", .data = &mt7622_platform_data },
  	{ .compatible = "mediatek,mt7623", .data = &mt7623_platform_data },
  	{ .compatible = "mediatek,mt7988a", .data = &mt7988_platform_data },

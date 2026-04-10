@@ -48,7 +48,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 
 --- a/drivers/clk/mediatek/clk-mt7988-infracfg.c
 +++ b/drivers/clk/mediatek/clk-mt7988-infracfg.c
-@@ -196,12 +196,10 @@ static const struct mtk_gate infra_clks[
+@@ -192,12 +192,10 @@ static const struct mtk_gate infra_clks[
  	GATE_INFRA2(CLK_INFRA_SPINFI, "infra_f_fspinfi", "spinfi_sel", 10),
  	GATE_INFRA2_FLAGS(CLK_INFRA_66M_NFI_HCK, "infra_hf_66m_nfi_hck", "sysaxi_sel", 11,
  			  CLK_IS_CRITICAL),

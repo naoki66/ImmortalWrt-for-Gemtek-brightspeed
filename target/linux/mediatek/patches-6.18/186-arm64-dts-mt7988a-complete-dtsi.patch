@@ -5,7 +5,7 @@ Subject: [PATCH] arm64: dts: mt7988a: complete dtsi
 Work-in-progress patch to complete mt7988a.dtsi
 --- a/arch/arm64/boot/dts/mediatek/mt7988a.dtsi
 +++ b/arch/arm64/boot/dts/mediatek/mt7988a.dtsi
-@@ -193,7 +193,7 @@
+@@ -192,7 +192,7 @@
  		};
  
  		pio: pinctrl@1001f000 {
@@ -14,7 +14,7 @@ Work-in-progress patch to complete mt7988a.dtsi
  			reg = <0 0x1001f000 0 0x1000>,
  			      <0 0x11c10000 0 0x1000>,
  			      <0 0x11d00000 0 0x1000>,
-@@ -212,6 +212,13 @@
+@@ -211,6 +211,13 @@
  			interrupt-parent = <&gic>;
  			#interrupt-cells = <2>;
  
@@ -28,7 +28,7 @@ Work-in-progress patch to complete mt7988a.dtsi
  			pcie0_pins: pcie0-pins {
  				mux {
  					function = "pcie";
-@@ -278,6 +285,60 @@
+@@ -277,6 +284,60 @@
  			status = "disabled";
  		};
  
@@ -89,7 +89,7 @@ Work-in-progress patch to complete mt7988a.dtsi
  		mcusys: mcusys@100e0000 {
  			compatible = "mediatek,mt7988-mcusys", "syscon";
  			reg = <0 0x100e0000 0 0x1000>;
-@@ -319,6 +380,32 @@
+@@ -318,6 +379,32 @@
  			status = "disabled";
  		};
  
@@ -122,7 +122,7 @@ Work-in-progress patch to complete mt7988a.dtsi
  		i2c0: i2c@11003000 {
  			compatible = "mediatek,mt7981-i2c";
  			reg = <0 0x11003000 0 0x1000>,
-@@ -425,7 +512,7 @@
+@@ -424,7 +511,7 @@
  			      <0 0x0f0f0018 0 0x20>;
  		};
  
@@ -131,7 +131,7 @@ Work-in-progress patch to complete mt7988a.dtsi
  			compatible = "mediatek,mt7988-xhci", "mediatek,mtk-xhci";
  			reg = <0 0x11190000 0 0x2e00>,
  			      <0 0x11193e00 0 0x0100>;
-@@ -459,6 +546,35 @@
+@@ -458,6 +545,35 @@
  			status = "disabled";
  		};
  
@@ -167,7 +167,7 @@ Work-in-progress patch to complete mt7988a.dtsi
  		mmc0: mmc@11230000 {
  			compatible = "mediatek,mt7988-mmc";
  			reg = <0 0x11230000 0 0x1000>,
-@@ -721,6 +837,10 @@
+@@ -720,6 +836,10 @@
  			#address-cells = <1>;
  			#size-cells = <1>;
  
@@ -195,10 +195,10 @@ Work-in-progress patch to complete mt7988a.dtsi
  				status = "disabled";
  			};
  
-@@ -1002,9 +1126,37 @@
- 					reg = <15>;
+@@ -1001,6 +1125,21 @@
+ 				int_2p5g_phy: ethernet-phy@15 {
  					compatible = "ethernet-phy-ieee802.3-c45";
- 					phy-mode = "internal";
+ 					reg = <15>;
 +
 +					leds {
 +						#address-cells = <1>;
@@ -206,18 +206,20 @@ Work-in-progress patch to complete mt7988a.dtsi
 +
 +						i2p5gbe_led0: i2p5gbe-led0@0 {
 +							reg = <0>;
-+							function = LED_FUNCTION_LAN;
 +							status = "disabled";
 +						};
 +
 +						i2p5gbe_led1: i2p5gbe-led1@1 {
 +							reg = <1>;
-+							function = LED_FUNCTION_LAN;
 +							status = "disabled";
 +						};
 +					};
  				};
  			};
+ 		};
+@@ -1012,6 +1151,17 @@
+ 			#size-cells = <1>;
+ 			ranges = <0 0x15400000 0 0x200000>;
  		};
 +
 +		crypto: crypto@15600000 {

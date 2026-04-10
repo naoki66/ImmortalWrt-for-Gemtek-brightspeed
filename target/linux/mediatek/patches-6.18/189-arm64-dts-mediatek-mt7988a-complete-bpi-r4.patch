@@ -6,8 +6,8 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
 --- a/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-2g5.dts
 +++ b/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-2g5.dts
 @@ -20,3 +20,16 @@
- 	pinctrl-names = "i2p5gbe-led";
  	pinctrl-0 = <&i2p5gbe_led0_pins>;
+ 	pinctrl-names = "i2p5gbe-led";
  };
 +
 +&gmac1 {
@@ -22,40 +22,12 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
 +	pinctrl-names = "i2p5gbe-led";
 +	pinctrl-0 = <&i2p5gbe_led0_pins>;
 +};
---- /dev/null
+--- a/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-emmc.dtso
 +++ b/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-emmc.dtso
-@@ -0,0 +1,56 @@
-+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
-+/*
-+ * Copyright (C) 2021 MediaTek Inc.
-+ * Author: Frank Wunderlich <frank-w@public-files.de>
-+ */
-+
-+/dts-v1/;
-+/plugin/;
-+
-+/ {
-+	compatible = "bananapi,bpi-r4", "mediatek,mt7988a";
-+};
-+
-+&{/soc/mmc@11230000} {
-+	pinctrl-names = "default", "state_uhs";
-+	pinctrl-0 = <&mmc0_pins_emmc_51>;
-+	pinctrl-1 = <&mmc0_pins_emmc_51>;
-+	bus-width = <8>;
-+	max-frequency = <200000000>;
-+	cap-mmc-highspeed;
-+	mmc-hs200-1_8v;
-+	mmc-hs400-1_8v;
-+	hs400-ds-delay = <0x12814>;
-+	vqmmc-supply = <&reg_1p8v>;
-+	vmmc-supply = <&reg_3p3v>;
-+	non-removable;
-+	no-sd;
-+	no-sdio;
-+	#address-cells = <1>;
-+	#size-cells = <0>;
-+	status = "okay";
+@@ -29,5 +29,31 @@
+ 	#address-cells = <1>;
+ 	#size-cells = <0>;
+ 	status = "okay";
 +
 +	card@0 {
 +		compatible = "mmc-card";
@@ -76,11 +48,14 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
 +			};
 +		};
 +	};
-+};
-+
+ };
+ 
 +&{/chosen} {
 +	rootdisk-emmc = <&emmc_rootfs>;
 +};
++
++
++
 --- /dev/null
 +++ b/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-rtc.dtso
 @@ -0,0 +1,19 @@
@@ -103,38 +78,12 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
 +		};
 +	};
 +};
---- /dev/null
+--- a/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-sd.dtso
 +++ b/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4-sd.dtso
-@@ -0,0 +1,54 @@
-+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
-+/*
-+ * Copyright (C) 2023 MediaTek Inc.
-+ * Author: Frank Wunderlich <frank-w@public-files.de>
-+ */
-+
-+/dts-v1/;
-+/plugin/;
-+
-+#include <dt-bindings/gpio/gpio.h>
-+
-+/ {
-+	compatible = "bananapi,bpi-r4", "mediatek,mt7988a";
-+};
-+
-+&{/soc/mmc@11230000} {
-+	pinctrl-names = "default", "state_uhs";
-+	pinctrl-0 = <&mmc0_pins_sdcard>;
-+	pinctrl-1 = <&mmc0_pins_sdcard>;
-+	cd-gpios = <&pio 12 GPIO_ACTIVE_LOW>;
-+	bus-width = <4>;
-+	max-frequency = <52000000>;
-+	cap-sd-highspeed;
-+	vmmc-supply = <&reg_3p3v>;
-+	vqmmc-supply = <&reg_3p3v>;
-+	no-mmc;
-+	#address-cells = <1>;
-+	#size-cells = <0>;
-+	status = "okay";
+@@ -27,5 +27,30 @@
+ 	#address-cells = <1>;
+ 	#size-cells = <0>;
+ 	status = "okay";
 +
 +	card@0 {
 +		compatible = "mmc-card";
@@ -155,14 +104,16 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
 +			};
 +		};
 +	};
-+};
-+
+ };
+ 
 +&{/chosen} {
 +	rootdisk-sd = <&sd_rootfs>;
 +};
++
++
 --- a/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4.dts
 +++ b/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4.dts
-@@ -35,3 +35,11 @@
+@@ -36,3 +36,11 @@
  		reg = <2>;
  	};
  };
@@ -176,17 +127,16 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
 +};
 --- a/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4.dtsi
 +++ b/arch/arm64/boot/dts/mediatek/mt7988a-bananapi-bpi-r4.dtsi
-@@ -3,6 +3,8 @@
+@@ -3,6 +3,7 @@
  /dts-v1/;
  
  #include <dt-bindings/gpio/gpio.h>
 +#include <dt-bindings/input/input.h>
-+#include <dt-bindings/leds/common.h>
+ #include <dt-bindings/leds/common.h>
  #include <dt-bindings/regulator/richtek,rt5190a-regulator.h>
+ #include <dt-bindings/leds/common.h>
+@@ -18,6 +19,8 @@
  
- #include "mt7988a.dtsi"
-@@ -10,6 +12,8 @@
- / {
  	chosen {
  		stdout-path = "serial0:115200n8";
 +		bootargs = "console=ttyS0,115200n1 pci=pcie_bus_perf ubi.block=0,fit root=/dev/fit0";
@@ -194,9 +144,9 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
  	};
  
  	fan: pwm-fan {
-@@ -50,6 +54,142 @@
- 		rate-select0-gpios = <&pio 21 GPIO_ACTIVE_LOW>;
- 		maximum-power-milliwatt = <3000>;
+@@ -78,6 +81,142 @@
+ 		tx-disable-gpios = <&pio 70 GPIO_ACTIVE_HIGH>;
+ 		tx-fault-gpios = <&pio 69 GPIO_ACTIVE_HIGH>;
  	};
 +
 +	aliases {
@@ -337,7 +287,7 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
  };
  
  &cci {
-@@ -174,6 +314,10 @@
+@@ -262,6 +401,10 @@
  	color = <LED_COLOR_ID_GREEN>;
  };
  
@@ -348,7 +298,7 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
  &i2c0 {
  	pinctrl-names = "default";
  	pinctrl-0 = <&i2c0_pins>;
-@@ -265,6 +409,14 @@
+@@ -353,6 +496,14 @@
  			#size-cells = <0>;
  			reg = <1>;
  		};
@@ -363,97 +313,7 @@ Subject: [PATCH 32/32] WIP: add BPi-R4
  	};
  };
  
-@@ -364,34 +516,6 @@
- 		};
- 	};
- 
--	gbe0_led1_pins: gbe0-led1-pins {
--		mux {
--			function = "led";
--			groups = "gbe0_led1";
--		};
--	};
--
--	gbe1_led1_pins: gbe1-led1-pins {
--		mux {
--			function = "led";
--			groups = "gbe1_led1";
--		};
--	};
--
--	gbe2_led1_pins: gbe2-led1-pins {
--		mux {
--			function = "led";
--			groups = "gbe2_led1";
--		};
--	};
--
--	gbe3_led1_pins: gbe3-led1-pins {
--		mux {
--			function = "led";
--			groups = "gbe3_led1";
--		};
--	};
--
- 	i2p5gbe_led0_pins: 2p5gbe-led0-pins {
- 		mux {
- 			function = "led";
-@@ -399,13 +523,6 @@
- 		};
- 	};
- 
--	i2p5gbe_led1_pins: 2p5gbe-led1-pins {
--		mux {
--			function = "led";
--			groups = "2p5gbe_led1";
--		};
--	};
--
- 	mmc0_pins_emmc_45: mmc0-emmc-45-pins {
- 		mux {
- 			function = "flash";
-@@ -427,40 +544,12 @@
- 		};
- 	};
- 
--	snfi_pins: snfi-pins {
--		mux {
--			function = "flash";
--			groups = "snfi";
--		};
--	};
--
--	spi0_pins: spi0-pins {
--		mux {
--			function = "spi";
--			groups = "spi0";
--		};
--	};
--
- 	spi0_flash_pins: spi0-flash-pins {
- 		mux {
- 			function = "spi";
- 			groups = "spi0", "spi0_wp_hold";
- 		};
- 	};
--
--	spi2_pins: spi2-pins {
--		mux {
--			function = "spi";
--			groups = "spi2";
--		};
--	};
--
--	spi2_flash_pins: spi2-flash-pins {
--		mux {
--			function = "spi";
--			groups = "spi2", "spi2_wp_hold";
--		};
--	};
- };
- 
- &pwm {
-@@ -500,6 +589,32 @@
+@@ -499,6 +650,32 @@
  			reg = <0x0 0x200000>;
  			read-only;
  		};

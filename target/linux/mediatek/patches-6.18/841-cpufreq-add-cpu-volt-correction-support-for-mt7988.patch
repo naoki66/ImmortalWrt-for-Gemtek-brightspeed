@@ -12,7 +12,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 ---
 --- a/drivers/cpufreq/mediatek-cpufreq.c
 +++ b/drivers/cpufreq/mediatek-cpufreq.c
-@@ -741,6 +741,16 @@ static struct platform_driver mtk_cpufre
+@@ -747,6 +747,16 @@ static struct platform_driver mtk_cpufre
  	.probe		= mtk_cpufreq_probe,
  };
  
@@ -29,7 +29,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  static const struct mtk_cpufreq_platform_data mt2701_platform_data = {
  	.min_volt_shift = 100000,
  	.max_volt_shift = 200000,
-@@ -769,10 +779,12 @@ static const struct mtk_cpufreq_platform
+@@ -775,10 +785,12 @@ static const struct mtk_cpufreq_platform
  static const struct mtk_cpufreq_platform_data mt7988_platform_data = {
  	.min_volt_shift = 100000,
  	.max_volt_shift = 200000,

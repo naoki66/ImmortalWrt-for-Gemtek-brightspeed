@@ -52,7 +52,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		};
  
  		eth: ethernet@15100000 {
-@@ -607,6 +603,11 @@
+@@ -623,6 +619,11 @@
  			interrupts = <GIC_SPI 212 IRQ_TYPE_LEVEL_HIGH>;
  		};
  

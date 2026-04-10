@@ -64,7 +64,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  			mediatek,wo-cpuboot = <&wo_cpuboot>;
  		};
  
-@@ -603,6 +591,16 @@
+@@ -619,6 +607,16 @@
  			interrupts = <GIC_SPI 212 IRQ_TYPE_LEVEL_HIGH>;
  		};
  
