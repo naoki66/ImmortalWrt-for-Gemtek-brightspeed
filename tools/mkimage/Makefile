@@ -26,7 +26,7 @@ define Host/Configure
 		HOSTLDFLAGS="$(HOST_LDFLAGS)" \
 		PKG_CONFIG_EXTRAARGS="--static" \
 		V=$(if $(findstring c,$(OPENWRT_VERBOSE)),1) \
-		tools-only_config
+		tools-only_defconfig
 
 	$(HOST_BUILD_DIR)/scripts/config \
 		--file $(HOST_BUILD_DIR)/.config \
