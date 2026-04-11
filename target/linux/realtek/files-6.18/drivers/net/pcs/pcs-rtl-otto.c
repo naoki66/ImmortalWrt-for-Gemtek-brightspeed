@@ -72,8 +72,6 @@
 #define PHY_PAGE_2	2
 #define PHY_PAGE_4	4
 
-#define RTL9300_PHY_ID_MASK 0xf0ffffff
-
 /* RTL930X SerDes supports the following modes:
  * 0x02: SGMII		0x04: 1000BX_FIBER	0x05: FIBER100
  * 0x06: QSGMII		0x09: RSGMII		0x0d: USXGMII
@@ -105,9 +103,9 @@
 #define RTPCS_931X_MAC_GROUP5_CTRL		(0x13b0)
 #define RTPCS_931X_MAC_GROUP6_7_CTRL		(0x13b4)
 #define RTPCS_931X_MAC_GROUP8_11_CTRL		(0x13b8)
-#define RTL931X_SERDES_MODE_CTRL		(0x13cc)
-#define RTL931X_PS_SERDES_OFF_MODE_CTRL_ADDR	(0x13F4)
-#define RTL931X_MAC_SERDES_MODE_CTRL(sds)	(0x136C + (((sds) << 2)))
+#define RTPCS_931X_SERDES_MODE_CTRL		(0x13cc)
+#define RTPCS_931X_PS_SERDES_OFF_MODE_CTRL_ADDR	(0x13F4)
+#define RTPCS_931X_MAC_SERDES_MODE_CTRL(sds)	(0x136C + (((sds) << 2)))
 #define RTPCS_931X_ISR_SERDES_RXIDLE		(0x12f8)
 
 enum rtpcs_sds_mode {
@@ -3129,7 +3127,7 @@ static int rtpcs_931x_sds_power(struct rtpcs_serdes *sds, bool power_on)
 	u32 en_val = power_on ? 0 : BIT(sds->id);
 
 	return regmap_write_bits(sds->ctrl->map,
-				 RTL931X_PS_SERDES_OFF_MODE_CTRL_ADDR,
+				 RTPCS_931X_PS_SERDES_OFF_MODE_CTRL_ADDR,
 				 BIT(sds->id), en_val);
 }
 
@@ -3174,7 +3172,7 @@ static int rtpcs_931x_sds_set_mac_mode(struct rtpcs_serdes *sds,
 
 	mode_val |= BIT(7); /* force mode bit */
 	return regmap_write_bits(sds->ctrl->map,
-				 RTL931X_SERDES_MODE_CTRL + 4 * (sds->id >> 2),
+				 RTPCS_931X_SERDES_MODE_CTRL + 4 * (sds->id >> 2),
 				 0xff << shift, mode_val << shift);
 }
 
@@ -3259,11 +3257,11 @@ static void rtpcs_931x_sds_reset(struct rtpcs_serdes *sds)
 
 	rtpcs_931x_sds_power(sds, false);
 
-	regmap_read(ctrl->map, RTL931X_SERDES_MODE_CTRL + 4 * (sds_id >> 2), &o_mode);
+	regmap_read(ctrl->map, RTPCS_931X_SERDES_MODE_CTRL + 4 * (sds_id >> 2), &o_mode);
 	v = BIT(7) | 0x1F;
-	regmap_write_bits(ctrl->map, RTL931X_SERDES_MODE_CTRL + 4 * (sds_id >> 2),
+	regmap_write_bits(ctrl->map, RTPCS_931X_SERDES_MODE_CTRL + 4 * (sds_id >> 2),
 			  0xff << shift, v << shift);
-	regmap_write(ctrl->map, RTL931X_SERDES_MODE_CTRL + 4 * (sds_id >> 2), o_mode);
+	regmap_write(ctrl->map, RTPCS_931X_SERDES_MODE_CTRL + 4 * (sds_id >> 2), o_mode);
 
 	rtpcs_931x_sds_power(sds, true);
 }
@@ -3710,7 +3708,7 @@ static int rtpcs_931x_setup_serdes(struct rtpcs_serdes *sds,
 		rtpcs_sds_read(sds, 0x24, 0x9));
 	pr_info("%s: CMU mode %08X stored even SDS %d", __func__,
 		rtpcs_sds_read(even_sds, 0x20, 0x12), even_sds->id);
-	pr_info("%s: serdes_mode_ctrl %08X", __func__,  RTL931X_SERDES_MODE_CTRL + 4 * (sds_id >> 2));
+	pr_info("%s: serdes_mode_ctrl %08X", __func__,  RTPCS_931X_SERDES_MODE_CTRL + 4 * (sds_id >> 2));
 	pr_info("%s CMU page 0x24 0x7 %08x\n", __func__, rtpcs_sds_read(sds, 0x24, 0x7));
 	pr_info("%s CMU page 0x26 0x7 %08x\n", __func__, rtpcs_sds_read(sds, 0x26, 0x7));
 	pr_info("%s CMU page 0x28 0x7 %08x\n", __func__, rtpcs_sds_read(sds, 0x28, 0x7));
