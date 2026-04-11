@@ -12,6 +12,7 @@ CPU_TYPE:=xscale
 SUBTARGETS:=generic
 
 KERNEL_PATCHVER:=6.12
+KERNEL_TESTING_PATCHVER:=6.18
 
 define Target/Description
 	Build firmware images for the IXP4xx XScale CPU
