@@ -69,9 +69,6 @@
 #define RTPCS_93XX_MODEL_NAME_INFO		(0x0004)
 #define RTPCS_93XX_CHIP_INFO			(0x0008)
 
-#define PHY_PAGE_2	2
-#define PHY_PAGE_4	4
-
 /* RTL930X SerDes supports the following modes:
  * 0x02: SGMII		0x04: 1000BX_FIBER	0x05: FIBER100
  * 0x06: QSGMII		0x09: RSGMII		0x0d: USXGMII
@@ -2638,17 +2635,17 @@ static void rtpcs_930x_phy_enable_10g_1g(struct rtpcs_serdes *sds)
 	u32 v;
 
 	/* Enable 1GBit PHY */
-	v = rtpcs_sds_read(sds, PHY_PAGE_2, MII_BMCR);
+	v = rtpcs_sds_read(sds, 0x02, MII_BMCR);
 	pr_info("%s 1gbit phy: %08x\n", __func__, v);
 	v &= ~BMCR_PDOWN;
-	rtpcs_sds_write(sds, PHY_PAGE_2, MII_BMCR, v);
+	rtpcs_sds_write(sds, 0x02, MII_BMCR, v);
 	pr_info("%s 1gbit phy enabled: %08x\n", __func__, v);
 
 	/* Enable 10GBit PHY */
-	v = rtpcs_sds_read(sds, PHY_PAGE_4, MII_BMCR);
+	v = rtpcs_sds_read(sds, 0x04, MII_BMCR);
 	pr_info("%s 10gbit phy: %08x\n", __func__, v);
 	v &= ~BMCR_PDOWN;
-	rtpcs_sds_write(sds, PHY_PAGE_4, MII_BMCR, v);
+	rtpcs_sds_write(sds, 0x04, MII_BMCR, v);
 	pr_info("%s 10gbit phy after: %08x\n", __func__, v);
 
 	/* dal_longan_construct_mac_default_10gmedia_fiber */
