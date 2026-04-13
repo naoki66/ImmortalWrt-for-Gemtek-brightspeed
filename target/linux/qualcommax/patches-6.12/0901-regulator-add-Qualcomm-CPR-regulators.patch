@@ -6271,8 +6271,8 @@ Signed-off-by: Robert Marko <robimarko@gmail.com>
 +	struct cpr3_corner	*corner;
 +	int			corner_count;
 +	struct cprh_corner_band *corner_band;
-+	struct cpr4_reg_data    *cpr4_regulator_data;
-+	struct cpr3_reg_data    *cpr3_regulator_data;
++	const struct cpr4_reg_data    *cpr4_regulator_data;
++	const struct cpr3_reg_data    *cpr3_regulator_data;
 +	u32			corner_band_count;
 +
 +	void			*platform_fuses;
