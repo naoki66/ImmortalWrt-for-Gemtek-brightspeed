@@ -1149,7 +1149,11 @@ static void rtpcs_93xx_sds_usxgmii_config(struct rtpcs_serdes *sds, u32 opcode, 
 	rtpcs_sds_write(sds, 0x06, 0x00, 0x0000);
 	rtpcs_sds_write(sds, 0x06, 0x0D, 0x0F00);
 	rtpcs_sds_write(sds, 0x06, 0x1D, 0x0600);
+
 	rtpcs_sds_write(sds, 0x07, 0x06, 0x1401); /* CFG_QHSG_TXCFG_MAC_CH0 */
+	rtpcs_sds_write(sds, 0x07, 0x08, 0x1401); /* CFG_QHSG_TXCFG_MAC_CH1 */
+	rtpcs_sds_write(sds, 0x07, 0x0a, 0x1401); /* CFG_QHSG_TXCFG_MAC_CH2 */
+	rtpcs_sds_write(sds, 0x07, 0x0c, 0x1401); /* CFG_QHSG_TXCFG_MAC_CH3 */
 
 	/*
 	 * Controls the USXGMII AN mode. Two states are currently known:
