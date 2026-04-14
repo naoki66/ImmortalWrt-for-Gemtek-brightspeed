@@ -3783,14 +3783,10 @@ static int rtpcs_931x_sds_config_hw_mode(struct rtpcs_serdes *sds,
 	case RTPCS_SDS_MODE_USXGMII_5GSXGMII:
 	case RTPCS_SDS_MODE_USXGMII_5GDXGMII:
 	case RTPCS_SDS_MODE_USXGMII_2_5GSXGMII:
-		u32 op_code = 0x6003;
-
 		rtpcs_931x_sds_reset_leq_dfe(sds);
 		rtpcs_931x_sds_rx_reset(sds);
 
-		rtpcs_sds_write(sds, 0x7, 0x10, op_code);
-		rtpcs_sds_write(sds, 0x6, 0x1d, 0x0480);
-		rtpcs_sds_write(sds, 0x6, 0xe, 0x0400);
+		rtpcs_93xx_sds_usxgmii_config(sds, 0x03, 0xa4, 0, 1, 0x1);
 		break;
 
 	case RTPCS_SDS_MODE_QSGMII:
