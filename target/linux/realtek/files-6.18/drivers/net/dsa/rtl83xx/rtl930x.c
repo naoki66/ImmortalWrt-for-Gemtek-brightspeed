@@ -4,7 +4,7 @@
 #include <linux/etherdevice.h>
 #include <linux/inetdevice.h>
 
-#include "rtl838x.h"
+#include "rtl-otto.h"
 
 #define RTL930X_VLAN_PORT_TAG_STS_INTERNAL			0x0
 #define RTL930X_VLAN_PORT_TAG_STS_UNTAG				0x1
