@@ -244,6 +244,7 @@ struct rtpcs_config {
 	const struct rtpcs_sds_ops *sds_ops;
 	const struct rtpcs_sds_regs *sds_regs;
 	int (*init)(struct rtpcs_ctrl *ctrl);
+	int (*sds_probe)(struct rtpcs_serdes *sds);
 	int (*setup_serdes)(struct rtpcs_serdes *sds, enum rtpcs_sds_mode hw_mode);
 };
 
@@ -835,6 +836,11 @@ static int rtpcs_838x_sds_patch(struct rtpcs_serdes *sds,
 	return 0;
 }
 
+static int rtpcs_838x_sds_probe(struct rtpcs_serdes *sds)
+{
+	return 0;
+}
+
 static int rtpcs_838x_init(struct rtpcs_ctrl *ctrl)
 {
 	dev_dbg(ctrl->dev, "Init RTL838X PCS\n");
@@ -967,7 +973,7 @@ static int rtpcs_839x_sds_set_mode(struct rtpcs_serdes *sds,
 				 mode_val << shift);
 }
 
-static void rtpcs_839x_sds_init(struct rtpcs_serdes *sds)
+static int rtpcs_839x_sds_probe(struct rtpcs_serdes *sds)
 {
 	bool is_even = sds->id % 2 == 0;
 
@@ -1084,9 +1090,6 @@ static void rtpcs_839x_sds_init(struct rtpcs_serdes *sds)
 
 static int rtpcs_839x_init(struct rtpcs_ctrl *ctrl)
 {
-	for (int sds_id = 0; sds_id < ctrl->cfg->serdes_count; sds_id++)
-		rtpcs_839x_sds_init(&ctrl->serdes[sds_id]);
-
 	for (int sds_id = 0; sds_id < ctrl->cfg->serdes_count; sds_id++)
 		rtpcs_839x_sds_reset(&ctrl->serdes[sds_id]);
 
@@ -3031,6 +3034,11 @@ skip_cali:
 	return 0;
 }
 
+static int rtpcs_930x_sds_probe(struct rtpcs_serdes *sds)
+{
+	return 0;
+}
+
 /* RTL931X */
 
 /*
@@ -3920,6 +3928,11 @@ static int rtpcs_931x_init_mac_groups(struct rtpcs_ctrl *ctrl)
 	return 0;
 }
 
+static int rtpcs_931x_sds_probe(struct rtpcs_serdes *sds)
+{
+	return 0;
+}
+
 static int rtpcs_931x_init(struct rtpcs_ctrl *ctrl)
 {
 	int ret;
@@ -4175,6 +4188,10 @@ static int rtpcs_probe(struct platform_device *pdev)
 		sds->id = i;
 		sds->ops = ctrl->cfg->sds_ops;
 		sds->regs = ctrl->cfg->sds_regs;
+
+		ret = ctrl->cfg->sds_probe(sds);
+		if (ret)
+			return ret;
 	}
 
 	for_each_child_of_node(dev->of_node, child) {
@@ -4238,6 +4255,7 @@ static const struct rtpcs_config rtpcs_838x_cfg = {
 	.sds_ops		= &rtpcs_838x_sds_ops,
 	.sds_regs		= &rtpcs_838x_sds_regs,
 	.init			= rtpcs_838x_init,
+	.sds_probe		= rtpcs_838x_sds_probe,
 	.setup_serdes		= rtpcs_838x_setup_serdes,
 };
 
@@ -4273,6 +4291,7 @@ static const struct rtpcs_config rtpcs_839x_cfg = {
 	.sds_ops		= &rtpcs_839x_sds_ops,
 	.sds_regs		= &rtpcs_839x_sds_regs,
 	.init			= rtpcs_839x_init,
+	.sds_probe		= rtpcs_839x_sds_probe,
 	.setup_serdes		= rtpcs_839x_setup_serdes,
 };
 
@@ -4313,6 +4332,7 @@ static const struct rtpcs_config rtpcs_930x_cfg = {
 	.sds_ops		= &rtpcs_930x_sds_ops,
 	.sds_regs		= &rtpcs_930x_sds_regs,
 	.init			= rtpcs_93xx_init,
+	.sds_probe		= rtpcs_930x_sds_probe,
 	.setup_serdes		= rtpcs_930x_setup_serdes,
 };
 
@@ -4352,6 +4372,7 @@ static const struct rtpcs_config rtpcs_931x_cfg = {
 	.sds_ops		= &rtpcs_931x_sds_ops,
 	.sds_regs		= &rtpcs_931x_sds_regs,
 	.init			= rtpcs_931x_init,
+	.sds_probe		= rtpcs_931x_sds_probe,
 	.setup_serdes		= rtpcs_931x_setup_serdes,
 };
 
