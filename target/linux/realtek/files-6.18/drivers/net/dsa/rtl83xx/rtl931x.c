@@ -3,7 +3,7 @@
 #include <asm/mach-rtl-otto/mach-rtl-otto.h>
 #include <linux/etherdevice.h>
 
-#include "rtl83xx.h"
+#include "rtl838x.h"
 
 #define RTL931X_VLAN_PORT_TAG_STS_INTERNAL			0x0
 #define RTL931X_VLAN_PORT_TAG_STS_UNTAG				0x1

@@ -8,7 +8,6 @@
 #include <linux/rhashtable.h>
 #include <asm/mach-rtl-otto/mach-rtl-otto.h>
 
-#include "rtl83xx.h"
 #include "rtl838x.h"
 
 /* Parse the flow rule for the matching conditions */
