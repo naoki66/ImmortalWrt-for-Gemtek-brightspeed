@@ -52,10 +52,24 @@
 		compatible = "realtek,rtl9300-leds";
 		active-low;
 
-		led_set0 = <0x0a20 0x0b80>; // LED set 0: 1000Mbps,  10/100Mbps
-		led_set1 = <0x0a0b 0x0a28 0x0a82 0x0a0b>; // LED set 1: (10G, 5G, 2.5G) (2.5G, 1G)
-							  // (5G, 10/100) (10G, 5G, 2.5G)
-		led_set2 = <0x0a20 0x0a01>; // LED set 2: 1000MBit, 10GBit
+		/* [Lime] [Amber] */
+		led_set0 = <(RTL93XX_LED_SET_1G | RTL93XX_LED_SET_LINK | RTL93XX_LED_SET_ACT)
+			    (RTL93XX_LED_SET_100M | RTL93XX_LED_SET_10M | RTL93XX_LED_SET_LINK |
+			     RTL93XX_LED_SET_ACT)>;
+
+		/* [Blue?] [Lime] [Amber] [Green?] */
+		led_set1 = <(RTL93XX_LED_SET_10G | RTL93XX_LED_SET_5G | RTL93XX_LED_SET_2P5G |
+			     RTL93XX_LED_SET_LINK | RTL93XX_LED_SET_ACT)
+			    (RTL93XX_LED_SET_2P5G | RTL93XX_LED_SET_1G | RTL93XX_LED_SET_LINK |
+			     RTL93XX_LED_SET_ACT)
+			    (RTL93XX_LED_SET_5G | RTL93XX_LED_SET_100M | RTL93XX_LED_SET_LINK |
+			     RTL93XX_LED_SET_ACT)
+			    (RTL93XX_LED_SET_10G | RTL93XX_LED_SET_5G | RTL93XX_LED_SET_2P5G |
+			     RTL93XX_LED_SET_LINK | RTL93XX_LED_SET_ACT)>;
+
+		/* [Lime] [Blue] */
+		led_set2 = <(RTL93XX_LED_SET_1G | RTL93XX_LED_SET_LINK | RTL93XX_LED_SET_ACT)
+			    (RTL93XX_LED_SET_10G | RTL93XX_LED_SET_LINK | RTL93XX_LED_SET_ACT)>;
 	};
 
 	thermal-zones {

@@ -53,14 +53,18 @@
 		active-low;
 
 		/*
-		* LED set 0
-		*
-		* - LED[0](Amber): 5G/LINK/ACT
-		* - LED[1](Green): 10G/LINK/ACT
-		* - LED[2](Amber): 1G/100M/10M/LINK/ACT
-		* - LED[3](Green): 2.5G/LINK/ACT
-		*/
-		led_set0 = <0x0a02 0x0a01 0x0ba0 0x0a08>;
+		 * LED set 0
+		 *
+		 * - LED[0](Amber): 5G/LINK/ACT
+		 * - LED[1](Green): 10G/LINK/ACT
+		 * - LED[2](Amber): 1G/100M/10M/LINK/ACT
+		 * - LED[3](Green): 2.5G/LINK/ACT
+		 */
+		led_set0 = <(RTL93XX_LED_SET_5G | RTL93XX_LED_SET_LINK | RTL93XX_LED_SET_ACT)
+			    (RTL93XX_LED_SET_10G | RTL93XX_LED_SET_LINK | RTL93XX_LED_SET_ACT)
+			    (RTL93XX_LED_SET_1G | RTL93XX_LED_SET_100M | RTL93XX_LED_SET_10M |
+			     RTL93XX_LED_SET_LINK | RTL93XX_LED_SET_ACT)
+			    (RTL93XX_LED_SET_2P5G | RTL93XX_LED_SET_LINK | RTL93XX_LED_SET_ACT)>;
 	};
 };
 

@@ -52,7 +52,10 @@
 		compatible = "realtek,rtl9300-leds";
 		active-high;
 
-		led_set0 = <0x0ba0 0x0a08 0x0a01>;
+		led_set0 = <(RTL93XX_LED_SET_1G | RTL93XX_LED_SET_100M | RTL93XX_LED_SET_10M |
+			     RTL93XX_LED_SET_LINK | RTL93XX_LED_SET_ACT)
+			    (RTL93XX_LED_SET_2P5G | RTL93XX_LED_SET_LINK | RTL93XX_LED_SET_ACT)
+			    (RTL93XX_LED_SET_10G | RTL93XX_LED_SET_LINK | RTL93XX_LED_SET_ACT)>;
 	};
 
 	i2c_gpio {

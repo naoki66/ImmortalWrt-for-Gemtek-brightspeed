@@ -34,12 +34,9 @@
 		compatible = "realtek,rtl9300-leds";
 		active-low;
 
-		/*
-		 * LED set 0
-		 *
-		 * - LED[0](Green): 10M/100M/1G/2.5G/5G/10G/LINK/ACT
-		 */
-		led_set0 = <0x0bab>;
+		led_set0 = <(RTL93XX_LED_SET_10G | RTL93XX_LED_SET_5G | RTL93XX_LED_SET_2P5G |
+			     RTL93XX_LED_SET_1G | RTL93XX_LED_SET_100M | RTL93XX_LED_SET_10M |
+			     RTL93XX_LED_SET_LINK | RTL93XX_LED_SET_ACT)>;
 	};
 
 	sfp0: sfp-p1 {
