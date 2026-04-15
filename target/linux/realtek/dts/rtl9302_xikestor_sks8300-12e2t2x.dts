@@ -302,24 +302,8 @@
 			phy-mode = "usxgmii";
 		};
 
-		port@26 {
-			reg = <26>;
-			label = "lan15";
-			led-set = <1>;
-			pcs-handle = <&serdes8>;
-			phy-mode = "1000base-x";
-			sfp = <&sfp0>;
-			managed = "in-band-status";
-		};
-		port@27 {
-			reg = <27>;
-			label = "lan16";
-			led-set = <1>;
-			pcs-handle = <&serdes9>;
-			phy-mode = "1000base-x";
-			sfp = <&sfp1>;
-			managed = "in-band-status";
-		};
+		SWITCH_PORT_SFP(26, 15, 8, 1, 0)
+		SWITCH_PORT_SFP(27, 16, 9, 1, 1)
 
 		port@28 {
 			reg = <28>;
