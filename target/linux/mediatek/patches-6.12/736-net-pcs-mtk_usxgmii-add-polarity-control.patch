@@ -1,3 +1,12 @@
+From ddfae94a14bf0fc301505da75825dfe473525a33 Mon Sep 17 00:00:00 2001
+From: John Crispin <john@phrozen.org>
+Date: Tue, 29 Oct 2024 13:40:11 +0100
+Subject: [PATCH] mediatek: add support for swapping the polarity on usxgmii interfaces
+
+This patch comes from the MTK SDK.
+
+Signed-off-by: John Crispin <john@phrozen.org>
+---
 --- a/drivers/net/pcs/pcs-mtk-usxgmii.c
 +++ b/drivers/net/pcs/pcs-mtk-usxgmii.c
 @@ -52,6 +52,12 @@

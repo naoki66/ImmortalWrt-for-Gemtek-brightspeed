@@ -1,3 +1,14 @@
+From c46ccb69d17e584479df849a107423175a143c83 Mon Sep 17 00:00:00 2001
+From: Felix Fietkau <nbd@nbd.name>
+Date: Sat, 24 Oct 2020 21:15:20 +0200
+Subject: [PATCH] arm64: dts: mediatek: mt7622-rfb1: update copyright, fix bootargs and GPIO polarity
+
+Update the copyright header, add an explicit console= argument to the
+chosen/bootargs property, and fix the GPIO polarity flags on the
+factory and WPS button keys to use GPIO_ACTIVE_LOW.
+
+Signed-off-by: Felix Fietkau <nbd@nbd.name>
+---
 --- a/arch/arm64/boot/dts/mediatek/mt7622-rfb1.dts
 +++ b/arch/arm64/boot/dts/mediatek/mt7622-rfb1.dts
 @@ -1,7 +1,6 @@

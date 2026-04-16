@@ -1,3 +1,15 @@
+From 61137a88952e125c574aa35209fd581591d8796a Mon Sep 17 00:00:00 2001
+From: Daniel Golle <daniel@makrotopia.org>
+Date: Thu, 18 Jan 2024 22:15:35 +0000
+Subject: [PATCH] arm64: dts: mediatek: mt7986a-bpi-r3: add fitblk rootdisk for eMMC and NAND overlays
+
+Add GPT block partition and mmc-card nodes to the eMMC dtso overlay so
+that fitblk can find the production partition via /chosen/rootdisk-emmc,
+and update the NAND dtso overlay to wire up the UBI volume used as the
+root filesystem via /chosen/rootdisk-nand.
+
+Signed-off-by: Daniel Golle <daniel@makrotopia.org>
+---
 --- a/arch/arm64/boot/dts/mediatek/mt7986a-bananapi-bpi-r3-emmc.dtso
 +++ b/arch/arm64/boot/dts/mediatek/mt7986a-bananapi-bpi-r3-emmc.dtso
 @@ -21,5 +21,24 @@

@@ -1,3 +1,17 @@
+From 3a93704a63cf018187411108d241c35ec83992c0 Mon Sep 17 00:00:00 2001
+From: Daniel Golle <daniel@makrotopia.org>
+Date: Fri, 20 Aug 2021 18:31:48 +0100
+Subject: [PATCH] mediatek: add EEPROM data for BPi-R64 2.4GHz wmac
+
+EEPROM data extracted from vendor image found at
+http://forum.banana-pi.org/t/bpi-r64-mt7622-mac80211-wifi-driver/10246/77
+http://forum.banana-pi.org/uploads/short-url/jworbyBYpvrw9VQ2sx92B9z6DWS.bin
+
+MAC address in the EEPROM has been zero'd which results in random
+address on boot.
+
+Signed-off-by: Daniel Golle <daniel@makrotopia.org>
+---
 --- a/arch/arm64/boot/dts/mediatek/mt7622-bananapi-bpi-r64.dts
 +++ b/arch/arm64/boot/dts/mediatek/mt7622-bananapi-bpi-r64.dts
 @@ -650,5 +650,28 @@

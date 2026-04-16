@@ -1,3 +1,14 @@
+From c46ccb69d17e584479df849a107423175a143c83 Mon Sep 17 00:00:00 2001
+From: Felix Fietkau <nbd@nbd.name>
+Date: Sat, 24 Oct 2020 21:15:20 +0200
+Subject: [PATCH] arm64: dts: mediatek: mt7622-rfb1: wire EEPROM to wmac from factory partition
+
+Label the factory partition node so it can be referenced by phandle, and
+add a mediatek,mtd-eeprom property to the wmac node pointing at the
+factory partition to supply the calibration data at offset 0x0000.
+
+Signed-off-by: Felix Fietkau <nbd@nbd.name>
+---
 --- a/arch/arm64/boot/dts/mediatek/mt7622-rfb1.dts
 +++ b/arch/arm64/boot/dts/mediatek/mt7622-rfb1.dts
 @@ -599,7 +599,7 @@

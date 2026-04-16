@@ -1,3 +1,15 @@
+From dfa0a38d1f4d5bbac768569e3769ae4438a57e73 Mon Sep 17 00:00:00 2001
+From: Daniel Golle <daniel@makrotopia.org>
+Date: Sat, 27 Feb 2021 14:17:09 +0000
+Subject: [PATCH] arm64: dts: mediatek: mt7622-bpi-r64: add LED aliases, fix button labels and MMC aliases
+
+Add led-boot/led-failsafe/led-running/led-upgrade aliases pointing to
+the system LEDs, add mmc0/mmc1 aliases for correct MMC device ordering,
+rename the factory button to "reset" with KEY_RESTART, and update the
+LED gpio-hog and label names to match their physical function.
+
+Signed-off-by: Daniel Golle <daniel@makrotopia.org>
+---
 --- a/arch/arm64/boot/dts/mediatek/mt7622-bananapi-bpi-r64.dts
 +++ b/arch/arm64/boot/dts/mediatek/mt7622-bananapi-bpi-r64.dts
 @@ -21,6 +21,12 @@
