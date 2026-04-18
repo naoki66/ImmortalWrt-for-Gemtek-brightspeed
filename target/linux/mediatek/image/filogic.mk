@@ -838,6 +838,16 @@ define Device/bazis_ax3000wm
 endef
 TARGET_DEVICES += bazis_ax3000wm
 
+define Device/buffalo_wsr-3000ax4p
+  DEVICE_VENDOR := BUFFALO
+  DEVICE_MODEL := WSR-3000AX4P
+  DEVICE_DTS_DIR := ../dts
+  DEVICE_DTS := mt7981b-buffalo-wsr-3000ax4p
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  DEVICE_PACKAGES := kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware
+endef
+TARGET_DEVICES += buffalo_wsr-3000ax4p
+
 define Device/buffalo_wsr-6000ax8
   DEVICE_MODEL := WSR-6000AX8
   DEVICE_VENDOR := Buffalo
@@ -3635,6 +3645,26 @@ define Device/zbtlink_zbt-z8103ax-c
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
 endef
 TARGET_DEVICES += zbtlink_zbt-z8103ax-c
+
+define Device/zbtlink_zbt-z8106ax-t
+  DEVICE_VENDOR := Zbtlink
+  DEVICE_MODEL := ZBT-Z8106AX-T
+  DEVICE_ALT0_VENDOR := Zbtlink
+  DEVICE_ALT0_MODEL := ZBT-Z8106AX-M2-T
+  SUPPORTED_DEVICES += zbtlink,z8106ax-2sim
+  DEVICE_DTS := mt7981b-zbtlink-zbt-z8106ax-t
+  DEVICE_DTS_DIR := ../dts
+  DEVICE_PACKAGES := kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware kmod-usb3 kmod-usb-net-qmi-wwan kmod-usb-serial-option
+  KERNEL_IN_UBI := 1
+  UBINIZE_OPTS := -E 5
+  BLOCKSIZE := 128k
+  PAGESIZE := 2048
+  IMAGE_SIZE := 65536k
+  IMAGES += factory.bin
+  IMAGE/factory.bin := append-ubi | check-size $$(IMAGE_SIZE)
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+endef
+TARGET_DEVICES += zbtlink_zbt-z8106ax-t
 
 define Device/zyxel_ex5601-t0-stock
   DEVICE_VENDOR := Zyxel

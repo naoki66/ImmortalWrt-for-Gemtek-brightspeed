@@ -1,3 +1,15 @@
+From 4841ac042e00df7e29d305eb92f68994ebc739fd Mon Sep 17 00:00:00 2001
+From: John Crispin <john@phrozen.org>
+Date: Tue, 1 Sep 2020 09:09:13 +0200
+Subject: [PATCH] crypto: inside-secure: align ahash state and len to cache line size
+
+On non-coherent DMA systems the ahash request state[] array and the len
+field must each be aligned to the system cache line size (64 bytes) to
+prevent DMA coherency issues. Add SYSTEM_CACHELINE_SIZE (64) and use it
+as the alignment for both fields.
+
+Signed-off-by: John Crispin <john@phrozen.org>
+---
 --- a/drivers/crypto/inside-secure/safexcel.h
 +++ b/drivers/crypto/inside-secure/safexcel.h
 @@ -743,6 +743,9 @@ struct safexcel_priv_data {
