@@ -116,10 +116,7 @@ export function parse_encryption(config, dev_config) {
 		if (!wpa3_pairwise)
 			break;
 
-		if (config.rsn_override && wpa3_pairwise != config.wpa_pairwise)
-			config.rsn_override_pairwise = wpa3_pairwise;
-		else
-			config.wpa_pairwise = wpa3_pairwise;
+		config.wpa_pairwise = wpa3_pairwise;
 		break;
 	}
 
@@ -158,9 +155,6 @@ export function wpa_key_mgmt(config) {
 		if (config.ieee80211r)
 			append_value(config, 'wpa_key_mgmt', 'FT-EAP');
 
-		if (config.rsn_override)
-			config.rsn_override_key_mgmt = config.wpa_key_mgmt;
-
 		append_value(config, 'wpa_key_mgmt', 'WPA-EAP');
 		break;
 
@@ -180,17 +174,6 @@ export function wpa_key_mgmt(config) {
 		append_value(config, 'wpa_key_mgmt', 'SAE');
 		if (config.ieee80211r)
 			append_value(config, 'wpa_key_mgmt', 'FT-SAE');
-
-		if (config.rsn_override) {
-			config.rsn_override_key_mgmt = config.wpa_key_mgmt;
-
-			append_value(config, 'rsn_override_key_mgmt_2', 'SAE-EXT-KEY');
-			if (config.ieee80211r)
-				append_value(config, 'rsn_override_key_mgmt_2', 'FT-SAE-EXT-KEY');
-		}
-
-		if (config.rsn_override > 1)
-			delete config.wpa_key_mgmt;
 
 		append_value(config, 'wpa_key_mgmt', 'WPA-PSK');
 		if (config.ieee80211w)
@@ -225,13 +208,6 @@ export function wpa_key_mgmt(config) {
 			append_value(config, 'wpa_key_mgmt', 'FILS-SHA256');
 			if (config.ieee80211r)
 				append_value(config, 'wpa_key_mgmt', 'FT-FILS-SHA256');
-
-			if (!config.rsn_override_key_mgmt)
-				break;
-
-			append_value(config, 'rsn_override_key_mgmt', 'FILS-SHA256');
-			if (config.ieee80211r)
-				append_value(config, 'rsn_override_key_mgmt', 'FT-FILS-SHA256');
 			break;
 		}
 	}
