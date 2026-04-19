@@ -17,15 +17,7 @@ export function parse_encryption(config, dev_config) {
 			break;
 		}
 
-	config.wpa_pairwise = null;
-	if (config.wpa)
-		config.wpa_pairwise = (config.hw_mode == 'ad') ? 'GCMP' : 'CCMP';
-
 	config.auth_type = encryption[0] ?? 'none';
-
-	let wpa3_pairwise = config.wpa_pairwise;
-	if (wildcard(dev_config?.htmode, 'EHT*') || wildcard(dev_config?.htmode, 'HE*'))
-		wpa3_pairwise = 'GCMP-256 ' + wpa3_pairwise;
 
 	switch(config.auth_type) {
 	case 'owe':
@@ -38,6 +30,7 @@ export function parse_encryption(config, dev_config) {
 
 	case 'wpa3-192':
 		config.auth_type = 'eap192';
+		config.wpa_pairwise = 'GCMP-256';
 		break;
 
 	case 'wpa3-mixed':
@@ -52,7 +45,6 @@ export function parse_encryption(config, dev_config) {
 	case 'psk2':
 	case 'psk-mixed':
 		config.auth_type = 'psk';
-		wpa3_pairwise = null;
 		break;
 
 	case 'sae':
@@ -69,12 +61,6 @@ export function parse_encryption(config, dev_config) {
 	case 'wpa2':
 	case 'wpa-mixed':
 		config.auth_type = 'eap';
-		wpa3_pairwise = null;
-		break;
-
-	default:
-		config.wpa_pairwise = null;
-		wpa3_pairwise = null;
 		break;
 	}
 
@@ -106,20 +92,16 @@ export function parse_encryption(config, dev_config) {
 	case 'gcmp':
 		config.wpa_pairwise = 'GCMP';
 		break;
-
-	default:
-		if (config.encryption == 'wpa3-192') {
-			config.wpa_pairwise = 'GCMP-256';
-			break;
-		}
-
-		if (!wpa3_pairwise)
-			break;
-
-		config.wpa_pairwise = wpa3_pairwise;
-		break;
 	}
 
+	if (!config.wpa)
+		config.wpa_pairwise ??= null;
+	else if (config.hw_mode == 'ad')
+		config.wpa_pairwise ??= 'GCMP';
+	else if (wildcard(dev_config?.htmode, 'EHT*') || wildcard(dev_config?.htmode, 'HE*'))
+		config.wpa_pairwise ??= 'GCMP-256 CCMP';
+	else
+		config.wpa_pairwise ??= 'CCMP';
 };
 
 export function wpa_key_mgmt(config) {
