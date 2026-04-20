@@ -1793,7 +1793,7 @@ static int rtpcs_930x_sds_set_mode(struct rtpcs_serdes *sds, enum rtpcs_sds_mode
 	if (ret)
 		return ret;
 
-	mdelay(10);
+	msleep(10);
 
 	return rtpcs_93xx_sds_apply_usxgmii_submode(sds, hw_mode);
 }
@@ -3178,51 +3178,6 @@ static int rtpcs_931x_sds_power(struct rtpcs_serdes *sds, bool power_on)
 }
 
 /*
- * rtpcs_931x_sds_set_mac_mode
- *
- * Set the SerDes mode in the MAC's registers.
- */
-static int rtpcs_931x_sds_set_mac_mode(struct rtpcs_serdes *sds,
-				       enum rtpcs_sds_mode hw_mode)
-{
-	u32 mode_val;
-	int shift = ((sds->id & 0x3) << 3);
-
-	switch (hw_mode) {
-	case RTPCS_SDS_MODE_OFF:
-		mode_val = 0x1f;
-		break;
-	case RTPCS_SDS_MODE_QSGMII:
-		mode_val = 0x6;
-		break;
-	case RTPCS_SDS_MODE_HISGMII:
-		mode_val = 0x12;
-		break;
-	case RTPCS_SDS_MODE_XSGMII:
-		mode_val = 0x10;
-		break;
-	case RTPCS_SDS_MODE_USXGMII_10GSXGMII:
-	case RTPCS_SDS_MODE_USXGMII_10GDXGMII:
-	case RTPCS_SDS_MODE_USXGMII_10GQXGMII:
-	case RTPCS_SDS_MODE_USXGMII_5GSXGMII:
-	case RTPCS_SDS_MODE_USXGMII_5GDXGMII:
-	case RTPCS_SDS_MODE_USXGMII_2_5GSXGMII:
-		mode_val = 0xd;
-		break;
-	case RTPCS_SDS_MODE_SGMII:
-		mode_val = 0x2;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	mode_val |= BIT(7); /* force mode bit */
-	return regmap_write_bits(sds->ctrl->map,
-				 RTPCS_931X_SERDES_MODE_CTRL + 4 * (sds->id >> 2),
-				 0xff << shift, mode_val << shift);
-}
-
-/*
  * rtpcs_931x_sds_set_ip_mode
  *
  * Set the SerDes mode in the SerDes IP block's registers.
@@ -3231,10 +3186,17 @@ static int rtpcs_931x_sds_set_ip_mode(struct rtpcs_serdes *sds,
 				      enum rtpcs_sds_mode hw_mode)
 {
 	u32 mode_val;
+	int ret;
 
 	/* clear symbol error count before changing mode */
 	rtpcs_931x_sds_clear_symerr(sds, hw_mode);
-	rtpcs_931x_sds_set_mac_mode(sds, RTPCS_SDS_MODE_OFF);
+	ret = rtpcs_sds_set_mac_mode(sds, RTPCS_SDS_MODE_OFF);
+	if (ret)
+		return ret;
+
+	ret = regmap_field_write(sds->swcore_regs.mac_mode_force, 1);
+	if (ret)
+		return ret;
 
 	switch (hw_mode) {
 	case RTPCS_SDS_MODE_OFF:
@@ -3286,28 +3248,35 @@ static int rtpcs_931x_sds_set_ip_mode(struct rtpcs_serdes *sds,
 static int rtpcs_931x_sds_set_mode(struct rtpcs_serdes *sds,
 				   enum rtpcs_sds_mode hw_mode)
 {
-	if (hw_mode == RTPCS_SDS_MODE_XSGMII)
-		return rtpcs_931x_sds_set_mac_mode(sds, hw_mode);
-	else
+	if (hw_mode == RTPCS_SDS_MODE_XSGMII) {
+		int ret = rtpcs_sds_set_mac_mode(sds, hw_mode);
+		if (ret)
+			return ret;
+
+		return regmap_field_write(sds->swcore_regs.mac_mode_force, 1);
+	} else
 		return rtpcs_931x_sds_set_ip_mode(sds, hw_mode);
 }
 
 static void rtpcs_931x_sds_reset(struct rtpcs_serdes *sds)
 {
-	struct rtpcs_ctrl *ctrl = sds->ctrl;
-	u32 sds_id = sds->id;
-	u32 v, o_mode;
-	int shift = ((sds_id & 0x3) << 3);
+	u32 o_mode, f_bit;
 
 	/* TODO: We need to lock this! */
 
 	rtpcs_931x_sds_power(sds, false);
 
-	regmap_read(ctrl->map, RTPCS_931X_SERDES_MODE_CTRL + 4 * (sds_id >> 2), &o_mode);
-	v = BIT(7) | 0x1F;
-	regmap_write_bits(ctrl->map, RTPCS_931X_SERDES_MODE_CTRL + 4 * (sds_id >> 2),
-			  0xff << shift, v << shift);
-	regmap_write(ctrl->map, RTPCS_931X_SERDES_MODE_CTRL + 4 * (sds_id >> 2), o_mode);
+	/* save current */
+	regmap_field_read(sds->swcore_regs.mac_mode, &o_mode);
+	regmap_field_read(sds->swcore_regs.mac_mode_force, &f_bit);
+
+	/* force off */
+	regmap_field_write(sds->swcore_regs.mac_mode, 0x1f);
+	regmap_field_write(sds->swcore_regs.mac_mode_force, 1);
+
+	/* restore previous */
+	regmap_field_write(sds->swcore_regs.mac_mode, o_mode);
+	regmap_field_write(sds->swcore_regs.mac_mode_force, f_bit);
 
 	rtpcs_931x_sds_power(sds, true);
 }
@@ -3938,12 +3907,28 @@ static int rtpcs_931x_init_mac_groups(struct rtpcs_ctrl *ctrl)
 
 static int rtpcs_931x_sds_probe(struct rtpcs_serdes *sds)
 {
+	u32 base = RTPCS_931X_SERDES_MODE_CTRL + 4 * (sds->id >> 2);
+	u8 lsb = (sds->id & 3) * 8;
+	int ret;
+
 	if (sds->id >= 2)
 		sds->type = RTPCS_SDS_TYPE_10G;
 	else
 		sds->type = RTPCS_SDS_TYPE_UNKNOWN;
 
-	return 0;
+	/*
+	 * Width is 7 bits (lsb..lsb+6) so every MAC mode write also clears
+	 * bit 5 (FEC enable) and bit 6 (10G speedup). These are mode-dependent
+	 * and not yet programmed here; keeping them cleared matches the
+	 * original 8-bit-wide write behaviour.
+	 */
+	ret = rtpcs_sds_alloc_field(sds, &sds->swcore_regs.mac_mode,
+				    base, lsb, lsb + 6);
+	if (ret)
+		return ret;
+
+	return rtpcs_sds_alloc_field(sds, &sds->swcore_regs.mac_mode_force,
+				     base, lsb + 7, lsb + 7);
 }
 
 static int rtpcs_931x_init(struct rtpcs_ctrl *ctrl)
@@ -4433,6 +4418,7 @@ static const struct rtpcs_config rtpcs_931x_cfg = {
 	.pcs_ops		= &rtpcs_931x_pcs_ops,
 	.sds_ops		= &rtpcs_931x_sds_ops,
 	.sds_regs		= &rtpcs_931x_sds_regs,
+	.sds_hw_mode_vals	= rtpcs_93xx_sds_hw_mode_vals,
 	.init			= rtpcs_931x_init,
 	.sds_probe		= rtpcs_931x_sds_probe,
 	.setup_serdes		= rtpcs_931x_setup_serdes,
