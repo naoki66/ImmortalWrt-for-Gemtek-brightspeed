@@ -967,6 +967,20 @@ static int rtpcs_838x_setup_serdes(struct rtpcs_serdes *sds,
 
 /* RTL839X */
 
+/*
+ * RTL839X MAC_SERDES_IF_CTRL mode values.
+ * From the vendor SDK; 100BASEX (0x8), 1000BASEX/SGMII (0x7) are documented
+ * but not yet exercised here.
+ */
+static const s16 rtpcs_839x_sds_hw_mode_vals[RTPCS_SDS_MODE_MAX] = {
+	[0 ... RTPCS_SDS_MODE_MAX - 1]  = -1,
+	[RTPCS_SDS_MODE_OFF]            = 0x0,
+	/* [RTPCS_SDS_MODE_100BASEX]    = 0x8, */
+	/* [RTPCS_SDS_MODE_1000BASEX]   = 0x7, */
+	/* [RTPCS_SDS_MODE_SGMII]       = 0x7, */
+	[RTPCS_SDS_MODE_QSGMII]         = 0x6,
+};
+
 static void rtpcs_839x_sds_reset(struct rtpcs_serdes *sds)
 {
 	struct rtpcs_serdes *even_sds = rtpcs_sds_get_even(sds);
@@ -1009,42 +1023,20 @@ static void rtpcs_839x_sds_reset(struct rtpcs_serdes *sds)
 	rtpcs_sds_write(odd_sds, 0x0, 0x3, 0x7106);
 }
 
-static int rtpcs_839x_sds_set_mode(struct rtpcs_serdes *sds,
-				   enum rtpcs_sds_mode hw_mode)
-{
-	u32 mode_val, reg, shift;
-
-	switch (hw_mode) {
-	case RTPCS_SDS_MODE_OFF:
-		mode_val = 0x0;
-		break;
-/*
-	case RTPCS_SDS_MODE_100BASEX:
-		mode_val = 0x8;
-		break;
-	case RTPCS_SDS_MODE_1000BASEX:
-	case RTPCS_SDS_MODE_SGMII:
-		mode_val = 0x7;
-		break;
-*/
-	case RTPCS_SDS_MODE_QSGMII:
-		mode_val = 0x6;
-		break;
-	default:
-		return -ENOTSUPP;
-	}
-
-	reg = RTPCS_839X_MAC_SERDES_IF_CTRL + (sds->id / 8) * 4;
-	shift = (sds->id % 8) * 4;
-	return regmap_write_bits(sds->ctrl->map, reg, 0xf << shift,
-				 mode_val << shift);
-}
-
 static int rtpcs_839x_sds_probe(struct rtpcs_serdes *sds)
 {
-	bool is_even = sds->id % 2 == 0;
+	u8 id = sds->id;
+	bool is_even = id % 2 == 0;
+	u8 lsb = (id % 8) * 4;
+	int ret;
 
-	if (sds->id == 8 || sds->id == 9 || sds->id == 12 || sds->id == 13)
+	ret = rtpcs_sds_alloc_field(sds, &sds->swcore_regs.mac_mode,
+				    RTPCS_839X_MAC_SERDES_IF_CTRL + (id / 8) * 4,
+				    lsb, lsb + 3);
+	if (ret)
+		return ret;
+
+	if (id == 8 || id == 9 || id == 12 || id == 13)
 		sds->type = RTPCS_SDS_TYPE_10G;
 	else
 		sds->type = RTPCS_SDS_TYPE_5G;
@@ -1183,7 +1175,7 @@ static int rtpcs_839x_setup_serdes(struct rtpcs_serdes *sds,
 	if (sds->type == RTPCS_SDS_TYPE_5G)
 		return 0;
 
-	ret = rtpcs_839x_sds_set_mode(sds, hw_mode);
+	ret = rtpcs_sds_set_mac_mode(sds, hw_mode);
 	if (ret < 0)
 		return ret;
 
@@ -4417,6 +4409,7 @@ static const struct rtpcs_config rtpcs_839x_cfg = {
 	.pcs_ops		= &rtpcs_839x_pcs_ops,
 	.sds_ops		= &rtpcs_839x_sds_ops,
 	.sds_regs		= &rtpcs_839x_sds_regs,
+	.sds_hw_mode_vals	= rtpcs_839x_sds_hw_mode_vals,
 	.init			= rtpcs_839x_init,
 	.sds_probe		= rtpcs_839x_sds_probe,
 	.setup_serdes		= rtpcs_839x_setup_serdes,
