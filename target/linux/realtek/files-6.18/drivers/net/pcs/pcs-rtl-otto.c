@@ -138,6 +138,8 @@ enum rtpcs_sds_mode {
 	RTPCS_SDS_MODE_USXGMII_5GSXGMII,
 	RTPCS_SDS_MODE_USXGMII_5GDXGMII,
 	RTPCS_SDS_MODE_USXGMII_2_5GSXGMII,
+
+	RTPCS_SDS_MODE_MAX,
 };
 
 enum rtpcs_sds_media {
@@ -213,6 +215,12 @@ struct rtpcs_serdes {
 	const struct rtpcs_sds_ops *ops;
 	const struct rtpcs_sds_regs *regs;
 	enum rtpcs_sds_type type;
+	struct {
+		struct regmap_field *mac_mode;
+		struct regmap_field *mac_mode_force;	/* nullable, 931x only */
+		struct regmap_field *usxgmii_submode;	/* nullable, 93xx only */
+	} swcore_regs;
+
 	enum rtpcs_sds_mode hw_mode;
 	u8 id;
 	u8 num_of_links;
@@ -252,6 +260,8 @@ struct rtpcs_config {
 	const struct phylink_pcs_ops *pcs_ops;
 	const struct rtpcs_sds_ops *sds_ops;
 	const struct rtpcs_sds_regs *sds_regs;
+	const s16 *sds_hw_mode_vals;   /* enum rtpcs_sds_mode, -1 = unsupported */
+
 	int (*init)(struct rtpcs_ctrl *ctrl);
 	int (*sds_probe)(struct rtpcs_serdes *sds);
 	int (*setup_serdes)(struct rtpcs_serdes *sds, enum rtpcs_sds_mode hw_mode);
@@ -597,6 +607,43 @@ static int rtpcs_sds_apply_config_xsg(struct rtpcs_serdes *sds,
 			return ret;
 	}
 	return 0;
+}
+
+/*
+ * Allocate a regmap_field on the SoC-side register map for this SerDes and
+ * store the resulting pointer in *dst. Convenience helper for per-SerDes
+ * register fields computed from the SerDes ID. Taking reg/lsb/msb as
+ * integer arguments (rather than a struct reg_field) keeps callers free of
+ * either local reg_field declarations or compound-literal casts, since
+ * REG_FIELD() is a brace-initializer and not a usable expression.
+ */
+static int rtpcs_sds_alloc_field(struct rtpcs_serdes *sds, struct regmap_field **dst,
+				 u32 reg, u8 lsb, u8 msb)
+{
+	struct reg_field rf = REG_FIELD(reg, lsb, msb);
+
+	*dst = devm_regmap_field_alloc(sds->ctrl->dev, sds->ctrl->map, rf);
+	return PTR_ERR_OR_ZERO(*dst);
+}
+
+/*
+ * Write the SerDes MAC mode register. This is the common minimum shared by
+ * all variants. Variant-specific extras (force bit, companion registers,
+ * USXGMII submode, post-write delay) live in per-variant wrappers.
+ */
+static int rtpcs_sds_set_mac_mode(struct rtpcs_serdes *sds, enum rtpcs_sds_mode hw_mode)
+{
+	const struct rtpcs_config *cfg = sds->ctrl->cfg;
+	int val;
+
+	if (hw_mode >= RTPCS_SDS_MODE_MAX)
+		return -EINVAL;
+
+	val = cfg->sds_hw_mode_vals[hw_mode];
+	if (val < 0)
+		return -EOPNOTSUPP;
+
+	return regmap_field_write(sds->swcore_regs.mac_mode, val);
 }
 
 /* Variant-specific functions */
