@@ -650,6 +650,14 @@ static int rtpcs_sds_set_mac_mode(struct rtpcs_serdes *sds, enum rtpcs_sds_mode 
 
 /* RTL838X */
 
+/* RTL838X SDS_MODE_SEL field values */
+static const s16 rtpcs_838x_sds_hw_mode_vals[RTPCS_SDS_MODE_MAX] = {
+	[0 ... RTPCS_SDS_MODE_MAX - 1]	= -1,
+	[RTPCS_SDS_MODE_1000BASEX]	= 0x4,
+	[RTPCS_SDS_MODE_SGMII]		= 0x2,
+	[RTPCS_SDS_MODE_QSGMII]		= 0x6,
+};
+
 #define SDS(ctrl,n)	(&(ctrl)->serdes[n])
 
 static void rtpcs_838x_sds_patch_01_qsgmii_6275b(struct rtpcs_ctrl *ctrl)
@@ -812,42 +820,39 @@ static int rtpcs_838x_sds_power(struct rtpcs_serdes *sds, bool power_on)
 	return ret;
 }
 
-static int rtpcs_838x_sds_set_mode(struct rtpcs_serdes *sds,
-				   enum rtpcs_sds_mode hw_mode)
+/*
+ * RTL838X wrapper: after setting the MAC mode, SerDes 4-5 also need the
+ * companion INT_MODE_CTRL field written.
+ */
+static int rtpcs_838x_sds_set_mode(struct rtpcs_serdes *sds, enum rtpcs_sds_mode hw_mode)
 {
-	u8 sds_mode_shift, int_mode_shift;
-	u32 sds_mode_val, int_mode_val;
+	u8 int_mode_shift, int_mode_val;
+	int ret;
 
+	ret = rtpcs_sds_set_mac_mode(sds, hw_mode);
+	if (ret)
+		return ret;
+
+	if (sds->id < 4)
+		return 0;
+
+	int_mode_shift = (sds->id == 5) ? 3 : 0;
 	switch (hw_mode) {
 	case RTPCS_SDS_MODE_1000BASEX:
-		sds_mode_val = 0x4;
 		int_mode_val = 0x1;
 		break;
 	case RTPCS_SDS_MODE_SGMII:
-		sds_mode_val = 0x2;
 		int_mode_val = 0x2;
 		break;
 	case RTPCS_SDS_MODE_QSGMII:
-		sds_mode_val = 0x6;
 		int_mode_val = 0x5;
 		break;
 	default:
 		return -EINVAL;
 	}
 
-	/* Configure SerDes module mode (all SDS 0-5) */
-	sds_mode_shift = (5 - sds->id) * 5;
-	regmap_write_bits(sds->ctrl->map, RTPCS_838X_SDS_MODE_SEL,
-			  0x1f << sds_mode_shift, sds_mode_val << sds_mode_shift);
-
-	/* Configure MAC interface mode (only SDS 4-5) */
-	if (sds->id >= 4) {
-		int_mode_shift = (sds->id == 5) ? 3 : 0;
-		regmap_write_bits(sds->ctrl->map, RTPCS_838X_INT_MODE_CTRL,
-				  0x7 << int_mode_shift, int_mode_val << int_mode_shift);
-	}
-
-	return 0;
+	return regmap_write_bits(sds->ctrl->map, RTPCS_838X_INT_MODE_CTRL,
+				 0x7 << int_mode_shift, int_mode_val << int_mode_shift);
 }
 
 static int rtpcs_838x_sds_patch(struct rtpcs_serdes *sds,
@@ -894,8 +899,16 @@ static int rtpcs_838x_sds_patch(struct rtpcs_serdes *sds,
 
 static int rtpcs_838x_sds_probe(struct rtpcs_serdes *sds)
 {
+	u8 lsb = (5 - sds->id) * 5;
+
 	sds->type = RTPCS_SDS_TYPE_5G;
-	return 0;
+
+	/*
+	 * SDS_MODE_SEL packs 5-bit fields in reverse order: SDS 0 at [25:29],
+	 * SDS 5 at [0:4].
+	 */
+	return rtpcs_sds_alloc_field(sds, &sds->swcore_regs.mac_mode,
+				     RTPCS_838X_SDS_MODE_SEL, lsb, lsb + 4);
 }
 
 static int rtpcs_838x_init(struct rtpcs_ctrl *ctrl)
@@ -4367,6 +4380,7 @@ static const struct rtpcs_config rtpcs_838x_cfg = {
 	.pcs_ops		= &rtpcs_838x_pcs_ops,
 	.sds_ops		= &rtpcs_838x_sds_ops,
 	.sds_regs		= &rtpcs_838x_sds_regs,
+	.sds_hw_mode_vals	= rtpcs_838x_sds_hw_mode_vals,
 	.init			= rtpcs_838x_init,
 	.sds_probe		= rtpcs_838x_sds_probe,
 	.setup_serdes		= rtpcs_838x_setup_serdes,
