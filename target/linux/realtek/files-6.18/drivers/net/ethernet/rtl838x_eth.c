@@ -648,15 +648,18 @@ static void rteth_839x_setup_notify_ring_buffer(struct rteth_ctrl *ctrl)
 	for (int i = 0; i < NOTIFY_BLOCKS; i++)
 		b->ring[i] = KSEG1ADDR(&b->blocks[i]) | 1 | (i == (NOTIFY_BLOCKS - 1) ? WRAP : 0);
 
-	sw_w32((u32)b->ring, RTL839X_DMA_IF_NBUF_BASE_DESC_ADDR_CTRL);
-	sw_w32_mask(0x3ff << 2, 100 << 2, RTL839X_L2_NOTIFICATION_CTRL);
+	regmap_write(ctrl->map, RTL839X_DMA_IF_NBUF_BASE_DESC_ADDR_CTRL, (u32)b->ring);
+	regmap_update_bits(ctrl->map, RTL839X_L2_NOTIFICATION_CTRL, 0x3ff << 2, 100 << 2);
 
 	/* Setup notification events */
-	sw_w32_mask(0, 1 << 14, RTL839X_L2_CTRL_0); /* RTL8390_L2_CTRL_0_FLUSH_NOTIFY_EN */
-	sw_w32_mask(0, 1 << 12, RTL839X_L2_NOTIFICATION_CTRL); /* SUSPEND_NOTIFICATION_EN */
+
+	/* RTL8390_L2_CTRL_0_FLUSH_NOTIFY_EN */
+	regmap_set_bits(ctrl->map, RTL839X_L2_CTRL_0, BIT(14));
+	/* SUSPEND_NOTIFICATION_EN */
+	regmap_set_bits(ctrl->map, RTL839X_L2_NOTIFICATION_CTRL, BIT(12));
 
 	/* Enable Notification */
-	sw_w32_mask(0, 1 << 0, RTL839X_L2_NOTIFICATION_CTRL);
+	regmap_set_bits(ctrl->map, RTL839X_L2_NOTIFICATION_CTRL, BIT(0));
 	ctrl->lastEvent = 0;
 
 	/* Make sure the ring structure is visible to the ASIC */
