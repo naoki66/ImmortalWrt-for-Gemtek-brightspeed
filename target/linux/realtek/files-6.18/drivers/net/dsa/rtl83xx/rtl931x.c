@@ -269,29 +269,26 @@ rtldsa_931x_vlan_profile_dump(struct rtl838x_switch_priv *priv, int idx)
 
 static int rtldsa_931x_stp_get(struct rtl838x_switch_priv *priv, u16 msti, int port, u32 port_state[])
 {
+	struct table_reg *r = rtl_table_get(RTL9310_TBL_0, 5);
 	int idx = 3 - ((port + 8) / 16);
 	int bit = 2 * ((port + 8) % 16);
-	u32 cmd = 1 << 20 | /* Execute cmd */
-		  0 << 19 | /* Read */
-		  5 << 15 | /* Table type 0b101 */
-		  (msti & 0x3fff);
 
-	priv->r->exec_tbl0_cmd(cmd);
+	rtl_table_read(r, msti);
 	for (int i = 0; i < 4; i++)
-		port_state[i] = sw_r32(priv->r->tbl_access_data_0(i));
+		port_state[i] = sw_r32(rtl_table_data(r, i));
+	rtl_table_release(r);
 
 	return (port_state[idx] >> bit) & 3;
 }
 
 static void rtl931x_stp_set(struct rtl838x_switch_priv *priv, u16 msti, u32 port_state[])
 {
-	u32 cmd = 1 << 20 | /* Execute cmd */
-		  1 << 19 | /* Write */
-		  5 << 15 | /* Table type 0b101 */
-		  (msti & 0x3fff);
+	struct table_reg *r = rtl_table_get(RTL9310_TBL_0, 5);
+
 	for (int i = 0; i < 4; i++)
-		sw_w32(port_state[i], priv->r->tbl_access_data_0(i));
-	priv->r->exec_tbl0_cmd(cmd);
+		sw_w32(port_state[i], rtl_table_data(r, i));
+	rtl_table_write(r, msti);
+	rtl_table_release(r);
 }
 
 static inline int rtldsa_931x_trk_mbr_ctr(int group)
