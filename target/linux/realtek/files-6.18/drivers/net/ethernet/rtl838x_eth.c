@@ -573,35 +573,35 @@ static void rteth_839x_hw_en_rxtx(struct rteth_ctrl *ctrl)
 static void rteth_930x_hw_en_rxtx(struct rteth_ctrl *ctrl)
 {
 	/* Setup CPU-Port: RX Buffer truncated at DEFAULT_MTU Bytes */
-	sw_w32((DEFAULT_MTU << 16) | RX_TRUNCATE_EN_93XX, ctrl->r->dma_if_ctrl);
+	regmap_write(ctrl->map, ctrl->r->dma_if_ctrl, (DEFAULT_MTU << 16) | RX_TRUNCATE_EN_93XX);
 
 	rteth_enable_all_rx_irqs(ctrl);
 
 	/* Enable DMA */
-	sw_w32_mask(0, ctrl->r->tx_rx_enable, ctrl->r->dma_if_ctrl);
+	regmap_set_bits(ctrl->map, ctrl->r->dma_if_ctrl, ctrl->r->tx_rx_enable);
 
 	/* Restart TX/RX to CPU port, enable CRC checking */
-	sw_w32_mask(0x0, 0x3 | BIT(4), ctrl->r->mac_l2_port_ctrl);
+	regmap_set_bits(ctrl->map, ctrl->r->mac_l2_port_ctrl, 0x3 | BIT(4));
 
-	sw_w32_mask(0, BIT(ctrl->r->cpu_port), RTL930X_L2_UNKN_UC_FLD_PMSK);
-	sw_w32(0x217, ctrl->r->mac_force_mode_ctrl);
+	regmap_set_bits(ctrl->map, RTL930X_L2_UNKN_UC_FLD_PMSK, BIT(ctrl->r->cpu_port));
+	regmap_write(ctrl->map, ctrl->r->mac_force_mode_ctrl, 0x217);
 }
 
 static void rteth_931x_hw_en_rxtx(struct rteth_ctrl *ctrl)
 {
 	/* Setup CPU-Port: RX Buffer truncated at DEFAULT_MTU Bytes */
-	sw_w32((DEFAULT_MTU << 16) | RX_TRUNCATE_EN_93XX, ctrl->r->dma_if_ctrl);
+	regmap_write(ctrl->map, ctrl->r->dma_if_ctrl, (DEFAULT_MTU << 16) | RX_TRUNCATE_EN_93XX);
 
 	rteth_enable_all_rx_irqs(ctrl);
 
 	/* Enable DMA */
-	sw_w32_mask(0, ctrl->r->tx_rx_enable, ctrl->r->dma_if_ctrl);
+	regmap_set_bits(ctrl->map, ctrl->r->dma_if_ctrl, ctrl->r->tx_rx_enable);
 
 	/* Restart TX/RX to CPU port, enable CRC checking */
-	sw_w32_mask(0x0, 0x3 | BIT(4), ctrl->r->mac_l2_port_ctrl);
+	regmap_set_bits(ctrl->map, ctrl->r->mac_l2_port_ctrl, 0x3 | BIT(4));
 
-	sw_w32_mask(0, BIT(ctrl->r->cpu_port), RTL931X_L2_UNKN_UC_FLD_PMSK);
-	sw_w32(0x2a1d, ctrl->r->mac_force_mode_ctrl);
+	regmap_set_bits(ctrl->map, RTL931X_L2_UNKN_UC_FLD_PMSK, BIT(ctrl->r->cpu_port));
+	regmap_write(ctrl->map, ctrl->r->mac_force_mode_ctrl, 0x2a1d);
 }
 
 static void rteth_setup_ring_buffer(struct rteth_ctrl *ctrl)
