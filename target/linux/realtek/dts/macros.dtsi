@@ -32,14 +32,6 @@
 		enet-phy-pair-order = <##po>; \
 	};
 
-#define EXTERNAL_SFP_PHY(n) \
-	phy##n: ethernet-phy@##n { \
-		compatible = "ethernet-phy-ieee802.3-c22"; \
-		sfp; \
-		media = "fibre"; \
-		reg = <##n>; \
-	};
-
 #define SWITCH_PORT(p, l, m) \
 	port##p: port@##p { \
 		reg = <##p>; \
