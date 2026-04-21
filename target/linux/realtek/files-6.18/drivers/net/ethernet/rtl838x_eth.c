@@ -670,33 +670,33 @@ static void rteth_839x_setup_notify_ring_buffer(struct rteth_ctrl *ctrl)
 static void rteth_838x_hw_init(struct rteth_ctrl *ctrl)
 {
 	/* Trap IGMP/MLD traffic to CPU-Port */
-	sw_w32(0x3, RTL838X_SPCL_TRAP_IGMP_CTRL);
+	regmap_write(ctrl->map, RTL838X_SPCL_TRAP_IGMP_CTRL, 0x3);
 	/* Flush learned FDB entries on link down of a port */
-	sw_w32_mask(0, BIT(7), RTL838X_L2_CTRL_0);
+	regmap_set_bits(ctrl->map, RTL838X_L2_CTRL_0, BIT(7));
 }
 
 static void rteth_839x_hw_init(struct rteth_ctrl *ctrl)
 {
 	/* Trap MLD and IGMP messages to CPU_PORT */
-	sw_w32(0x3, RTL839X_SPCL_TRAP_IGMP_CTRL);
+	regmap_write(ctrl->map, RTL839X_SPCL_TRAP_IGMP_CTRL, 0x3);
 	/* Flush learned FDB entries on link down of a port */
-	sw_w32_mask(0, BIT(7), RTL839X_L2_CTRL_0);
+	regmap_set_bits(ctrl->map, RTL839X_L2_CTRL_0, BIT(7));
 }
 
 static void rteth_930x_hw_init(struct rteth_ctrl *ctrl)
 {
-	/* Flush learned FDB entries on link down of a port */
-	sw_w32_mask(0, BIT(7), RTL930X_L2_CTRL);
 	/* Trap MLD and IGMP messages to CPU_PORT */
-	sw_w32((0x2 << 3) | 0x2, RTL930X_VLAN_APP_PKT_CTRL);
+	regmap_write(ctrl->map, RTL930X_VLAN_APP_PKT_CTRL, 0x12);
+	/* Flush learned FDB entries on link down of a port */
+	regmap_set_bits(ctrl->map, RTL930X_L2_CTRL, BIT(7));
 }
 
 static void rteth_931x_hw_init(struct rteth_ctrl *ctrl)
 {
 	/* Trap MLD and IGMP messages to CPU_PORT */
-	sw_w32((0x2 << 3) | 0x2, RTL931X_VLAN_APP_PKT_CTRL);
+	regmap_write(ctrl->map, RTL931X_VLAN_APP_PKT_CTRL, 0x12);
 	/* Set PCIE_PWR_DOWN */
-	sw_w32_mask(0, BIT(1), RTL931X_PS_SOC_CTRL);
+	regmap_set_bits(ctrl->map, RTL931X_PS_SOC_CTRL, BIT(1));
 }
 
 static int rteth_open(struct net_device *ndev)
