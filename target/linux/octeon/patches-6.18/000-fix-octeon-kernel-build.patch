@@ -1,7 +1,7 @@
 --- a/arch/mips/cavium-octeon/octeon-platform.c
 +++ b/arch/mips/cavium-octeon/octeon-platform.c
-@@ -15,6 +15,7 @@
- #include <linux/libfdt.h>
+@@ -16,6 +16,7 @@
+ #include <linux/string.h>
  
  #include <asm/octeon/octeon.h>
 +#include <asm/octeon/octeon-platform.h>
