@@ -1,28 +1,21 @@
-From d5e337e7aecc2e1cc9e96768062610adb95f8f72 Mon Sep 17 00:00:00 2001
+From 0be12d497dbe2ea783e805f0375869cb573cd52a Mon Sep 17 00:00:00 2001
 From: Daniel Golle <daniel@makrotopia.org>
 Date: Tue, 12 Dec 2023 03:51:14 +0000
-Subject: [PATCH] net: ethernet: mtk_eth_soc: add paths and SerDes modes for
- MT7988
+Subject: [PATCH 4/4] net: ethernet: mtk_eth_soc: add paths and SerDes modes
+ for MT7988
 
-MT7988 comes with a new 10G/USXGMII SerDes PCS to connect external PHYs or
-transceivers in USXGMII, 10GBase-R and 5GBase-R interface modes in addition
-to the existing 2500Base-X, 1000Base-X and Cisco SGMII modes supported by
-the existing LynxI PCS.
+MT7988 comes with two SerDes interfaces to connect external PHYs or
+transceivers in USXGMII, 10GBase-R, 5GBase-R, 2500Base-X, 1000Base-X and
+Cisco SGMII interface modes.
 
-Implement support for configuring for the new paths to the 10G SerDes
-interfaces.
-
-Add USXGMII PCS driver for 10GBase-R, 5GBase-R and USXGMII mode, and
-setup the new PHYA on MT7988 to access the also still existing old
-LynxI PCS for 1000Base-X, 2500Base-X and Cisco SGMII PCS interface
-modes.
+Implement support for configuring for the new paths to SerDes interfaces.
 
 Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 ---
- drivers/net/ethernet/mediatek/mtk_eth_path.c | 122 +++++++-
- drivers/net/ethernet/mediatek/mtk_eth_soc.c  | 292 +++++++++++++++++--
- drivers/net/ethernet/mediatek/mtk_eth_soc.h  | 107 ++++++-
- 3 files changed, 470 insertions(+), 51 deletions(-)
+ drivers/net/ethernet/mediatek/mtk_eth_path.c |  81 ++++++++-
+ drivers/net/ethernet/mediatek/mtk_eth_soc.c  | 165 +++++++++++++++----
+ drivers/net/ethernet/mediatek/mtk_eth_soc.h  |  49 +++++-
+ 3 files changed, 252 insertions(+), 43 deletions(-)
 
 --- a/drivers/net/ethernet/mediatek/mtk_eth_path.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_path.c
@@ -120,7 +113,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  	},
  };
  
-@@ -278,12 +338,26 @@ out:
+@@ -278,12 +338,25 @@ out:
  	return err;
  }
  
@@ -135,7 +128,6 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +	/* Setup proper MUXes along the path */
 +	return mtk_eth_mux_setup(eth, path);
 +}
-+
 +
  int mtk_gmac_sgmii_path_setup(struct mtk_eth *eth, int mac_id)
  {
@@ -155,21 +147,33 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  #include <linux/pinctrl/devinfo.h>
  #include <linux/phylink.h>
  #include <linux/pcs/pcs-mtk-lynxi.h>
-+#include <linux/pcs/pcs-mtk-usxgmii.h>
++#include <linux/pcs/pcs.h>
 +#include <linux/phy/phy.h>
  #include <linux/jhash.h>
  #include <linux/bitfield.h>
  #include <net/dsa.h>
-@@ -523,6 +525,30 @@ static void mtk_setup_bridge_switch(stru
+@@ -523,23 +525,28 @@ static void mtk_setup_bridge_switch(stru
  		MTK_GSW_CFG);
  }
  
+-static struct phylink_pcs *mtk_mac_select_pcs(struct phylink_config *config,
+-					      phy_interface_t interface)
 +static bool mtk_check_gmac23_idle(struct mtk_mac *mac)
-+{
+ {
+-	struct mtk_mac *mac = container_of(config, struct mtk_mac,
+-					   phylink_config);
+-	struct mtk_eth *eth = mac->hw;
+-	unsigned int sid;
 +	u32 mac_fsm, gdm_fsm;
-+
+ 
+-	if (interface == PHY_INTERFACE_MODE_SGMII ||
+-	    phy_interface_mode_is_8023z(interface)) {
+-		sid = (MTK_HAS_CAPS(eth->soc->caps, MTK_SHARED_SGMII)) ?
+-		       0 : mac->id;
 +	mac_fsm = mtk_r32(mac->hw, MTK_MAC_FSM(mac->id));
-+
+ 
+-		return eth->sgmii_pcs[sid];
+-	}
 +	switch (mac->id) {
 +	case MTK_GMAC2_ID:
 +		gdm_fsm = mtk_r32(mac->hw, MTK_FE_GDM2_FSM);
@@ -180,50 +184,17 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +	default:
 +		return true;
 +	};
-+
+ 
+-	return NULL;
 +	if ((mac_fsm & 0xFFFF0000) == 0x01010000 &&
 +	    (gdm_fsm & 0xFFFF0000) == 0x00000000)
 +		return true;
 +
 +	return false;
-+}
-+
- static struct phylink_pcs *mtk_mac_select_pcs(struct phylink_config *config,
- 					      phy_interface_t interface)
- {
-@@ -531,6 +557,21 @@ static struct phylink_pcs *mtk_mac_selec
- 	struct mtk_eth *eth = mac->hw;
- 	unsigned int sid;
- 
-+	if (mtk_is_netsys_v3_or_greater(eth)) {
-+		switch (interface) {
-+		case PHY_INTERFACE_MODE_1000BASEX:
-+		case PHY_INTERFACE_MODE_2500BASEX:
-+		case PHY_INTERFACE_MODE_SGMII:
-+			return mac->sgmii_pcs;
-+		case PHY_INTERFACE_MODE_5GBASER:
-+		case PHY_INTERFACE_MODE_10GBASER:
-+		case PHY_INTERFACE_MODE_USXGMII:
-+			return mac->usxgmii_pcs;
-+		default:
-+			return NULL;
-+		}
-+	}
-+
- 	if (interface == PHY_INTERFACE_MODE_SGMII ||
- 	    phy_interface_mode_is_8023z(interface)) {
- 		sid = (MTK_HAS_CAPS(eth->soc->caps, MTK_SHARED_SGMII)) ?
-@@ -559,6 +600,9 @@ static int mtk_mac_prepare(struct phylin
- 			MTK_XGMAC_FORCE_MODE(mac->id), MTK_XGMAC_STS(mac->id));
- 	}
- 
-+	if (mac->pextp && mac->interface != iface)
-+		phy_reset(mac->pextp);
-+
- 	return 0;
  }
  
-@@ -602,6 +646,15 @@ static void mtk_mac_config(struct phylin
+ static int mtk_mac_prepare(struct phylink_config *config, unsigned int mode,
+@@ -602,6 +609,15 @@ static void mtk_mac_config(struct phylin
  					goto init_err;
  			}
  			break;
@@ -239,7 +210,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  		case PHY_INTERFACE_MODE_INTERNAL:
  			if (mac->id == MTK_GMAC2_ID &&
  			    MTK_HAS_CAPS(eth->soc->caps, MTK_2P5GPHY)) {
-@@ -655,8 +708,6 @@ static void mtk_mac_config(struct phylin
+@@ -655,8 +671,6 @@ static void mtk_mac_config(struct phylin
  		val &= ~SYSCFG0_GE_MODE(SYSCFG0_GE_MASK, mac->id);
  		val |= SYSCFG0_GE_MODE(ge_mode, mac->id);
  		regmap_write(eth->ethsys, ETHSYS_SYSCFG0, val);
@@ -248,7 +219,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  	}
  
  	/* SGMII */
-@@ -673,21 +724,40 @@ static void mtk_mac_config(struct phylin
+@@ -673,9 +687,12 @@ static void mtk_mac_config(struct phylin
  
  		/* Save the syscfg0 value for mac_finish */
  		mac->syscfg0 = val;
@@ -263,32 +234,22 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  		return;
  	}
  
- 	/* Setup gmac */
--	if (mtk_interface_mode_is_xgmii(eth, state->interface)) {
--		mtk_w32(mac->hw, MTK_GDMA_XGDM_SEL, MTK_GDMA_EG_CTRL(mac->id));
--		mtk_w32(mac->hw, MAC_MCR_FORCE_LINK_DOWN, MTK_MAC_MCR(mac->id));
-+	if (mtk_is_netsys_v3_or_greater(eth)) {
-+		if (mtk_interface_mode_is_xgmii(eth, state->interface)) {
-+			mtk_w32(mac->hw, MTK_GDMA_XGDM_SEL, MTK_GDMA_EG_CTRL(mac->id));
-+			mtk_w32(mac->hw, MAC_MCR_FORCE_LINK_DOWN, MTK_MAC_MCR(mac->id));
+@@ -686,8 +703,22 @@ static void mtk_mac_config(struct phylin
  
--		if (mac->id == MTK_GMAC1_ID)
--			mtk_setup_bridge_switch(eth);
-+			if (mac->id == MTK_GMAC1_ID)
-+				mtk_setup_bridge_switch(eth);
-+		} else {
-+			mtk_w32(eth, 0, MTK_GDMA_EG_CTRL(mac->id));
+ 		if (mac->id == MTK_GMAC1_ID)
+ 			mtk_setup_bridge_switch(eth);
++	} else if (mtk_is_netsys_v3_or_greater(eth)) {
++		mtk_w32(eth, 0, MTK_GDMA_EG_CTRL(mac->id));
 +
-+			/* FIXME: In current hardware design, we have to reset FE
-+			 * when swtiching XGDM to GDM. Therefore, here trigger an SER
-+			 * to let GDM go back to the initial state.
-+			 */
-+			if ((mtk_interface_mode_is_xgmii(eth, mac->interface) ||
-+			     mac->interface == PHY_INTERFACE_MODE_NA) &&
-+			    !mtk_check_gmac23_idle(mac) &&
-+			    !test_bit(MTK_RESETTING, &eth->state))
-+				schedule_work(&eth->pending_work);
-+		}
++		/* FIXME: In current hardware design, we have to reset FE
++		 * when swtiching XGDM to GDM. Therefore, here trigger an SER
++		 * to let GDM go back to the initial state.
++		 */
++		if ((mtk_interface_mode_is_xgmii(eth, mac->interface) ||
++		     mac->interface == PHY_INTERFACE_MODE_NA) &&
++		    !mtk_check_gmac23_idle(mac) &&
++		    !test_bit(MTK_RESETTING, &eth->state))
++			schedule_work(&eth->pending_work);
  	}
  
 +	mac->interface = state->interface;
@@ -296,110 +257,109 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  	return;
  
  err_phy:
-@@ -708,6 +778,10 @@ static int mtk_mac_finish(struct phylink
- 	struct mtk_eth *eth = mac->hw;
- 	u32 mcr_cur, mcr_new;
+@@ -738,6 +769,9 @@ static void mtk_mac_link_down(struct phy
+ 		mtk_m32(mac->hw,
+ 			MAC_MCR_TX_EN | MAC_MCR_RX_EN | MAC_MCR_FORCE_LINK, 0,
+ 			MTK_MAC_MCR(mac->id));
++		if (mtk_is_netsys_v3_or_greater(mac->hw))
++			mtk_m32(mac->hw, MTK_XGMAC_FORCE_LINK(mac->id), 0,
++				MTK_XGMAC_STS(mac->id));
+ 	} else if (mac->id != MTK_GMAC1_ID) {
+ 		/* XGMAC except for built-in switch */
+ 		mtk_m32(mac->hw, XMAC_MCR_TRX_DISABLE, XMAC_MCR_TRX_DISABLE,
+@@ -956,7 +990,6 @@ static int mtk_mac_enable_tx_lpi(struct
  
-+	/* Setup PMA/PMD */
-+	if (mac->pextp)
-+		phy_set_mode_ext(mac->pextp, PHY_MODE_ETHERNET, interface);
-+
- 	/* Enable SGMII */
- 	if (interface == PHY_INTERFACE_MODE_SGMII ||
- 	    phy_interface_mode_is_8023z(interface))
-@@ -903,6 +977,10 @@ static void mtk_mac_link_up(struct phyli
- 	else
- 		mtk_gdm_mac_link_up(mac, phy, mode, interface, speed, duplex,
- 				    tx_pause, rx_pause);
-+
-+	/* Repeat pextp setup to tune link */
-+	if (mac->pextp)
-+		phy_set_mode_ext(mac->pextp, PHY_MODE_ETHERNET, interface);
- }
- 
- static void mtk_mac_disable_tx_lpi(struct phylink_config *config)
-@@ -3765,6 +3843,9 @@ static int mtk_open(struct net_device *d
- 
- 	ppe_num = eth->soc->ppe_num;
- 
-+	if (mac->pextp)
-+		phy_power_on(mac->pextp);
-+
- 	err = phylink_of_phy_connect(mac->phylink, mac->of_node, 0);
- 	if (err) {
- 		netdev_err(dev, "%s: could not attach PHY: %d\n", __func__,
-@@ -3912,6 +3993,9 @@ static int mtk_stop(struct net_device *d
- 	for (i = 0; i < ARRAY_SIZE(eth->ppe); i++)
- 		mtk_ppe_stop(eth->ppe[i]);
- 
-+	if (mac->pextp)
-+		phy_power_off(mac->pextp);
-+
- 	return 0;
- }
- 
-@@ -4968,6 +5052,7 @@ static const struct net_device_ops mtk_n
- static int mtk_add_mac(struct mtk_eth *eth, struct device_node *np)
- {
- 	const __be32 *_id = of_get_property(np, "reg", NULL);
-+	struct device_node *pcs_np;
+ static const struct phylink_mac_ops mtk_phylink_ops = {
+ 	.mac_prepare = mtk_mac_prepare,
+-	.mac_select_pcs = mtk_mac_select_pcs,
+ 	.mac_config = mtk_mac_config,
+ 	.mac_finish = mtk_mac_finish,
+ 	.mac_link_down = mtk_mac_link_down,
+@@ -4971,7 +5004,8 @@ static int mtk_add_mac(struct mtk_eth *e
  	phy_interface_t phy_mode;
  	struct phylink *phylink;
  	struct mtk_mac *mac;
-@@ -5004,16 +5089,44 @@ static int mtk_add_mac(struct mtk_eth *e
- 	mac->id = id;
- 	mac->hw = eth;
- 	mac->of_node = np;
-+	pcs_np = of_parse_phandle(mac->of_node, "pcs-handle", 0);
-+	if (pcs_np) {
-+		mac->sgmii_pcs = mtk_pcs_lynxi_get(eth->dev, pcs_np);
-+		if (IS_ERR(mac->sgmii_pcs)) {
-+			if (PTR_ERR(mac->sgmii_pcs) != -EPROBE_DEFER)
-+				dev_err(eth->dev,
-+					"cannot select SGMII PCS, error %ld\n",
-+					PTR_ERR(mac->sgmii_pcs));
-+
-+			err = PTR_ERR(mac->sgmii_pcs);
-+			goto free_netdev;
-+		}
-+	}
+-	int id, err;
++	int id, err, count;
++	unsigned int sid;
+ 	int txqs = 1;
+ 	u32 val;
  
--	err = of_get_ethdev_address(mac->of_node, eth->netdev[id]);
--	if (err == -EPROBE_DEFER)
--		return err;
-+	pcs_np = of_parse_phandle(mac->of_node, "pcs-handle", 1);
-+	if (pcs_np) {
-+		mac->usxgmii_pcs = mtk_usxgmii_pcs_get(eth->dev, pcs_np);
-+		if (IS_ERR(mac->usxgmii_pcs)) {
-+			if (PTR_ERR(mac->usxgmii_pcs) != -EPROBE_DEFER)
-+				dev_err(eth->dev,
-+					"cannot select USXGMII PCS, error %ld\n",
-+					PTR_ERR(mac->usxgmii_pcs));
-+
-+			err = PTR_ERR(mac->usxgmii_pcs);
-+			goto free_netdev;
-+		}
-+	}
+@@ -5042,6 +5076,7 @@ static int mtk_add_mac(struct mtk_eth *e
+ 	mac->phylink_config.lpi_capabilities = MAC_100FD | MAC_1000FD |
+ 		MAC_2500FD;
+ 	mac->phylink_config.lpi_timer_default = 1000;
++	mac->phylink_config.num_available_pcs = 0;
  
--	if (err) {
--		/* If the mac address is invalid, use random mac address */
--		eth_hw_addr_random(eth->netdev[id]);
--		dev_err(eth->dev, "generated random MAC address %pM\n",
--			eth->netdev[id]->dev_addr);
-+	if (mtk_is_netsys_v3_or_greater(eth) && (mac->sgmii_pcs || mac->usxgmii_pcs)) {
-+		mac->pextp = devm_of_phy_optional_get(eth->dev, mac->of_node, NULL);
-+		if (IS_ERR(mac->pextp)) {
-+			if (PTR_ERR(mac->pextp) != -EPROBE_DEFER)
-+				dev_err(eth->dev, "cannot get PHY, error %ld\n",
-+					PTR_ERR(mac->pextp));
+ 	/* MT7623 gmac0 is now missing its speed-specific PLL configuration
+ 	 * in its .mac_config method (since state->speed is not valid there.
+@@ -5072,13 +5107,62 @@ static int mtk_add_mac(struct mtk_eth *e
+ 
+ 	if (MTK_HAS_CAPS(mac->hw->soc->caps, MTK_SGMII)) {
+ 		__set_bit(PHY_INTERFACE_MODE_SGMII,
+-			  mac->phylink_config.supported_interfaces);
++			  mac->phylink_config.pcs_interfaces);
+ 		__set_bit(PHY_INTERFACE_MODE_1000BASEX,
+-			  mac->phylink_config.supported_interfaces);
++			  mac->phylink_config.pcs_interfaces);
+ 		__set_bit(PHY_INTERFACE_MODE_2500BASEX,
+-			  mac->phylink_config.supported_interfaces);
++			  mac->phylink_config.pcs_interfaces);
 +
-+			err = PTR_ERR(mac->pextp);
-+			goto free_netdev;
++		if (mtk_is_netsys_v3_or_greater(mac->hw)) {
++			__set_bit(PHY_INTERFACE_MODE_5GBASER,
++				mac->phylink_config.pcs_interfaces);
++			__set_bit(PHY_INTERFACE_MODE_10GBASER,
++				mac->phylink_config.pcs_interfaces);
++			__set_bit(PHY_INTERFACE_MODE_USXGMII,
++				mac->phylink_config.pcs_interfaces);
++
++			err = fwnode_phylink_pcs_parse(of_fwnode_handle(np), NULL, &count);
++			if (err == -ENODEV) {
++				err = 0;
++				goto no_pcs;
++			}
++
++			if (count > 2)
++				err = -ENOMEM;
++
++			if (err)
++				goto free_netdev;
++
++			err = fwnode_phylink_pcs_parse(of_fwnode_handle(np), mac->available_pcs, &count);
++			if (err)
++				goto free_netdev;
++
++			mac->phylink_config.available_pcs = mac->available_pcs;
++			mac->phylink_config.num_available_pcs = count;
++		} else {
++			if (MTK_HAS_CAPS(eth->soc->caps, MTK_SHARED_SGMII)) {
++				/* single LynxI PCS used by either GMAC */
++				if (!test_bit(phy_mode, eth->sgmii_pcs[0]->supported_interfaces))
++					goto no_pcs;
++				if (eth->shared_sgmii_used) {
++					err = -EBUSY;
++					goto free_netdev;
++				}
++				sid = 0;
++				eth->shared_sgmii_used = true;
++			} else {
++				sid = id;
++			}
++			mac->phylink_config.available_pcs = &eth->sgmii_pcs[sid];
++			mac->phylink_config.num_available_pcs = 1;
 +		}
++
++		phy_interface_or(mac->phylink_config.supported_interfaces,
++				 mac->phylink_config.supported_interfaces,
++				 mac->phylink_config.pcs_interfaces);
  	}
  
- 	memset(mac->hwlro_ip, 0, sizeof(mac->hwlro_ip));
-@@ -5099,8 +5212,21 @@ static int mtk_add_mac(struct mtk_eth *e
++no_pcs:
+ 	if (mtk_is_netsys_v3_or_greater(mac->hw) &&
+ 	    MTK_HAS_CAPS(mac->hw->soc->caps, MTK_ESW) &&
+ 	    id == MTK_GMAC1_ID) {
+@@ -5088,18 +5172,16 @@ static int mtk_add_mac(struct mtk_eth *e
  		phy_interface_zero(mac->phylink_config.supported_interfaces);
  		__set_bit(PHY_INTERFACE_MODE_INTERNAL,
  			  mac->phylink_config.supported_interfaces);
@@ -413,42 +373,37 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +			  mac->phylink_config.supported_interfaces);
  	}
  
-+	if (MTK_HAS_CAPS(mac->hw->soc->caps, MTK_2P5GPHY) &&
-+	    id == MTK_GMAC2_ID)
-+		__set_bit(PHY_INTERFACE_MODE_INTERNAL,
-+			  mac->phylink_config.supported_interfaces);
-+
- 	phylink = phylink_create(&mac->phylink_config,
- 				 of_fwnode_handle(mac->of_node),
- 				 phy_mode, &mtk_phylink_ops);
-@@ -5156,6 +5282,26 @@ free_netdev:
- 	return err;
- }
+-	phylink = phylink_create(&mac->phylink_config,
+-				 of_fwnode_handle(mac->of_node),
+-				 phy_mode, &mtk_phylink_ops);
+-	if (IS_ERR(phylink)) {
+-		err = PTR_ERR(phylink);
+-		goto free_netdev;
+-	}
+-
+-	mac->phylink = phylink;
+-
+ 	if (MTK_HAS_CAPS(mac->hw->soc->caps, MTK_2P5GPHY) &&
+ 	    id == MTK_GMAC2_ID)
+ 		__set_bit(PHY_INTERFACE_MODE_INTERNAL,
+@@ -5122,6 +5204,16 @@ static int mtk_add_mac(struct mtk_eth *e
+ 	eth->netdev[id]->irq = eth->irq[MTK_FE_IRQ_SHARED];
+ 	eth->netdev[id]->dev.of_node = np;
  
-+static int mtk_mac_assign_address(struct mtk_eth *eth, int i, bool test_defer_only)
-+{
-+	int err = of_get_ethdev_address(eth->mac[i]->of_node, eth->netdev[i]);
-+
-+	if (err == -EPROBE_DEFER)
-+		return err;
-+
-+	if (test_defer_only)
-+		return 0;
-+
-+	if (err) {
-+		/* If the mac address is invalid, use random mac address */
-+		eth_hw_addr_random(eth->netdev[i]);
-+		dev_err(eth->dev, "generated random MAC address %pM\n",
-+			eth->netdev[i]);
++	phylink = phylink_create(&mac->phylink_config,
++				 of_fwnode_handle(mac->of_node),
++				 phy_mode, &mtk_phylink_ops);
++	if (IS_ERR(phylink)) {
++		err = PTR_ERR(phylink);
++		goto free_netdev;
 +	}
 +
-+	return 0;
-+}
++	mac->phylink = phylink;
 +
- void mtk_eth_set_dma_device(struct mtk_eth *eth, struct device *dma_dev)
- {
- 	struct net_device *dev, *tmp;
-@@ -5309,7 +5455,8 @@ static int mtk_probe(struct platform_dev
+ 	if (MTK_HAS_CAPS(eth->soc->caps, MTK_SOC_MT7628))
+ 		eth->netdev[id]->max_mtu = MTK_MAX_RX_LENGTH - MTK_RX_ETH_HLEN;
+ 	else
+@@ -5315,7 +5407,8 @@ static int mtk_probe(struct platform_dev
  			regmap_write(cci, 0, 3);
  	}
  
@@ -458,54 +413,9 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  		err = mtk_sgmii_init(eth);
  
  		if (err)
-@@ -5418,6 +5565,24 @@ static int mtk_probe(struct platform_dev
- 		}
- 	}
- 
-+	for (i = 0; i < MTK_MAX_DEVS; i++) {
-+		if (!eth->netdev[i])
-+			continue;
-+
-+		err = mtk_mac_assign_address(eth, i, true);
-+		if (err)
-+			goto err_deinit_hw;
-+	}
-+
-+	for (i = 0; i < MTK_MAX_DEVS; i++) {
-+		if (!eth->netdev[i])
-+			continue;
-+
-+		err = mtk_mac_assign_address(eth, i, false);
-+		if (err)
-+			goto err_deinit_hw;
-+	}
-+
- 	if (MTK_HAS_CAPS(eth->soc->caps, MTK_SHARED_INT)) {
- 		err = devm_request_irq(eth->dev, eth->irq[MTK_FE_IRQ_SHARED],
- 				       mtk_handle_irq, 0,
-@@ -5528,6 +5693,11 @@ static void mtk_remove(struct platform_d
- 		mtk_stop(eth->netdev[i]);
- 		mac = netdev_priv(eth->netdev[i]);
- 		phylink_disconnect_phy(mac->phylink);
-+		if (mac->sgmii_pcs)
-+			mtk_pcs_lynxi_put(mac->sgmii_pcs);
-+
-+		if (mac->usxgmii_pcs)
-+			mtk_usxgmii_pcs_put(mac->usxgmii_pcs);
- 	}
- 
- 	mtk_wed_exit();
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.h
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
-@@ -15,6 +15,7 @@
- #include <linux/u64_stats_sync.h>
- #include <linux/refcount.h>
- #include <linux/phylink.h>
-+#include <linux/reset.h>
- #include <linux/rhashtable.h>
- #include <linux/dim.h>
- #include <linux/bitfield.h>
-@@ -570,6 +571,7 @@
+@@ -570,6 +570,7 @@
  #define SYSCFG0_SGMII_GMAC2    ((3 << 8) & SYSCFG0_SGMII_MASK)
  #define SYSCFG0_SGMII_GMAC1_V2 BIT(9)
  #define SYSCFG0_SGMII_GMAC2_V2 BIT(8)
@@ -513,7 +423,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
  
  /* ethernet subsystem clock register */
-@@ -611,6 +613,7 @@
+@@ -611,6 +612,7 @@
  #define TOP_MISC_NETSYS_PCS_MUX	0x0
  #define NETSYS_PCS_MUX_MASK	GENMASK(1, 0)
  #define MUX_G2_USXGMII_SEL	BIT(1)
@@ -521,7 +431,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
  #define USB_PHY_SWITCH_REG	0x218
  #define QPHY_SEL_MASK		GENMASK(1, 0)
-@@ -636,6 +639,8 @@
+@@ -636,6 +638,8 @@
  #define MT7628_SDM_RBCNT	(MT7628_SDM_OFFSET + 0x10c)
  #define MT7628_SDM_CS_ERR	(MT7628_SDM_OFFSET + 0x110)
  
@@ -530,7 +440,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  #define MTK_FE_CDM1_FSM		0x220
  #define MTK_FE_CDM2_FSM		0x224
  #define MTK_FE_CDM3_FSM		0x238
-@@ -644,6 +649,11 @@
+@@ -644,6 +648,11 @@
  #define MTK_FE_CDM6_FSM		0x328
  #define MTK_FE_GDM1_FSM		0x228
  #define MTK_FE_GDM2_FSM		0x22C
@@ -542,7 +452,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
  #define MTK_MAC_FSM(x)		(0x1010C + ((x) * 0x100))
  
-@@ -972,6 +982,7 @@ enum mkt_eth_capabilities {
+@@ -972,6 +981,7 @@ enum mkt_eth_capabilities {
  	MTK_RGMII_BIT = 0,
  	MTK_TRGMII_BIT,
  	MTK_SGMII_BIT,
@@ -550,7 +460,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  	MTK_2P5GPHY_BIT,
  	MTK_ESW_BIT,
  	MTK_GEPHY_BIT,
-@@ -996,6 +1007,8 @@ enum mkt_eth_capabilities {
+@@ -996,6 +1006,8 @@ enum mkt_eth_capabilities {
  	MTK_ETH_MUX_GMAC2_TO_2P5GPHY_BIT,
  	MTK_ETH_MUX_GMAC1_GMAC2_TO_SGMII_RGMII_BIT,
  	MTK_ETH_MUX_GMAC12_TO_GEPHY_SGMII_BIT,
@@ -559,7 +469,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
  	/* PATH BITS */
  	MTK_ETH_PATH_GMAC1_RGMII_BIT,
-@@ -1005,13 +1018,18 @@ enum mkt_eth_capabilities {
+@@ -1005,13 +1017,18 @@ enum mkt_eth_capabilities {
  	MTK_ETH_PATH_GMAC2_SGMII_BIT,
  	MTK_ETH_PATH_GMAC2_2P5GPHY_BIT,
  	MTK_ETH_PATH_GMAC2_GEPHY_BIT,
@@ -567,7 +477,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  	MTK_ETH_PATH_GDM1_ESW_BIT,
 +	MTK_ETH_PATH_GMAC1_USXGMII_BIT,
 +	MTK_ETH_PATH_GMAC2_USXGMII_BIT,
-+	MTK_ETH_PATH_GMAC3_USXGMII_BIT
++	MTK_ETH_PATH_GMAC3_USXGMII_BIT,
  };
  
  /* Supported hardware group on SoCs */
@@ -578,7 +488,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  #define MTK_2P5GPHY		BIT_ULL(MTK_2P5GPHY_BIT)
  #define MTK_ESW			BIT_ULL(MTK_ESW_BIT)
  #define MTK_GEPHY		BIT_ULL(MTK_GEPHY_BIT)
-@@ -1041,6 +1059,10 @@ enum mkt_eth_capabilities {
+@@ -1041,6 +1058,10 @@ enum mkt_eth_capabilities {
  	BIT_ULL(MTK_ETH_MUX_GMAC1_GMAC2_TO_SGMII_RGMII_BIT)
  #define MTK_ETH_MUX_GMAC12_TO_GEPHY_SGMII	\
  	BIT_ULL(MTK_ETH_MUX_GMAC12_TO_GEPHY_SGMII_BIT)
@@ -589,7 +499,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
  /* Supported path present on SoCs */
  #define MTK_ETH_PATH_GMAC1_RGMII	BIT_ULL(MTK_ETH_PATH_GMAC1_RGMII_BIT)
-@@ -1050,7 +1072,11 @@ enum mkt_eth_capabilities {
+@@ -1050,7 +1071,11 @@ enum mkt_eth_capabilities {
  #define MTK_ETH_PATH_GMAC2_SGMII	BIT_ULL(MTK_ETH_PATH_GMAC2_SGMII_BIT)
  #define MTK_ETH_PATH_GMAC2_2P5GPHY	BIT_ULL(MTK_ETH_PATH_GMAC2_2P5GPHY_BIT)
  #define MTK_ETH_PATH_GMAC2_GEPHY	BIT_ULL(MTK_ETH_PATH_GMAC2_GEPHY_BIT)
@@ -601,7 +511,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
  #define MTK_GMAC1_RGMII		(MTK_ETH_PATH_GMAC1_RGMII | MTK_RGMII)
  #define MTK_GMAC1_TRGMII	(MTK_ETH_PATH_GMAC1_TRGMII | MTK_TRGMII)
-@@ -1059,7 +1085,11 @@ enum mkt_eth_capabilities {
+@@ -1059,7 +1084,11 @@ enum mkt_eth_capabilities {
  #define MTK_GMAC2_SGMII		(MTK_ETH_PATH_GMAC2_SGMII | MTK_SGMII)
  #define MTK_GMAC2_GEPHY		(MTK_ETH_PATH_GMAC2_GEPHY | MTK_GEPHY)
  #define MTK_GMAC2_2P5GPHY	(MTK_ETH_PATH_GMAC2_2P5GPHY | MTK_2P5GPHY)
@@ -613,7 +523,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
  /* MUXes present on SoCs */
  /* 0: GDM1 -> GMAC1, 1: GDM1 -> ESW */
-@@ -1086,6 +1116,12 @@ enum mkt_eth_capabilities {
+@@ -1086,6 +1115,12 @@ enum mkt_eth_capabilities {
  #define MTK_MUX_GMAC12_TO_GEPHY_SGMII   \
  	(MTK_ETH_MUX_GMAC12_TO_GEPHY_SGMII | MTK_MUX)
  
@@ -626,7 +536,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  #define MTK_HAS_CAPS(caps, _x)		(((caps) & (_x)) == (_x))
  
  #define MT7621_CAPS  (MTK_GMAC1_RGMII | MTK_GMAC1_TRGMII | \
-@@ -1117,9 +1153,12 @@ enum mkt_eth_capabilities {
+@@ -1117,9 +1152,12 @@ enum mkt_eth_capabilities {
  		      MTK_MUX_GMAC12_TO_GEPHY_SGMII | MTK_QDMA | \
  		      MTK_RSTCTRL_PPE1 | MTK_SRAM)
  
@@ -642,17 +552,24 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
  struct mtk_tx_dma_desc_info {
  	dma_addr_t	addr;
-@@ -1366,6 +1405,9 @@ struct mtk_mac {
+@@ -1300,6 +1338,7 @@ struct mtk_eth {
+ 	struct regmap			*ethsys;
+ 	struct regmap			*infra;
+ 	struct phylink_pcs		*sgmii_pcs[MTK_MAX_DEVS];
++	bool				shared_sgmii_used;
+ 	struct regmap			*pctl;
+ 	bool				hwlro;
+ 	refcount_t			dma_refcnt;
+@@ -1366,6 +1405,8 @@ struct mtk_mac {
  	struct device_node		*of_node;
  	struct phylink			*phylink;
  	struct phylink_config		phylink_config;
-+	struct phylink_pcs		*sgmii_pcs;
-+	struct phylink_pcs		*usxgmii_pcs;
-+	struct phy			*pextp;
++	struct phylink_pcs		*current_pcs;
++	struct phylink_pcs		*available_pcs[2];
  	struct mtk_eth			*hw;
  	struct mtk_hw_stats		*hw_stats;
  	__be32				hwlro_ip[MTK_MAX_LRO_IP_CNT];
-@@ -1517,6 +1559,7 @@ int mtk_gmac_sgmii_path_setup(struct mtk
+@@ -1517,6 +1558,7 @@ int mtk_gmac_sgmii_path_setup(struct mtk
  int mtk_gmac_2p5gphy_path_setup(struct mtk_eth *eth, int mac_id);
  int mtk_gmac_gephy_path_setup(struct mtk_eth *eth, int mac_id);
  int mtk_gmac_rgmii_path_setup(struct mtk_eth *eth, int mac_id);
