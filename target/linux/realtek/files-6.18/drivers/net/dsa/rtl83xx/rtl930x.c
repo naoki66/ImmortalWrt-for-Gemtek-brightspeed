@@ -233,23 +233,6 @@ void rtldsa_930x_print_matrix(void)
 	rtl_table_release(r);
 }
 
-inline void rtl930x_exec_tbl0_cmd(u32 cmd)
-{
-	sw_w32(cmd, RTL930X_TBL_ACCESS_CTRL_0);
-	do { } while (sw_r32(RTL930X_TBL_ACCESS_CTRL_0) & (1 << 17));
-}
-
-inline void rtl930x_exec_tbl1_cmd(u32 cmd)
-{
-	sw_w32(cmd, RTL930X_TBL_ACCESS_CTRL_1);
-	do { } while (sw_r32(RTL930X_TBL_ACCESS_CTRL_1) & (1 << 17));
-}
-
-inline int rtl930x_tbl_access_data_0(int i)
-{
-	return RTL930X_TBL_ACCESS_DATA_0(i);
-}
-
 static inline int rtl930x_l2_port_new_salrn(int p)
 {
 	return RTL930X_L2_PORT_SALRN(p);
@@ -2821,9 +2804,6 @@ const struct rtldsa_config rtldsa_930x_cfg = {
 	.set_ageing_time = rtl930x_set_ageing_time,
 	.smi_poll_ctrl = RTL930X_SMI_POLL_CTRL, /* TODO: Difference to RTL9300_SMI_PRVTE_POLLING_CTRL */
 	.l2_tbl_flush_ctrl = RTL930X_L2_TBL_FLUSH_CTRL,
-	.exec_tbl0_cmd = rtl930x_exec_tbl0_cmd,
-	.exec_tbl1_cmd = rtl930x_exec_tbl1_cmd,
-	.tbl_access_data_0 = rtl930x_tbl_access_data_0,
 	.isr_glb_src = RTL930X_ISR_GLB,
 	.isr_port_link_sts_chg = RTL930X_ISR_PORT_LINK_STS_CHG,
 	.imr_port_link_sts_chg = RTL930X_IMR_PORT_LINK_STS_CHG,

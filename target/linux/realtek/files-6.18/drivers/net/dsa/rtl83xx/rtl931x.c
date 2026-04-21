@@ -213,23 +213,6 @@ const struct rtldsa_mib_desc rtldsa_931x_mib_desc = {
 	.list = rtldsa_931x_mib_list
 };
 
-inline void rtl931x_exec_tbl0_cmd(u32 cmd)
-{
-	sw_w32(cmd, RTL931X_TBL_ACCESS_CTRL_0);
-	do { } while (sw_r32(RTL931X_TBL_ACCESS_CTRL_0) & (1 << 20));
-}
-
-inline void rtl931x_exec_tbl1_cmd(u32 cmd)
-{
-	sw_w32(cmd, RTL931X_TBL_ACCESS_CTRL_1);
-	do { } while (sw_r32(RTL931X_TBL_ACCESS_CTRL_1) & (1 << 17));
-}
-
-inline int rtl931x_tbl_access_data_0(int i)
-{
-	return RTL931X_TBL_ACCESS_DATA_0(i);
-}
-
 static int
 rtldsa_931x_vlan_profile_get(int idx, struct rtldsa_vlan_profile *profile)
 {
@@ -1962,9 +1945,6 @@ const struct rtldsa_config rtldsa_931x_cfg = {
 	.set_ageing_time = rtl931x_set_ageing_time,
 	.smi_poll_ctrl = RTL931X_SMI_PORT_POLLING_CTRL,
 	.l2_tbl_flush_ctrl = RTL931X_L2_TBL_FLUSH_CTRL,
-	.exec_tbl0_cmd = rtl931x_exec_tbl0_cmd,
-	.exec_tbl1_cmd = rtl931x_exec_tbl1_cmd,
-	.tbl_access_data_0 = rtl931x_tbl_access_data_0,
 	.isr_glb_src = RTL931X_ISR_GLB_SRC,
 	.isr_port_link_sts_chg = RTL931X_ISR_PORT_LINK_STS_CHG,
 	.imr_port_link_sts_chg = RTL931X_IMR_PORT_LINK_STS_CHG,

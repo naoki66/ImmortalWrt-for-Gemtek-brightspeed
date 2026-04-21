@@ -205,23 +205,6 @@ static inline int rtl838x_port_iso_ctrl(int p)
 	return RTL838X_PORT_ISO_CTRL(p);
 }
 
-static inline void rtl838x_exec_tbl0_cmd(u32 cmd)
-{
-	sw_w32(cmd, RTL838X_TBL_ACCESS_CTRL_0);
-	do { } while (sw_r32(RTL838X_TBL_ACCESS_CTRL_0) & BIT(15));
-}
-
-static inline void rtl838x_exec_tbl1_cmd(u32 cmd)
-{
-	sw_w32(cmd, RTL838X_TBL_ACCESS_CTRL_1);
-	do { } while (sw_r32(RTL838X_TBL_ACCESS_CTRL_1) & BIT(15));
-}
-
-static inline int rtl838x_tbl_access_data_0(int i)
-{
-	return RTL838X_TBL_ACCESS_DATA_0(i);
-}
-
 static void rtl838x_vlan_tables_read(u32 vlan, struct rtl838x_vlan_info *info)
 {
 	u32 v;
@@ -1835,9 +1818,6 @@ const struct rtldsa_config rtldsa_838x_cfg = {
 	.set_ageing_time = rtl838x_set_ageing_time,
 	.smi_poll_ctrl = RTL838X_SMI_POLL_CTRL,
 	.l2_tbl_flush_ctrl = RTL838X_L2_TBL_FLUSH_CTRL,
-	.exec_tbl0_cmd = rtl838x_exec_tbl0_cmd,
-	.exec_tbl1_cmd = rtl838x_exec_tbl1_cmd,
-	.tbl_access_data_0 = rtl838x_tbl_access_data_0,
 	.isr_glb_src = RTL838X_ISR_GLB_SRC,
 	.isr_port_link_sts_chg = RTL838X_ISR_PORT_LINK_STS_CHG,
 	.imr_port_link_sts_chg = RTL838X_IMR_PORT_LINK_STS_CHG,

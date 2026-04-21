@@ -217,27 +217,10 @@ static inline int rtl839x_port_iso_ctrl(int p)
 	return RTL839X_PORT_ISO_CTRL(p);
 }
 
-static inline void rtl839x_exec_tbl0_cmd(u32 cmd)
-{
-	sw_w32(cmd, RTL839X_TBL_ACCESS_CTRL_0);
-	do { } while (sw_r32(RTL839X_TBL_ACCESS_CTRL_0) & BIT(16));
-}
-
-static inline void rtl839x_exec_tbl1_cmd(u32 cmd)
-{
-	sw_w32(cmd, RTL839X_TBL_ACCESS_CTRL_1);
-	do { } while (sw_r32(RTL839X_TBL_ACCESS_CTRL_1) & BIT(16));
-}
-
 inline void rtl839x_exec_tbl2_cmd(u32 cmd)
 {
 	sw_w32(cmd, RTL839X_TBL_ACCESS_CTRL_2);
 	do { } while (sw_r32(RTL839X_TBL_ACCESS_CTRL_2) & (1 << 9));
-}
-
-static inline int rtl839x_tbl_access_data_0(int i)
-{
-	return RTL839X_TBL_ACCESS_DATA_0(i);
 }
 
 static void rtl839x_vlan_tables_read(u32 vlan, struct rtl838x_vlan_info *info)
@@ -1751,9 +1734,6 @@ const struct rtldsa_config rtldsa_839x_cfg = {
 	.set_ageing_time = rtl839x_set_ageing_time,
 	.smi_poll_ctrl = RTL839X_SMI_PORT_POLLING_CTRL,
 	.l2_tbl_flush_ctrl = RTL839X_L2_TBL_FLUSH_CTRL,
-	.exec_tbl0_cmd = rtl839x_exec_tbl0_cmd,
-	.exec_tbl1_cmd = rtl839x_exec_tbl1_cmd,
-	.tbl_access_data_0 = rtl839x_tbl_access_data_0,
 	.isr_glb_src = RTL839X_ISR_GLB_SRC,
 	.isr_port_link_sts_chg = RTL839X_ISR_PORT_LINK_STS_CHG,
 	.imr_port_link_sts_chg = RTL839X_IMR_PORT_LINK_STS_CHG,
