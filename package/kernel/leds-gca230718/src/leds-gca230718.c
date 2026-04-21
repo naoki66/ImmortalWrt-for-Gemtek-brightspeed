@@ -122,7 +122,7 @@ static int gca230718_probe(struct i2c_client *client)
 
 	i2c_set_clientdata(client, priv);
 
-	device_for_each_child_node_scoped(client->dev, ledNode) {
+	device_for_each_child_node_scoped(&client->dev, ledNode) {
 		const char *lname = fwnode_get_name(ledNode);
 		u32 regValue = 0;
 		if (fwnode_property_read_u32(ledNode, "reg", &regValue))
