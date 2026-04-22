@@ -1,13 +1,16 @@
-From 3fd163f5bb88de426ca9847549f94b4296170ef0 Mon Sep 17 00:00:00 2001
+From e9abf1da0af3f787a03b249945e5ca726c1b8013 Mon Sep 17 00:00:00 2001
 From: Daniel Golle <daniel@makrotopia.org>
-Date: Mon, 30 Mar 2026 23:40:53 +0100
+Date: Mon, 30 Mar 2026 23:52:09 +0100
 Subject: [PATCH] net: dsa: mxl862xx: cancel pending work on probe error
 
 Call mxl862xx_host_shutdown() in case dsa_register_switch() returns
 an error, so any still pending crc_err_work get canceled.
 
-Fixes: a319d0c8c8ced ("net: dsa: mxl862xx: add CRC for MDIO communication)"
+Fixes: a319d0c8c8ce ("net: dsa: mxl862xx: add CRC for MDIO communication")
 Signed-off-by: Daniel Golle <daniel@makrotopia.org>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Link: https://patch.msgid.link/3fd163f5bb88de426ca9847549f94b4296170ef0.1774911025.git.daniel@makrotopia.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
 ---
  drivers/net/dsa/mxl862xx/mxl862xx.c | 7 ++++++-
  1 file changed, 6 insertions(+), 1 deletion(-)

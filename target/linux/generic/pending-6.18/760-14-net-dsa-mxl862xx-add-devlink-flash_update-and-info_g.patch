@@ -1,7 +1,7 @@
-From bdbca48510e3e96ed9210f20fa4244dd6df5d44a Mon Sep 17 00:00:00 2001
+From fa186b09e346e0b7f2504232731bc9e4dee0c600 Mon Sep 17 00:00:00 2001
 From: Daniel Golle <daniel@makrotopia.org>
 Date: Tue, 24 Mar 2026 16:30:31 +0000
-Subject: [PATCH 21/26] net: dsa: mxl862xx: add devlink flash_update and
+Subject: [PATCH 14/19] net: dsa: mxl862xx: add devlink flash_update and
  info_get
 
 Implement runtime firmware upgrade via "devlink dev flash" and version
@@ -538,7 +538,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  	mutex_lock_nested(&priv->mdiodev->bus->mdio_lock, MDIO_MUTEX_NESTED);
 --- a/drivers/net/dsa/mxl862xx/mxl862xx.c
 +++ b/drivers/net/dsa/mxl862xx/mxl862xx.c
-@@ -22,6 +22,7 @@
+@@ -23,6 +23,7 @@
  #include "mxl862xx.h"
  #include "mxl862xx-api.h"
  #include "mxl862xx-cmd.h"
@@ -546,8 +546,8 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  #include "mxl862xx-host.h"
  #include "mxl862xx-phylink.h"
  
-@@ -4204,6 +4205,9 @@ static const struct dsa_switch_ops mxl86
- 	.get_pause_stats = mxl862xx_get_pause_stats,
+@@ -4233,6 +4234,9 @@ static const struct dsa_switch_ops mxl86
+ 	.get_rmon_stats = mxl862xx_get_rmon_stats,
  	.get_stats64 = mxl862xx_get_stats64,
  	.self_test = mxl862xx_serdes_self_test,
 +	.devlink_info_get = mxl862xx_devlink_info_get,
@@ -558,7 +558,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  static int mxl862xx_probe(struct mdio_device *mdiodev)
 --- a/drivers/net/dsa/mxl862xx/mxl862xx.h
 +++ b/drivers/net/dsa/mxl862xx/mxl862xx.h
-@@ -394,6 +394,8 @@ struct mxl862xx_priv {
+@@ -395,6 +395,8 @@ struct mxl862xx_priv {
  	u16 lag_bridge_ports[MXL862XX_MAX_LAG_IDS + 1];
  	u8 trunk_hash;
  	int mirror_dest;

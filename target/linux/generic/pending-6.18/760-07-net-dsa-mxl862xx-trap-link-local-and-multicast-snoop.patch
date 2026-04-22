@@ -1,14 +1,28 @@
-From 43eb3eed250ea4e7e83371fcbf2bfb8d626eade6 Mon Sep 17 00:00:00 2001
+From e6defbd42db6e64c2bb203f82b7d7f8c0691a052 Mon Sep 17 00:00:00 2001
 From: Daniel Golle <daniel@makrotopia.org>
 Date: Tue, 24 Mar 2026 18:51:13 +0000
-Subject: [PATCH 14/26] net: dsa: mxl862xx: trap link-local frames to the CPU
- port
+Subject: [PATCH 07/19] net: dsa: mxl862xx: trap link-local and multicast
+ snooping frames to CPU
 
 Install per-CTP PCE rules on each user port that trap IEEE 802.1D
-link-local frames (01:80:c2:00:00:0x) to the CPU port via an
-explicit forwarding portmap with cross-state enabled, ensuring the
-frames reach the host even when the bridge port is in BLOCKING or
-LEARNING state.
+link-local frames (01:80:c2:00:00:0x) and IP multicast snooping
+frames (IGMP, MLDv1, MLDv2) to the CPU port.
+
+All trap rules share a common action helper,
+mxl862xx_fill_cpu_trap_action(), which sets PORTMAP_ALTERNATIVE to
+redirect frames to the CPU and enables cross-state forwarding so
+that frames reach the host even when the bridge port is in BLOCKING
+or LEARNING state.
+
+A dedicated bridge FID (cpu_trap_fid) is allocated during setup with
+all flood modes enabled. Each trap rule points the bridge engine at
+this FID via bFidEnable so that IGMP and MLD frames are never
+silently dropped by the ingress port's private flood policy.
+
+Three multicast snooping rules are installed per port:
+  offset 2 -- IPv4 IGMP (IP protocol 2, all versions)
+  offset 3 -- ICMPv6 types 130-132 (MLDv1 query, report, done)
+  offset 4 -- ICMPv6 type 143 (MLDv2 Listener Report)
 
 Add the PCE rule firmware API structures, command definitions, and
 the rule block allocation interface.
@@ -17,8 +31,9 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 ---
  drivers/net/dsa/mxl862xx/mxl862xx-api.h | 684 ++++++++++++++++++++++++
  drivers/net/dsa/mxl862xx/mxl862xx-cmd.h |   5 +
- drivers/net/dsa/mxl862xx/mxl862xx.c     |  69 +++
- 3 files changed, 758 insertions(+)
+ drivers/net/dsa/mxl862xx/mxl862xx.c     | 186 +++++++
+ drivers/net/dsa/mxl862xx/mxl862xx.h     |   8 +
+ 4 files changed, 883 insertions(+)
 
 --- a/drivers/net/dsa/mxl862xx/mxl862xx-api.h
 +++ b/drivers/net/dsa/mxl862xx/mxl862xx-api.h
@@ -736,7 +751,15 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  #define MXL862XX_BRIDGE_CONFIGGET	(MXL862XX_BRDG_MAGIC + 0x3)
 --- a/drivers/net/dsa/mxl862xx/mxl862xx.c
 +++ b/drivers/net/dsa/mxl862xx/mxl862xx.c
-@@ -280,9 +280,11 @@ static int mxl862xx_wait_ready(struct ds
+@@ -10,6 +10,7 @@
+ #include <linux/bitfield.h>
+ #include <linux/delay.h>
+ #include <linux/etherdevice.h>
++#include <linux/icmpv6.h>
+ #include <linux/if_bridge.h>
+ #include <linux/module.h>
+ #include <linux/of_device.h>
+@@ -251,9 +252,11 @@ static int mxl862xx_wait_ready(struct ds
  			 ver.iv_major, ver.iv_minor,
  			 le16_to_cpu(ver.iv_revision),
  			 le32_to_cpu(ver.iv_build_num));
@@ -748,17 +771,54 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  		return 0;
  
  not_ready_yet:
-@@ -410,6 +412,68 @@ static int mxl862xx_setup_drop_meter(str
+@@ -381,6 +384,158 @@ static int mxl862xx_setup_drop_meter(str
  	return MXL862XX_API_WRITE(priv, MXL862XX_COMMON_REGISTERMOD, reg);
  }
  
 +
-+/* Per-CTP offset used for the link-local trap rule. Each port's CTP
-+ * flow-table block is pre-allocated by the firmware during init (44
-+ * entries per port on a 10-port SKU, of which offset 0 is reserved
-+ * for flow-control marking). Offset 1 is the first unused slot.
++/* Per-CTP offsets for protocol trap rules. Each port's CTP flow-table
++ * block is pre-allocated by the firmware during init (44 entries per
++ * port on a 10-port SKU, of which offset 0 is reserved for flow-control
++ * marking). Offsets 1-4 are used for link-local and multicast snooping
++ * traps; all others remain free.
 + */
 +#define MXL862XX_LINK_LOCAL_CTP_OFFSET		1
++#define MXL862XX_IGMP_CTP_OFFSET		2
++#define MXL862XX_MLDV1_CTP_OFFSET		3
++#define MXL862XX_MLDV2_CTP_OFFSET		4
++
++/* Fill the action fields of a PCE rule that traps ingress frames to
++ * the CPU port. Used by both the link-local trap and the multicast
++ * snooping traps. The caller must already have set the rule header
++ * (logicalportid, subifidgroup, region) and the pattern fields.
++ *
++ * PORTMAP_ALTERNATIVE redirects the frame to the CPU port but does
++ * not by itself bypass downstream flood gates. In SpTag mode the
++ * ingress port's private FID may have forward_unknown_multicast=false,
++ * which silently drops IGMP/MLD before they reach the CPU.
++ * Setting bFidEnable to cpu_trap_fid (a dedicated bridge with all
++ * flood modes enabled) overrides the FID used by the bridge engine,
++ * so the frame is never classified as blocked unknown MC regardless
++ * of the ingress port's standalone flood policy.
++ *
++ * Cross-state is enabled so trapped frames bypass STP port state.
++ */
++static void mxl862xx_fill_cpu_trap_action(struct dsa_switch *ds, int port,
++					   struct mxl862xx_pce_rule *rule)
++{
++	struct mxl862xx_priv *priv = ds->priv;
++	int cpu_port = dsa_to_port(ds, port)->cpu_dp->index;
++
++	rule->action.port_map_action =
++		cpu_to_le32(MXL862XX_PCE_ACTION_PORTMAP_ALTERNATIVE);
++	mxl862xx_fw_portmap_set_bit(rule->action.forward_port_map, cpu_port);
++
++	rule->action.cross_state_action =
++		cpu_to_le32(MXL862XX_PCE_ACTION_CROSS_STATE_CROSS);
++
++	rule->action.fid_enable = 1;
++	rule->action.fid = priv->cpu_trap_fid;
++}
 +
 +/* Install a PCE rule that traps IEEE 802.1D link-local frames
 + * (01:80:c2:00:00:0x) to the CPU port for a single user port,
@@ -778,54 +838,164 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 + */
 +static int mxl862xx_setup_link_local_trap(struct dsa_switch *ds, int port)
 +{
-+	DECLARE_BITMAP(portmap, MXL862XX_MAX_BRIDGE_PORTS);
-+	struct dsa_port *dp = dsa_to_port(ds, port);
++	struct mxl862xx_priv *priv = ds->priv;
 +	struct mxl862xx_pce_rule rule = {};
-+	int cpu_port = dp->cpu_dp->index;
-+	int i;
 +
-+	/* Address this port's CTP flow-table block */
 +	rule.logicalportid = port;
-+	rule.subifidgroup = 0;
 +	rule.region = cpu_to_le32(MXL862XX_PCE_RULE_CTP);
 +
-+	/* Pattern: link-local MAC on this specific ingress port */
 +	rule.pattern.index = cpu_to_le16(MXL862XX_LINK_LOCAL_CTP_OFFSET);
 +	rule.pattern.enable = 1;
 +	rule.pattern.mac_dst_enable = 1;
 +	memcpy(rule.pattern.mac_dst, eth_reserved_addr_base, ETH_ALEN);
 +	rule.pattern.mac_dst_mask = cpu_to_le16(0x0001);
 +
-+	/* Action: forward to the CPU port via explicit portmap */
-+	rule.action.port_map_action =
-+		cpu_to_le32(MXL862XX_PCE_ACTION_PORTMAP_ALTERNATIVE);
++	mxl862xx_fill_cpu_trap_action(ds, port, &rule);
 +
-+	bitmap_zero(portmap, MXL862XX_MAX_BRIDGE_PORTS);
-+	__set_bit(cpu_port, portmap);
-+	for (i = 0; i < ARRAY_SIZE(rule.action.forward_port_map); i++)
-+		rule.action.forward_port_map[i] =
-+			cpu_to_le16(bitmap_read(portmap, i * 16, 16));
++	return MXL862XX_API_WRITE(priv, MXL862XX_TFLOW_PCERULEWRITE, rule);
++}
 +
-+	/* Bypass STP port state */
-+	rule.action.cross_state_action =
-+		cpu_to_le32(MXL862XX_PCE_ACTION_CROSS_STATE_CROSS);
++/* Install PCE rules that trap IGMP and MLD frames to the CPU port for
++ * a single user port. PORTMAP_ALTERNATIVE overrides the bridge
++ * forwarding portmap to the CPU port. bFidEnable points the bridge
++ * engine at cpu_trap_fid (all flood modes enabled) so the frames are
++ * never classified as blocked unknown MC regardless of the ingress
++ * port's standalone flood policy.
++ *
++ * Three rules are installed per port:
++ *   offset 2 -- IPv4 IGMP (IP protocol 2, all versions)
++ *   offset 3 -- ICMPv6 types 130-132 (MLDv1 query, report, done)
++ *   offset 4 -- ICMPv6 type 143 (MLDv2 Listener Report)
++ *
++ * The MLDv1 rule uses range mode on the first two bytes after the IP
++ * header (ICMPv6 type + code): lower bound 0x8200 (type 130, code 0)
++ * to upper bound 0x84ff (type 132, code 255). The MLDv2 rule uses
++ * nibble mask 0x3 to match type 143 with any code byte.
++ */
++static int mxl862xx_setup_snooping_traps(struct dsa_switch *ds, int port)
++{
++	struct mxl862xx_priv *priv = ds->priv;
++	struct mxl862xx_pce_rule rule = {};
++	int ret;
 +
-+	return MXL862XX_API_WRITE(ds->priv, MXL862XX_TFLOW_PCERULEWRITE,
-+				  rule);
++	rule.logicalportid = port;
++	rule.region = cpu_to_le32(MXL862XX_PCE_RULE_CTP);
++	mxl862xx_fill_cpu_trap_action(ds, port, &rule);
++
++	/* IGMP: IPv4 protocol 2, all versions */
++	rule.pattern.index = cpu_to_le16(MXL862XX_IGMP_CTP_OFFSET);
++	rule.pattern.enable = 1;
++	rule.pattern.protocol = IPPROTO_IGMP;
++	rule.pattern.protocol_enable = 1;
++
++	ret = MXL862XX_API_WRITE(priv, MXL862XX_TFLOW_PCERULEWRITE, rule);
++	if (ret)
++		return ret;
++
++	/* MLDv1: ICMPv6 types 130 (query), 131 (report), 132 (done).
++	 * Range mode covers all three types with any code value.
++	 */
++	memset(&rule.pattern, 0, sizeof(rule.pattern));
++	rule.pattern.index = cpu_to_le16(MXL862XX_MLDV1_CTP_OFFSET);
++	rule.pattern.enable = 1;
++	rule.pattern.protocol = IPPROTO_ICMPV6;
++	rule.pattern.protocol_enable = 1;
++	rule.pattern.app_data_msb =
++		cpu_to_le16((u16)ICMPV6_MGM_QUERY << 8);
++	rule.pattern.app_mask_range_msb =
++		cpu_to_le16(((u16)ICMPV6_MGM_REDUCTION << 8) | 0xff);
++	rule.pattern.app_data_msb_enable = 1;
++	rule.pattern.app_mask_range_msb_select = 1; /* range mode */
++
++	ret = MXL862XX_API_WRITE(priv, MXL862XX_TFLOW_PCERULEWRITE, rule);
++	if (ret)
++		return ret;
++
++	/* MLDv2: ICMPv6 type 143 (Listener Report v2), any code byte.
++	 * Nibble mask 0x3 masks nibbles 0-1 (lower byte = code field).
++	 */
++	memset(&rule.pattern, 0, sizeof(rule.pattern));
++	rule.pattern.index = cpu_to_le16(MXL862XX_MLDV2_CTP_OFFSET);
++	rule.pattern.enable = 1;
++	rule.pattern.protocol = IPPROTO_ICMPV6;
++	rule.pattern.protocol_enable = 1;
++	rule.pattern.app_data_msb = cpu_to_le16((u16)ICMPV6_MLD2_REPORT << 8);
++	rule.pattern.app_mask_range_msb = cpu_to_le16(0x0003);
++	rule.pattern.app_data_msb_enable = 1;
++	/* app_mask_range_msb_select = 0: nibble mask mode (default) */
++
++	return MXL862XX_API_WRITE(priv, MXL862XX_TFLOW_PCERULEWRITE, rule);
 +}
 +
  static int mxl862xx_set_bridge_port(struct dsa_switch *ds, int port)
  {
  	struct mxl862xx_bridge_port_config br_port_cfg = {};
-@@ -1549,6 +1613,11 @@ static int mxl862xx_port_setup(struct ds
+@@ -683,6 +838,28 @@ static int mxl862xx_setup(struct dsa_swi
  	if (ret)
  		return ret;
  
-+	/* install link-local trap for this user port */
++
++	/* Allocate a dedicated PCE snooping FID with all flood modes enabled.
++	 * Per-port PCE trap rules (link-local, IGMP, MLD) set bFidEnable to
++	 * this FID so that the bridge engine uses it for its flood-permission
++	 * check instead of the ingress port's private FID (which has
++	 * mc_flood=false to restrict unknown MC from reaching the CPU in the
++	 * normal path). The hardware PCE FID action field is 6 bits wide, so
++	 * the allocated ID must be in range 0..63.
++	 */
++	ret = mxl862xx_allocate_bridge(priv);
++	if (ret < 0)
++		return ret;
++
++	if (WARN_ON_ONCE(ret > 0x3F))
++		return -ERANGE;
++
++	priv->cpu_trap_fid = ret;
++
++	ret = mxl862xx_bridge_config_fwd(ds, priv->cpu_trap_fid,
++					 true, true, true);
++	if (ret)
++		return ret;
+ 	schedule_delayed_work(&priv->stats_work,
+ 			      MXL862XX_STATS_POLL_INTERVAL);
+ 
+@@ -1382,6 +1559,15 @@ static int mxl862xx_port_setup(struct ds
+ 	if (ret)
+ 		return ret;
+ 
++	/* install link-local and multicast snooping traps */
 +	ret = mxl862xx_setup_link_local_trap(ds, port);
 +	if (ret)
 +		return ret;
 +
- 	/* Initialize and pre-allocate per-port EVLAN and VF blocks for
- 	 * user ports. CPU ports do not use EVLAN or VF -- frames pass
- 	 * through without processing. Pre-allocation avoids firmware
++	ret = mxl862xx_setup_snooping_traps(ds, port);
++	if (ret)
++		return ret;
++
+ 	priv->ports[port].ingress_evlan.block_size = priv->evlan_ingress_size;
+ 	ret = mxl862xx_evlan_block_alloc(priv, &priv->ports[port].ingress_evlan);
+ 	if (ret)
+--- a/drivers/net/dsa/mxl862xx/mxl862xx.h
++++ b/drivers/net/dsa/mxl862xx/mxl862xx.h
+@@ -319,6 +319,13 @@ union mxl862xx_fw_version {
+  * @evlan_ingress_size: per-port ingress Extended VLAN block size
+  * @evlan_egress_size:  per-port egress Extended VLAN block size
+  * @vf_block_size:      per-port VLAN Filter block size
++ * @cpu_trap_fid:       firmware bridge FID allocated for PCE-trapped frames;
++ *                      configured with uc/mc/bc flood all enabled so that
++ *                      IGMP, MLD, and link-local frames always reach the CPU
++ *                      regardless of the ingress port's private FID flood
++ *                      policy. Set once in setup() and referenced by
++ *                      fill_cpu_trap_action() via bFidEnable. The PCE FID
++ *                      action field is 6 bits, so this value must be <= 63.
+  * @stats_work:         periodic work item that polls RMON hardware counters
+  *                      and accumulates them into 64-bit per-port stats
+  */
+@@ -335,6 +342,7 @@ struct mxl862xx_priv {
+ 	u16 evlan_ingress_size;
+ 	u16 evlan_egress_size;
+ 	u16 vf_block_size;
++	u16 cpu_trap_fid;
+ 	struct delayed_work stats_work;
+ };
+ 
