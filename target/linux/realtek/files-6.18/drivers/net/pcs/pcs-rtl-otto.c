@@ -1446,6 +1446,32 @@ static int rtpcs_93xx_sds_apply_usxgmii_submode(struct rtpcs_serdes *sds,
 	return regmap_field_write(sds->swcore_regs.usxgmii_submode, submode);
 }
 
+/*
+ * RTL93XX wrapper: set MAC mode, then handle variant-specific extras:
+ * - post-write delay (required on 930x)
+ * - force-mode bit (931x only; nullable field)
+ *
+ * Each extra no-ops on the variant that doesn't need it — either because
+ * the corresponding regmap_field is NULL, or because the mode doesn't match.
+ */
+static int rtpcs_93xx_sds_set_mac_mode(struct rtpcs_serdes *sds, enum rtpcs_sds_mode hw_mode)
+{
+	int ret;
+
+	ret = rtpcs_sds_set_mac_mode(sds, hw_mode);
+	if (ret)
+		return ret;
+	msleep(10);
+
+	if (sds->swcore_regs.mac_mode_force) {
+		ret = regmap_field_write(sds->swcore_regs.mac_mode_force, 1);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
 /* RTL930X */
 
 /* This mapping is not coherent so it cannot be expressed arithmetically */
@@ -1789,11 +1815,9 @@ static int rtpcs_930x_sds_set_mode(struct rtpcs_serdes *sds, enum rtpcs_sds_mode
 		break;
 	}
 
-	ret = rtpcs_sds_set_mac_mode(sds, hw_mode);
+	ret = rtpcs_93xx_sds_set_mac_mode(sds, hw_mode);
 	if (ret)
 		return ret;
-
-	msleep(10);
 
 	return rtpcs_93xx_sds_apply_usxgmii_submode(sds, hw_mode);
 }
@@ -3190,11 +3214,7 @@ static int rtpcs_931x_sds_set_ip_mode(struct rtpcs_serdes *sds,
 
 	/* clear symbol error count before changing mode */
 	rtpcs_931x_sds_clear_symerr(sds, hw_mode);
-	ret = rtpcs_sds_set_mac_mode(sds, RTPCS_SDS_MODE_OFF);
-	if (ret)
-		return ret;
-
-	ret = regmap_field_write(sds->swcore_regs.mac_mode_force, 1);
+	ret = rtpcs_93xx_sds_set_mac_mode(sds, RTPCS_SDS_MODE_OFF);
 	if (ret)
 		return ret;
 
@@ -3248,14 +3268,10 @@ static int rtpcs_931x_sds_set_ip_mode(struct rtpcs_serdes *sds,
 static int rtpcs_931x_sds_set_mode(struct rtpcs_serdes *sds,
 				   enum rtpcs_sds_mode hw_mode)
 {
-	if (hw_mode == RTPCS_SDS_MODE_XSGMII) {
-		int ret = rtpcs_sds_set_mac_mode(sds, hw_mode);
-		if (ret)
-			return ret;
+	if (hw_mode == RTPCS_SDS_MODE_XSGMII)
+		return rtpcs_93xx_sds_set_mac_mode(sds, hw_mode);
 
-		return regmap_field_write(sds->swcore_regs.mac_mode_force, 1);
-	} else
-		return rtpcs_931x_sds_set_ip_mode(sds, hw_mode);
+	return rtpcs_931x_sds_set_ip_mode(sds, hw_mode);
 }
 
 static void rtpcs_931x_sds_reset(struct rtpcs_serdes *sds)
