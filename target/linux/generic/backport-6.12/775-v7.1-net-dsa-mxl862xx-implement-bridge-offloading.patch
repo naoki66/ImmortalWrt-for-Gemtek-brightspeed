@@ -1,7 +1,7 @@
-From ce0664ff8f75c3ab01101c3f0f8569924d948775 Mon Sep 17 00:00:00 2001
+From 340bdf984613c4a9241d678915e513824f5a9b19 Mon Sep 17 00:00:00 2001
 From: Daniel Golle <daniel@makrotopia.org>
-Date: Wed, 25 Mar 2026 17:55:08 +0000
-Subject: [PATCH 04/26] net: dsa: mxl862xx: implement bridge offloading
+Date: Wed, 1 Apr 2026 14:35:01 +0100
+Subject: [PATCH 4/4] net: dsa: mxl862xx: implement bridge offloading
 
 Implement joining and leaving bridges as well as add, delete and dump
 operations on isolated FDBs, port MDB membership management, and
@@ -24,9 +24,17 @@ dsa_switch_for_each_bridge_member().
 
 As there are now more users of the BRIDGEPORT_CONFIG_SET API and the
 state of each port is cached locally, introduce a helper function
-mxl862xx_set_bridge_port(struct dsa_switch *ds, int port) which is
-then used to replace the direct calls to the API in
-mxl862xx_setup_cpu_bridge() and mxl862xx_add_single_port_bridge().
+mxl862xx_set_bridge_port(struct dsa_switch *ds, int port) which
+applies the cached per-port state to hardware. For standalone user
+ports (dp->bridge == NULL), it additionally resets the port to
+single-port bridge state: CPU-only portmap, learning and flooding
+disabled. The CPU port path sets its state explicitly before calling
+this helper and is therefore not affected by the reset.
+
+Note that MASK_VLAN_BASED_MAC_LEARNING is intentionally absent from
+the firmware write mask. After mxl862xx_reset(), the firmware
+initialises all VLAN-based MAC learning fields to 0 (disabled), so
+SVL is the active mode by default without having to set it explicitly.
 
 Note that there is no convenient way to control flooding on per-port
 level, so the driver is using a 0-rate QoS meter setup as a stopper in
@@ -36,12 +44,14 @@ registers -- without that at least one 64-byte packet could still
 pass before the meter would change from 'yellow' into 'red' state.
 
 Signed-off-by: Daniel Golle <daniel@makrotopia.org>
+Link: https://patch.msgid.link/dd079180e2098e5f9626fcd149b9bad9a1b5a1b2.1775049897.git.daniel@makrotopia.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
 ---
- drivers/net/dsa/mxl862xx/mxl862xx-api.h | 225 ++++++-
+ drivers/net/dsa/mxl862xx/mxl862xx-api.h | 225 +++++++-
  drivers/net/dsa/mxl862xx/mxl862xx-cmd.h |  20 +-
- drivers/net/dsa/mxl862xx/mxl862xx.c     | 743 ++++++++++++++++++++++--
- drivers/net/dsa/mxl862xx/mxl862xx.h     | 133 +++++
- 4 files changed, 1076 insertions(+), 45 deletions(-)
+ drivers/net/dsa/mxl862xx/mxl862xx.c     | 736 ++++++++++++++++++++++--
+ drivers/net/dsa/mxl862xx/mxl862xx.h     |  99 ++++
+ 4 files changed, 1022 insertions(+), 58 deletions(-)
 
 --- a/drivers/net/dsa/mxl862xx/mxl862xx-api.h
 +++ b/drivers/net/dsa/mxl862xx/mxl862xx-api.h
@@ -384,7 +394,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  static enum dsa_tag_protocol mxl862xx_get_tag_protocol(struct dsa_switch *ds,
  						       int port,
  						       enum dsa_tag_protocol m)
-@@ -168,6 +182,213 @@ static int mxl862xx_setup_mdio(struct ds
+@@ -168,6 +182,199 @@ static int mxl862xx_setup_mdio(struct ds
  	return ret;
  }
  
@@ -479,10 +489,39 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +	struct dsa_port *dp = dsa_to_port(ds, port);
 +	struct mxl862xx_priv *priv = ds->priv;
 +	struct mxl862xx_port *p = &priv->ports[port];
-+	u16 bridge_id = dp->bridge ?
-+		priv->bridges[dp->bridge->num] : p->fid;
++	struct dsa_port *member_dp;
++	u16 bridge_id;
 +	bool enable;
 +	int i, idx;
++
++	if (!p->setup_done)
++		return 0;
++
++	if (dsa_port_is_cpu(dp)) {
++		dsa_switch_for_each_user_port(member_dp, ds) {
++			if (member_dp->cpu_dp->index != port)
++				continue;
++			mxl862xx_fw_portmap_set_bit(br_port_cfg.bridge_port_map,
++						    member_dp->index);
++		}
++	} else if (dp->bridge) {
++		dsa_switch_for_each_bridge_member(member_dp, ds,
++						  dp->bridge->dev) {
++			if (member_dp->index == port)
++				continue;
++			mxl862xx_fw_portmap_set_bit(br_port_cfg.bridge_port_map,
++						    member_dp->index);
++		}
++		mxl862xx_fw_portmap_set_bit(br_port_cfg.bridge_port_map,
++					    dp->cpu_dp->index);
++	} else {
++		mxl862xx_fw_portmap_set_bit(br_port_cfg.bridge_port_map,
++					    dp->cpu_dp->index);
++		p->flood_block = 0;
++		p->learning = false;
++	}
++
++	bridge_id = dp->bridge ? priv->bridges[dp->bridge->num] : p->fid;
 +
 +	br_port_cfg.bridge_port_id = cpu_to_le16(port);
 +	br_port_cfg.bridge_id = cpu_to_le16(bridge_id);
@@ -491,8 +530,6 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +				       MXL862XX_BRIDGE_PORT_CONFIG_MASK_MC_SRC_MAC_LEARNING |
 +				       MXL862XX_BRIDGE_PORT_CONFIG_MASK_EGRESS_SUB_METER);
 +	br_port_cfg.src_mac_learning_disable = !p->learning;
-+
-+	mxl862xx_fw_portmap_from_bitmap(br_port_cfg.bridge_port_map, p->portmap);
 +
 +	for (i = 0; i < ARRAY_SIZE(mxl862xx_flood_meters); i++) {
 +		idx = mxl862xx_flood_meters[i];
@@ -510,24 +547,11 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +static int mxl862xx_sync_bridge_members(struct dsa_switch *ds,
 +					const struct dsa_bridge *bridge)
 +{
-+	struct mxl862xx_priv *priv = ds->priv;
-+	struct dsa_port *dp, *member_dp;
-+	int port, err, ret = 0;
++	struct dsa_port *dp;
++	int ret = 0, err;
 +
 +	dsa_switch_for_each_bridge_member(dp, ds, bridge->dev) {
-+		port = dp->index;
-+
-+		bitmap_zero(priv->ports[port].portmap,
-+			    MXL862XX_MAX_BRIDGE_PORTS);
-+
-+		dsa_switch_for_each_bridge_member(member_dp, ds, bridge->dev) {
-+			if (member_dp->index != port)
-+				__set_bit(member_dp->index,
-+					  priv->ports[port].portmap);
-+		}
-+		__set_bit(dp->cpu_dp->index, priv->ports[port].portmap);
-+
-+		err = mxl862xx_set_bridge_port(ds, port);
++		err = mxl862xx_set_bridge_port(ds, dp->index);
 +		if (err)
 +			ret = err;
 +	}
@@ -535,7 +559,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +	return ret;
 +}
 +
-+static int mxl862xx_allocate_bridge(struct mxl862xx_priv *priv, u16 *bridge_id)
++static int mxl862xx_allocate_bridge(struct mxl862xx_priv *priv)
 +{
 +	struct mxl862xx_bridge_alloc br_alloc = {};
 +	int ret;
@@ -544,8 +568,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +	if (ret)
 +		return ret;
 +
-+	*bridge_id = le16_to_cpu(br_alloc.bridge_id);
-+	return 0;
++	return le16_to_cpu(br_alloc.bridge_id);
 +}
 +
 +static void mxl862xx_free_bridge(struct dsa_switch *ds,
@@ -568,37 +591,10 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +	priv->bridges[bridge->num] = 0;
 +}
 +
-+static int mxl862xx_add_single_port_bridge(struct dsa_switch *ds, int port)
-+{
-+	struct dsa_port *dp = dsa_to_port(ds, port);
-+	struct mxl862xx_priv *priv = ds->priv;
-+	int ret;
-+
-+	ret = mxl862xx_allocate_bridge(priv, &priv->ports[port].fid);
-+	if (ret) {
-+		dev_err(ds->dev, "failed to allocate a bridge for port %d\n", port);
-+		return ret;
-+	}
-+
-+	priv->ports[port].learning = false;
-+	bitmap_zero(priv->ports[port].portmap, MXL862XX_MAX_BRIDGE_PORTS);
-+	__set_bit(dp->cpu_dp->index, priv->ports[port].portmap);
-+
-+	ret = mxl862xx_set_bridge_port(ds, port);
-+	if (ret)
-+		return ret;
-+
-+	/* Standalone ports should not flood unknown unicast or multicast
-+	 * towards the CPU by default; only broadcast is needed initially.
-+	 */
-+	return mxl862xx_bridge_config_fwd(ds, priv->ports[port].fid,
-+					 false, false, true);
-+}
-+
  static int mxl862xx_setup(struct dsa_switch *ds)
  {
  	struct mxl862xx_priv *priv = ds->priv;
-@@ -181,6 +402,10 @@ static int mxl862xx_setup(struct dsa_swi
+@@ -181,6 +388,10 @@ static int mxl862xx_setup(struct dsa_swi
  	if (ret)
  		return ret;
  
@@ -609,66 +605,49 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  	return mxl862xx_setup_mdio(ds);
  }
  
-@@ -260,66 +485,87 @@ static int mxl862xx_configure_sp_tag_pro
+@@ -260,99 +471,137 @@ static int mxl862xx_configure_sp_tag_pro
  
  static int mxl862xx_setup_cpu_bridge(struct dsa_switch *ds, int port)
  {
 -	struct mxl862xx_bridge_port_config br_port_cfg = {};
  	struct mxl862xx_priv *priv = ds->priv;
 -	u16 bridge_port_map = 0;
- 	struct dsa_port *dp;
+-	struct dsa_port *dp;
  
 -	/* CPU port bridge setup */
 -	br_port_cfg.mask = cpu_to_le32(MXL862XX_BRIDGE_PORT_CONFIG_MASK_BRIDGE_PORT_MAP |
 -				       MXL862XX_BRIDGE_PORT_CONFIG_MASK_MC_SRC_MAC_LEARNING |
 -				       MXL862XX_BRIDGE_PORT_CONFIG_MASK_VLAN_BASED_MAC_LEARNING);
--
++	priv->ports[port].fid = MXL862XX_DEFAULT_BRIDGE;
++	priv->ports[port].learning = true;
+ 
 -	br_port_cfg.bridge_port_id = cpu_to_le16(port);
 -	br_port_cfg.src_mac_learning_disable = false;
 -	br_port_cfg.vlan_src_mac_vid_enable = true;
 -	br_port_cfg.vlan_dst_mac_vid_enable = true;
-+	priv->ports[port].fid = MXL862XX_DEFAULT_BRIDGE;
-+	priv->ports[port].learning = true;
- 
- 	/* include all assigned user ports in the CPU portmap */
-+	bitmap_zero(priv->ports[port].portmap, MXL862XX_MAX_BRIDGE_PORTS);
- 	dsa_switch_for_each_user_port(dp, ds) {
- 		/* it's safe to rely on cpu_dp being valid for user ports */
- 		if (dp->cpu_dp->index != port)
- 			continue;
- 
--		bridge_port_map |= BIT(dp->index);
-+		__set_bit(dp->index, priv->ports[port].portmap);
- 	}
--	br_port_cfg.bridge_port_map[0] |= cpu_to_le16(bridge_port_map);
- 
--	return MXL862XX_API_WRITE(priv, MXL862XX_BRIDGEPORT_CONFIGSET, br_port_cfg);
 +	return mxl862xx_set_bridge_port(ds, port);
- }
++}
  
--static int mxl862xx_add_single_port_bridge(struct dsa_switch *ds, int port)
+-	/* include all assigned user ports in the CPU portmap */
+-	dsa_switch_for_each_user_port(dp, ds) {
+-		/* it's safe to rely on cpu_dp being valid for user ports */
+-		if (dp->cpu_dp->index != port)
+-			continue;
 +static int mxl862xx_port_bridge_join(struct dsa_switch *ds, int port,
 +				     const struct dsa_bridge bridge,
 +				     bool *tx_fwd_offload,
 +				     struct netlink_ext_ack *extack)
- {
--	struct mxl862xx_bridge_port_config br_port_cfg = {};
--	struct dsa_port *dp = dsa_to_port(ds, port);
--	struct mxl862xx_bridge_alloc br_alloc = {};
++{
 +	struct mxl862xx_priv *priv = ds->priv;
-+	u16 fw_id;
- 	int ret;
++	int ret;
  
--	ret = MXL862XX_API_READ(ds->priv, MXL862XX_BRIDGE_ALLOC, br_alloc);
--	if (ret) {
--		dev_err(ds->dev, "failed to allocate a bridge for port %d\n", port);
--		return ret;
+-		bridge_port_map |= BIT(dp->index);
 +	if (!priv->bridges[bridge.num]) {
-+		ret = mxl862xx_allocate_bridge(priv, &fw_id);
-+		if (ret)
++		ret = mxl862xx_allocate_bridge(priv);
++		if (ret < 0)
 +			return ret;
 +
-+		priv->bridges[bridge.num] = fw_id;
++		priv->bridges[bridge.num] = ret;
 +
 +		/* Free bridge here on error, DSA rollback won't. */
 +		ret = mxl862xx_sync_bridge_members(ds, &bridge);
@@ -679,6 +658,32 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +
 +		return 0;
  	}
+-	br_port_cfg.bridge_port_map[0] |= cpu_to_le16(bridge_port_map);
+ 
+-	return MXL862XX_API_WRITE(priv, MXL862XX_BRIDGEPORT_CONFIGSET, br_port_cfg);
++	return mxl862xx_sync_bridge_members(ds, &bridge);
+ }
+ 
+-static int mxl862xx_add_single_port_bridge(struct dsa_switch *ds, int port)
++static void mxl862xx_port_bridge_leave(struct dsa_switch *ds, int port,
++				       const struct dsa_bridge bridge)
+ {
+-	struct mxl862xx_bridge_port_config br_port_cfg = {};
+-	struct dsa_port *dp = dsa_to_port(ds, port);
+-	struct mxl862xx_bridge_alloc br_alloc = {};
+-	int ret;
++	int err;
+ 
+-	ret = MXL862XX_API_READ(ds->priv, MXL862XX_BRIDGE_ALLOC, br_alloc);
+-	if (ret) {
+-		dev_err(ds->dev, "failed to allocate a bridge for port %d\n", port);
+-		return ret;
+-	}
++	err = mxl862xx_sync_bridge_members(ds, &bridge);
++	if (err)
++		dev_err(ds->dev,
++			"failed to sync bridge members after port %d left: %pe\n",
++			port, ERR_PTR(err));
  
 -	br_port_cfg.bridge_id = br_alloc.bridge_id;
 -	br_port_cfg.bridge_port_id = cpu_to_le16(port);
@@ -691,30 +696,10 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 -	br_port_cfg.vlan_dst_mac_vid_enable = false;
 -	/* As this function is only called for user ports it is safe to rely on
 -	 * cpu_dp being valid
-+	return mxl862xx_sync_bridge_members(ds, &bridge);
-+}
-+
-+static void mxl862xx_port_bridge_leave(struct dsa_switch *ds, int port,
-+				       const struct dsa_bridge bridge)
-+{
-+	struct dsa_port *dp = dsa_to_port(ds, port);
-+	struct mxl862xx_priv *priv = ds->priv;
-+	struct mxl862xx_port *p = &priv->ports[port];
-+	int err;
-+
-+	err = mxl862xx_sync_bridge_members(ds, &bridge);
-+	if (err)
-+		dev_err(ds->dev,
-+			"failed to sync bridge members after port %d left: %pe\n",
-+			port, ERR_PTR(err));
-+
 +	/* Revert leaving port, omitted by the sync above, to its
 +	 * single-port bridge
  	 */
 -	br_port_cfg.bridge_port_map[0] = cpu_to_le16(BIT(dp->cpu_dp->index));
-+	bitmap_zero(p->portmap, MXL862XX_MAX_BRIDGE_PORTS);
-+	__set_bit(dp->cpu_dp->index, p->portmap);
-+	p->flood_block = 0;
 +	err = mxl862xx_set_bridge_port(ds, port);
 +	if (err)
 +		dev_err(ds->dev,
@@ -732,12 +717,54 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  	struct dsa_port *dp = dsa_to_port(ds, port);
  	bool is_cpu_port = dsa_port_is_cpu(dp);
  	int ret;
-@@ -352,7 +598,31 @@ static int mxl862xx_port_setup(struct ds
+ 
+-	/* disable port and flush MAC entries */
+ 	ret = mxl862xx_port_state(ds, port, false);
+ 	if (ret)
+ 		return ret;
+ 
+ 	mxl862xx_port_fast_age(ds, port);
+ 
+-	/* skip setup for unused and DSA ports */
+ 	if (dsa_port_is_unused(dp) ||
+ 	    dsa_port_is_dsa(dp))
+ 		return 0;
+ 
+-	/* configure tag protocol */
+ 	ret = mxl862xx_configure_sp_tag_proto(ds, port, is_cpu_port);
+ 	if (ret)
+ 		return ret;
+ 
+-	/* assign CTP port IDs */
+ 	ret = mxl862xx_configure_ctp_port(ds, port, port,
+ 					  is_cpu_port ? 32 - port : 1);
+ 	if (ret)
+ 		return ret;
+ 
+ 	if (is_cpu_port)
+-		/* assign user ports to CPU port bridge */
  		return mxl862xx_setup_cpu_bridge(ds, port);
  
- 	/* setup single-port bridge for user ports */
+-	/* setup single-port bridge for user ports */
 -	return mxl862xx_add_single_port_bridge(ds, port);
-+	ret = mxl862xx_add_single_port_bridge(ds, port);
++	/* setup single-port bridge for user ports.
++	 * If this fails, the FID is leaked -- but the port then transitions
++	 * to unused, and the FID pool is sized to tolerate this.
++	 */
++	ret = mxl862xx_allocate_bridge(priv);
++	if (ret < 0) {
++		dev_err(ds->dev, "failed to allocate a bridge for port %d\n", port);
++		return ret;
++	}
++	priv->ports[port].fid = ret;
++	/* Standalone ports should not flood unknown unicast or multicast
++	 * towards the CPU by default; only broadcast is needed initially.
++	 */
++	ret = mxl862xx_bridge_config_fwd(ds, priv->ports[port].fid,
++					 false, false, true);
++	if (ret)
++		return ret;
++	ret = mxl862xx_set_bridge_port(ds, port);
 +	if (ret)
 +		return ret;
 +
@@ -765,7 +792,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  }
  
  static void mxl862xx_phylink_get_caps(struct dsa_switch *ds, int port,
-@@ -365,14 +635,383 @@ static void mxl862xx_phylink_get_caps(st
+@@ -365,14 +614,371 @@ static void mxl862xx_phylink_get_caps(st
  		  config->supported_interfaces);
  }
  
@@ -876,7 +903,6 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +	if (fid < 0)
 +		return fid;
 +
-+	/* Look up existing entry by {MAC, FID, TCI} */
 +	ether_addr_copy(qparam.mac, mdb->addr);
 +	qparam.fid = cpu_to_le16(fid);
 +	qparam.tci = cpu_to_le16(FIELD_PREP(MXL862XX_TCI_VLAN_ID, mdb->vid));
@@ -892,7 +918,6 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +	aparam.static_entry = true;
 +	aparam.port_id = cpu_to_le32(MXL862XX_PORTMAP_FLAG);
 +
-+	/* Merge with existing portmap if entry already exists */
 +	if (qparam.found)
 +		memcpy(aparam.port_map, qparam.port_map,
 +		       sizeof(aparam.port_map));
@@ -915,7 +940,6 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +	if (fid < 0)
 +		return fid;
 +
-+	/* Look up existing entry */
 +	qparam.fid = cpu_to_le16(fid);
 +	qparam.tci = cpu_to_le16(FIELD_PREP(MXL862XX_TCI_VLAN_ID, mdb->vid));
 +	ether_addr_copy(qparam.mac, mdb->addr);
@@ -930,7 +954,6 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +	mxl862xx_fw_portmap_clear_bit(qparam.port_map, port);
 +
 +	if (mxl862xx_fw_portmap_is_empty(qparam.port_map)) {
-+		/* No ports left -- remove the entry entirely */
 +		rparam.fid = cpu_to_le16(fid);
 +		rparam.tci = cpu_to_le16(FIELD_PREP(MXL862XX_TCI_VLAN_ID, mdb->vid));
 +		ether_addr_copy(rparam.mac, mdb->addr);
@@ -1007,8 +1030,6 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +	 * LEARNING or FORWARDING state (per 802.1D defaults).
 +	 * Re-apply the driver's intended learning and metering config so that
 +	 * standalone ports keep learning disabled.
-+	 * This is likely to get fixed in future firmware releases, however,
-+	 * the additional API call even then doesn't hurt much.
 +	 */
 +	ret = mxl862xx_set_bridge_port(ds, port);
 +	if (ret)
@@ -1031,8 +1052,6 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +					       host_flood_work);
 +	struct mxl862xx_priv *priv = p->priv;
 +	struct dsa_switch *ds = priv->ds;
-+	int port = p - priv->ports;
-+	bool uc, mc;
 +
 +	rtnl_lock();
 +
@@ -1042,17 +1061,13 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +		return;
 +	}
 +
-+	uc = p->host_flood_uc;
-+	mc = p->host_flood_mc;
-+
-+	/* The hardware controls unknown-unicast/multicast forwarding per FID
-+	 * (bridge), not per source port. For bridged ports all members share
-+	 * one FID, so we cannot selectively suppress flooding to the CPU for
-+	 * one source port while allowing it for another. Silently ignore the
-+	 * request -- the excess flooding towards the CPU is harmless.
++	/* Always write to the standalone FID. When standalone it takes effect
++	 * immediately; when bridged the port uses the shared bridge FID so the
++	 * write is a no-op for current forwarding, but the state is preserved
++	 * in hardware and is ready once the port returns to standalone.
 +	 */
-+	if (!dsa_port_bridge_dev_get(dsa_to_port(ds, port)))
-+		mxl862xx_bridge_config_fwd(ds, p->fid, uc, mc, true);
++	mxl862xx_bridge_config_fwd(ds, p->fid, p->host_flood_uc,
++				   p->host_flood_mc, true);
 +
 +	rtnl_unlock();
 +}
@@ -1115,7 +1130,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +	if (flags.mask & BR_LEARNING)
 +		priv->ports[port].learning = !!(flags.val & BR_LEARNING);
 +
-+	if ((block != old_block) || (flags.mask & BR_LEARNING)) {
++	if (block != old_block || (flags.mask & BR_LEARNING)) {
 +		priv->ports[port].flood_block = block;
 +		ret = mxl862xx_set_bridge_port(ds, port);
 +		if (ret)
@@ -1149,7 +1164,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  };
  
  static void mxl862xx_phylink_mac_config(struct phylink_config *config,
-@@ -407,7 +1046,7 @@ static int mxl862xx_probe(struct mdio_de
+@@ -407,7 +1013,7 @@ static int mxl862xx_probe(struct mdio_de
  	struct device *dev = &mdiodev->dev;
  	struct mxl862xx_priv *priv;
  	struct dsa_switch *ds;
@@ -1158,7 +1173,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
  	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
  	if (!priv)
-@@ -425,14 +1064,25 @@ static int mxl862xx_probe(struct mdio_de
+@@ -425,14 +1031,25 @@ static int mxl862xx_probe(struct mdio_de
  	ds->ops = &mxl862xx_switch_ops;
  	ds->phylink_mac_ops = &mxl862xx_phylink_mac_ops;
  	ds->num_ports = MXL862XX_MAX_PORTS;
@@ -1186,7 +1201,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  	return err;
  }
  
-@@ -440,6 +1090,7 @@ static void mxl862xx_remove(struct mdio_
+@@ -440,6 +1057,7 @@ static void mxl862xx_remove(struct mdio_
  {
  	struct dsa_switch *ds = dev_get_drvdata(&mdiodev->dev);
  	struct mxl862xx_priv *priv;
@@ -1194,7 +1209,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
  	if (!ds)
  		return;
-@@ -449,12 +1100,21 @@ static void mxl862xx_remove(struct mdio_
+@@ -449,12 +1067,21 @@ static void mxl862xx_remove(struct mdio_
  	dsa_unregister_switch(ds);
  
  	mxl862xx_host_shutdown(priv);
@@ -1216,7 +1231,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
  	if (!ds)
  		return;
-@@ -465,6 +1125,9 @@ static void mxl862xx_shutdown(struct mdi
+@@ -465,6 +1092,9 @@ static void mxl862xx_shutdown(struct mdi
  
  	mxl862xx_host_shutdown(priv);
  
@@ -1228,7 +1243,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
 --- a/drivers/net/dsa/mxl862xx/mxl862xx.h
 +++ b/drivers/net/dsa/mxl862xx/mxl862xx.h
-@@ -4,15 +4,148 @@
+@@ -4,15 +4,114 @@
  #define __MXL862XX_H
  
  #include <linux/mdio.h>
@@ -1244,37 +1259,6 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +
 +/* Number of __le16 words in a firmware portmap (128-bit bitmap). */
 +#define MXL862XX_FW_PORTMAP_WORDS	(MXL862XX_MAX_BRIDGE_PORTS / 16)
-+
-+/**
-+ * mxl862xx_fw_portmap_from_bitmap - convert a kernel bitmap to a firmware
-+ *                                   portmap (__le16[8])
-+ * @dst: firmware portmap array (MXL862XX_FW_PORTMAP_WORDS entries)
-+ * @src: kernel bitmap of at least MXL862XX_MAX_BRIDGE_PORTS bits
-+ */
-+static inline void
-+mxl862xx_fw_portmap_from_bitmap(__le16 *dst, const unsigned long *src)
-+{
-+	int i;
-+
-+	for (i = 0; i < MXL862XX_FW_PORTMAP_WORDS; i++)
-+		dst[i] = cpu_to_le16(bitmap_read(src, i * 16, 16));
-+}
-+
-+/**
-+ * mxl862xx_fw_portmap_to_bitmap - convert a firmware portmap (__le16[8]) to
-+ *                                 a kernel bitmap
-+ * @dst: kernel bitmap of at least MXL862XX_MAX_BRIDGE_PORTS bits
-+ * @src: firmware portmap array (MXL862XX_FW_PORTMAP_WORDS entries)
-+ */
-+static inline void
-+mxl862xx_fw_portmap_to_bitmap(unsigned long *dst, const __le16 *src)
-+{
-+	int i;
-+
-+	bitmap_zero(dst, MXL862XX_MAX_BRIDGE_PORTS);
-+	for (i = 0; i < MXL862XX_FW_PORTMAP_WORDS; i++)
-+		bitmap_write(dst, le16_to_cpu(src[i]), i * 16, 16);
-+}
 +
 +/**
 + * mxl862xx_fw_portmap_set_bit - set a single port bit in a firmware portmap
@@ -1320,8 +1304,6 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 + * @fid:                 firmware FID for the permanent single-port bridge;
 + *                       kept alive for the lifetime of the port so traffic is
 + *                       never forwarded while the port is unbridged
-+ * @portmap:             bitmap of switch port indices that share the current
-+ *                       bridge with this port
 + * @flood_block:         bitmask of firmware meter indices that are currently
 + *                       rate-limiting flood traffic on this port (zero-rate
 + *                       meters used to block flooding)
@@ -1343,7 +1325,6 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 +struct mxl862xx_port {
 +	struct mxl862xx_priv *priv;
 +	u16 fid;
-+	DECLARE_BITMAP(portmap, MXL862XX_MAX_BRIDGE_PORTS);
 +	unsigned long flood_block;
 +	bool learning;
 +	bool setup_done;

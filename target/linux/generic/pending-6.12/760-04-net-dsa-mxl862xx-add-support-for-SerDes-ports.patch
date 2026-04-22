@@ -990,7 +990,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  #endif /* __MXL862XX_PHYLINK_H */
 --- a/drivers/net/dsa/mxl862xx/mxl862xx.c
 +++ b/drivers/net/dsa/mxl862xx/mxl862xx.c
-@@ -684,7 +684,7 @@ static int mxl862xx_setup(struct dsa_swi
+@@ -622,7 +622,7 @@ static int mxl862xx_setup(struct dsa_swi
  	int n_user_ports = 0, max_vlans;
  	int ingress_finals, vid_rules;
  	struct dsa_port *dp;
@@ -999,7 +999,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  
  	ret = mxl862xx_reset(priv);
  	if (ret)
-@@ -694,6 +694,9 @@ static int mxl862xx_setup(struct dsa_swi
+@@ -632,6 +632,9 @@ static int mxl862xx_setup(struct dsa_swi
  	if (ret)
  		return ret;
  
@@ -1011,7 +1011,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  	 *   Ingress: only final catchall rules (PVID insertion, 802.1Q
 --- a/drivers/net/dsa/mxl862xx/mxl862xx.h
 +++ b/drivers/net/dsa/mxl862xx/mxl862xx.h
-@@ -247,6 +247,22 @@ struct mxl862xx_port {
+@@ -243,6 +243,22 @@ struct mxl862xx_port {
  };
  
  /**
@@ -1034,7 +1034,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
   * union mxl862xx_fw_version - firmware version for comparison and display
   * @major: firmware major version
   * @minor: firmware minor version
-@@ -297,6 +313,8 @@ union mxl862xx_fw_version {
+@@ -293,6 +309,8 @@ union mxl862xx_fw_version {
   *                      flooding)
   * @fw_version:         cached firmware version, populated at probe and
   *                      compared with MXL862XX_FW_VER_MIN()
@@ -1043,7 +1043,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
   * @ports:              per-port state, indexed by switch port number
   * @bridges:            maps DSA bridge number to firmware bridge ID;
   *                      zero means no firmware bridge allocated for that
-@@ -315,6 +333,7 @@ struct mxl862xx_priv {
+@@ -311,6 +329,7 @@ struct mxl862xx_priv {
  	unsigned long flags;
  	u16 drop_meter;
  	union mxl862xx_fw_version fw_version;

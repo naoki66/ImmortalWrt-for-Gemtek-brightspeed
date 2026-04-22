@@ -1,7 +1,7 @@
-From da12469e73282da814163125153f381823e33f20 Mon Sep 17 00:00:00 2001
+From 60a23e663e0c607ae4ed871aaa24d257051ad557 Mon Sep 17 00:00:00 2001
 From: Daniel Golle <daniel@makrotopia.org>
 Date: Tue, 24 Mar 2026 17:56:35 +0000
-Subject: [PATCH 08/26] net: dsa: mxl862xx: store firmware version for feature
+Subject: [PATCH 01/19] net: dsa: mxl862xx: store firmware version for feature
  gating
 
 Query the firmware version at init (already done in wait_ready),
@@ -20,7 +20,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
 
 --- a/drivers/net/dsa/mxl862xx/mxl862xx.c
 +++ b/drivers/net/dsa/mxl862xx/mxl862xx.c
-@@ -286,6 +286,9 @@ static int mxl862xx_wait_ready(struct ds
+@@ -257,6 +257,9 @@ static int mxl862xx_wait_ready(struct ds
  			 ver.iv_major, ver.iv_minor,
  			 le16_to_cpu(ver.iv_revision),
  			 le32_to_cpu(ver.iv_build_num));
@@ -40,8 +40,8 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  #include <linux/mdio.h>
  #include <linux/workqueue.h>
  #include <net/dsa.h>
-@@ -245,6 +246,38 @@ struct mxl862xx_port {
- 	spinlock_t stats_lock;
+@@ -241,6 +242,38 @@ struct mxl862xx_port {
+ 	spinlock_t stats_lock; /* protects stats accumulators */
  };
  
 +/**
@@ -79,7 +79,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  /* Bit indices for struct mxl862xx_priv::flags */
  #define MXL862XX_FLAG_CRC_ERR		0
  #define MXL862XX_FLAG_WORK_STOPPED	1
-@@ -262,6 +295,8 @@ struct mxl862xx_port {
+@@ -258,6 +291,8 @@ struct mxl862xx_port {
   * @drop_meter:         index of the single shared zero-rate firmware meter
   *                      used to unconditionally drop traffic (used to block
   *                      flooding)
@@ -88,7 +88,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
   * @ports:              per-port state, indexed by switch port number
   * @bridges:            maps DSA bridge number to firmware bridge ID;
   *                      zero means no firmware bridge allocated for that
-@@ -279,6 +314,7 @@ struct mxl862xx_priv {
+@@ -275,6 +310,7 @@ struct mxl862xx_priv {
  	struct work_struct crc_err_work;
  	unsigned long flags;
  	u16 drop_meter;

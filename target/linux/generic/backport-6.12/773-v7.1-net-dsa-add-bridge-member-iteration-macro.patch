@@ -1,7 +1,7 @@
-From c161533e1605a7282563c139323a3913890fdb72 Mon Sep 17 00:00:00 2001
+From f259e08494c47c614ce7b6d3079d1e0d3f30ae66 Mon Sep 17 00:00:00 2001
 From: Daniel Golle <daniel@makrotopia.org>
-Date: Wed, 25 Mar 2026 17:54:41 +0000
-Subject: [PATCH 02/26] net: dsa: add bridge member iteration macro
+Date: Wed, 1 Apr 2026 14:34:42 +0100
+Subject: [PATCH 2/4] net: dsa: add bridge member iteration macro
 
 Drivers that offload bridges need to iterate over the ports that are
 members of a given bridge, for example to rebuild per-port forwarding
@@ -15,6 +15,8 @@ directly, and use it for the existing dsa_bridge_ports() inline
 helper.
 
 Signed-off-by: Daniel Golle <daniel@makrotopia.org>
+Link: https://patch.msgid.link/e7136aaa26773f39e805a00fe4ecf13cd2b83fc0.1775049897.git.daniel@makrotopia.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
 ---
  include/net/dsa.h | 9 ++++++---
  1 file changed, 6 insertions(+), 3 deletions(-)

@@ -1,7 +1,7 @@
-From 753efe27a9afee52c4ad42098a9b9278366d63cc Mon Sep 17 00:00:00 2001
+From 4250ff1640ea1ede99bfe02ca949acbcc6c0927f Mon Sep 17 00:00:00 2001
 From: Daniel Golle <daniel@makrotopia.org>
-Date: Wed, 25 Mar 2026 17:54:52 +0000
-Subject: [PATCH 03/26] dsa: tag_mxl862xx: set dsa_default_offload_fwd_mark()
+Date: Wed, 1 Apr 2026 14:34:52 +0100
+Subject: [PATCH 3/4] dsa: tag_mxl862xx: set dsa_default_offload_fwd_mark()
 
 The MxL862xx offloads bridge forwarding in hardware, so set
 dsa_default_offload_fwd_mark() to avoid duplicate forwarding of
@@ -11,6 +11,8 @@ Link-local frames are directly trapped to the CPU port only, so don't
 set dsa_default_offload_fwd_mark() on those.
 
 Signed-off-by: Daniel Golle <daniel@makrotopia.org>
+Link: https://patch.msgid.link/e1161c90894ddc519c57dc0224b3a0f6bfa1d2d6.1775049897.git.daniel@makrotopia.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
 ---
  net/dsa/tag_mxl862xx.c | 3 +++
  1 file changed, 3 insertions(+)
