@@ -23,7 +23,6 @@
 #include <net/dsa.h>
 #include <net/switchdev.h>
 
-#include <asm/mach-rtl-otto/mach-rtl-otto.h>
 #include "rtl838x_eth.h"
 
 #define RTETH_OWN_CPU			1
@@ -1576,12 +1575,17 @@ static int rteth_probe(struct platform_device *pdev)
 	if (is_valid_ether_addr(mac_addr)) {
 		rteth_set_mac_hw(dev, mac_addr);
 	} else {
-		mac_addr[0] = (sw_r32(ctrl->r->mac_reg[0]) >> 8) & 0xff;
-		mac_addr[1] = sw_r32(ctrl->r->mac_reg[0]) & 0xff;
-		mac_addr[2] = (sw_r32(ctrl->r->mac_reg[0] + 4) >> 24) & 0xff;
-		mac_addr[3] = (sw_r32(ctrl->r->mac_reg[0] + 4) >> 16) & 0xff;
-		mac_addr[4] = (sw_r32(ctrl->r->mac_reg[0] + 4) >> 8) & 0xff;
-		mac_addr[5] = sw_r32(ctrl->r->mac_reg[0] + 4) & 0xff;
+		u32 mac_hi, mac_lo;
+
+		regmap_read(ctrl->map, ctrl->r->mac_reg[0], &mac_hi);
+		regmap_read(ctrl->map, ctrl->r->mac_reg[0] + 4, &mac_lo);
+
+		mac_addr[0] = (mac_hi >> 8) & 0xff;
+		mac_addr[1] = mac_hi & 0xff;
+		mac_addr[2] = (mac_lo >> 24) & 0xff;
+		mac_addr[3] = (mac_lo >> 16) & 0xff;
+		mac_addr[4] = (mac_lo >> 8) & 0xff;
+		mac_addr[5] = mac_lo & 0xff;
 	}
 	dev_addr_set(dev, mac_addr);
 	/* if the address is invalid, use a random value */
