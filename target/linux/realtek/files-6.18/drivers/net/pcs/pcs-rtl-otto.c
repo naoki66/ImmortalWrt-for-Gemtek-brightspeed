@@ -97,6 +97,7 @@
 #define RTPCS_931X_MAC_GROUP6_7_CTRL		(0x13b4)
 #define RTPCS_931X_MAC_GROUP8_11_CTRL		(0x13b8)
 #define RTPCS_931X_SERDES_MODE_CTRL		(0x13cc)
+#define RTPCS_931X_SDS_USXGMII_SUBMODE		(0x13e8)
 #define RTPCS_931X_PS_SERDES_OFF_MODE_CTRL_ADDR	(0x13F4)
 #define RTPCS_931X_MAC_SERDES_MODE_CTRL(sds)	(0x136C + (((sds) << 2)))
 #define RTPCS_931X_ISR_SERDES_RXIDLE		(0x12f8)
@@ -3268,10 +3269,16 @@ static int rtpcs_931x_sds_set_ip_mode(struct rtpcs_serdes *sds,
 static int rtpcs_931x_sds_set_mode(struct rtpcs_serdes *sds,
 				   enum rtpcs_sds_mode hw_mode)
 {
+	int ret;
+
 	if (hw_mode == RTPCS_SDS_MODE_XSGMII)
 		return rtpcs_93xx_sds_set_mac_mode(sds, hw_mode);
 
-	return rtpcs_931x_sds_set_ip_mode(sds, hw_mode);
+	ret = rtpcs_931x_sds_set_ip_mode(sds, hw_mode);
+	if (ret)
+		return ret;
+
+	return rtpcs_93xx_sds_apply_usxgmii_submode(sds, hw_mode);
 }
 
 static void rtpcs_931x_sds_reset(struct rtpcs_serdes *sds)
@@ -3943,8 +3950,26 @@ static int rtpcs_931x_sds_probe(struct rtpcs_serdes *sds)
 	if (ret)
 		return ret;
 
-	return rtpcs_sds_alloc_field(sds, &sds->swcore_regs.mac_mode_force,
-				     base, lsb + 7, lsb + 7);
+	ret = rtpcs_sds_alloc_field(sds, &sds->swcore_regs.mac_mode_force,
+				    base, lsb + 7, lsb + 7);
+	if (ret)
+		return ret;
+
+	/*
+	 * USXGMII submode is packed at 5 bits per SerDes for IDs 2..13,
+	 * six entries per 32-bit word, non-straddling.
+	 */
+	if (sds->type == RTPCS_SDS_TYPE_10G) {
+		u8 submode_lsb = ((sds->id - 2) % 6) * 5;
+
+		ret = rtpcs_sds_alloc_field(sds, &sds->swcore_regs.usxgmii_submode,
+					    RTPCS_931X_SDS_USXGMII_SUBMODE + ((sds->id - 2) / 6) * 4,
+					    submode_lsb, submode_lsb + 4);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
 }
 
 static int rtpcs_931x_init(struct rtpcs_ctrl *ctrl)
