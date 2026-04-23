@@ -1142,8 +1142,8 @@ static void rteth_set_mac_hw(struct net_device *dev, u8 *mac)
 
 	for (int i = 0; i < RTETH_MAX_MAC_REGS; i++)
 		if (ctrl->r->mac_reg[i]) {
-			sw_w32(mac_hi, ctrl->r->mac_reg[i]);
-			sw_w32(mac_lo, ctrl->r->mac_reg[i] + 4);
+			regmap_write(ctrl->map, ctrl->r->mac_reg[i], mac_hi);
+			regmap_write(ctrl->map, ctrl->r->mac_reg[i] + 4, mac_lo);
 		}
 
 	spin_unlock_irqrestore(&ctrl->lock, flags);
@@ -1169,12 +1169,12 @@ static int rteth_838x_init_mac(struct rteth_ctrl *ctrl)
 {
 	pr_info("%s\n", __func__);
 	/* fix timer for EEE */
-	sw_w32(0x5001411, RTL838X_EEE_TX_TIMER_GIGA_CTRL);
-	sw_w32(0x5001417, RTL838X_EEE_TX_TIMER_GELITE_CTRL);
+	regmap_write(ctrl->map, RTL838X_EEE_TX_TIMER_GIGA_CTRL, 0x5001411);
+	regmap_write(ctrl->map, RTL838X_EEE_TX_TIMER_GELITE_CTRL, 0x5001417);
 
 	/* Init VLAN. TODO: Understand what is being done, here */
 	for (int i = 0; i <= 28; i++)
-		sw_w32(0, 0xd57c + i * 0x80);
+		regmap_write(ctrl->map, 0xd57c + i * 0x80, 0);
 
 	return 0;
 }
@@ -1192,33 +1192,52 @@ static int rteth_930x_init_mac(struct rteth_ctrl *ctrl)
 
 static int rteth_931x_init_mac(struct rteth_ctrl *ctrl)
 {
-	pr_info("In %s\n", __func__);
+	struct device *dev = &ctrl->pdev->dev;
+	unsigned int val;
+	int ret;
 
 	/* Initialize Encapsulation memory and wait until finished */
-	sw_w32(0x1, RTL931X_MEM_ENCAP_INIT);
-	do { } while (sw_r32(RTL931X_MEM_ENCAP_INIT) & 1);
-	pr_info("%s: init ENCAP done\n", __func__);
+	regmap_write(ctrl->map, RTL931X_MEM_ENCAP_INIT, 0x1);
+	ret = regmap_read_poll_timeout(ctrl->map, RTL931X_MEM_ENCAP_INIT,
+				       val, !(val & 1), 0, 100000);
+	if (ret)
+		dev_err(dev, "ENCAP init timeout\n");
 
-	/* Initialize Managemen Information Base memory and wait until finished */
-	sw_w32(0x1, RTL931X_MEM_MIB_INIT);
-	do { } while (sw_r32(RTL931X_MEM_MIB_INIT) & 1);
-	pr_info("%s: init MIB done\n", __func__);
+	/* Initialize Management Information Base memory and wait until finished */
+	regmap_write(ctrl->map, RTL931X_MEM_MIB_INIT, 0x1);
+	ret = regmap_read_poll_timeout(ctrl->map, RTL931X_MEM_MIB_INIT,
+				       val, !(val & 1), 0, 100000);
+	if (ret)
+		dev_err(dev, "MIB init timeout\n");
 
 	/* Initialize ACL (PIE) memory and wait until finished */
-	sw_w32(0x1, RTL931X_MEM_ACL_INIT);
-	do { } while (sw_r32(RTL931X_MEM_ACL_INIT) & 1);
-	pr_info("%s: init ACL done\n", __func__);
+	regmap_write(ctrl->map, RTL931X_MEM_ACL_INIT, 0x1);
+	ret = regmap_read_poll_timeout(ctrl->map, RTL931X_MEM_ACL_INIT,
+				       val, !(val & 1), 0, 100000);
+	if (ret)
+		dev_err(dev, "ACL init timeout\n");
 
 	/* Initialize ALE memory and wait until finished */
-	sw_w32(0xFFFFFFFF, RTL931X_MEM_ALE_INIT_0);
-	do { } while (sw_r32(RTL931X_MEM_ALE_INIT_0));
-	sw_w32(0x7F, RTL931X_MEM_ALE_INIT_1);
-	sw_w32(0x7ff, RTL931X_MEM_ALE_INIT_2);
-	do { } while (sw_r32(RTL931X_MEM_ALE_INIT_2) & 0x7ff);
-	pr_info("%s: init ALE done\n", __func__);
+	regmap_write(ctrl->map, RTL931X_MEM_ALE_INIT_0, 0xffffffff);
+	ret = regmap_read_poll_timeout(ctrl->map, RTL931X_MEM_ALE_INIT_0,
+				       val, !val, 0, 100000);
+	if (ret)
+		dev_err(dev, "ALE_0 init timeout\n");
+
+	regmap_write(ctrl->map, RTL931X_MEM_ALE_INIT_1, 0x7f);
+	ret = regmap_read_poll_timeout(ctrl->map, RTL931X_MEM_ALE_INIT_1,
+				       val, !val, 0, 100000);
+	if (ret)
+		dev_err(dev, "ALE_1 init timeout\n");
+
+	regmap_write(ctrl->map, RTL931X_MEM_ALE_INIT_2, 0x7ff);
+	ret = regmap_read_poll_timeout(ctrl->map, RTL931X_MEM_ALE_INIT_2,
+				       val, !val, 0, 100000);
+	if (ret)
+		dev_err(dev, "ALE_2 init timeout\n");
 
 	/* Enable ESD auto recovery */
-	sw_w32(0x1, RTL931X_MDX_CTRL_RSVD);
+	regmap_write(ctrl->map, RTL931X_MDX_CTRL_RSVD, 0x1);
 
 	return 0;
 }
