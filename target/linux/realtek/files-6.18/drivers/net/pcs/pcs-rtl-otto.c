@@ -87,7 +87,11 @@
 #define RTPCS_93XX_SDS_MODE_OFF			0x1f
 
 #define RTPCS_93XX_SDS_USXGMII_SUBMODE_10GSX	0x00
+#define RTPCS_93XX_SDS_USXGMII_SUBMODE_10GDX	0x01
 #define RTPCS_93XX_SDS_USXGMII_SUBMODE_10GQX	0x02
+#define RTPCS_93XX_SDS_USXGMII_SUBMODE_5GSX	0x03
+#define RTPCS_93XX_SDS_USXGMII_SUBMODE_5GDX	0x04
+#define RTPCS_93XX_SDS_USXGMII_SUBMODE_2_5GSX	0x05
 
 /* Registers of the internal SerDes of the 9310 */
 #define RTPCS_931X_MAC_GROUP0_1_CTRL		(0x13a4)
@@ -1194,7 +1198,11 @@ static const s16 rtpcs_93xx_sds_hw_mode_vals[RTPCS_SDS_MODE_MAX] = {
 	[RTPCS_SDS_MODE_QSGMII]			= RTPCS_93XX_SDS_MODE_QSGMII,
 	[RTPCS_SDS_MODE_XSGMII]			= RTPCS_93XX_SDS_MODE_XSGMII,
 	[RTPCS_SDS_MODE_USXGMII_10GSXGMII]	= RTPCS_93XX_SDS_MODE_USXGMII,
+	[RTPCS_SDS_MODE_USXGMII_10GDXGMII]	= RTPCS_93XX_SDS_MODE_USXGMII,
 	[RTPCS_SDS_MODE_USXGMII_10GQXGMII]	= RTPCS_93XX_SDS_MODE_USXGMII,
+	[RTPCS_SDS_MODE_USXGMII_5GSXGMII]	= RTPCS_93XX_SDS_MODE_USXGMII,
+	[RTPCS_SDS_MODE_USXGMII_5GDXGMII]	= RTPCS_93XX_SDS_MODE_USXGMII,
+	[RTPCS_SDS_MODE_USXGMII_2_5GSXGMII]	= RTPCS_93XX_SDS_MODE_USXGMII,
 };
 
 static int rtpcs_93xx_sds_set_autoneg(struct rtpcs_serdes *sds, unsigned int neg_mode,
@@ -1425,26 +1433,28 @@ pll_setup:
 	return ret;
 }
 
+static const s16 rtpcs_93xx_sds_usxgmii_submodes[RTPCS_SDS_MODE_MAX] = {
+	[0 ... RTPCS_SDS_MODE_MAX - 1]      = -1,
+	[RTPCS_SDS_MODE_USXGMII_10GSXGMII]  = RTPCS_93XX_SDS_USXGMII_SUBMODE_10GSX,
+	[RTPCS_SDS_MODE_USXGMII_10GDXGMII]  = RTPCS_93XX_SDS_USXGMII_SUBMODE_10GDX,
+	[RTPCS_SDS_MODE_USXGMII_10GQXGMII]  = RTPCS_93XX_SDS_USXGMII_SUBMODE_10GQX,
+	[RTPCS_SDS_MODE_USXGMII_5GSXGMII]   = RTPCS_93XX_SDS_USXGMII_SUBMODE_5GSX,
+	[RTPCS_SDS_MODE_USXGMII_5GDXGMII]   = RTPCS_93XX_SDS_USXGMII_SUBMODE_5GDX,
+	[RTPCS_SDS_MODE_USXGMII_2_5GSXGMII] = RTPCS_93XX_SDS_USXGMII_SUBMODE_2_5GSX,
+};
+
 static int rtpcs_93xx_sds_apply_usxgmii_submode(struct rtpcs_serdes *sds,
 						enum rtpcs_sds_mode hw_mode)
 {
-	u8 submode;
+	s16 val = rtpcs_93xx_sds_usxgmii_submodes[hw_mode];
+
+	if (val < 0)
+		return 0;
 
 	if (!sds->swcore_regs.usxgmii_submode)
-		return 0;
+		return -EOPNOTSUPP;
 
-	switch (hw_mode) {
-	case RTPCS_SDS_MODE_USXGMII_10GSXGMII:
-		submode = RTPCS_93XX_SDS_USXGMII_SUBMODE_10GSX;
-		break;
-	case RTPCS_SDS_MODE_USXGMII_10GQXGMII:
-		submode = RTPCS_93XX_SDS_USXGMII_SUBMODE_10GQX;
-		break;
-	default:
-		return 0;
-	}
-
-	return regmap_field_write(sds->swcore_regs.usxgmii_submode, submode);
+	return regmap_field_write(sds->swcore_regs.usxgmii_submode, val);
 }
 
 /*
