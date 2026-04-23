@@ -99,7 +99,7 @@
 #define RTMDIO_931X_SMI_INDRT_ACCESS_CTRL_3	(0x0C10)
 #define RTMDIO_931X_SMI_INDRT_ACCESS_MMD_CTRL	(0x0C18)
 #define RTMDIO_931X_SMI_PHY_ABLTY_GET_SEL	(0x0CAC)
-#define   RTMDIO_931X_SMY_PHY_ABLTY_MDIO	0x0
+#define   RTMDIO_931X_SMI_PHY_ABLTY_MDIO	0x0
 #define   RTMDIO_931X_SMI_PHY_ABLTY_SDS		0x2
 #define RTMDIO_931X_SMI_PORT_POLLING_SEL	(0x0C9C)
 #define RTMDIO_931X_SMI_PORT_ADDR_CTRL		(0x0C74)
@@ -827,7 +827,7 @@ static void rtmdio_931x_setup_polling(struct rtmdio_ctrl *ctrl)
 
 		/* set to "PHY driven" */
 		mask = GENMASK(1, 0) << ((pn % 16) * 2);
-		val = RTMDIO_931X_SMY_PHY_ABLTY_MDIO << (ffs(mask) - 1);
+		val = RTMDIO_931X_SMI_PHY_ABLTY_MDIO << (ffs(mask) - 1);
 		regmap_update_bits(ctrl->map, RTMDIO_931X_SMI_PHY_ABLTY_GET_SEL + (pn / 16) * 4,
 				   mask, val);
 		mask = val = 0;
