@@ -730,33 +730,39 @@ static int rteth_open(struct net_device *ndev)
 
 static void rteth_838x_hw_stop(struct rteth_ctrl *ctrl)
 {
-	/* Block all ports */
-	sw_w32(0x03000000, RTL838X_TBL_ACCESS_DATA_0(0));
-	sw_w32(0x00000000, RTL838X_TBL_ACCESS_DATA_0(1));
-	sw_w32(1 << 15 | 2 << 12, RTL838X_TBL_ACCESS_CTRL_0);
+	u32 val;
+
+	/* Block all ports. TODO: this is an unprotected table access */
+	regmap_write(ctrl->map, RTL838X_TBL_ACCESS_DATA_0(0), 0x3000000);
+	regmap_write(ctrl->map, RTL838X_TBL_ACCESS_DATA_0(1), 0x0);
+	regmap_write(ctrl->map, RTL838X_TBL_ACCESS_CTRL_0, 1 << 15 | 2 << 12);
 
 	/* Disable FAST_AGE_OUT otherwise flush will hang */
-	sw_w32_mask(BIT(23), 0, RTL838X_L2_CTRL_1);
+	regmap_clear_bits(ctrl->map, RTL838X_L2_CTRL_1, BIT(23));
 
 	/* Flush L2 address cache */
 	for (int i = 0; i <= ctrl->r->cpu_port; i++) {
-		sw_w32(BIT(26) | BIT(23) | i << 5, ctrl->r->l2_tbl_flush_ctrl);
-		do { } while (sw_r32(ctrl->r->l2_tbl_flush_ctrl) & BIT(26));
+		regmap_write(ctrl->map, ctrl->r->l2_tbl_flush_ctrl, BIT(26) | BIT(23) | i << 5);
+		regmap_read_poll_timeout(ctrl->map, ctrl->r->l2_tbl_flush_ctrl,
+					 val, !(val & BIT(26)), 100, 100000);
 	}
 
 	/* CPU-Port: Link down */
-	sw_w32(0x6192C, ctrl->r->mac_force_mode_ctrl);
+	regmap_write(ctrl->map, ctrl->r->mac_force_mode_ctrl, 0x6192C);
 }
 
 static void rteth_839x_hw_stop(struct rteth_ctrl *ctrl)
 {
+	u32 val;
+
 	/* Flush L2 address cache */
 	for (int i = 0; i <= ctrl->r->cpu_port; i++) {
-		sw_w32(BIT(28) | BIT(25) | i << 5, ctrl->r->l2_tbl_flush_ctrl);
-		do { } while (sw_r32(ctrl->r->l2_tbl_flush_ctrl) & BIT(28));
+		regmap_write(ctrl->map, ctrl->r->l2_tbl_flush_ctrl, BIT(28) | BIT(25) | i << 5);
+		regmap_read_poll_timeout(ctrl->map, ctrl->r->l2_tbl_flush_ctrl,
+					 val, !(val & BIT(28)), 100, 100000);
 	}
 
-	sw_w32(0x75, ctrl->r->mac_force_mode_ctrl);
+	regmap_write(ctrl->map, ctrl->r->mac_force_mode_ctrl, 0x75);
 }
 
 static void rteth_930x_hw_stop(struct rteth_ctrl *ctrl)
@@ -764,7 +770,7 @@ static void rteth_930x_hw_stop(struct rteth_ctrl *ctrl)
 	/* TODO: L2 flush needed */
 
 	/* CPU-Port: Link down */
-	sw_w32_mask(0x3, 0, ctrl->r->mac_force_mode_ctrl);
+	regmap_clear_bits(ctrl->map, ctrl->r->mac_force_mode_ctrl, 0x3);
 }
 
 static void rteth_931x_hw_stop(struct rteth_ctrl *ctrl)
@@ -772,7 +778,7 @@ static void rteth_931x_hw_stop(struct rteth_ctrl *ctrl)
 	/* TODO: L2 flush needed */
 
 	/* CPU-Port: Link down */
-	sw_w32_mask(BIT(0) | BIT(9), 0, ctrl->r->mac_force_mode_ctrl);
+	regmap_clear_bits(ctrl->map, ctrl->r->mac_force_mode_ctrl, BIT(0) | BIT(9));
 }
 
 static void rteth_hw_stop(struct rteth_ctrl *ctrl)
