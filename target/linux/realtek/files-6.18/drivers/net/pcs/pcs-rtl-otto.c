@@ -3832,18 +3832,10 @@ static int rtpcs_931x_setup_serdes(struct rtpcs_serdes *sds,
 	int ret;
 
 	/*
-	 * TODO: USXGMII is currently the swiss army knife to declare 10G
-	 * multi port PHYs. Real devices use other modes instead. Especially
-	 *
-	 * - RTL8224 is driven in 10G_QXGMII
-	 * - RTL8218D/E are driven in (Realtek proprietary) XSGMII (10G SGMII)
-	 *
-	 * For now, disable "USXGMII" modes we cannot configure properly. Only
-	 * USXGMII_10GSXGMII is configured properly for now.
+	 * TODO: XSGMII (Realtek-proprietary 10G SGMII used by RTL8218D/E)
+	 * bring-up is not implemented yet.
 	 */
-	if (hw_mode == RTPCS_SDS_MODE_USXGMII_10GDXGMII ||
-	    hw_mode == RTPCS_SDS_MODE_USXGMII_10GQXGMII ||
-	    hw_mode == RTPCS_SDS_MODE_XSGMII)
+	if (hw_mode == RTPCS_SDS_MODE_XSGMII)
 		return 0;
 
 	val = rtpcs_sds_read_bits(sds, 0x1F, 0x9, 11, 6);
