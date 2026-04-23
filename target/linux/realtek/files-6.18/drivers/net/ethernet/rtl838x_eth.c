@@ -1272,12 +1272,8 @@ static int rteth_83xx_set_features(struct net_device *dev, netdev_features_t fea
 {
 	struct rteth_ctrl *ctrl = netdev_priv(dev);
 
-	if ((features ^ dev->features) & NETIF_F_RXCSUM) {
-		if (!(features & NETIF_F_RXCSUM))
-			sw_w32_mask(BIT(3), 0, ctrl->r->mac_l2_port_ctrl);
-		else
-			sw_w32_mask(0, BIT(3), ctrl->r->mac_l2_port_ctrl);
-	}
+	if ((features ^ dev->features) & NETIF_F_RXCSUM)
+		regmap_assign_bits(ctrl->map, ctrl->r->mac_l2_port_ctrl, BIT(3), features & NETIF_F_RXCSUM);
 
 	return 0;
 }
@@ -1286,12 +1282,8 @@ static int rteth_93xx_set_features(struct net_device *dev, netdev_features_t fea
 {
 	struct rteth_ctrl *ctrl = netdev_priv(dev);
 
-	if ((features ^ dev->features) & NETIF_F_RXCSUM) {
-		if (!(features & NETIF_F_RXCSUM))
-			sw_w32_mask(BIT(4), 0, ctrl->r->mac_l2_port_ctrl);
-		else
-			sw_w32_mask(0, BIT(4), ctrl->r->mac_l2_port_ctrl);
-	}
+	if ((features ^ dev->features) & NETIF_F_RXCSUM)
+		regmap_assign_bits(ctrl->map, ctrl->r->mac_l2_port_ctrl, BIT(4), features & NETIF_F_RXCSUM);
 
 	return 0;
 }
