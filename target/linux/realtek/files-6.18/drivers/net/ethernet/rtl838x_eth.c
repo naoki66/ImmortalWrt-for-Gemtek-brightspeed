@@ -784,10 +784,10 @@ static void rteth_931x_hw_stop(struct rteth_ctrl *ctrl)
 static void rteth_hw_stop(struct rteth_ctrl *ctrl)
 {
 	/* Disable RX/TX from/to CPU-port */
-	sw_w32_mask(0x3, 0, ctrl->r->mac_l2_port_ctrl);
+	regmap_clear_bits(ctrl->map, ctrl->r->mac_l2_port_ctrl, 0x3);
 
 	/* Disable traffic */
-	sw_w32_mask(ctrl->r->tx_rx_enable, 0, ctrl->r->dma_if_ctrl);
+	regmap_clear_bits(ctrl->map, ctrl->r->dma_if_ctrl, ctrl->r->tx_rx_enable);
 	mdelay(200); /* Test, whether this is needed */
 
 	/* family specific stop */
@@ -797,7 +797,7 @@ static void rteth_hw_stop(struct rteth_ctrl *ctrl)
 	rteth_disable_all_irqs(ctrl);
 
 	/* Disable TX/RX DMA */
-	sw_w32(0x00000000, ctrl->r->dma_if_ctrl);
+	regmap_write(ctrl->map, ctrl->r->dma_if_ctrl, 0);
 	mdelay(200);
 }
 
@@ -993,11 +993,11 @@ static int rteth_start_xmit(struct sk_buff *skb, struct net_device *netdev)
 	 * bug, where the hardware sometimes reads empty values from the register. Work around
 	 * that with a poll that checks if TX/RX is enabled in the register.
 	 */
-	if (read_poll_timeout(sw_r32, val, val & ctrl->r->tx_rx_enable,
-			     0, 5000, false, ctrl->r->dma_if_ctrl))
+	if (regmap_read_poll_timeout(ctrl->map, ctrl->r->dma_if_ctrl,
+				     val, val & ctrl->r->tx_rx_enable, 0, 5000))
 		dev_warn_once(dev, "DMA interface ctrl register read failed\n");
 
-	sw_w32(val | RTETH_TX_TRIGGER(ctrl, ring), ctrl->r->dma_if_ctrl);
+	regmap_write(ctrl->map, ctrl->r->dma_if_ctrl, val | RTETH_TX_TRIGGER(ctrl, ring));
 
 	netdev->stats.tx_packets++;
 	netdev->stats.tx_bytes += len;
