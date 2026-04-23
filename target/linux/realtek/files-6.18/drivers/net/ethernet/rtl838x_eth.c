@@ -1114,7 +1114,7 @@ static void rteth_mac_link_down(struct phylink_config *config,
 
 	pr_debug("In %s\n", __func__);
 	/* Stop TX/RX to port */
-	sw_w32_mask(0x03, 0, ctrl->r->mac_l2_port_ctrl);
+	regmap_clear_bits(ctrl->map, ctrl->r->mac_l2_port_ctrl, 0x3);
 }
 
 static void rteth_mac_link_up(struct phylink_config *config,
@@ -1127,7 +1127,7 @@ static void rteth_mac_link_up(struct phylink_config *config,
 
 	pr_debug("In %s\n", __func__);
 	/* Restart TX/RX to port */
-	sw_w32_mask(0, 0x03, ctrl->r->mac_l2_port_ctrl);
+	regmap_set_bits(ctrl->map, ctrl->r->mac_l2_port_ctrl, 0x3);
 }
 
 static void rteth_set_mac_hw(struct net_device *dev, u8 *mac)
