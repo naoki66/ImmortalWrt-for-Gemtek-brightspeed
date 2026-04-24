@@ -250,18 +250,18 @@ rtldsa_931x_vlan_profile_dump(struct rtl838x_switch_priv *priv, int idx)
 		p.unkn_mc_fld.pmsks.ip, p.unkn_mc_fld.pmsks.ip6);
 }
 
-static int rtldsa_931x_stp_get(struct rtl838x_switch_priv *priv, u16 msti, int port, u32 port_state[])
+static int rtldsa_931x_stp_get(struct rtl838x_switch_priv *priv, u16 msti, int port)
 {
 	struct table_reg *r = rtl_table_get(RTL9310_TBL_0, 5);
 	int idx = 3 - ((port + 8) / 16);
 	int bit = 2 * ((port + 8) % 16);
+	int state;
 
 	rtl_table_read(r, msti);
-	for (int i = 0; i < 4; i++)
-		port_state[i] = sw_r32(rtl_table_data(r, i));
+	state = (sw_r32(rtl_table_data(r, idx)) >> bit) & 0x3;
 	rtl_table_release(r);
 
-	return (port_state[idx] >> bit) & 3;
+	return state;
 }
 
 static void rtl931x_stp_set(struct rtl838x_switch_priv *priv, u16 msti, int port, int state)

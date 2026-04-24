@@ -641,18 +641,18 @@ static void rtl838x_set_static_move_action(int port, bool forward)
 		    RTL838X_L2_PORT_STATIC_MV_ACT(port));
 }
 
-static int rtldsa_838x_stp_get(struct rtl838x_switch_priv *priv, u16 msti, int port, u32 port_state[])
+static int rtldsa_838x_stp_get(struct rtl838x_switch_priv *priv, u16 msti, int port)
 {
 	struct table_reg *r = rtl_table_get(RTL8380_TBL_0, 2);
 	int idx = 1 - (port / 16);
 	int bit = 2 * (port % 16);
+	int state;
 
 	rtl_table_read(r, msti);
-	for (int i = 0; i < 2; i++)
-		port_state[i] = sw_r32(rtl_table_data(r, i));
+	state = (sw_r32(rtl_table_data(r, idx)) >> bit) & 0x3;
 	rtl_table_release(r);
 
-	return (port_state[idx] >> bit) & 3;
+	return state;
 }
 
 static void rtl838x_stp_set(struct rtl838x_switch_priv *priv, u16 msti, int port, int state)
