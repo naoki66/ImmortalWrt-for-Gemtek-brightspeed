@@ -81,6 +81,7 @@ static int rtkphy_config_init(struct phy_device *phydev)
 
           #if 1 /* toggle reset */
             phy_modify_mmd_changed(phydev, 30, 0x145, BIT(0)  , 1);
+            mdelay(30);
             phy_modify_mmd_changed(phydev, 30, 0x145, BIT(0)  , 0);
             mdelay(30);
           #endif
