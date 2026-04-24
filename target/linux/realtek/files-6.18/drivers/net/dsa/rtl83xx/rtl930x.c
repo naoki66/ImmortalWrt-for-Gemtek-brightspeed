@@ -641,12 +641,14 @@ static int rtldsa_930x_stp_get(struct rtl838x_switch_priv *priv, u16 msti, int p
 	return (port_state[idx] >> bit) & 3;
 }
 
-static void rtl930x_stp_set(struct rtl838x_switch_priv *priv, u16 msti, u32 port_state[])
+static void rtl930x_stp_set(struct rtl838x_switch_priv *priv, u16 msti, int port, int state)
 {
 	struct table_reg *r = rtl_table_get(RTL9300_TBL_0, 4);
+	int idx = 1 - ((port + 3) / 16);
+	int bit = 2 * ((port + 3) % 16);
 
-	for (int i = 0; i < 2; i++)
-		sw_w32(port_state[i], rtl_table_data(r, i));
+	rtl_table_read(r, msti);
+	sw_w32_mask(0x3 << bit, state << bit, rtl_table_data(r, idx));
 	rtl_table_write(r, msti);
 	rtl_table_release(r);
 }
