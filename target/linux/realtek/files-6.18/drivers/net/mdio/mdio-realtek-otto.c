@@ -205,6 +205,9 @@ struct rtmdio_chan {
 struct rtmdio_config {
 	int num_phys;
 	int raw_page;
+	u32 cmd_fail;
+	u32 cmd_mask;
+	u32 cmd_reg;
 	int bus_map_base;
 	int port_map_base;
 	int (*read_mmd_phy)(struct mii_bus *bus, u32 pn, u32 devnum, u32 regnum, u32 *val);
@@ -272,16 +275,21 @@ static int rtmdio_phy_to_port(struct mii_bus *bus, int phy)
 	return -ENOENT;
 }
 
-static int rtmdio_run_cmd(struct mii_bus *bus, int cmd, int mask, int regnum, int fail)
+static int rtmdio_run_cmd(struct mii_bus *bus, int cmd)
 {
 	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
 	int ret, val;
 
-	ret = regmap_update_bits(ctrl->map, regnum, mask, cmd | RTMDIO_RUN);
-	ret = regmap_read_poll_timeout(ctrl->map, regnum, val, !(val & RTMDIO_RUN), 20, 500000);
+	ret = regmap_update_bits(ctrl->map, ctrl->cfg->cmd_reg,
+				 ctrl->cfg->cmd_mask, cmd | RTMDIO_RUN);
+	if (ret)
+		return ret;
+
+	ret = regmap_read_poll_timeout(ctrl->map, ctrl->cfg->cmd_reg,
+				       val, !(val & RTMDIO_RUN), 20, 500000);
 	if (ret)
 		dev_warn_once(&bus->dev, "access timed out\n");
-	else if (val & fail) {
+	else if (val & ctrl->cfg->cmd_fail) {
 		dev_warn_once(&bus->dev, "access failed\n");
 		ret = -EIO;
 	}
@@ -300,8 +308,7 @@ static int rtmdio_838x_run_cmd(struct mii_bus *bus, int cmd,
 	if (ret)
 		return ret;
 
-	ret = rtmdio_run_cmd(bus, cmd, RTMDIO_838X_CMD_MASK,
-			     RTMDIO_838X_SMI_ACCESS_PHY_CTRL_1, RTMDIO_838X_CMD_FAIL);
+	ret = rtmdio_run_cmd(bus, cmd);
 	if (ret || !val)
 		return ret;
 
@@ -367,8 +374,7 @@ static int rtmdio_839x_run_cmd(struct mii_bus *bus, int cmd,
 	if (ret)
 		return ret;
 
-	ret = rtmdio_run_cmd(bus, cmd, RTMDIO_839X_CMD_MASK,
-			     RTMDIO_839X_PHYREG_ACCESS_CTRL, RTMDIO_839X_CMD_FAIL);
+	ret = rtmdio_run_cmd(bus, cmd);
 	if (ret || !val)
 		return ret;
 
@@ -436,8 +442,7 @@ static int rtmdio_930x_run_cmd(struct mii_bus *bus, int cmd,
 	if (ret)
 		return ret;
 
-	ret = rtmdio_run_cmd(bus, cmd, RTMDIO_930X_CMD_MASK,
-			     RTMDIO_930X_SMI_ACCESS_PHY_CTRL_1, RTMDIO_930X_CMD_FAIL);
+	ret = rtmdio_run_cmd(bus, cmd);
 	if (ret || !val)
 		return ret;
 
@@ -501,8 +506,7 @@ static int rtmdio_931x_run_cmd(struct mii_bus *bus, int cmd,
 	if (ret)
 		return ret;
 
-	ret = rtmdio_run_cmd(bus, cmd, RTMDIO_931X_CMD_MASK,
-			     RTMDIO_931X_SMI_INDRT_ACCESS_CTRL_0, RTMDIO_931X_CMD_FAIL);
+	ret = rtmdio_run_cmd(bus, cmd);
 	if (ret || !val)
 		return ret;
 
@@ -1027,6 +1031,9 @@ static int rtmdio_probe(struct platform_device *pdev)
 static const struct rtmdio_config rtmdio_838x_cfg = {
 	.num_phys	= 28,
 	.raw_page	= 4095,
+	.cmd_fail	= RTMDIO_838X_CMD_FAIL,
+	.cmd_mask	= RTMDIO_838X_CMD_MASK,
+	.cmd_reg	= RTMDIO_838X_SMI_ACCESS_PHY_CTRL_1,
 	.port_map_base	= RTMDIO_838X_SMI_PORT0_5_ADDR_CTRL,
 	.read_mmd_phy	= rtmdio_838x_read_mmd_phy,
 	.read_phy	= rtmdio_838x_read_phy,
@@ -1039,6 +1046,9 @@ static const struct rtmdio_config rtmdio_838x_cfg = {
 static const struct rtmdio_config rtmdio_839x_cfg = {
 	.num_phys	= 52,
 	.raw_page	= 8191,
+	.cmd_fail	= RTMDIO_839X_CMD_FAIL,
+	.cmd_mask	= RTMDIO_839X_CMD_MASK,
+	.cmd_reg	= RTMDIO_839X_PHYREG_ACCESS_CTRL,
 	.read_mmd_phy	= rtmdio_839x_read_mmd_phy,
 	.read_phy	= rtmdio_839x_read_phy,
 	.setup_ctrl	= rtmdio_839x_setup_ctrl,
@@ -1049,6 +1059,9 @@ static const struct rtmdio_config rtmdio_839x_cfg = {
 static const struct rtmdio_config rtmdio_930x_cfg = {
 	.num_phys	= 28,
 	.raw_page	= 4095,
+	.cmd_fail	= RTMDIO_930X_CMD_FAIL,
+	.cmd_mask	= RTMDIO_930X_CMD_MASK,
+	.cmd_reg	= RTMDIO_930X_SMI_ACCESS_PHY_CTRL_1,
 	.bus_map_base	= RTMDIO_930X_SMI_PORT0_15_POLLING_SEL,
 	.port_map_base	= RTMDIO_930X_SMI_PORT0_5_ADDR_CTRL,
 	.read_mmd_phy	= rtmdio_930x_read_mmd_phy,
@@ -1062,6 +1075,9 @@ static const struct rtmdio_config rtmdio_930x_cfg = {
 static const struct rtmdio_config rtmdio_931x_cfg = {
 	.num_phys	= 56,
 	.raw_page	= 8191,
+	.cmd_fail	= RTMDIO_931X_CMD_FAIL,
+	.cmd_mask	= RTMDIO_931X_CMD_MASK,
+	.cmd_reg	= RTMDIO_931X_SMI_INDRT_ACCESS_CTRL_0,
 	.bus_map_base	= RTMDIO_931X_SMI_PORT_POLLING_SEL,
 	.port_map_base	= RTMDIO_931X_SMI_PORT_ADDR_CTRL,
 	.read_mmd_phy	= rtmdio_931x_read_mmd_phy,
