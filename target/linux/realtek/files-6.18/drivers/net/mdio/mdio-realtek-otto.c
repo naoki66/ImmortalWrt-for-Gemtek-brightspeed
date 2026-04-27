@@ -32,8 +32,11 @@
 #define RTMDIO_PHY_POLL_MMD(dev, reg, bit)	((bit << 21) | (dev << 16) | (reg))
 
 /* MDIO bus registers/fields */
+#define RTMDIO_C45_DATA(devnum, regnum)		(((devnum) << 16) | ((regnum) & GENMASK(15, 0)))
+#define RTMDIO_DATA_MASK			GENMASK(15, 0)
 #define RTMDIO_RUN				BIT(0)
 
+#define RTMDIO_838X_C22_DATA(page, reg)		((reg) << 20 | 0x1f << 15 | (page) << 3)
 #define RTMDIO_838X_PHY_PATCH_DONE		BIT(15)
 #define RTMDIO_838X_SMI_GLB_CTRL		(0xa100)
 #define RTMDIO_838X_SMI_ACCESS_PHY_CTRL_0	(0xa1b8)
@@ -45,7 +48,6 @@
 #define   RTMDIO_838X_CMD_WRITE_C45		(BIT(1) | BIT(2))
 #define   RTMDIO_838X_CMD_MASK			GENMASK(2, 0)
 #define RTMDIO_838X_SMI_ACCESS_PHY_CTRL_2	(0xa1c0)
-#define RTMDIO_838X_SMI_ACCESS_PHY_CTRL_3	(0xa1c4)
 #define RTMDIO_838X_SMI_POLL_CTRL		(0xa17c)
 #define RTMDIO_838X_SMI_PORT0_5_ADDR_CTRL	(0xa1c8)
 
@@ -226,6 +228,13 @@ struct rtmdio_phy_info {
 	unsigned int poll_lpa_1000;
 };
 
+struct rtmdio_838x_smi_access {
+	u32 ctrl_0;
+	u32 ctrl_1;
+	u32 ctrl_2;
+	u32 ctrl_3;
+};
+
 static int rtmdio_phy_to_port(struct mii_bus *bus, int phy)
 {
 	struct rtmdio_chan *chan = bus->priv;
@@ -256,70 +265,71 @@ static int rtmdio_run_cmd(struct mii_bus *bus, int cmd, int mask, int regnum, in
 	return ret;
 }
 
-static int rtmdio_838x_run_cmd(struct mii_bus *bus, int cmd)
+static int rtmdio_838x_run_cmd(struct mii_bus *bus, int cmd,
+			       struct rtmdio_838x_smi_access *smi_access, u32 *val)
 {
-	return rtmdio_run_cmd(bus, cmd, RTMDIO_838X_CMD_MASK,
-			      RTMDIO_838X_SMI_ACCESS_PHY_CTRL_1, RTMDIO_838X_CMD_FAIL);
+	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
+	int ret;
+
+	ret = regmap_bulk_write(ctrl->map, RTMDIO_838X_SMI_ACCESS_PHY_CTRL_0,
+				smi_access, sizeof(*smi_access) / sizeof(u32));
+	if (ret)
+		return ret;
+
+	ret = rtmdio_run_cmd(bus, cmd, RTMDIO_838X_CMD_MASK,
+			     RTMDIO_838X_SMI_ACCESS_PHY_CTRL_1, RTMDIO_838X_CMD_FAIL);
+	if (ret || !val)
+		return ret;
+
+	ret = regmap_read(ctrl->map, RTMDIO_838X_SMI_ACCESS_PHY_CTRL_2, val);
+	if (!ret)
+		*val &= RTMDIO_DATA_MASK;
+
+	return ret;
 }
 
 static int rtmdio_838x_read_phy(struct mii_bus *bus, u32 pn, u32 page, u32 reg, u32 *val)
 {
-	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
-	u32 park_page = 31;
-	int err;
+	struct rtmdio_838x_smi_access smi_access = {
+		.ctrl_0 = BIT(pn),
+		.ctrl_1 = RTMDIO_838X_C22_DATA(page, reg),
+		.ctrl_2 = pn << 16,
+	};
 
-	regmap_write(ctrl->map, RTMDIO_838X_SMI_ACCESS_PHY_CTRL_0, BIT(pn));
-	regmap_write(ctrl->map, RTMDIO_838X_SMI_ACCESS_PHY_CTRL_2, pn << 16);
-	regmap_write(ctrl->map, RTMDIO_838X_SMI_ACCESS_PHY_CTRL_1,
-		     reg << 20 | park_page << 15 | page << 3);
-	err = rtmdio_838x_run_cmd(bus, RTMDIO_838X_CMD_READ_C22);
-	if (!err)
-		err = regmap_read(ctrl->map, RTMDIO_838X_SMI_ACCESS_PHY_CTRL_2, val);
-	if (!err)
-		*val &= GENMASK(15, 0);
-
-	return err;
+	return rtmdio_838x_run_cmd(bus, RTMDIO_838X_CMD_READ_C22, &smi_access, val);
 }
 
 static int rtmdio_838x_write_phy(struct mii_bus *bus, u32 pn, u32 page, u32 reg, u32 val)
 {
-	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
-	u32 park_page = 31;
+	struct rtmdio_838x_smi_access smi_access = {
+		.ctrl_0 = BIT(pn),
+		.ctrl_1 = RTMDIO_838X_C22_DATA(page, reg),
+		.ctrl_2 = val << 16,
+	};
 
-	regmap_write(ctrl->map, RTMDIO_838X_SMI_ACCESS_PHY_CTRL_0, BIT(pn));
-	regmap_write(ctrl->map, RTMDIO_838X_SMI_ACCESS_PHY_CTRL_2, val << 16);
-	regmap_write(ctrl->map, RTMDIO_838X_SMI_ACCESS_PHY_CTRL_1,
-		     reg << 20 | park_page << 15 | page << 3);
-
-	return rtmdio_838x_run_cmd(bus, RTMDIO_838X_CMD_WRITE_C22);
+	return rtmdio_838x_run_cmd(bus, RTMDIO_838X_CMD_WRITE_C22, &smi_access, NULL);
 }
 
 static int rtmdio_838x_read_mmd_phy(struct mii_bus *bus, u32 pn, u32 devnum, u32 regnum, u32 *val)
 {
-	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
-	int err;
+	struct rtmdio_838x_smi_access smi_access = {
+		.ctrl_0 = BIT(pn),
+		.ctrl_2 = pn << 16,
+		.ctrl_3 = RTMDIO_C45_DATA(devnum, regnum),
+	};
 
-	regmap_write(ctrl->map, RTMDIO_838X_SMI_ACCESS_PHY_CTRL_0, BIT(pn));
-	regmap_write(ctrl->map, RTMDIO_838X_SMI_ACCESS_PHY_CTRL_2, pn << 16);
-	regmap_write(ctrl->map, RTMDIO_838X_SMI_ACCESS_PHY_CTRL_3, devnum << 16 | regnum);
-	err = rtmdio_838x_run_cmd(bus, RTMDIO_838X_CMD_READ_C45);
-	if (!err)
-		err = regmap_read(ctrl->map, RTMDIO_838X_SMI_ACCESS_PHY_CTRL_2, val);
-	if (!err)
-		*val &= GENMASK(15, 0);
-
-	return err;
+	return rtmdio_838x_run_cmd(bus, RTMDIO_838X_CMD_READ_C45, &smi_access, val);
 }
 
 static int rtmdio_838x_write_mmd_phy(struct mii_bus *bus, u32 pn, u32 devnum, u32 regnum, u32 val)
 {
-	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
+	struct rtmdio_838x_smi_access smi_access = {
+		.ctrl_0 = BIT(pn),
+		.ctrl_2 = val << 16,
+		.ctrl_3 = RTMDIO_C45_DATA(devnum, regnum),
+	};
 
-	regmap_write(ctrl->map, RTMDIO_838X_SMI_ACCESS_PHY_CTRL_0, BIT(pn));
-	regmap_write(ctrl->map, RTMDIO_838X_SMI_ACCESS_PHY_CTRL_2, val << 16);
-	regmap_write(ctrl->map, RTMDIO_838X_SMI_ACCESS_PHY_CTRL_3, devnum << 16 | regnum);
-
-	return rtmdio_838x_run_cmd(bus, RTMDIO_838X_CMD_WRITE_C45);
+	return rtmdio_838x_run_cmd(bus, RTMDIO_838X_CMD_WRITE_C45, &smi_access, NULL);
 }
 
 static int rtmdio_839x_run_cmd(struct mii_bus *bus, int cmd)
