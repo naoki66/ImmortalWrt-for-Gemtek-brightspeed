@@ -111,6 +111,14 @@ main() {
         code_openwrt=0000000101000002
         code_factory=0000000101010003
         ;;
+    huawei,hg2821t-u)
+        part=$(part_named '"flag"')
+        offset_blocks=14
+        block_size=$((1024 * 128))
+        code_offset=0
+        code_openwrt=30ffffff30ffffff
+        code_factory=31ffffff31ffffff
+        ;;
     nokia,g240g-e)
         part=$(part_named '"flag"')
         offset_blocks=0

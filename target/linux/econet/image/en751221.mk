@@ -9,6 +9,26 @@ define Device/en751221_generic
 endef
 TARGET_DEVICES += en751221_generic
 
+define Device/huawei_hg2821t-u
+  DEVICE_VENDOR := Huawei
+  DEVICE_MODEL := HG2821T-U
+  DEVICE_DTS := en751221_huawei_hg2821t-u
+  KERNEL_DECOMPRESSED_SIZE := 7672k
+  KERNEL_SIZE := 4096k
+  IMAGE_SIZE := 57344k
+  FACTORY_SIZE := 40960k
+  NAND_SIZE := 256m
+  KERNEL := kernel-bin | append-dtb | tclinux-free-bootbase-jump | \
+    check-size $$(KERNEL_DECOMPRESSED_SIZE) | lzma
+  KERNEL_INITRAMFS := kernel-bin | append-dtb
+  IMAGES := kernel.bin rootfs.bin sysupgrade.bin
+  IMAGE/kernel.bin := append-kernel
+  IMAGE/rootfs.bin := append-ubi | check-size $$(FACTORY_SIZE)
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  DEVICE_PACKAGES := kmod-usb3
+endef
+TARGET_DEVICES += huawei_hg2821t-u
+
 define Device/nokia_g240g-e
   DEVICE_VENDOR := Nokia
   DEVICE_MODEL := G-240G-E
