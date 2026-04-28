@@ -228,17 +228,10 @@ TARGET_DEVICES += zyxel_xgs1250-12-b1
 
 define Device/zyxel_xmg1915-10e
   SOC := rtl9302
-  ZYXEL_VERS := ABWE
-  DEVICE_VENDOR := Zyxel
   DEVICE_MODEL := XMG1915-10E
   FLASH_ADDR := 0xb4270000
-ifeq ($(IB),)
-  ARTIFACTS := loader.bin
-  ARTIFACT/loader.bin := \
-    rt-loader-standalone | \
-    zynsig
-endif
-  $(Device/rt-loader-bootbase)
   IMAGE_SIZE := 30336k
+  ZYNFW_ALIGN := 0x10000
+  $(Device/zyxel_zynos)
 endef
 TARGET_DEVICES += zyxel_xmg1915-10e
