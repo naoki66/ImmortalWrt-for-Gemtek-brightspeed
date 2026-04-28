@@ -21,20 +21,44 @@ Signed-off-by: Tianling Shen <cnsztl@gmail.com>
  
 --- a/arch/arm64/boot/dts/rockchip/rk3568-nanopi-r5s.dts
 +++ b/arch/arm64/boot/dts/rockchip/rk3568-nanopi-r5s.dts
-@@ -52,7 +52,6 @@
- 		power_led: led-power {
- 			color = <LED_COLOR_ID_RED>;
- 			function = LED_FUNCTION_POWER;
--			linux,default-trigger = "heartbeat";
- 			gpios = <&gpio4 RK_PD2 GPIO_ACTIVE_HIGH>;
+@@ -41,7 +41,6 @@
+ 			function = LED_FUNCTION_LAN;
+ 			function-enumerator = <1>;
+ 			gpios = <&gpio3 RK_PD6 GPIO_ACTIVE_HIGH>;
+-			label = "LAN-1";
  		};
  
+ 		led-lan2 {
+@@ -50,15 +49,12 @@
+ 			function = LED_FUNCTION_LAN;
+ 			function-enumerator = <2>;
+ 			gpios = <&gpio3 RK_PD7 GPIO_ACTIVE_HIGH>;
+-			label = "LAN-2";
+ 		};
+ 
+ 		power_led: led-sys {
+ 			color = <LED_COLOR_ID_RED>;
+ 			function = LED_FUNCTION_POWER;
+ 			gpios = <&gpio4 RK_PD2 GPIO_ACTIVE_HIGH>;
+-			label = "SYS";
+-			linux,default-trigger = "heartbeat";
+ 		};
+ 
+ 		led-wan {
+@@ -66,7 +62,6 @@
+ 			default-state = "off";
+ 			function = LED_FUNCTION_WAN;
+ 			gpios = <&gpio2 RK_PC1 GPIO_ACTIVE_HIGH>;
+-			label = "WAN";
+ 		};
+ 	};
+ };
 --- a/arch/arm64/boot/dts/rockchip/rk3568-nanopi-r5s.dtsi
 +++ b/arch/arm64/boot/dts/rockchip/rk3568-nanopi-r5s.dtsi
-@@ -18,6 +18,11 @@
- 	aliases {
+@@ -19,6 +19,11 @@
  		mmc0 = &sdmmc0;
  		mmc1 = &sdhci;
+ 		rtc0 = &hym8563;
 +
 +		led-boot = &power_led;
 +		led-failsafe = &power_led;

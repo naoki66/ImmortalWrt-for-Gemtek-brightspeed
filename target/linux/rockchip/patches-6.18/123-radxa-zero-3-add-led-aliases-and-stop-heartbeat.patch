@@ -1,7 +1,7 @@
 --- a/arch/arm64/boot/dts/rockchip/rk3566-radxa-zero-3.dtsi
 +++ b/arch/arm64/boot/dts/rockchip/rk3566-radxa-zero-3.dtsi
 @@ -6,6 +6,13 @@
- #include "rk3566.dtsi"
+ #include "rk3566t.dtsi"
  
  / {
 +	aliases {

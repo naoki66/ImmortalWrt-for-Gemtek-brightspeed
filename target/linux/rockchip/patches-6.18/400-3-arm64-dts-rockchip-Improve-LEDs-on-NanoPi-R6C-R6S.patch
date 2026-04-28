@@ -22,15 +22,15 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
 
 --- a/arch/arm64/boot/dts/rockchip/rk3588s-nanopi-r6.dtsi
 +++ b/arch/arm64/boot/dts/rockchip/rk3588s-nanopi-r6.dtsi
-@@ -8,6 +8,7 @@
+@@ -5,6 +5,7 @@
  #include <dt-bindings/pinctrl/rockchip.h>
  #include <dt-bindings/gpio/gpio.h>
  #include <dt-bindings/input/input.h>
 +#include <dt-bindings/leds/common.h>
+ #include <dt-bindings/soc/rockchip,vop2.h>
  #include "rk3588s.dtsi"
  
- / {
-@@ -52,7 +53,8 @@
+@@ -61,7 +62,8 @@
  		compatible = "gpio-leds";
  
  		sys_led: led-0 {
@@ -40,7 +40,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
  			gpios = <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>;
  			linux,default-trigger = "heartbeat";
  			pinctrl-names = "default";
-@@ -60,24 +62,22 @@
+@@ -69,24 +71,22 @@
  		};
  
  		wan_led: led-1 {
@@ -71,7 +71,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
  	};
  
  	vcc_5v0: regulator-vcc-5v0 {
-@@ -328,23 +328,15 @@
+@@ -378,23 +378,15 @@
  
  	gpio-leds {
  		sys_led_pin: sys-led-pin {

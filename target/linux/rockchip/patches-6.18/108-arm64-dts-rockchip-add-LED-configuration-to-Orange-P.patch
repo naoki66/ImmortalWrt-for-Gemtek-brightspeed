@@ -12,9 +12,9 @@ Signed-off-by: Tianling Shen <cnsztl@gmail.com>
  arch/arm64/boot/dts/rockchip/rk3328-orangepi-r1-plus.dts | 1 +
  1 file changed, 1 insertion(+)
 
---- a/arch/arm64/boot/dts/rockchip/rk3328-orangepi-r1-plus.dts
-+++ b/arch/arm64/boot/dts/rockchip/rk3328-orangepi-r1-plus.dts
-@@ -366,6 +366,7 @@
+--- a/arch/arm64/boot/dts/rockchip/rk3328-orangepi-r1-plus.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3328-orangepi-r1-plus.dtsi
+@@ -348,6 +348,7 @@
  	rtl8153: device@2 {
  		compatible = "usbbda,8153";
  		reg = <2>;

@@ -11,7 +11,7 @@
  	};
  
  	chosen {
-@@ -62,12 +66,14 @@
+@@ -87,12 +91,14 @@
  		pinctrl-names = "default";
  		pinctrl-0 = <&led_pins>;
  

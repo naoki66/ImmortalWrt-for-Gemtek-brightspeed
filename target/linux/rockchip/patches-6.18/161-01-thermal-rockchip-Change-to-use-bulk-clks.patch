@@ -10,7 +10,7 @@ Signed-off-by: Jonas Karlman <jonas@kwiboo.se>
 
 --- a/drivers/thermal/rockchip_thermal.c
 +++ b/drivers/thermal/rockchip_thermal.c
-@@ -140,8 +140,8 @@ struct rockchip_thermal_sensor {
+@@ -144,8 +144,8 @@ struct rockchip_thermal_sensor {
   * @pdev: platform device of thermal
   * @reset: the reset controller of tsadc
   * @sensors: array of thermal sensors
@@ -21,7 +21,7 @@ Signed-off-by: Jonas Karlman <jonas@kwiboo.se>
   * @grf: the general register file will be used to do static set by software
   * @regs: the base address of tsadc controller
   * @trim_base: major component of sensor trim value, in Celsius
-@@ -159,8 +159,8 @@ struct rockchip_thermal_data {
+@@ -163,8 +163,8 @@ struct rockchip_thermal_data {
  
  	struct rockchip_thermal_sensor *sensors;
  
@@ -32,7 +32,7 @@ Signed-off-by: Jonas Karlman <jonas@kwiboo.se>
  
  	struct regmap *grf;
  	void __iomem *regs;
-@@ -1741,15 +1741,11 @@ static int rockchip_thermal_probe(struct
+@@ -1727,15 +1727,11 @@ static int rockchip_thermal_probe(struct
  		return dev_err_probe(&pdev->dev, PTR_ERR(thermal->reset),
  				     "failed to get tsadc reset.\n");
  
@@ -53,7 +53,7 @@ Signed-off-by: Jonas Karlman <jonas@kwiboo.se>
  
  	rockchip_thermal_reset_controller(thermal->reset);
  
-@@ -1831,8 +1827,7 @@ static int __maybe_unused rockchip_therm
+@@ -1817,8 +1813,7 @@ static int __maybe_unused rockchip_therm
  
  	thermal->chip->control(thermal->regs, false);
  
@@ -63,7 +63,7 @@ Signed-off-by: Jonas Karlman <jonas@kwiboo.se>
  
  	pinctrl_pm_select_sleep_state(dev);
  
-@@ -1848,16 +1843,10 @@ static int __maybe_unused rockchip_therm
+@@ -1834,16 +1829,10 @@ static int __maybe_unused rockchip_therm
  	int error;
  	int i;
  

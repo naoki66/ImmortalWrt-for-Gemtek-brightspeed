@@ -42,9 +42,9 @@ Signed-off-by: Tianling Shen <cnsztl@gmail.com>
  			gpios = <&gpio3 RK_PD5 GPIO_ACTIVE_HIGH>;
 -			linux,default-trigger = "heartbeat";
  		};
- 	};
  
-@@ -366,8 +376,9 @@
+ 		power-led {
+@@ -373,8 +383,9 @@
  
  &pinctrl {
  	leds {

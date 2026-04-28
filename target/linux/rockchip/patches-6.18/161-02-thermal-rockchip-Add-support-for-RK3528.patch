@@ -10,7 +10,7 @@ Signed-off-by: Jonas Karlman <jonas@kwiboo.se>
 
 --- a/drivers/thermal/rockchip_thermal.c
 +++ b/drivers/thermal/rockchip_thermal.c
-@@ -206,6 +206,7 @@ struct rockchip_thermal_data {
+@@ -210,6 +210,7 @@ struct rockchip_thermal_data {
  #define TSADCV2_AUTO_PERIOD_HT			0x6c
  #define TSADCV3_AUTO_PERIOD			0x154
  #define TSADCV3_AUTO_PERIOD_HT			0x158
@@ -18,7 +18,7 @@ Signed-off-by: Jonas Karlman <jonas@kwiboo.se>
  
  #define TSADCV2_AUTO_EN				BIT(0)
  #define TSADCV2_AUTO_EN_MASK			BIT(16)
-@@ -216,6 +217,7 @@ struct rockchip_thermal_data {
+@@ -220,6 +221,7 @@ struct rockchip_thermal_data {
  #define TSADCV2_AUTO_TSHUT_POLARITY_MASK	BIT(24)
  
  #define TSADCV3_AUTO_Q_SEL_EN			BIT(1)
@@ -26,7 +26,7 @@ Signed-off-by: Jonas Karlman <jonas@kwiboo.se>
  
  #define TSADCV2_INT_SRC_EN(chn)			BIT(chn)
  #define TSADCV2_INT_SRC_EN_MASK(chn)		BIT(16 + (chn))
-@@ -229,6 +231,7 @@ struct rockchip_thermal_data {
+@@ -233,6 +235,7 @@ struct rockchip_thermal_data {
  #define TSADCV2_DATA_MASK			0xfff
  #define TSADCV3_DATA_MASK			0x3ff
  #define TSADCV4_DATA_MASK			0x1ff
@@ -34,7 +34,7 @@ Signed-off-by: Jonas Karlman <jonas@kwiboo.se>
  
  #define TSADCV2_HIGHT_INT_DEBOUNCE_COUNT	4
  #define TSADCV2_HIGHT_TSHUT_DEBOUNCE_COUNT	4
-@@ -241,6 +244,9 @@ struct rockchip_thermal_data {
+@@ -245,6 +248,9 @@ struct rockchip_thermal_data {
  #define TSADCV5_AUTO_PERIOD_HT_TIME		1622 /* 2.5ms */
  #define TSADCV6_AUTO_PERIOD_TIME		5000 /* 2.5ms */
  #define TSADCV6_AUTO_PERIOD_HT_TIME		5000 /* 2.5ms */
@@ -44,7 +44,7 @@ Signed-off-by: Jonas Karlman <jonas@kwiboo.se>
  
  #define TSADCV2_USER_INTER_PD_SOC		0x340 /* 13 clocks */
  #define TSADCV5_USER_INTER_PD_SOC		0xfc0 /* 97us, at least 90us */
-@@ -251,6 +257,8 @@ struct rockchip_thermal_data {
+@@ -255,6 +261,8 @@ struct rockchip_thermal_data {
  
  #define PX30_GRF_SOC_CON2			0x0408
  
@@ -53,7 +53,7 @@ Signed-off-by: Jonas Karlman <jonas@kwiboo.se>
  #define RK3568_GRF_TSADC_CON			0x0600
  #define RK3568_GRF_TSADC_ANA_REG0		(0x10001 << 0)
  #define RK3568_GRF_TSADC_ANA_REG1		(0x10001 << 1)
-@@ -522,6 +530,45 @@ static const struct tsadc_table rk3399_c
+@@ -526,6 +534,45 @@ static const struct tsadc_table rk3399_c
  	{TSADCV3_DATA_MASK, 125000},
  };
  
@@ -99,7 +99,7 @@ Signed-off-by: Jonas Karlman <jonas@kwiboo.se>
  static const struct tsadc_table rk3568_code_table[] = {
  	{0, -40000},
  	{1584, -40000},
-@@ -859,6 +906,40 @@ static void rk_tsadcv8_initialize(struct
+@@ -863,6 +910,40 @@ static void rk_tsadcv8_initialize(struct
  			       regs + TSADCV2_AUTO_CON);
  }
  
@@ -140,7 +140,7 @@ Signed-off-by: Jonas Karlman <jonas@kwiboo.se>
  static void rk_tsadcv2_irq_ack(void __iomem *regs)
  {
  	u32 val;
-@@ -1094,6 +1175,15 @@ static int rk_tsadcv2_get_trim_code(cons
+@@ -1098,6 +1179,15 @@ static int rk_tsadcv2_get_trim_code(cons
  	return code - base_code;
  }
  
@@ -156,7 +156,7 @@ Signed-off-by: Jonas Karlman <jonas@kwiboo.se>
  static const struct rockchip_tsadc_chip px30_tsadc_data = {
  	/* cpu, gpu */
  	.chn_offset = 0,
-@@ -1292,6 +1382,29 @@ static const struct rockchip_tsadc_chip
+@@ -1280,6 +1370,29 @@ static const struct rockchip_tsadc_chip
  	},
  };
  
@@ -186,7 +186,7 @@ Signed-off-by: Jonas Karlman <jonas@kwiboo.se>
  static const struct rockchip_tsadc_chip rk3568_tsadc_data = {
  	/* cpu, gpu */
  	.chn_offset = 0,
-@@ -1396,6 +1509,10 @@ static const struct of_device_id of_rock
+@@ -1384,6 +1497,10 @@ static const struct of_device_id of_rock
  		.data = (void *)&rk3399_tsadc_data,
  	},
  	{

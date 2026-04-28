@@ -11,7 +11,7 @@ Signed-off-by: Tianling Shen <cnsztl@gmail.com>
 
 --- a/arch/arm64/boot/dts/rockchip/rk3588-armsom-sige7.dts
 +++ b/arch/arm64/boot/dts/rockchip/rk3588-armsom-sige7.dts
-@@ -13,6 +13,11 @@
+@@ -14,6 +14,11 @@
  	aliases {
  		mmc0 = &sdhci;
  		mmc1 = &sdmmc;

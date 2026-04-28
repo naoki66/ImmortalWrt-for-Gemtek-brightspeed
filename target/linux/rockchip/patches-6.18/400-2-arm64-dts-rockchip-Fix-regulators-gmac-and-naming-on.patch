@@ -37,7 +37,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
 
 --- a/arch/arm64/boot/dts/rockchip/rk3588s-nanopi-r6.dtsi
 +++ b/arch/arm64/boot/dts/rockchip/rk3588s-nanopi-r6.dtsi
-@@ -21,7 +21,7 @@
+@@ -19,7 +19,7 @@
  		stdout-path = "serial2:1500000n8";
  	};
  
@@ -46,7 +46,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
  		compatible = "adc-keys";
  		io-channels = <&saradc 0>;
  		io-channel-names = "buttons";
-@@ -41,10 +41,10 @@
+@@ -39,10 +39,10 @@
  		pinctrl-0 = <&key1_pin>;
  
  		button-user {
@@ -60,11 +60,11 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
  		};
  	};
  
-@@ -80,26 +80,27 @@
+@@ -89,25 +89,26 @@
  		};
  	};
  
--	vcc5v0_sys: vcc5v0-sys-regulator {
+-	vcc5v0_sys: regulator-vcc5v0-sys {
 +	vcc_5v0: regulator-vcc-5v0 {
  		compatible = "regulator-fixed";
 -		regulator-name = "vcc5v0_sys";
@@ -75,8 +75,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
 +		regulator-name = "vcc_5v0";
  	};
  
--	vcc_1v1_nldo_s3: vcc-1v1-nldo-s3-regulator {
-+	vcc_1v1_nldo_s3: regulator-vcc-1v1-nldo-s3 {
+ 	vcc_1v1_nldo_s3: regulator-vcc-1v1-nldo-s3 {
  		compatible = "regulator-fixed";
 -		regulator-name = "vcc_1v1_nldo_s3";
  		regulator-always-on;
@@ -88,20 +87,11 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
 +		vin-supply = <&vcc_5v0>;
  	};
  
--	vcc_3v3_s0: vcc-3v3-s0-regulator {
 +	/* SY6280AAC power switch (U3824 in schematics) */
-+	vcc_3v3_s0: regulator-vcc-3v3-s0 {
+ 	vcc_3v3_s0: regulator-vcc-3v3-s0 {
  		compatible = "regulator-fixed";
  		regulator-always-on;
- 		regulator-boot-on;
-@@ -109,61 +110,45 @@
- 		vin-supply = <&vcc_3v3_s3>;
- 	};
- 
--	vcc_3v3_sd_s0: vcc-3v3-sd-s0-regulator {
-+	vcc_3v3_sd_s0: regulator-vcc-3v3-sd-s0 {
- 		compatible = "regulator-fixed";
- 		enable-active-high;
+@@ -124,55 +125,39 @@
  		gpios = <&gpio4 RK_PB4 GPIO_ACTIVE_HIGH>;
  		pinctrl-names = "default";
  		pinctrl-0 = <&sd_s0_pwr>;
@@ -112,7 +102,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
 -		vin-supply = <&vcc_3v3_s3>;
 -	};
 -
--	vcc_3v3_pcie20: vcc3v3-pcie20-regulator {
+-	vcc_3v3_pcie20: regulator-vcc3v3-pcie20 {
 -		compatible = "regulator-fixed";
 -		regulator-name = "vcc_3v3_pcie20";
 -		regulator-always-on;
@@ -124,7 +114,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
  		vin-supply = <&vcc_3v3_s3>;
  	};
  
--	vcc5v0_usb: vcc5v0-usb-regulator {
+-	vcc5v0_usb: regulator-vcc5v0-usb {
 -		compatible = "regulator-fixed";
 -		regulator-name = "vcc5v0_usb";
 -		regulator-always-on;
@@ -134,7 +124,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
 -		vin-supply = <&vcc5v0_sys>;
 -	};
 -
--	vcc5v0_usb_otg0: vcc5v0-usb-otg0-regulator {
+-	vcc5v0_usb_otg0: regulator-vcc5v0-usb-otg0 {
 +	/* SY6280AAC power switch (U9539 in schematics) */
 +	/* For USB 2.0 Type-A port */
 +	vcc_5v0_host_20: regulator-vcc-5v0-host-20 {
@@ -153,7 +143,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
 +		vin-supply = <&vcc_5v0>;
  	};
  
--	vcc5v0_host_20: vcc5v0-host-20-regulator {
+-	vcc5v0_host_20: regulator-vcc5v0-host-20 {
 +	/* SY6280AAC power switch (U9538 in schematics) */
 +	/* For USB 3.0 Type-A port */
 +	vcc5v0_usb_otg0: regulator-vcc5v0-usb-otg0 {
@@ -173,7 +163,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
  	};
  };
  
-@@ -211,12 +196,13 @@
+@@ -220,12 +205,13 @@
  	clock_in_out = "output";
  	phy-handle = <&rgmii_phy1>;
  	phy-mode = "rgmii-rxid";
@@ -188,7 +178,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
  	tx_delay = <0x42>;
  	status = "okay";
  };
-@@ -230,13 +216,13 @@
+@@ -268,13 +254,13 @@
  		compatible = "rockchip,rk8602";
  		reg = <0x42>;
  		fcs,suspend-voltage-selector = <1>;
@@ -204,7 +194,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
  
  		regulator-state-mem {
  			regulator-off-in-suspend;
-@@ -247,13 +233,13 @@
+@@ -285,13 +271,13 @@
  		compatible = "rockchip,rk8603", "rockchip,rk8602";
  		reg = <0x43>;
  		fcs,suspend-voltage-selector = <1>;
@@ -220,7 +210,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
  
  		regulator-state-mem {
  			regulator-off-in-suspend;
-@@ -268,13 +254,13 @@
+@@ -306,13 +292,13 @@
  		compatible = "rockchip,rk8602";
  		reg = <0x42>;
  		fcs,suspend-voltage-selector = <1>;
@@ -238,7 +228,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
  
  		regulator-state-mem {
  			regulator-off-in-suspend;
-@@ -293,35 +279,43 @@
+@@ -331,10 +317,10 @@
  		reg = <0x51>;
  		#clock-cells = <0>;
  		clock-output-names = "hym8563";
@@ -250,6 +240,9 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
 +		pinctrl-0 = <&rtc_int>;
  		wakeup-source;
  	};
+ };
+@@ -343,27 +329,35 @@
+ 	status = "okay";
  };
  
 +/* RTL8211F-CG Ethernet */
@@ -287,7 +280,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
  	status = "okay";
  };
  
-@@ -360,24 +354,34 @@
+@@ -410,24 +404,34 @@
  		};
  	};
  
@@ -326,7 +319,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
  			rockchip,pins = <3 RK_PB7 RK_FUNC_GPIO &pcfg_pull_none>;
  		};
  	};
-@@ -388,15 +392,19 @@
+@@ -468,15 +472,19 @@
  	status = "okay";
  };
  
@@ -348,7 +341,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
  &sdmmc {
  	bus-width = <4>;
  	cap-sd-highspeed;
-@@ -411,16 +419,15 @@
+@@ -492,16 +500,15 @@
  };
  
  &spi2 {
@@ -368,7 +361,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
  		reg = <0x0>;
  
  		interrupt-parent = <&gpio0>;
-@@ -430,23 +437,24 @@
+@@ -511,23 +518,24 @@
  		pinctrl-0 = <&pmic_pins>, <&rk806_dvs1_null>,
  			    <&rk806_dvs2_null>, <&rk806_dvs3_null>;
  
@@ -405,7 +398,7 @@ Signed-off-by: Sebastian Kropatsch <seb-dev@mail.de>
  
  		gpio-controller;
  		#gpio-cells = <2>;
-@@ -745,10 +753,11 @@
+@@ -835,10 +843,11 @@
  };
  
  &u2phy2_host {

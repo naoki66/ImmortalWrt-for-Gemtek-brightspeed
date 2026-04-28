@@ -12,9 +12,9 @@ Signed-off-by: David Bauer <mail@david-bauer.net>
  arch/arm64/boot/dts/rockchip/rk3328-nanopi-r2s.dts | 7 +++++++
  1 file changed, 1 insertions(+)
 
---- a/arch/arm64/boot/dts/rockchip/rk3328-nanopi-r2s.dts
-+++ b/arch/arm64/boot/dts/rockchip/rk3328-nanopi-r2s.dts
-@@ -407,6 +407,7 @@
+--- a/arch/arm64/boot/dts/rockchip/rk3328-nanopi-r2.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3328-nanopi-r2.dtsi
+@@ -390,6 +390,7 @@
  	rtl8153: device@2 {
  		compatible = "usbbda,8153";
  		reg = <2>;
