@@ -231,7 +231,7 @@ define Device/zyxel_xmg1915-10e
   ZYXEL_VERS := ABWE
   DEVICE_VENDOR := Zyxel
   DEVICE_MODEL := XMG1915-10E
-  FLASH_ADDR := 0xb5290000
+  FLASH_ADDR := 0xb4270000
 ifeq ($(IB),)
   ARTIFACTS := loader.bin
   ARTIFACT/loader.bin := \
@@ -239,6 +239,6 @@ ifeq ($(IB),)
     zynsig
 endif
   $(Device/rt-loader-bootbase)
-  IMAGE_SIZE := 13760k
+  IMAGE_SIZE := 30336k
 endef
 TARGET_DEVICES += zyxel_xmg1915-10e

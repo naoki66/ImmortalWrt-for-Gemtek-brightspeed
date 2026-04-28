@@ -161,19 +161,27 @@
 
 			partition@80000 {
 				label = "reserved";
-				reg = <0x80000 0xf80000>;
+				reg = <0x80000 0x1e0000>;
 				read-only;
 			};
 
-			partition@1260000 {
-				label = "loader";
-				reg = <0x1260000 0x30000>;
-			};
+			partition@260000 {
+				label = "factory";
+				reg = <0x260000 0x1da0000>;
 
-			partition@1290000 {
-				label = "firmware";
-				reg = <0x1290000 0xd70000>;
-				compatible = "openwrt,uimage", "denx,uimage";
+				compatible = "fixed-partitions";
+				#address-cells = <1>;
+				#size-cells = <1>;
+
+				partition@0 {
+					label = "loader";
+					reg = <0x0 0x10000>;
+				};
+				partition@10000 {
+					label = "firmware";
+					reg = <0x10000 0x1d90000>;
+					compatible = "openwrt,uimage", "denx,uimage";
+				};
 			};
 		};
 	};
