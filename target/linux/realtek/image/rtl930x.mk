@@ -226,12 +226,16 @@ define Device/zyxel_xgs1250-12-b1
 endef
 TARGET_DEVICES += zyxel_xgs1250-12-b1
 
-define Device/zyxel_xmg1915-10e
+define Device/zyxel_xmg1915
   SOC := rtl9302
-  DEVICE_MODEL := XMG1915-10E
   FLASH_ADDR := 0xb4270000
   IMAGE_SIZE := 30336k
   ZYNFW_ALIGN := 0x10000
   $(Device/zyxel_zynos)
+endef
+
+define Device/zyxel_xmg1915-10e
+  DEVICE_MODEL := XMG1915-10E
+  $(Device/zyxel_xmg1915)
 endef
 TARGET_DEVICES += zyxel_xmg1915-10e
