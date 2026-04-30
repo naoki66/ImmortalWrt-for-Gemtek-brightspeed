@@ -136,6 +136,7 @@ define Device/Default
 	uImage gzip
   DEVICE_DTS_DIR := ../dts
   DEVICE_DTS = $$(SOC)_$(1)
+  COMPILE :=
   IMAGES := sysupgrade.bin
   IMAGE/sysupgrade.bin := \
 	append-kernel | \
