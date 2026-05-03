@@ -799,29 +799,38 @@ static int rtmdio_931x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 	return regmap_update_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL1, GENMASK(7, 0), c45_mask);
 }
 
+static int rtmdio_931x_set_port_ability(struct rtmdio_ctrl *ctrl, u32 pn, u32 ability)
+{
+	u32 mask, val, reg;
+
+	if (pn >= ctrl->cfg->num_phys)
+		return -EINVAL;
+
+	reg = RTMDIO_931X_SMI_PHY_ABLTY_GET_SEL + (pn / 16) * 4;
+	mask = GENMASK(1, 0) << ((pn % 16) * 2);
+	val = ability << __ffs(mask);
+
+	return regmap_update_bits(ctrl->map, reg, mask, val);
+}
+
 static void rtmdio_931x_setup_polling(struct rtmdio_ctrl *ctrl)
 {
 	struct rtmdio_phy_info phyinfo;
 	u32 pn;
 
-	/* set everything to "SerDes driven" */
-	for (int reg = 0; reg < 4; reg++)
-		regmap_write(ctrl->map, RTMDIO_931X_SMI_PHY_ABLTY_GET_SEL + reg * 4,
-			     RTMDIO_931X_SMI_PHY_ABLTY_SDS * 0x55555555U);
+	/* set all ports to "SerDes driven" */
+	for (pn = 0; pn < ctrl->cfg->num_phys; pn++)
+		rtmdio_931x_set_port_ability(ctrl, pn, RTMDIO_931X_SMI_PHY_ABLTY_SDS);
 
 	/* Define PHY specific polling parameters */
 	for_each_port(ctrl, pn) {
 		u8 smi_bus = ctrl->port[pn].smi_bus;
-		unsigned int mask, val;
 
 		if (rtmdio_get_phy_info(ctrl, pn, &phyinfo))
 			continue;
 
-		/* set to "PHY driven" */
-		mask = GENMASK(1, 0) << ((pn % 16) * 2);
-		val = RTMDIO_931X_SMI_PHY_ABLTY_MDIO << (ffs(mask) - 1);
-		regmap_update_bits(ctrl->map, RTMDIO_931X_SMI_PHY_ABLTY_GET_SEL + (pn / 16) * 4,
-				   mask, val);
+		/* set port to "PHY driven" */
+		rtmdio_931x_set_port_ability(ctrl, pn, RTMDIO_931X_SMI_PHY_ABLTY_MDIO);
 
 		/* PRVTE0 polling */
 		regmap_assign_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL0,
