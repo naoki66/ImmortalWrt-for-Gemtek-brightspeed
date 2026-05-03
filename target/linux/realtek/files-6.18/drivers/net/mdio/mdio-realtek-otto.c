@@ -44,7 +44,8 @@
 						 ((reg) & GENMASK(15, 0)))
 
 /* MDIO bus registers/fields */
-#define RTMDIO_C45_DATA(devnum, regnum)		(((devnum) << 16) | ((regnum) & GENMASK(15, 0)))
+#define RTMDIO_C45_DATA(devnum, regnum)		((((devnum) & GENMASK(4, 0)) << 16) | \
+						  ((regnum) & GENMASK(15, 0)))
 #define RTMDIO_DATA_MASK			GENMASK(15, 0)
 #define RTMDIO_RUN				BIT(0)
 
