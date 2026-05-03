@@ -126,9 +126,6 @@
 #define for_each_port(ctrl, pn) \
 	for_each_set_bit(pn, ctrl->valid_ports, RTMDIO_MAX_PORTS)
 
-#define rtmdio_ctrl_from_bus(bus) \
-	(((struct rtmdio_chan *)(bus)->priv)->ctrl)
-
 /*
  * On all Realtek switch platforms the hardware periodically reads the link status of all
  * PHYs. This is to some degree programmable, so that one can tell the hardware to read
@@ -281,6 +278,11 @@ struct rtmdio_931x_smi_access {
 	u32 b_ctrl;
 	u32 m_ctrl;
 };
+
+static inline struct rtmdio_ctrl *rtmdio_ctrl_from_bus(struct mii_bus *bus)
+{
+	return ((struct rtmdio_chan *)bus->priv)->ctrl;
+}
 
 static int rtmdio_phy_to_port(struct mii_bus *bus, int phy)
 {
