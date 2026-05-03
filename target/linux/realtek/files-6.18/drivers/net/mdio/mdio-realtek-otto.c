@@ -48,7 +48,7 @@
 #define RTMDIO_DATA_MASK			GENMASK(15, 0)
 #define RTMDIO_RUN				BIT(0)
 
-#define RTMDIO_838X_C22_DATA(page, reg)		((reg) << 20 | 0x1f << 15 | (page) << 3)
+#define RTMDIO_838X_C22_DATA(page, reg)		((reg) << 20 | RTMDIO_PAGE_SELECT << 15 | (page) << 3)
 #define RTMDIO_838X_PHY_PATCH_DONE		BIT(15)
 #define RTMDIO_838X_SMI_GLB_CTRL		(0xa100)
 #define RTMDIO_838X_SMI_ACCESS_PHY_CTRL_0	(0xa1b8)
@@ -65,7 +65,7 @@
 
 #define RTMDIO_839X_C22_DATA(page, reg)		((reg) << 5 | (page) << 10 | \
 						 (((page) == RTMDIO_RAW_PAGE(RTMDIO_839X_NUM_PAGES)) ? \
-						  0x1f : 0) << 23)
+						  RTMDIO_PAGE_SELECT : 0) << 23)
 #define RTMDIO_839X_PHYREG_ACCESS_CTRL		(0x03DC)
 #define   RTMDIO_839X_CMD_FAIL			BIT(1)
 #define   RTMDIO_839X_CMD_READ_C22		0
@@ -79,7 +79,7 @@
 #define RTMDIO_839X_SMI_PORT_POLLING_CTRL	(0x03fc)
 #define RTMDIO_839X_SMI_GLB_CTRL		(0x03f8)
 
-#define RTMDIO_930X_C22_DATA(page, reg)		((reg) << 20 | 0x1f << 15 | (page) << 3)
+#define RTMDIO_930X_C22_DATA(page, reg)		((reg) << 20 | RTMDIO_PAGE_SELECT << 15 | (page) << 3)
 #define RTMDIO_930X_SMI_GLB_CTRL		(0xCA00)
 #define RTMDIO_930X_SMI_ACCESS_PHY_CTRL_0	(0xCB70)
 #define RTMDIO_930X_SMI_ACCESS_PHY_CTRL_1	(0xCB74)
