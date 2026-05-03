@@ -699,9 +699,7 @@ static int rtmdio_838x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 	 * PHY_PATCH_DONE enables phy control via SoC. This is required for phy access,
 	 * including patching. Must always be set before the phys are probed.
 	 */
-	regmap_set_bits(ctrl->map, RTMDIO_838X_SMI_GLB_CTRL, RTMDIO_838X_PHY_PATCH_DONE);
-
-	return 0;
+	return regmap_set_bits(ctrl->map, RTMDIO_838X_SMI_GLB_CTRL, RTMDIO_838X_PHY_PATCH_DONE);
 }
 
 static void rtmdio_838x_setup_polling(struct rtmdio_ctrl *ctrl)
@@ -737,10 +735,15 @@ static int rtmdio_839x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 
 static int rtmdio_930x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 {
+	int ret;
+
 	/* Define C22/C45 bus feature set */
-	for (int smi_bus = 0; smi_bus < ctrl->cfg->num_busses; smi_bus++)
-		regmap_assign_bits(ctrl->map, RTMDIO_930X_SMI_GLB_CTRL,
-				   BIT(16 + smi_bus), ctrl->bus[smi_bus].is_c45);
+	for (int smi_bus = 0; smi_bus < ctrl->cfg->num_busses; smi_bus++) {
+		ret = regmap_assign_bits(ctrl->map, RTMDIO_930X_SMI_GLB_CTRL,
+					 BIT(16 + smi_bus), ctrl->bus[smi_bus].is_c45);
+		if (ret)
+			return ret;
+	}
 
 	return 0;
 }
@@ -794,9 +797,7 @@ static int rtmdio_931x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 		if (ctrl->bus[smi_bus].is_c45)
 			c45_mask |= 0x2 << (smi_bus * 2);  /* Std. C45, non-standard is 0x3 */
 	}
-	regmap_update_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL1, GENMASK(7, 0), c45_mask);
-
-	return 0;
+	return regmap_update_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL1, GENMASK(7, 0), c45_mask);
 }
 
 static void rtmdio_931x_setup_polling(struct rtmdio_ctrl *ctrl)
@@ -969,7 +970,9 @@ static int rtmdio_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	ctrl->cfg->setup_ctrl(ctrl);
+	ret = ctrl->cfg->setup_ctrl(ctrl);
+	if (ret)
+		return ret;
 
 	device_for_each_child_node_scoped(dev, child) {
 		ret = rtmdio_probe_one(dev, ctrl, child);
