@@ -13,7 +13,12 @@
 #define RTMDIO_MAX_PORTS			57
 #define RTMDIO_MAX_SMI_BUSSES			4
 
+#define RTMDIO_838X_NUM_PAGES			4096
+#define RTMDIO_839X_NUM_PAGES			8192
+#define RTMDIO_930X_NUM_PAGES			4096
+#define RTMDIO_931X_NUM_PAGES			8192
 #define RTMDIO_PAGE_SELECT			0x1f
+#define RTMDIO_RAW_PAGE(p)			((p) - 1)
 
 #define RTMDIO_PHY_AQR113C_A			0x31c31c12
 #define RTMDIO_PHY_AQR113C_B			0x31c31c13
@@ -52,7 +57,8 @@
 #define RTMDIO_838X_SMI_PORT0_5_ADDR_CTRL	(0xa1c8)
 
 #define RTMDIO_839X_C22_DATA(page, reg)		((reg) << 5 | (page) << 10 | \
-						 (((page) == 8191) ? 0x1f : 0) << 23)
+						 (((page) == RTMDIO_RAW_PAGE(RTMDIO_839X_NUM_PAGES)) ? \
+						  0x1f : 0) << 23)
 #define RTMDIO_839X_PHYREG_ACCESS_CTRL		(0x03DC)
 #define   RTMDIO_839X_CMD_FAIL			BIT(1)
 #define   RTMDIO_839X_CMD_READ_C22		0
@@ -203,12 +209,12 @@ struct rtmdio_chan {
 };
 
 struct rtmdio_config {
-	int num_phys;
-	int raw_page;
 	u32 cmd_fail;
 	u32 cmd_mask;
 	u32 cmd_reg;
 	int bus_map_base;
+	u16 num_pages;
+	u16 num_phys;
 	int port_map_base;
 	int (*read_c22)(struct mii_bus *bus, u32 pn, u32 page, u32 reg, u32 *val);
 	int (*read_c45)(struct mii_bus *bus, u32 pn, u32 devnum, u32 regnum, u32 *val);
@@ -521,10 +527,11 @@ static int rtmdio_read_c22(struct mii_bus *bus, int phy, int regnum)
 		return pn;
 
 	guard(mutex)(&ctrl->lock);
-	if (regnum == RTMDIO_PAGE_SELECT && ctrl->port[pn].page != ctrl->cfg->raw_page)
+	if (regnum == RTMDIO_PAGE_SELECT &&
+	    ctrl->port[pn].page != RTMDIO_RAW_PAGE(ctrl->cfg->num_pages))
 		return ctrl->port[pn].page;
 
-	ctrl->port[pn].raw = (ctrl->port[pn].page == ctrl->cfg->raw_page);
+	ctrl->port[pn].raw = (ctrl->port[pn].page == RTMDIO_RAW_PAGE(ctrl->cfg->num_pages));
 
 	err = (*ctrl->cfg->read_c22)(bus, pn, ctrl->port[pn].page, regnum, &val);
 	dev_dbg(&bus->dev, "rd_PHY(phy=0x%02x, pag=0x%04x, reg=0x%04x) = 0x%04x, err = %d\n",
@@ -566,8 +573,8 @@ static int rtmdio_write_c22(struct mii_bus *bus, int phy, int regnum, u16 val)
 		ctrl->port[pn].page = val;
 
 	if (!ctrl->port[pn].raw &&
-	    (regnum != RTMDIO_PAGE_SELECT || page == ctrl->cfg->raw_page)) {
-		ctrl->port[pn].raw = (page == ctrl->cfg->raw_page);
+	    (regnum != RTMDIO_PAGE_SELECT || page == RTMDIO_RAW_PAGE(ctrl->cfg->num_pages))) {
+		ctrl->port[pn].raw = (page == RTMDIO_RAW_PAGE(ctrl->cfg->num_pages));
 
 		err = (*ctrl->cfg->write_c22)(bus, pn, page, regnum, val);
 		dev_dbg(&bus->dev,
@@ -960,11 +967,11 @@ static int rtmdio_probe(struct platform_device *pdev)
 }
 
 static const struct rtmdio_config rtmdio_838x_cfg = {
-	.num_phys	= 28,
-	.raw_page	= 4095,
 	.cmd_fail	= RTMDIO_838X_CMD_FAIL,
 	.cmd_mask	= RTMDIO_838X_CMD_MASK,
 	.cmd_reg	= RTMDIO_838X_SMI_ACCESS_PHY_CTRL_1,
+	.num_pages	= RTMDIO_838X_NUM_PAGES,
+	.num_phys	= 28,
 	.port_map_base	= RTMDIO_838X_SMI_PORT0_5_ADDR_CTRL,
 	.read_c22	= rtmdio_838x_read_c22,
 	.read_c45	= rtmdio_838x_read_c45,
@@ -979,11 +986,11 @@ static const struct rtmdio_config rtmdio_838x_cfg = {
 };
 
 static const struct rtmdio_config rtmdio_839x_cfg = {
-	.num_phys	= 52,
-	.raw_page	= 8191,
 	.cmd_fail	= RTMDIO_839X_CMD_FAIL,
 	.cmd_mask	= RTMDIO_839X_CMD_MASK,
 	.cmd_reg	= RTMDIO_839X_PHYREG_ACCESS_CTRL,
+	.num_pages	= RTMDIO_839X_NUM_PAGES,
+	.num_phys	= 52,
 	.read_c22	= rtmdio_839x_read_c22,
 	.read_c45	= rtmdio_839x_read_c45,
 	.ret_mask	= GENMASK(15, 0),
@@ -996,12 +1003,12 @@ static const struct rtmdio_config rtmdio_839x_cfg = {
 };
 
 static const struct rtmdio_config rtmdio_930x_cfg = {
-	.num_phys	= 28,
-	.raw_page	= 4095,
 	.cmd_fail	= RTMDIO_930X_CMD_FAIL,
 	.cmd_mask	= RTMDIO_930X_CMD_MASK,
 	.cmd_reg	= RTMDIO_930X_SMI_ACCESS_PHY_CTRL_1,
 	.bus_map_base	= RTMDIO_930X_SMI_PORT0_15_POLLING_SEL,
+	.num_pages	= RTMDIO_930X_NUM_PAGES,
+	.num_phys	= 28,
 	.port_map_base	= RTMDIO_930X_SMI_PORT0_5_ADDR_CTRL,
 	.read_c22	= rtmdio_930x_read_c22,
 	.read_c45	= rtmdio_930x_read_c45,
@@ -1016,12 +1023,12 @@ static const struct rtmdio_config rtmdio_930x_cfg = {
 };
 
 static const struct rtmdio_config rtmdio_931x_cfg = {
-	.num_phys	= 56,
-	.raw_page	= 8191,
 	.cmd_fail	= RTMDIO_931X_CMD_FAIL,
 	.cmd_mask	= RTMDIO_931X_CMD_MASK,
 	.cmd_reg	= RTMDIO_931X_SMI_INDRT_ACCESS_CTRL_0,
 	.bus_map_base	= RTMDIO_931X_SMI_PORT_POLLING_SEL,
+	.num_pages	= RTMDIO_931X_NUM_PAGES,
+	.num_phys	= 56,
 	.port_map_base	= RTMDIO_931X_SMI_PORT_ADDR_CTRL,
 	.read_c22	= rtmdio_931x_read_c22,
 	.read_c45	= rtmdio_931x_read_c45,
