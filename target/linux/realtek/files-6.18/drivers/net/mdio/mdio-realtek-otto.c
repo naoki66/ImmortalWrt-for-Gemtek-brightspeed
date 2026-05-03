@@ -471,7 +471,6 @@ static int rtmdio_931x_read_c22(struct mii_bus *bus, u32 pn, u32 page, u32 reg, 
 	return rtmdio_run_cmd(bus, RTMDIO_931X_CMD_READ_C22, &smi_access, val);
 }
 
-
 static int rtmdio_931x_write_c22(struct mii_bus *bus, u32 pn, u32 page, u32 reg, u32 val)
 {
 	struct rtmdio_931x_smi_access smi_access = {
@@ -655,7 +654,7 @@ static int rtmdio_get_phy_info(struct rtmdio_ctrl *ctrl, int pn, struct rtmdio_p
 	memset(phyinfo, 0, sizeof(*phyinfo));
 	phyid = rtmdio_get_phy_id(mdiobus_get_phy(bus, addr));
 
-	switch(phyid) {
+	switch (phyid) {
 	case RTMDIO_PHY_AQR113C_A:
 	case RTMDIO_PHY_AQR113C_B:
 	case RTMDIO_PHY_AQR813:
@@ -762,7 +761,7 @@ static void rtmdio_930x_setup_polling(struct rtmdio_ctrl *ctrl)
 			continue;
 
 		/* set to "PHY driven" */
-		mask = pn > 23 ? 0x7 << ((pn - 24) * 3 + 12): 0x3 << ((pn / 4) * 2);
+		mask = pn > 23 ? 0x7 << ((pn - 24) * 3 + 12) : 0x3 << ((pn / 4) * 2);
 		val = phyinfo.mac_type << (ffs(mask) - 1);
 		regmap_update_bits(ctrl->map, RTMDIO_930X_SMI_MAC_TYPE_CTRL, mask, val);
 
