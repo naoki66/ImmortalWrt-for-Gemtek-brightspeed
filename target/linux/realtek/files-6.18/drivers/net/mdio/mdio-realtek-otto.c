@@ -308,6 +308,7 @@ static int rtmdio_run_cmd(struct mii_bus *bus, int cmd, void *smi_access, u32 *v
 	if (ret)
 		return ret;
 
+	/* Use masks as C22 data and command bits share the same register. */
 	ret = regmap_update_bits(ctrl->map, ctrl->cfg->cmd_reg,
 				 ctrl->cfg->cmd_mask, cmd | RTMDIO_RUN);
 	if (ret)
