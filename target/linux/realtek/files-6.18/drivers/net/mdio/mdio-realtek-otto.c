@@ -510,24 +510,24 @@ static int rtmdio_931x_write_c45(struct mii_bus *bus, u32 pn, u32 devnum, u32 re
 static int rtmdio_read_c45(struct mii_bus *bus, int phy, int devnum, int regnum)
 {
 	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
-	int err, val, pn;
+	int ret, val, pn;
 
 	pn = rtmdio_phy_to_port(bus, phy);
 	if (pn < 0)
 		return pn;
 
 	guard(mutex)(&ctrl->lock);
-	err = (*ctrl->cfg->read_c45)(bus, pn, devnum, regnum, &val);
-	dev_dbg(&bus->dev, "rd_MMD(phy=0x%02x, dev=0x%04x, reg=0x%04x) = 0x%04x, err = %d\n",
-		phy, devnum, regnum, val, err);
+	ret = (*ctrl->cfg->read_c45)(bus, pn, devnum, regnum, &val);
+	dev_dbg(&bus->dev, "rd_MMD(phy=0x%02x, dev=0x%04x, reg=0x%04x) = 0x%04x, ret = %d\n",
+		phy, devnum, regnum, val, ret);
 
-	return err ? err : val;
+	return ret ? ret : val;
 }
 
 static int rtmdio_read_c22(struct mii_bus *bus, int phy, int regnum)
 {
 	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
-	int err, val, pn;
+	int ret, val, pn;
 
 	pn = rtmdio_phy_to_port(bus, phy);
 	if (pn < 0)
@@ -540,34 +540,34 @@ static int rtmdio_read_c22(struct mii_bus *bus, int phy, int regnum)
 
 	ctrl->port[pn].raw = (ctrl->port[pn].page == RTMDIO_RAW_PAGE(ctrl->cfg->num_pages));
 
-	err = (*ctrl->cfg->read_c22)(bus, pn, ctrl->port[pn].page, regnum, &val);
-	dev_dbg(&bus->dev, "rd_PHY(phy=0x%02x, pag=0x%04x, reg=0x%04x) = 0x%04x, err = %d\n",
-		phy, ctrl->port[pn].page, regnum, val, err);
+	ret = (*ctrl->cfg->read_c22)(bus, pn, ctrl->port[pn].page, regnum, &val);
+	dev_dbg(&bus->dev, "rd_PHY(phy=0x%02x, pag=0x%04x, reg=0x%04x) = 0x%04x, ret = %d\n",
+		phy, ctrl->port[pn].page, regnum, val, ret);
 
-	return err ? err : val;
+	return ret ? ret : val;
 }
 
 static int rtmdio_write_c45(struct mii_bus *bus, int phy, int devnum, int regnum, u16 val)
 {
 	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
-	int err, pn;
+	int ret, pn;
 
 	pn = rtmdio_phy_to_port(bus, phy);
 	if (pn < 0)
 		return pn;
 
 	guard(mutex)(&ctrl->lock);
-	err = (*ctrl->cfg->write_c45)(bus, pn, devnum, regnum, val);
-	dev_dbg(&bus->dev, "wr_MMD(phy=0x%02x, dev=0x%04x, reg=0x%04x, val=0x%04x), err = %d\n",
-		phy, devnum, regnum, val, err);
+	ret = (*ctrl->cfg->write_c45)(bus, pn, devnum, regnum, val);
+	dev_dbg(&bus->dev, "wr_MMD(phy=0x%02x, dev=0x%04x, reg=0x%04x, val=0x%04x), ret = %d\n",
+		phy, devnum, regnum, val, ret);
 
-	return err;
+	return ret;
 }
 
 static int rtmdio_write_c22(struct mii_bus *bus, int phy, int regnum, u16 val)
 {
 	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
-	int err, page, pn;
+	int ret, page, pn;
 
 	pn = rtmdio_phy_to_port(bus, phy);
 	if (pn < 0)
@@ -583,11 +583,11 @@ static int rtmdio_write_c22(struct mii_bus *bus, int phy, int regnum, u16 val)
 	    (regnum != RTMDIO_PAGE_SELECT || page == RTMDIO_RAW_PAGE(ctrl->cfg->num_pages))) {
 		ctrl->port[pn].raw = (page == RTMDIO_RAW_PAGE(ctrl->cfg->num_pages));
 
-		err = (*ctrl->cfg->write_c22)(bus, pn, page, regnum, val);
+		ret = (*ctrl->cfg->write_c22)(bus, pn, page, regnum, val);
 		dev_dbg(&bus->dev,
-			"wr_PHY(phy=0x%02x, pag=0x%04x, reg=0x%04x, val=0x%04x), err = %d\n",
-			phy, page, regnum, val, err);
-		return err;
+			"wr_PHY(phy=0x%02x, pag=0x%04x, reg=0x%04x, val=0x%04x), ret = %d\n",
+			phy, page, regnum, val, ret);
+		return ret;
 	}
 
 	ctrl->port[pn].raw = false;
