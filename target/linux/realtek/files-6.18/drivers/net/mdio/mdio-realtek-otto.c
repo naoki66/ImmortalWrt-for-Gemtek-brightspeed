@@ -945,7 +945,9 @@ static int rtmdio_probe_one(struct device *dev, struct rtmdio_ctrl *ctrl,
 
 	ret = fwnode_property_read_u32(node, "reg", &smi_bus);
 	if (ret)
-		return ret;
+		return dev_err_probe(dev, ret, "%pfwP missing reg property for MDIO bus\n", node);
+	if (smi_bus >= ctrl->cfg->num_busses)
+		return dev_err_probe(dev, -EINVAL, "%pfwP wrong bus index %d\n", node, smi_bus);
 
 	bus = devm_mdiobus_alloc_size(dev, sizeof(*chan));
 	if (!bus)
