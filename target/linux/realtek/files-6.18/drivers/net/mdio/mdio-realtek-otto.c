@@ -37,6 +37,7 @@
 
 #define RTMDIO_PHY_MAC_1G			3
 #define RTMDIO_PHY_MAC_2G_PLUS			1
+#define RTMDIO_PHY_MAC_SDS			0
 
 #define RTMDIO_PHY_POLL_MMD(dev, reg, bit)	((((bit) & GENMASK(3, 0)) << 21) | \
 						 (((dev) & GENMASK(4, 0)) << 16) | \
@@ -747,23 +748,38 @@ static int rtmdio_930x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 	return 0;
 }
 
+static int rtmdio_930x_set_port_ability(struct rtmdio_ctrl *ctrl, u32 pn, u32 ability)
+{
+	u32 mask, val;
+
+	if (pn >= ctrl->cfg->num_phys)
+		return -EINVAL;
+	/*
+	 * Hardware accepts only register values 0-3 but uses 2 types of fields. Ports 0-23 are
+	 * grouped by 4 with 2 field bits. Ports 24-27 are handled individually with 3 field bits.
+	 */
+	mask = pn < 24 ? GENMASK(1, 0) << ((pn / 4) * 2) : GENMASK(2, 0) << ((pn - 24) * 3 + 12);
+	val = ability << __ffs(mask);
+
+	return regmap_update_bits(ctrl->map, RTMDIO_930X_SMI_MAC_TYPE_CTRL, mask, val);
+}
+
 static void rtmdio_930x_setup_polling(struct rtmdio_ctrl *ctrl)
 {
 	struct rtmdio_phy_info phyinfo;
-	unsigned int mask, val, pn;
+	unsigned int pn;
 
-	/* set everthing to "SerDes driven" */
-	regmap_write(ctrl->map, RTMDIO_930X_SMI_MAC_TYPE_CTRL, 0);
+	/* set all ports to "SerDes driven" */
+	for (pn = 0; pn < ctrl->cfg->num_phys; pn++)
+		rtmdio_930x_set_port_ability(ctrl, pn, RTMDIO_PHY_MAC_SDS);
 
 	/* Define PHY specific polling parameters */
 	for_each_port(ctrl, pn) {
 		if (rtmdio_get_phy_info(ctrl, pn, &phyinfo))
 			continue;
 
-		/* set to "PHY driven" */
-		mask = pn > 23 ? 0x7 << ((pn - 24) * 3 + 12) : 0x3 << ((pn / 4) * 2);
-		val = phyinfo.mac_type << (ffs(mask) - 1);
-		regmap_update_bits(ctrl->map, RTMDIO_930X_SMI_MAC_TYPE_CTRL, mask, val);
+		/* set port to "PHY driven" */
+		rtmdio_930x_set_port_ability(ctrl, pn, phyinfo.mac_type);
 
 		/* polling via standard or resolution register */
 		regmap_assign_bits(ctrl->map, RTMDIO_930X_SMI_GLB_CTRL,
