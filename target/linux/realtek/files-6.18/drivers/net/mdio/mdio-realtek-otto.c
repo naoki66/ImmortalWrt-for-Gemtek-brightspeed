@@ -38,7 +38,9 @@
 #define RTMDIO_PHY_MAC_1G			3
 #define RTMDIO_PHY_MAC_2G_PLUS			1
 
-#define RTMDIO_PHY_POLL_MMD(dev, reg, bit)	((bit << 21) | (dev << 16) | (reg))
+#define RTMDIO_PHY_POLL_MMD(dev, reg, bit)	((((bit) & GENMASK(3, 0)) << 21) | \
+						 (((dev) & GENMASK(4, 0)) << 16) | \
+						 ((reg) & GENMASK(15, 0)))
 
 /* MDIO bus registers/fields */
 #define RTMDIO_C45_DATA(devnum, regnum)		(((devnum) << 16) | ((regnum) & GENMASK(15, 0)))
