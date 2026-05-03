@@ -800,19 +800,22 @@ static void rtmdio_930x_setup_polling(struct rtmdio_ctrl *ctrl)
 
 static int rtmdio_931x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 {
-	u32 c45_mask = 0;
+	int ret;
 
 	/* Disable polling for configuration purposes */
 	regmap_write(ctrl->map, RTMDIO_931X_SMI_PORT_POLLING_CTRL, 0);
 	regmap_write(ctrl->map, RTMDIO_931X_SMI_PORT_POLLING_CTRL + 4, 0);
 	msleep(100);
 
-	/* Define C22/C45 bus feature set */
+	/* Define C22/C45 bus feature set (bit 1 of SMI_SETx_FMT_SEL) */
 	for (int smi_bus = 0; smi_bus < ctrl->cfg->num_busses; smi_bus++) {
-		if (ctrl->bus[smi_bus].is_c45)
-			c45_mask |= 0x2 << (smi_bus * 2);  /* Std. C45, non-standard is 0x3 */
+		ret = regmap_assign_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL1,
+					 BIT(smi_bus * 2 + 1), ctrl->bus[smi_bus].is_c45);
+		if (ret)
+			return ret;
 	}
-	return regmap_update_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL1, GENMASK(7, 0), c45_mask);
+
+	return 0;
 }
 
 static int rtmdio_931x_set_port_ability(struct rtmdio_ctrl *ctrl, u32 pn, u32 ability)
@@ -855,7 +858,7 @@ static void rtmdio_931x_setup_polling(struct rtmdio_ctrl *ctrl)
 		regmap_assign_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL0,
 				   BIT(24 + smi_bus), phyinfo.force_res);
 
-		/* polling std. or proprietary format (bit 0 of SMI_SETX_FMT_SEL) */
+		/* polling std. or proprietary format (bit 0 of SMI_SETx_FMT_SEL) */
 		regmap_assign_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL1,
 				   BIT(smi_bus * 2), phyinfo.force_res);
 
