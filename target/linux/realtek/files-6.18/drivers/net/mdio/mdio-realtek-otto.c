@@ -513,7 +513,7 @@ static int rtmdio_931x_write_c45(struct mii_bus *bus, u32 pn, u32 devnum, u32 re
 static int rtmdio_read_c45(struct mii_bus *bus, int phy, int devnum, int regnum)
 {
 	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
-	int ret, val, pn;
+	int ret, pn, val = 0;
 
 	pn = rtmdio_phy_to_port(bus, phy);
 	if (pn < 0)
@@ -530,7 +530,7 @@ static int rtmdio_read_c45(struct mii_bus *bus, int phy, int devnum, int regnum)
 static int rtmdio_read_c22(struct mii_bus *bus, int phy, int regnum)
 {
 	struct rtmdio_ctrl *ctrl = rtmdio_ctrl_from_bus(bus);
-	int ret, val, pn;
+	int ret, pn, val = 0;
 
 	pn = rtmdio_phy_to_port(bus, phy);
 	if (pn < 0)
