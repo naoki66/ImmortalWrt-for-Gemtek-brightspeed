@@ -1127,5 +1127,6 @@ static struct platform_driver rtmdio_driver = {
 
 module_platform_driver(rtmdio_driver);
 
-MODULE_DESCRIPTION("RTL83xx/RTL93xx MDIO driver");
-MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Markus Stockhausen <markus.stockhausen@gmx.de>");
+MODULE_DESCRIPTION("Realtek Otto MDIO driver");
+MODULE_LICENSE("GPL v2");
