@@ -792,7 +792,7 @@ static void rtmdio_930x_setup_polling(struct rtmdio_ctrl *ctrl)
 		regmap_assign_bits(ctrl->map, RTMDIO_930X_SMI_PRVTE_POLLING_CTRL,
 				   BIT(pn), phyinfo.has_giga_lite);
 
-		/* special duplex/advertisement polling registers */
+		/* Unique 10G polling setup enforced by hardware design. Always same 10G PHYs. */
 		if (phyinfo.poll_duplex || phyinfo.poll_adv_1000 || phyinfo.poll_lpa_1000) {
 			regmap_write(ctrl->map, RTMDIO_930X_SMI_10G_POLLING_REG0_CFG, phyinfo.poll_duplex);
 			regmap_write(ctrl->map, RTMDIO_930X_SMI_10G_POLLING_REG9_CFG, phyinfo.poll_adv_1000);
@@ -865,7 +865,7 @@ static void rtmdio_931x_setup_polling(struct rtmdio_ctrl *ctrl)
 		regmap_assign_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL1,
 				   BIT(smi_bus * 2), phyinfo.force_res);
 
-		/* special polling registers */
+		/* Unique 10G polling setup enforced by hardware design. Always same 10G PHYs. */
 		if (phyinfo.poll_duplex || phyinfo.poll_adv_1000 || phyinfo.poll_lpa_1000) {
 			regmap_write(ctrl->map, RTMDIO_931X_SMI_10GPHY_POLLING_SEL2, phyinfo.poll_duplex);
 			regmap_write(ctrl->map, RTMDIO_931X_SMI_10GPHY_POLLING_SEL3, phyinfo.poll_adv_1000);
