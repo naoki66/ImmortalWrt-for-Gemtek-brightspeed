@@ -124,7 +124,7 @@
 #define RTMDIO_931X_SMI_10GPHY_POLLING_SEL4	(0x0D00)
 
 #define for_each_port(ctrl, pn) \
-	for_each_set_bit(pn, ctrl->valid_ports, RTMDIO_MAX_PORTS)
+	for_each_set_bit(pn, (ctrl)->valid_ports, RTMDIO_MAX_PORTS)
 
 /*
  * On all Realtek switch platforms the hardware periodically reads the link status of all
