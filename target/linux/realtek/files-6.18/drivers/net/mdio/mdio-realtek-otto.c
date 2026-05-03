@@ -52,6 +52,7 @@
 #define RTMDIO_838X_C22_DATA(page, reg)		((reg) << 20 | RTMDIO_PAGE_SELECT << 15 | (page) << 3)
 #define RTMDIO_838X_PHY_PATCH_DONE		BIT(15)
 #define RTMDIO_838X_SMI_GLB_CTRL		(0xa100)
+#define   RTMDIO_838X_SMI_GLB_PHY_MAN_24_27	BIT(7)
 #define RTMDIO_838X_SMI_ACCESS_PHY_CTRL_0	(0xa1b8)
 #define RTMDIO_838X_SMI_ACCESS_PHY_CTRL_1	(0xa1bc)
 #define   RTMDIO_838X_CMD_FAIL			0 /* No hardware support */
@@ -718,7 +719,8 @@ static void rtmdio_838x_setup_polling(struct rtmdio_ctrl *ctrl)
 	 * give the real media status (0=copper, 1=fibre). For now assume that if address 24 is
 	 * PHY driven, it must be a combo PHY and media detection is needed.
 	 */
-	regmap_assign_bits(ctrl->map, RTMDIO_838X_SMI_GLB_CTRL, BIT(7),
+	regmap_assign_bits(ctrl->map, RTMDIO_838X_SMI_GLB_CTRL,
+			   RTMDIO_838X_SMI_GLB_PHY_MAN_24_27,
 			   test_bit(24, ctrl->valid_ports));
 }
 
