@@ -54,7 +54,7 @@
 #define RTMDIO_838X_SMI_GLB_CTRL		(0xa100)
 #define RTMDIO_838X_SMI_ACCESS_PHY_CTRL_0	(0xa1b8)
 #define RTMDIO_838X_SMI_ACCESS_PHY_CTRL_1	(0xa1bc)
-#define   RTMDIO_838X_CMD_FAIL			0
+#define   RTMDIO_838X_CMD_FAIL			0 /* No hardware support */
 #define   RTMDIO_838X_CMD_READ_C22		0
 #define   RTMDIO_838X_CMD_READ_C45		BIT(1)
 #define   RTMDIO_838X_CMD_WRITE_C22		BIT(2)
