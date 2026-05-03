@@ -678,7 +678,7 @@ static int rtmdio_get_phy_info(struct rtmdio_ctrl *ctrl, int pn, struct rtmdio_p
 		phyinfo->has_res_reg = true;
 		break;
 	default:
-		pr_warn("skip polling setup for unknown PHY %08x on port %d\n", phyid, pn);
+		dev_warn(&bus->dev, "skip polling setup for phy 0x%08x on port %d\n", phyid, pn);
 		ret = -EINVAL;
 		break;
 	}
