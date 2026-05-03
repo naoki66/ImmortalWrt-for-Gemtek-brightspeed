@@ -73,6 +73,8 @@
 #define   RTMDIO_839X_CMD_WRITE_C22		BIT(3)
 #define   RTMDIO_839X_CMD_WRITE_C45		(BIT(2) | BIT(3))
 #define   RTMDIO_839X_CMD_MASK			GENMASK(3, 0)
+#define RTMDIO_839X_PHYREG_CTRL			(0x03e0)
+#define   RTMDIO_839X_PHYREG_SKIP_EXT_PAGE	GENMASK(8, 0)
 #define RTMDIO_839X_PHYREG_DATA_CTRL		(0x03F0)
 #define RTMDIO_839X_SMI_PORT_POLLING_CTRL	(0x03fc)
 #define RTMDIO_839X_SMI_GLB_CTRL		(0x03f8)
@@ -377,7 +379,7 @@ static int rtmdio_838x_write_c45(struct mii_bus *bus, u32 pn, u32 devnum, u32 re
 static int rtmdio_839x_read_c22(struct mii_bus *bus, u32 pn, u32 page, u32 reg, u32 *val)
 {
 	struct rtmdio_839x_smi_access smi_access = {
-		.main_ctrl = 0x1ff,
+		.main_ctrl = RTMDIO_839X_PHYREG_SKIP_EXT_PAGE,
 		.data_ctrl = pn << 16,
 		.accs_ctrl = RTMDIO_839X_C22_DATA(page, reg),
 	};
@@ -388,7 +390,7 @@ static int rtmdio_839x_read_c22(struct mii_bus *bus, u32 pn, u32 page, u32 reg, 
 static int rtmdio_839x_write_c22(struct mii_bus *bus, u32 pn, u32 page, u32 reg, u32 val)
 {
 	struct rtmdio_839x_smi_access smi_access = {
-		.main_ctrl = 0x1ff,
+		.main_ctrl = RTMDIO_839X_PHYREG_SKIP_EXT_PAGE,
 		.data_ctrl = val << 16,
 		.prt0_ctrl = (u32)(BIT_ULL(pn)),
 		.prt1_ctrl = (u32)(BIT_ULL(pn) >> 32),
