@@ -480,7 +480,6 @@ static int rtmdio_931x_write_c22(struct mii_bus *bus, u32 pn, u32 page, u32 reg,
 {
 	struct rtmdio_931x_smi_access smi_access = {
 		.ctrl_0 = RTMDIO_931X_C22_DATA(page, reg),
-		.ctrl_1 = 0x1ff,
 		.ctrl_2 = (u32)(BIT_ULL(pn)),
 		.ctrl_x = (u32)(BIT_ULL(pn) >> 32),
 		.ctrl_3 = val,
