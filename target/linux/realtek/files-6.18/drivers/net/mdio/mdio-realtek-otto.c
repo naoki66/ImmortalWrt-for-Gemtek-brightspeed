@@ -595,25 +595,32 @@ static int rtmdio_write_c22(struct mii_bus *bus, int phy, int regnum, u16 val)
 	return 0;
 }
 
-static void rtmdio_setup_smi_topology(struct rtmdio_ctrl *ctrl)
+static int rtmdio_setup_smi_topology(struct rtmdio_ctrl *ctrl)
 {
 	u32 reg, mask, val, pn;
+	int ret;
 
 	for_each_port(ctrl, pn) {
 		if (ctrl->cfg->bus_map_base) {
-			reg = (pn / 16) * 4;
-			mask = 0x3 << ((pn % 16) * 2);
-			val = ctrl->port[pn].smi_bus << ((pn % 16) * 2);
-			regmap_update_bits(ctrl->map, ctrl->cfg->bus_map_base + reg, mask, val);
+			reg = ctrl->cfg->bus_map_base + (pn / 16) * 4;
+			mask = GENMASK(1, 0) << ((pn % 16) * 2);
+			val = (u32)ctrl->port[pn].smi_bus << __ffs(mask);
+			ret = regmap_update_bits(ctrl->map, reg, mask, val);
+			if (ret)
+				return ret;
 		}
 
 		if (ctrl->cfg->port_map_base) {
-			reg = (pn / 6) * 4;
-			mask = 0x1f << ((pn % 6) * 5);
-			val = ctrl->port[pn].smi_addr << ((pn % 6) * 5);
-			regmap_update_bits(ctrl->map, ctrl->cfg->port_map_base + reg, mask, val);
+			reg = ctrl->cfg->port_map_base + (pn / 6) * 4;
+			mask = GENMASK(4, 0) << ((pn % 6) * 5);
+			val = (u32)ctrl->port[pn].smi_addr << __ffs(mask);
+			ret = regmap_update_bits(ctrl->map, reg, mask, val);
+			if (ret)
+				return ret;
 		}
 	}
+
+	return 0;
 }
 
 static u32 rtmdio_get_phy_id(struct phy_device *phydev)
@@ -958,7 +965,10 @@ static int rtmdio_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	rtmdio_setup_smi_topology(ctrl);
+	ret = rtmdio_setup_smi_topology(ctrl);
+	if (ret)
+		return ret;
+
 	ctrl->cfg->setup_ctrl(ctrl);
 
 	device_for_each_child_node_scoped(dev, child) {
