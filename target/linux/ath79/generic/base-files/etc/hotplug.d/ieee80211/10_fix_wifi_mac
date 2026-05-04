@@ -103,6 +103,11 @@ case "$board" in
 	siemens,ws-ap3610)
 		mtd_get_mac_ascii cfg1 RADIOADDR${PHYNBR} > /sys${DEVPATH}/macaddress
 		;;
+	sitecom,wlr-7100)
+		[ "$PHYNBR" -eq 0 ] && \
+			macaddr_add "$(mtd_get_mac_ascii u-boot-env ethaddr)" 1 > /sys${DEVPATH}/macaddress
+		[ "$PHYNBR" -eq 1 ] && \
+			macaddr_add "$(mtd_get_mac_ascii u-boot-env ethaddr)" > /sys${DEVPATH}/macaddress
 	tplink,deco-s4-v2)
 		base_mac=$(mtd_get_mac_encrypted_deco $(find_mtd_part config))
 		[ "$PHYNBR" -eq 0 ] && \
