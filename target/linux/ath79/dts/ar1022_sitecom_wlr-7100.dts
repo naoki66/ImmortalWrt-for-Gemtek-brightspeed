@@ -35,6 +35,8 @@
 
 	leds {
 		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&enable_gpio_11>;
 
 		ops {
 			label = "white:ops";
@@ -46,6 +48,13 @@
 			color = <LED_COLOR_ID_AMBER>;
 			gpios = <&gpio 2 GPIO_ACTIVE_LOW>;
 			default-state = "on";
+		};
+
+		wlan5g {
+			function = LED_FUNCTION_WLAN_5GHZ;
+			color = <LED_COLOR_ID_BLUE>;
+			gpios = <&gpio 11 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "phy0tpt";
 		};
 	};
 };
@@ -91,6 +100,12 @@
 		reg = <0x0000 0 0 0 0>;
 		nvmem-cells = <&cal_art_5000>;
 		nvmem-cell-names = "calibration";
+	};
+};
+
+&pinmux {
+	enable_gpio_11: pinmux-enable-gpio-11 {
+		pinctrl-single,bits = <0x8 0x0 0xff000000>;
 	};
 };
 
