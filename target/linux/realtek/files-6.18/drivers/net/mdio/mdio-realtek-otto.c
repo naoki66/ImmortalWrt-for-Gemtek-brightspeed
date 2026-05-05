@@ -102,6 +102,8 @@
 #define RTMDIO_930X_SMI_PORT0_15_POLLING_SEL	(0xCA08)
 #define RTMDIO_930X_SMI_PORT16_27_POLLING_SEL	(0xCA0C)
 #define RTMDIO_930X_SMI_MAC_TYPE_CTRL		(0xCA04)
+#define   RTMDIO_930X_SMI_MAC_TYPE_P0_23(pn)	(GENMASK(1, 0) << (((pn) / 4) * 2))
+#define   RTMDIO_930X_SMI_MAC_TYPE_P24_27(pn)	(GENMASK(2, 0) << (((pn) - 24) * 3 + 12))
 #define RTMDIO_930X_SMI_POLL_CTRL		(0xca90)
 #define RTMDIO_930X_SMI_PRVTE_POLLING_CTRL	(0xCA10)
 #define RTMDIO_930X_SMI_10G_POLLING_REG0_CFG	(0xCBB4)
@@ -126,9 +128,10 @@
 #define   RTMDIO_931X_CMD_MASK			GENMASK(4, 0)
 #define   RTMDIO_931X_C22_DATA(page, reg)	((reg) << 6 | (page) << 11)
 #define RTMDIO_931X_SMI_INDRT_ACCESS_CTRL_3	(0x0C10)
-#define RTMDIO_931X_SMI_PHY_ABLTY_GET_SEL	(0x0CAC)
+#define RTMDIO_931X_SMI_PHY_ABLTY_GET_SEL(pn)	(0x0cac + ((pn) / 16) * 4)
 #define   RTMDIO_931X_SMI_PHY_ABLTY_MDIO	0x0
 #define   RTMDIO_931X_SMI_PHY_ABLTY_SDS		0x2
+#define   RTMDIO_931X_SMI_PHY_ABLTY_MASK(pn)	(GENMASK(1, 0) << (((pn) % 16) * 2))
 #define RTMDIO_931X_SMI_PORT_POLLING_SEL	(0x0C9C)
 #define RTMDIO_931X_SMI_PORT_ADDR_CTRL		(0x0C74)
 #define RTMDIO_931X_SMI_10GPHY_POLLING_SEL0	(0x0CF0)
@@ -772,18 +775,17 @@ static int rtmdio_930x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 
 static int rtmdio_930x_set_port_ability(struct rtmdio_ctrl *ctrl, u32 pn, u32 ability)
 {
-	u32 mask, val;
+	u32 mask;
 
-	if (pn >= ctrl->cfg->num_ports)
+	if (pn < 24)
+		mask = RTMDIO_930X_SMI_MAC_TYPE_P0_23(pn);
+	else if (pn < 28)
+		mask = RTMDIO_930X_SMI_MAC_TYPE_P24_27(pn);
+	else
 		return -EINVAL;
-	/*
-	 * Hardware accepts only register values 0-3 but uses 2 types of fields. Ports 0-23 are
-	 * grouped by 4 with 2 field bits. Ports 24-27 are handled individually with 3 field bits.
-	 */
-	mask = pn < 24 ? GENMASK(1, 0) << ((pn / 4) * 2) : GENMASK(2, 0) << ((pn - 24) * 3 + 12);
-	val = ability << __ffs(mask);
 
-	return regmap_update_bits(ctrl->map, RTMDIO_930X_SMI_MAC_TYPE_CTRL, mask, val);
+	return regmap_update_bits(ctrl->map, RTMDIO_930X_SMI_MAC_TYPE_CTRL,
+				  mask, ability << __ffs(mask));
 }
 
 static int rtmdio_930x_setup_polling(struct rtmdio_ctrl *ctrl)
@@ -863,16 +865,15 @@ static int rtmdio_931x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 
 static int rtmdio_931x_set_port_ability(struct rtmdio_ctrl *ctrl, u32 pn, u32 ability)
 {
-	u32 mask, val, reg;
+	u32 mask;
 
-	if (pn >= ctrl->cfg->num_ports)
+	if (pn < ctrl->cfg->num_ports)
+		mask = RTMDIO_931X_SMI_PHY_ABLTY_MASK(pn);
+	else
 		return -EINVAL;
 
-	reg = RTMDIO_931X_SMI_PHY_ABLTY_GET_SEL + (pn / 16) * 4;
-	mask = GENMASK(1, 0) << ((pn % 16) * 2);
-	val = ability << __ffs(mask);
-
-	return regmap_update_bits(ctrl->map, reg, mask, val);
+	return regmap_update_bits(ctrl->map, RTMDIO_931X_SMI_PHY_ABLTY_GET_SEL(pn),
+				  mask, ability << __ffs(mask));
 }
 
 static int rtmdio_931x_setup_polling(struct rtmdio_ctrl *ctrl)
@@ -880,7 +881,6 @@ static int rtmdio_931x_setup_polling(struct rtmdio_ctrl *ctrl)
 	struct rtmdio_phy_info phyinfo;
 	int ret;
 	u32 pn;
-
 
 	/* set all ports to "SerDes driven" */
 	for (pn = 0; pn < ctrl->cfg->num_ports; pn++) {
