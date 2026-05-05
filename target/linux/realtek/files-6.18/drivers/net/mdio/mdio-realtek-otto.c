@@ -243,7 +243,7 @@ struct rtmdio_config {
 	u32 ret_mask;
 	u32 ret_reg;
 	int (*setup_ctrl)(struct rtmdio_ctrl *ctrl);
-	void (*setup_polling)(struct rtmdio_ctrl *ctrl);
+	int (*setup_polling)(struct rtmdio_ctrl *ctrl);
 	u32 smi_base;
 	u32 smi_size;
 	int (*write_c22)(struct mii_bus *bus, u32 pn, u32 page, u32 reg, u32 val);
@@ -741,7 +741,7 @@ static int rtmdio_838x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 			       RTMDIO_838X_SMI_GLB_PHY_PATCH_DONE);
 }
 
-static void rtmdio_838x_setup_polling(struct rtmdio_ctrl *ctrl)
+static int rtmdio_838x_setup_polling(struct rtmdio_ctrl *ctrl)
 {
 	/*
 	 * Control bits EX_PHY_MAN_xxx have an important effect on the detection of the media
@@ -749,9 +749,9 @@ static void rtmdio_838x_setup_polling(struct rtmdio_ctrl *ctrl)
 	 * give the real media status (0=copper, 1=fibre). For now assume that if address 24 is
 	 * PHY driven, it must be a combo PHY and media detection is needed.
 	 */
-	regmap_assign_bits(ctrl->map, RTMDIO_838X_SMI_GLB_CTRL,
-			   RTMDIO_838X_SMI_GLB_PHY_MAN_24_27,
-			   test_bit(24, ctrl->valid_ports));
+	return regmap_assign_bits(ctrl->map, RTMDIO_838X_SMI_GLB_CTRL,
+				  RTMDIO_838X_SMI_GLB_PHY_MAN_24_27,
+				  test_bit(24, ctrl->valid_ports));
 }
 
 static int rtmdio_930x_setup_ctrl(struct rtmdio_ctrl *ctrl)
@@ -786,14 +786,18 @@ static int rtmdio_930x_set_port_ability(struct rtmdio_ctrl *ctrl, u32 pn, u32 ab
 	return regmap_update_bits(ctrl->map, RTMDIO_930X_SMI_MAC_TYPE_CTRL, mask, val);
 }
 
-static void rtmdio_930x_setup_polling(struct rtmdio_ctrl *ctrl)
+static int rtmdio_930x_setup_polling(struct rtmdio_ctrl *ctrl)
 {
 	struct rtmdio_phy_info phyinfo;
-	unsigned int pn;
+	int ret;
+	u32 pn;
 
 	/* set all ports to "SerDes driven" */
-	for (pn = 0; pn < ctrl->cfg->num_ports; pn++)
-		rtmdio_930x_set_port_ability(ctrl, pn, RTMDIO_PHY_MAC_SDS);
+	for (pn = 0; pn < ctrl->cfg->num_ports; pn++) {
+		ret = rtmdio_930x_set_port_ability(ctrl, pn, RTMDIO_PHY_MAC_SDS);
+		if (ret)
+			return ret;
+	}
 
 	/* Define PHY specific polling parameters */
 	for_each_port(ctrl, pn) {
@@ -801,24 +805,44 @@ static void rtmdio_930x_setup_polling(struct rtmdio_ctrl *ctrl)
 			continue;
 
 		/* set port to "PHY driven" */
-		rtmdio_930x_set_port_ability(ctrl, pn, phyinfo.mac_type);
+		ret = rtmdio_930x_set_port_ability(ctrl, pn, phyinfo.mac_type);
+		if (ret)
+			return ret;
 
 		/* polling via standard or resolution register */
-		regmap_assign_bits(ctrl->map, RTMDIO_930X_SMI_GLB_CTRL,
-				   RTMDIO_930X_SMI_GLB_POLL_SEL(ctrl->port[pn].smi_bus),
-				   phyinfo.has_res_reg);
+		ret = regmap_assign_bits(ctrl->map, RTMDIO_930X_SMI_GLB_CTRL,
+					 RTMDIO_930X_SMI_GLB_POLL_SEL(ctrl->port[pn].smi_bus),
+					 phyinfo.has_res_reg);
+		if (ret)
+			return ret;
 
 		/* proprietary Realtek 1G/2.5 lite polling */
-		regmap_assign_bits(ctrl->map, RTMDIO_930X_SMI_PRVTE_POLLING_CTRL,
+		ret = regmap_assign_bits(ctrl->map, RTMDIO_930X_SMI_PRVTE_POLLING_CTRL,
 				   BIT(pn), phyinfo.has_giga_lite);
+		if (ret)
+			return ret;
+
+		if (!phyinfo.poll_duplex && !phyinfo.poll_adv_1000 && !phyinfo.poll_lpa_1000)
+			continue;
 
 		/* Unique 10G polling setup enforced by hardware design. Always same 10G PHYs. */
-		if (phyinfo.poll_duplex || phyinfo.poll_adv_1000 || phyinfo.poll_lpa_1000) {
-			regmap_write(ctrl->map, RTMDIO_930X_SMI_10G_POLLING_REG0_CFG, phyinfo.poll_duplex);
-			regmap_write(ctrl->map, RTMDIO_930X_SMI_10G_POLLING_REG9_CFG, phyinfo.poll_adv_1000);
-			regmap_write(ctrl->map, RTMDIO_930X_SMI_10G_POLLING_REG10_CFG, phyinfo.poll_lpa_1000);
-		}
+		ret = regmap_write(ctrl->map, RTMDIO_930X_SMI_10G_POLLING_REG0_CFG,
+				   phyinfo.poll_duplex);
+		if (ret)
+			return ret;
+
+		ret = regmap_write(ctrl->map, RTMDIO_930X_SMI_10G_POLLING_REG9_CFG,
+				   phyinfo.poll_adv_1000);
+		if (ret)
+			return ret;
+
+		ret = regmap_write(ctrl->map, RTMDIO_930X_SMI_10G_POLLING_REG10_CFG,
+				   phyinfo.poll_lpa_1000);
+		if (ret)
+			return ret;
 	}
+
+	return 0;
 }
 
 static int rtmdio_931x_setup_ctrl(struct rtmdio_ctrl *ctrl)
@@ -851,14 +875,19 @@ static int rtmdio_931x_set_port_ability(struct rtmdio_ctrl *ctrl, u32 pn, u32 ab
 	return regmap_update_bits(ctrl->map, reg, mask, val);
 }
 
-static void rtmdio_931x_setup_polling(struct rtmdio_ctrl *ctrl)
+static int rtmdio_931x_setup_polling(struct rtmdio_ctrl *ctrl)
 {
 	struct rtmdio_phy_info phyinfo;
+	int ret;
 	u32 pn;
 
+
 	/* set all ports to "SerDes driven" */
-	for (pn = 0; pn < ctrl->cfg->num_ports; pn++)
-		rtmdio_931x_set_port_ability(ctrl, pn, RTMDIO_931X_SMI_PHY_ABLTY_SDS);
+	for (pn = 0; pn < ctrl->cfg->num_ports; pn++) {
+		ret = rtmdio_931x_set_port_ability(ctrl, pn, RTMDIO_931X_SMI_PHY_ABLTY_SDS);
+		if (ret)
+			return ret;
+	}
 
 	/* Define PHY specific polling parameters */
 	for_each_port(ctrl, pn) {
@@ -868,24 +897,50 @@ static void rtmdio_931x_setup_polling(struct rtmdio_ctrl *ctrl)
 			continue;
 
 		/* set port to "PHY driven" */
-		rtmdio_931x_set_port_ability(ctrl, pn, RTMDIO_931X_SMI_PHY_ABLTY_MDIO);
+		ret = rtmdio_931x_set_port_ability(ctrl, pn, RTMDIO_931X_SMI_PHY_ABLTY_MDIO);
+		if (ret)
+			return ret;
 
-		regmap_assign_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL0,
-				   RTMDIO_931X_SMI_GLB_PRVTE0_POLL(smi_bus), phyinfo.has_res_reg);
-		regmap_assign_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL0,
-				   RTMDIO_931X_SMI_GLB_PRVTE1_POLL(smi_bus), phyinfo.force_res);
+		ret = regmap_assign_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL0,
+					 RTMDIO_931X_SMI_GLB_PRVTE0_POLL(smi_bus),
+					 phyinfo.has_res_reg);
+		if (ret)
+			return ret;
+
+		ret = regmap_assign_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL0,
+					 RTMDIO_931X_SMI_GLB_PRVTE1_POLL(smi_bus),
+					 phyinfo.force_res);
+		if (ret)
+			return ret;
 
 		/* polling std. or proprietary format (bit 0 of SMI_SETx_FMT_SEL) */
-		regmap_assign_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL1,
-				   RTMDIO_931X_SMI_GLB_FMT_SEL_FRC(smi_bus), phyinfo.force_res);
+		ret = regmap_assign_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL1,
+					 RTMDIO_931X_SMI_GLB_FMT_SEL_FRC(smi_bus),
+					 phyinfo.force_res);
+		if (ret)
+			return ret;
+
+		if (!phyinfo.poll_duplex && !phyinfo.poll_adv_1000 && !phyinfo.poll_lpa_1000)
+			continue;
 
 		/* Unique 10G polling setup enforced by hardware design. Always same 10G PHYs. */
-		if (phyinfo.poll_duplex || phyinfo.poll_adv_1000 || phyinfo.poll_lpa_1000) {
-			regmap_write(ctrl->map, RTMDIO_931X_SMI_10GPHY_POLLING_SEL2, phyinfo.poll_duplex);
-			regmap_write(ctrl->map, RTMDIO_931X_SMI_10GPHY_POLLING_SEL3, phyinfo.poll_adv_1000);
-			regmap_write(ctrl->map, RTMDIO_931X_SMI_10GPHY_POLLING_SEL4, phyinfo.poll_lpa_1000);
-		}
+		ret = regmap_write(ctrl->map, RTMDIO_931X_SMI_10GPHY_POLLING_SEL2,
+				   phyinfo.poll_duplex);
+		if (ret)
+			return ret;
+
+		ret = regmap_write(ctrl->map, RTMDIO_931X_SMI_10GPHY_POLLING_SEL3,
+				   phyinfo.poll_adv_1000);
+		if (ret)
+			return ret;
+
+		ret = regmap_write(ctrl->map, RTMDIO_931X_SMI_10GPHY_POLLING_SEL4,
+				   phyinfo.poll_lpa_1000);
+		if (ret)
+			return ret;
 	}
+
+	return 0;
 }
 
 static int rtmdio_map_ports(struct device *dev)
@@ -1031,8 +1086,11 @@ static int rtmdio_probe(struct platform_device *pdev)
 			return ret;
 	}
 
-	if (ctrl->cfg->setup_polling)
-		ctrl->cfg->setup_polling(ctrl);
+	if (ctrl->cfg->setup_polling) {
+		ret = ctrl->cfg->setup_polling(ctrl);
+		if (ret)
+			return ret;
+	}
 
 	return 0;
 }
