@@ -83,6 +83,8 @@
 
 #define RTMDIO_930X_C22_DATA(page, reg)		((reg) << 20 | RTMDIO_PAGE_SELECT << 15 | (page) << 3)
 #define RTMDIO_930X_SMI_GLB_CTRL		(0xCA00)
+#define   RTMDIO_930X_SMI_GLB_INTF_SEL(bus)	BIT(16 + (bus))
+#define   RTMDIO_930X_SMI_GLB_POLL_SEL(bus)	BIT(20 + (bus))
 #define RTMDIO_930X_SMI_ACCESS_PHY_CTRL_0	(0xCB70)
 #define RTMDIO_930X_SMI_ACCESS_PHY_CTRL_1	(0xCB74)
 #define   RTMDIO_930X_CMD_FAIL			BIT(25)
@@ -106,7 +108,11 @@
 #define RTMDIO_931X_SMI_PORT_POLLING_CTRL	(0x0CCC)
 #define RTMDIO_931X_SMI_INDRT_ACCESS_BC_CTRL	(0x0C14)
 #define RTMDIO_931X_SMI_GLB_CTRL0		(0x0CC0)
+#define   RTMDIO_931X_SMI_GLB_PRVTE0_POLL(bus)	BIT(20 + (bus))
+#define   RTMDIO_931X_SMI_GLB_PRVTE1_POLL(bus)	BIT(24 + (bus))
 #define RTMDIO_931X_SMI_GLB_CTRL1		(0x0CBC)
+#define   RTMDIO_931X_SMI_GLB_FMT_SEL_C45(bus)	BIT((bus) * 2 + 1)
+#define   RTMDIO_931X_SMI_GLB_FMT_SEL_FRC(bus)	BIT((bus) * 2)
 #define RTMDIO_931X_SMI_INDRT_ACCESS_CTRL_0	(0x0C00)
 #define   RTMDIO_931X_CMD_FAIL			BIT(1)
 #define   RTMDIO_931X_CMD_READ_C22		0
@@ -749,7 +755,8 @@ static int rtmdio_930x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 	/* Define C22/C45 bus feature set */
 	for (int smi_bus = 0; smi_bus < ctrl->cfg->num_busses; smi_bus++) {
 		ret = regmap_assign_bits(ctrl->map, RTMDIO_930X_SMI_GLB_CTRL,
-					 BIT(16 + smi_bus), ctrl->bus[smi_bus].is_c45);
+					 RTMDIO_930X_SMI_GLB_INTF_SEL(smi_bus),
+					 ctrl->bus[smi_bus].is_c45);
 		if (ret)
 			return ret;
 	}
@@ -792,7 +799,8 @@ static void rtmdio_930x_setup_polling(struct rtmdio_ctrl *ctrl)
 
 		/* polling via standard or resolution register */
 		regmap_assign_bits(ctrl->map, RTMDIO_930X_SMI_GLB_CTRL,
-				   BIT(20 + ctrl->port[pn].smi_bus), phyinfo.has_res_reg);
+				   RTMDIO_930X_SMI_GLB_POLL_SEL(ctrl->port[pn].smi_bus),
+				   phyinfo.has_res_reg);
 
 		/* proprietary Realtek 1G/2.5 lite polling */
 		regmap_assign_bits(ctrl->map, RTMDIO_930X_SMI_PRVTE_POLLING_CTRL,
@@ -814,7 +822,8 @@ static int rtmdio_931x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 	/* Define C22/C45 bus feature set (bit 1 of SMI_SETx_FMT_SEL) */
 	for (int smi_bus = 0; smi_bus < ctrl->cfg->num_busses; smi_bus++) {
 		ret = regmap_assign_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL1,
-					 BIT(smi_bus * 2 + 1), ctrl->bus[smi_bus].is_c45);
+					 RTMDIO_931X_SMI_GLB_FMT_SEL_C45(smi_bus),
+					 ctrl->bus[smi_bus].is_c45);
 		if (ret)
 			return ret;
 	}
@@ -855,16 +864,14 @@ static void rtmdio_931x_setup_polling(struct rtmdio_ctrl *ctrl)
 		/* set port to "PHY driven" */
 		rtmdio_931x_set_port_ability(ctrl, pn, RTMDIO_931X_SMI_PHY_ABLTY_MDIO);
 
-		/* PRVTE0 polling */
 		regmap_assign_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL0,
-				   BIT(20 + smi_bus), phyinfo.has_res_reg);
-		/* PRVTE1 polling */
+				   RTMDIO_931X_SMI_GLB_PRVTE0_POLL(smi_bus), phyinfo.has_res_reg);
 		regmap_assign_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL0,
-				   BIT(24 + smi_bus), phyinfo.force_res);
+				   RTMDIO_931X_SMI_GLB_PRVTE1_POLL(smi_bus), phyinfo.force_res);
 
 		/* polling std. or proprietary format (bit 0 of SMI_SETx_FMT_SEL) */
 		regmap_assign_bits(ctrl->map, RTMDIO_931X_SMI_GLB_CTRL1,
-				   BIT(smi_bus * 2), phyinfo.force_res);
+				   RTMDIO_931X_SMI_GLB_FMT_SEL_FRC(smi_bus), phyinfo.force_res);
 
 		/* Unique 10G polling setup enforced by hardware design. Always same 10G PHYs. */
 		if (phyinfo.poll_duplex || phyinfo.poll_adv_1000 || phyinfo.poll_lpa_1000) {
