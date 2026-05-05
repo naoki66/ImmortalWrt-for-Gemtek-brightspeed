@@ -15,12 +15,17 @@
 
 #define RTMDIO_838X_NUM_BUSSES			1
 #define RTMDIO_838X_NUM_PAGES			4096
+#define RTMDIO_838X_NUM_PORTS			28
 #define RTMDIO_839X_NUM_BUSSES			2
 #define RTMDIO_839X_NUM_PAGES			8192
+#define RTMDIO_839X_NUM_PORTS			52
 #define RTMDIO_930X_NUM_BUSSES			4
 #define RTMDIO_930X_NUM_PAGES			4096
+#define RTMDIO_930X_NUM_PORTS			28
 #define RTMDIO_931X_NUM_BUSSES			4
 #define RTMDIO_931X_NUM_PAGES			8192
+#define RTMDIO_931X_NUM_PORTS			56
+
 #define RTMDIO_PAGE_SELECT			0x1f
 #define RTMDIO_RAW_PAGE(p)			((p) - 1)
 
@@ -230,7 +235,7 @@ struct rtmdio_config {
 	int bus_map_base;
 	u16 num_busses;
 	u16 num_pages;
-	u16 num_phys;
+	u16 num_ports;
 	u32 poll_ctrl;
 	int port_map_base;
 	int (*read_c22)(struct mii_bus *bus, u32 pn, u32 page, u32 reg, u32 *val);
@@ -619,7 +624,7 @@ static int rtmdio_disable_polling(struct rtmdio_ctrl *ctrl)
 {
 	int pn, ret;
 
-	for (pn = 0; pn < ctrl->cfg->num_phys; pn++) {
+	for (pn = 0; pn < ctrl->cfg->num_ports; pn++) {
 		ret = rtmdio_poll_port(ctrl, pn, false);
 		if (ret)
 			return ret;
@@ -769,7 +774,7 @@ static int rtmdio_930x_set_port_ability(struct rtmdio_ctrl *ctrl, u32 pn, u32 ab
 {
 	u32 mask, val;
 
-	if (pn >= ctrl->cfg->num_phys)
+	if (pn >= ctrl->cfg->num_ports)
 		return -EINVAL;
 	/*
 	 * Hardware accepts only register values 0-3 but uses 2 types of fields. Ports 0-23 are
@@ -787,7 +792,7 @@ static void rtmdio_930x_setup_polling(struct rtmdio_ctrl *ctrl)
 	unsigned int pn;
 
 	/* set all ports to "SerDes driven" */
-	for (pn = 0; pn < ctrl->cfg->num_phys; pn++)
+	for (pn = 0; pn < ctrl->cfg->num_ports; pn++)
 		rtmdio_930x_set_port_ability(ctrl, pn, RTMDIO_PHY_MAC_SDS);
 
 	/* Define PHY specific polling parameters */
@@ -836,7 +841,7 @@ static int rtmdio_931x_set_port_ability(struct rtmdio_ctrl *ctrl, u32 pn, u32 ab
 {
 	u32 mask, val, reg;
 
-	if (pn >= ctrl->cfg->num_phys)
+	if (pn >= ctrl->cfg->num_ports)
 		return -EINVAL;
 
 	reg = RTMDIO_931X_SMI_PHY_ABLTY_GET_SEL + (pn / 16) * 4;
@@ -852,7 +857,7 @@ static void rtmdio_931x_setup_polling(struct rtmdio_ctrl *ctrl)
 	u32 pn;
 
 	/* set all ports to "SerDes driven" */
-	for (pn = 0; pn < ctrl->cfg->num_phys; pn++)
+	for (pn = 0; pn < ctrl->cfg->num_ports; pn++)
 		rtmdio_931x_set_port_ability(ctrl, pn, RTMDIO_931X_SMI_PHY_ABLTY_SDS);
 
 	/* Define PHY specific polling parameters */
@@ -909,7 +914,7 @@ static int rtmdio_map_ports(struct device *dev)
 		if (!phy)
 			continue;
 
-		if (pn >= ctrl->cfg->num_phys)
+		if (pn >= ctrl->cfg->num_ports)
 			return dev_err_probe(dev, -EINVAL, "%pfwP illegal port number\n",
 					     of_fwnode_handle(port));
 
@@ -1038,7 +1043,7 @@ static const struct rtmdio_config rtmdio_838x_cfg = {
 	.cmd_reg	= RTMDIO_838X_SMI_ACCESS_PHY_CTRL_1,
 	.num_busses	= RTMDIO_838X_NUM_BUSSES,
 	.num_pages	= RTMDIO_838X_NUM_PAGES,
-	.num_phys	= 28,
+	.num_ports	= RTMDIO_838X_NUM_PORTS,
 	.poll_ctrl	= RTMDIO_838X_SMI_POLL_CTRL,
 	.port_map_base	= RTMDIO_838X_SMI_PORT0_5_ADDR_CTRL,
 	.read_c22	= rtmdio_838x_read_c22,
@@ -1059,7 +1064,7 @@ static const struct rtmdio_config rtmdio_839x_cfg = {
 	.cmd_reg	= RTMDIO_839X_PHYREG_ACCESS_CTRL,
 	.num_busses	= RTMDIO_839X_NUM_BUSSES,
 	.num_pages	= RTMDIO_839X_NUM_PAGES,
-	.num_phys	= 52,
+	.num_ports	= RTMDIO_839X_NUM_PORTS,
 	.poll_ctrl	= RTMDIO_839X_SMI_PORT_POLLING_CTRL,
 	.read_c22	= rtmdio_839x_read_c22,
 	.read_c45	= rtmdio_839x_read_c45,
@@ -1078,7 +1083,7 @@ static const struct rtmdio_config rtmdio_930x_cfg = {
 	.bus_map_base	= RTMDIO_930X_SMI_PORT0_15_POLLING_SEL,
 	.num_busses	= RTMDIO_930X_NUM_BUSSES,
 	.num_pages	= RTMDIO_930X_NUM_PAGES,
-	.num_phys	= 28,
+	.num_ports	= RTMDIO_930X_NUM_PORTS,
 	.poll_ctrl	= RTMDIO_930X_SMI_POLL_CTRL,
 	.port_map_base	= RTMDIO_930X_SMI_PORT0_5_ADDR_CTRL,
 	.read_c22	= rtmdio_930x_read_c22,
@@ -1100,7 +1105,7 @@ static const struct rtmdio_config rtmdio_931x_cfg = {
 	.bus_map_base	= RTMDIO_931X_SMI_PORT_POLLING_SEL,
 	.num_busses	= RTMDIO_931X_NUM_BUSSES,
 	.num_pages	= RTMDIO_931X_NUM_PAGES,
-	.num_phys	= 56,
+	.num_ports	= RTMDIO_931X_NUM_PORTS,
 	.poll_ctrl	= RTMDIO_931X_SMI_PORT_POLLING_CTRL,
 	.port_map_base	= RTMDIO_931X_SMI_PORT_ADDR_CTRL,
 	.read_c22	= rtmdio_931x_read_c22,
