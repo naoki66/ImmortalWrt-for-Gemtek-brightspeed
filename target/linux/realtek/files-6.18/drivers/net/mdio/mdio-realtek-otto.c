@@ -95,6 +95,7 @@
 #define RTMDIO_930X_SMI_PORT0_15_POLLING_SEL	(0xCA08)
 #define RTMDIO_930X_SMI_PORT16_27_POLLING_SEL	(0xCA0C)
 #define RTMDIO_930X_SMI_MAC_TYPE_CTRL		(0xCA04)
+#define RTMDIO_930X_SMI_POLL_CTRL		(0xca90)
 #define RTMDIO_930X_SMI_PRVTE_POLLING_CTRL	(0xCA10)
 #define RTMDIO_930X_SMI_10G_POLLING_REG0_CFG	(0xCBB4)
 #define RTMDIO_930X_SMI_10G_POLLING_REG9_CFG	(0xCBB8)
@@ -224,6 +225,7 @@ struct rtmdio_config {
 	u16 num_busses;
 	u16 num_pages;
 	u16 num_phys;
+	u32 poll_ctrl;
 	int port_map_base;
 	int (*read_c22)(struct mii_bus *bus, u32 pn, u32 page, u32 reg, u32 *val);
 	int (*read_c45)(struct mii_bus *bus, u32 pn, u32 devnum, u32 regnum, u32 *val);
@@ -601,6 +603,25 @@ static int rtmdio_write_c22(struct mii_bus *bus, int phy, int regnum, u16 val)
 	return 0;
 }
 
+static int rtmdio_poll_port(struct rtmdio_ctrl *ctrl, int pn, bool active)
+{
+	return regmap_assign_bits(ctrl->map, ctrl->cfg->poll_ctrl + (pn / 32) * 4,
+				  BIT(pn % 32), active);
+}
+
+static int rtmdio_disable_polling(struct rtmdio_ctrl *ctrl)
+{
+	int pn, ret;
+
+	for (pn = 0; pn < ctrl->cfg->num_phys; pn++) {
+		ret = rtmdio_poll_port(ctrl, pn, false);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
 static int rtmdio_setup_smi_topology(struct rtmdio_ctrl *ctrl)
 {
 	u32 reg, mask, val, pn;
@@ -710,9 +731,6 @@ static int rtmdio_838x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 
 static void rtmdio_838x_setup_polling(struct rtmdio_ctrl *ctrl)
 {
-	/* Disable MAC polling for PHY config. It will be activated later in the DSA driver */
-	regmap_write(ctrl->map, RTMDIO_838X_SMI_POLL_CTRL, 0);
-
 	/*
 	 * Control bits EX_PHY_MAN_xxx have an important effect on the detection of the media
 	 * status (fibre/copper) of a PHY. Once activated, register MAC_LINK_MEDIA_STS can
@@ -722,22 +740,6 @@ static void rtmdio_838x_setup_polling(struct rtmdio_ctrl *ctrl)
 	regmap_assign_bits(ctrl->map, RTMDIO_838X_SMI_GLB_CTRL,
 			   RTMDIO_838X_SMI_GLB_PHY_MAN_24_27,
 			   test_bit(24, ctrl->valid_ports));
-}
-
-static int rtmdio_839x_setup_ctrl(struct rtmdio_ctrl *ctrl)
-{
-	return 0;
-
-	pr_debug("%s called\n", __func__);
-	/* BUG: The following does not work, but should! */
-	/* Disable MAC polling the PHY so that we can start configuration */
-	regmap_write(ctrl->map, RTMDIO_839X_SMI_PORT_POLLING_CTRL, 0);
-	regmap_write(ctrl->map, RTMDIO_839X_SMI_PORT_POLLING_CTRL + 4, 0);
-	/* Disable PHY polling via SoC */
-	regmap_clear_bits(ctrl->map, RTMDIO_839X_SMI_GLB_CTRL, BIT(7));
-
-	/* Probably should reset all PHYs here... */
-	return 0;
 }
 
 static int rtmdio_930x_setup_ctrl(struct rtmdio_ctrl *ctrl)
@@ -808,11 +810,6 @@ static void rtmdio_930x_setup_polling(struct rtmdio_ctrl *ctrl)
 static int rtmdio_931x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 {
 	int ret;
-
-	/* Disable polling for configuration purposes */
-	regmap_write(ctrl->map, RTMDIO_931X_SMI_PORT_POLLING_CTRL, 0);
-	regmap_write(ctrl->map, RTMDIO_931X_SMI_PORT_POLLING_CTRL + 4, 0);
-	msleep(100);
 
 	/* Define C22/C45 bus feature set (bit 1 of SMI_SETx_FMT_SEL) */
 	for (int smi_bus = 0; smi_bus < ctrl->cfg->num_busses; smi_bus++) {
@@ -997,6 +994,10 @@ static int rtmdio_probe(struct platform_device *pdev)
 	if (IS_ERR(ctrl->map))
 		return PTR_ERR(ctrl->map);
 
+	ret = rtmdio_disable_polling(ctrl);
+	if (ret)
+		return ret;
+
 	ret = rtmdio_map_ports(dev);
 	if (ret)
 		return ret;
@@ -1005,9 +1006,11 @@ static int rtmdio_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	ret = ctrl->cfg->setup_ctrl(ctrl);
-	if (ret)
-		return ret;
+	if (ctrl->cfg->setup_ctrl) {
+		ret = ctrl->cfg->setup_ctrl(ctrl);
+		if (ret)
+			return ret;
+	}
 
 	device_for_each_child_node_scoped(dev, child) {
 		ret = rtmdio_probe_one(dev, ctrl, child);
@@ -1028,6 +1031,7 @@ static const struct rtmdio_config rtmdio_838x_cfg = {
 	.num_busses	= RTMDIO_838X_NUM_BUSSES,
 	.num_pages	= RTMDIO_838X_NUM_PAGES,
 	.num_phys	= 28,
+	.poll_ctrl	= RTMDIO_838X_SMI_POLL_CTRL,
 	.port_map_base	= RTMDIO_838X_SMI_PORT0_5_ADDR_CTRL,
 	.read_c22	= rtmdio_838x_read_c22,
 	.read_c45	= rtmdio_838x_read_c45,
@@ -1048,11 +1052,11 @@ static const struct rtmdio_config rtmdio_839x_cfg = {
 	.num_busses	= RTMDIO_839X_NUM_BUSSES,
 	.num_pages	= RTMDIO_839X_NUM_PAGES,
 	.num_phys	= 52,
+	.poll_ctrl	= RTMDIO_839X_SMI_PORT_POLLING_CTRL,
 	.read_c22	= rtmdio_839x_read_c22,
 	.read_c45	= rtmdio_839x_read_c45,
 	.ret_mask	= GENMASK(15, 0),
 	.ret_reg	= RTMDIO_839X_PHYREG_DATA_CTRL,
-	.setup_ctrl	= rtmdio_839x_setup_ctrl,
 	.smi_base	= RTMDIO_839X_PHYREG_ACCESS_CTRL,
 	.smi_size	= sizeof(struct rtmdio_839x_smi_access),
 	.write_c22	= rtmdio_839x_write_c22,
@@ -1067,6 +1071,7 @@ static const struct rtmdio_config rtmdio_930x_cfg = {
 	.num_busses	= RTMDIO_930X_NUM_BUSSES,
 	.num_pages	= RTMDIO_930X_NUM_PAGES,
 	.num_phys	= 28,
+	.poll_ctrl	= RTMDIO_930X_SMI_POLL_CTRL,
 	.port_map_base	= RTMDIO_930X_SMI_PORT0_5_ADDR_CTRL,
 	.read_c22	= rtmdio_930x_read_c22,
 	.read_c45	= rtmdio_930x_read_c45,
@@ -1088,6 +1093,7 @@ static const struct rtmdio_config rtmdio_931x_cfg = {
 	.num_busses	= RTMDIO_931X_NUM_BUSSES,
 	.num_pages	= RTMDIO_931X_NUM_PAGES,
 	.num_phys	= 56,
+	.poll_ctrl	= RTMDIO_931X_SMI_PORT_POLLING_CTRL,
 	.port_map_base	= RTMDIO_931X_SMI_PORT_ADDR_CTRL,
 	.read_c22	= rtmdio_931x_read_c22,
 	.read_c45	= rtmdio_931x_read_c45,
