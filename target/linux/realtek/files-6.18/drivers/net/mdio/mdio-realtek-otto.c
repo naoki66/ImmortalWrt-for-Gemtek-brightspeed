@@ -49,10 +49,9 @@
 #define RTMDIO_DATA_MASK			GENMASK(15, 0)
 #define RTMDIO_RUN				BIT(0)
 
-#define RTMDIO_838X_C22_DATA(page, reg)		((reg) << 20 | RTMDIO_PAGE_SELECT << 15 | (page) << 3)
-#define RTMDIO_838X_PHY_PATCH_DONE		BIT(15)
 #define RTMDIO_838X_SMI_GLB_CTRL		(0xa100)
 #define   RTMDIO_838X_SMI_GLB_PHY_MAN_24_27	BIT(7)
+#define   RTMDIO_838X_SMI_GLB_PHY_PATCH_DONE	BIT(15)
 #define RTMDIO_838X_SMI_ACCESS_PHY_CTRL_0	(0xa1b8)
 #define RTMDIO_838X_SMI_ACCESS_PHY_CTRL_1	(0xa1bc)
 #define   RTMDIO_838X_CMD_FAIL			0 /* No hardware support */
@@ -61,13 +60,11 @@
 #define   RTMDIO_838X_CMD_WRITE_C22		BIT(2)
 #define   RTMDIO_838X_CMD_WRITE_C45		(BIT(1) | BIT(2))
 #define   RTMDIO_838X_CMD_MASK			GENMASK(2, 0)
+#define   RTMDIO_838X_C22_DATA(page, reg)	((reg) << 20 | RTMDIO_PAGE_SELECT << 15 | (page) << 3)
 #define RTMDIO_838X_SMI_ACCESS_PHY_CTRL_2	(0xa1c0)
 #define RTMDIO_838X_SMI_POLL_CTRL		(0xa17c)
 #define RTMDIO_838X_SMI_PORT0_5_ADDR_CTRL	(0xa1c8)
 
-#define RTMDIO_839X_C22_DATA(page, reg)		((reg) << 5 | (page) << 10 | \
-						 (((page) == RTMDIO_RAW_PAGE(RTMDIO_839X_NUM_PAGES)) ? \
-						  RTMDIO_PAGE_SELECT : 0) << 23)
 #define RTMDIO_839X_PHYREG_ACCESS_CTRL		(0x03DC)
 #define   RTMDIO_839X_CMD_FAIL			BIT(1)
 #define   RTMDIO_839X_CMD_READ_C22		0
@@ -75,13 +72,15 @@
 #define   RTMDIO_839X_CMD_WRITE_C22		BIT(3)
 #define   RTMDIO_839X_CMD_WRITE_C45		(BIT(2) | BIT(3))
 #define   RTMDIO_839X_CMD_MASK			GENMASK(3, 0)
+#define   RTMDIO_839X_C22_DATA(page, reg)	((reg) << 5 | (page) << 10 | \
+						 (((page) == RTMDIO_RAW_PAGE(RTMDIO_839X_NUM_PAGES)) ? \
+						  RTMDIO_PAGE_SELECT : 0) << 23)
 #define RTMDIO_839X_PHYREG_CTRL			(0x03e0)
 #define   RTMDIO_839X_PHYREG_SKIP_EXT_PAGE	GENMASK(8, 0)
 #define RTMDIO_839X_PHYREG_DATA_CTRL		(0x03F0)
 #define RTMDIO_839X_SMI_PORT_POLLING_CTRL	(0x03fc)
 #define RTMDIO_839X_SMI_GLB_CTRL		(0x03f8)
 
-#define RTMDIO_930X_C22_DATA(page, reg)		((reg) << 20 | RTMDIO_PAGE_SELECT << 15 | (page) << 3)
 #define RTMDIO_930X_SMI_GLB_CTRL		(0xCA00)
 #define   RTMDIO_930X_SMI_GLB_INTF_SEL(bus)	BIT(16 + (bus))
 #define   RTMDIO_930X_SMI_GLB_POLL_SEL(bus)	BIT(20 + (bus))
@@ -93,6 +92,7 @@
 #define   RTMDIO_930X_CMD_WRITE_C22		BIT(2)
 #define   RTMDIO_930X_CMD_WRITE_C45		(BIT(1) | BIT(2))
 #define   RTMDIO_930X_CMD_MASK			(GENMASK(2, 0) | BIT(25))
+#define   RTMDIO_930X_C22_DATA(page, reg)	((reg) << 20 | RTMDIO_PAGE_SELECT << 15 | (page) << 3)
 #define RTMDIO_930X_SMI_ACCESS_PHY_CTRL_2	(0xCB78)
 #define RTMDIO_930X_SMI_PORT0_15_POLLING_SEL	(0xCA08)
 #define RTMDIO_930X_SMI_PORT16_27_POLLING_SEL	(0xCA0C)
@@ -104,7 +104,6 @@
 #define RTMDIO_930X_SMI_10G_POLLING_REG10_CFG	(0xCBBC)
 #define RTMDIO_930X_SMI_PORT0_5_ADDR_CTRL	(0xCB80)
 
-#define RTMDIO_931X_C22_DATA(page, reg)		((reg) << 6 | (page) << 11)
 #define RTMDIO_931X_SMI_PORT_POLLING_CTRL	(0x0CCC)
 #define RTMDIO_931X_SMI_INDRT_ACCESS_BC_CTRL	(0x0C14)
 #define RTMDIO_931X_SMI_GLB_CTRL0		(0x0CC0)
@@ -120,6 +119,7 @@
 #define   RTMDIO_931X_CMD_WRITE_C22		BIT(4)
 #define   RTMDIO_931X_CMD_WRITE_C45		(BIT(3) | BIT(4))
 #define   RTMDIO_931X_CMD_MASK			GENMASK(4, 0)
+#define   RTMDIO_931X_C22_DATA(page, reg)	((reg) << 6 | (page) << 11)
 #define RTMDIO_931X_SMI_INDRT_ACCESS_CTRL_3	(0x0C10)
 #define RTMDIO_931X_SMI_PHY_ABLTY_GET_SEL	(0x0CAC)
 #define   RTMDIO_931X_SMI_PHY_ABLTY_MDIO	0x0
@@ -732,7 +732,8 @@ static int rtmdio_838x_setup_ctrl(struct rtmdio_ctrl *ctrl)
 	 * PHY_PATCH_DONE enables phy control via SoC. This is required for phy access,
 	 * including patching. Must always be set before the phys are probed.
 	 */
-	return regmap_set_bits(ctrl->map, RTMDIO_838X_SMI_GLB_CTRL, RTMDIO_838X_PHY_PATCH_DONE);
+	return regmap_set_bits(ctrl->map, RTMDIO_838X_SMI_GLB_CTRL,
+			       RTMDIO_838X_SMI_GLB_PHY_PATCH_DONE);
 }
 
 static void rtmdio_838x_setup_polling(struct rtmdio_ctrl *ctrl)
