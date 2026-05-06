@@ -1,0 +1,49 @@
+From git@z Thu Jan  1 00:00:00 1970
+Subject: [PATCH v3 2/6] thermal/drivers/sun8i: add gpadc clock
+From: Mikhail Kalashnikov <iuncuim@gmail.com>
+Date: Sat, 25 Oct 2025 12:31:25 +0800
+Message-Id: <20251025043129.160454-3-iuncuim@gmail.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Some processors (e.g. Allwinner A523) require GPADC clocking activation for
+temperature sensors to work. So let's add support for enabling it.
+
+Signed-off-by: Mikhail Kalashnikov <iuncuim@gmail.com>
+Reviewed-by: Chen-Yu Tsai <wens@kernel.org>
+---
+ drivers/thermal/sun8i_thermal.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+--- a/drivers/thermal/sun8i_thermal.c
++++ b/drivers/thermal/sun8i_thermal.c
+@@ -66,6 +66,7 @@ struct tsensor {
+ };
+ 
+ struct ths_thermal_chip {
++	bool		has_gpadc_clk;
+ 	bool            has_mod_clk;
+ 	bool            has_bus_clk_reset;
+ 	bool		needs_sram;
+@@ -89,6 +90,7 @@ struct ths_device {
+ 	struct regmap_field			*sram_regmap_field;
+ 	struct reset_control			*reset;
+ 	struct clk				*bus_clk;
++	struct clk				*gpadc_clk;
+ 	struct clk                              *mod_clk;
+ 	struct tsensor				sensor[MAX_SENSOR_NUM];
+ };
+@@ -417,6 +419,12 @@ static int sun8i_ths_resource_init(struc
+ 	if (ret)
+ 		return ret;
+ 
++	if (tmdev->chip->has_gpadc_clk) {
++		tmdev->gpadc_clk = devm_clk_get_enabled(&pdev->dev, "gpadc");
++		if (IS_ERR(tmdev->gpadc_clk))
++			return PTR_ERR(tmdev->gpadc_clk);
++	}
++
+ 	if (tmdev->chip->needs_sram) {
+ 		struct regmap *regmap;
+ 
