@@ -944,55 +944,54 @@ static int rtmd_931x_setup_polling(struct rtmd_ctrl *ctrl)
 
 static int rtmd_map_ports(struct device *dev)
 {
+	struct fwnode_handle *fw_dev = dev_fwnode(dev);
 	struct rtmd_ctrl *ctrl = dev_get_drvdata(dev);
 	int smi_bus, smi_addr, pn;
 
-	struct device_node *switch_node __free(device_node) =
-		of_get_child_by_name(dev->of_node->parent, "ethernet-switch");
-	if (!switch_node)
-		return dev_err_probe(dev, -ENODEV, "%pfwP missing ethernet-switch\n",
-				     of_fwnode_handle(dev->of_node->parent));
+	struct fwnode_handle *fw_parent __free(fwnode_handle) = fwnode_get_parent(fw_dev);
+	if (!fw_parent)
+		return -ENODEV;
 
-	struct device_node *ports __free(device_node) =
-		of_get_child_by_name(switch_node, "ethernet-ports");
-	if (!ports)
-		return dev_err_probe(dev, -ENODEV, "%pfwP missing ethernet-ports\n",
-				     of_fwnode_handle(switch_node));
+	struct fwnode_handle *fw_switch __free(fwnode_handle) =
+		fwnode_get_named_child_node(fw_parent, "ethernet-switch");
+	if (!fw_switch)
+		return dev_err_probe(dev, -ENODEV, "%pfwP missing ethernet-switch\n", fw_parent);
 
-	for_each_child_of_node_scoped(ports, port) {
-		if (of_property_read_u32(port, "reg", &pn))
+	struct fwnode_handle *fw_ports __free(fwnode_handle) =
+		fwnode_get_named_child_node(fw_switch, "ethernet-ports");
+	if (!fw_ports)
+		return dev_err_probe(dev, -ENODEV, "%pfwP missing ethernet-ports\n", fw_switch);
+
+	fwnode_for_each_child_node_scoped(fw_ports, fw_port) {
+		if (fwnode_property_read_u32(fw_port, "reg", &pn))
 			continue;
 
-		struct device_node *phy __free(device_node) =
-			of_parse_phandle(port, "phy-handle", 0);
-		if (!phy)
+		struct fwnode_handle *fw_phy __free(fwnode_handle) =
+			fwnode_find_reference(fw_port, "phy-handle", 0);
+		if (IS_ERR(fw_phy))
 			continue;
 
 		if (pn >= ctrl->cfg->num_ports)
-			return dev_err_probe(dev, -EINVAL, "%pfwP illegal port number\n",
-					     of_fwnode_handle(port));
+			return dev_err_probe(dev, -EINVAL, "%pfwP illegal port number\n", fw_port);
 
 		if (test_bit(pn, ctrl->valid_ports))
-			return dev_err_probe(dev, -EINVAL, "%pfwP duplicated port number\n",
-					     of_fwnode_handle(port));
+			return dev_err_probe(dev, -EINVAL, "%pfwP duplicate port number\n", fw_port);
 
-		if (of_property_read_u32(phy, "reg", &smi_addr))
-			return dev_err_probe(dev, -EINVAL, "%pfwP no phy address\n",
-					     of_fwnode_handle(phy));
+		if (fwnode_property_read_u32(fw_phy, "reg", &smi_addr))
+			return dev_err_probe(dev, -EINVAL, "%pfwP no phy address\n", fw_phy);
 
 		if (smi_addr >= PHY_MAX_ADDR)
-			return dev_err_probe(dev, -EINVAL, "%pfwP illegal phy address\n",
-					     of_fwnode_handle(phy));
+			return dev_err_probe(dev, -EINVAL, "%pfwP illegal phy address\n", fw_phy);
 
-		if (of_property_read_u32(phy->parent, "reg", &smi_bus))
-			return dev_err_probe(dev, -EINVAL, "%pfwP no bus address\n",
-					     of_fwnode_handle(phy->parent));
+		struct fwnode_handle *fw_bus __free(fwnode_handle) = fwnode_get_parent(fw_phy);
+		if (!fw_bus || fwnode_property_read_u32(fw_bus, "reg", &smi_bus))
+			return dev_err_probe(dev, -EINVAL, "%pfwP no bus number\n",
+					     fw_bus ?: fw_phy);
 
 		if (smi_bus >= ctrl->cfg->num_busses)
-			return dev_err_probe(dev, -EINVAL, "%pfwP illegal bus number\n",
-					     of_fwnode_handle(phy->parent));
+			return dev_err_probe(dev, -EINVAL, "%pfwP illegal bus number\n", fw_bus);
 
-		if (of_device_is_compatible(phy, "ethernet-phy-ieee802.3-c45"))
+		if (fwnode_device_is_compatible(fw_phy, "ethernet-phy-ieee802.3-c45"))
 			ctrl->bus[smi_bus].is_c45 = true;
 
 		ctrl->port[pn].smi_bus = smi_bus;
@@ -1004,17 +1003,17 @@ static int rtmd_map_ports(struct device *dev)
 }
 
 static int rtmd_probe_one(struct device *dev, struct rtmd_ctrl *ctrl,
-			    struct fwnode_handle *node)
+			    struct fwnode_handle *fw_bus)
 {
 	struct rtmd_chan *chan;
 	struct mii_bus *bus;
 	int smi_bus, ret;
 
-	ret = fwnode_property_read_u32(node, "reg", &smi_bus);
+	ret = fwnode_property_read_u32(fw_bus, "reg", &smi_bus);
 	if (ret)
-		return dev_err_probe(dev, ret, "%pfwP missing reg property for MDIO bus\n", node);
+		return dev_err_probe(dev, ret, "%pfwP no bus number\n", fw_bus);
 	if (smi_bus >= ctrl->cfg->num_busses)
-		return dev_err_probe(dev, -EINVAL, "%pfwP wrong bus index %d\n", node, smi_bus);
+		return dev_err_probe(dev, -EINVAL, "%pfwP illegal bus number\n", fw_bus);
 
 	bus = devm_mdiobus_alloc_size(dev, sizeof(*chan));
 	if (!bus)
@@ -1034,7 +1033,7 @@ static int rtmd_probe_one(struct device *dev, struct rtmd_ctrl *ctrl,
 	bus->parent = dev;
 	snprintf(bus->id, MII_BUS_ID_SIZE, "realtek-mdio-%d", smi_bus);
 
-	ret = devm_of_mdiobus_register(dev, bus, to_of_node(node));
+	ret = devm_of_mdiobus_register(dev, bus, to_of_node(fw_bus));
 	if (ret)
 		return dev_err_probe(dev, ret, "cannot register MDIO %d bus\n", smi_bus);
 
