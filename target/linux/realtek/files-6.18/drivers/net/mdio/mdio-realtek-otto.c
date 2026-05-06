@@ -693,9 +693,9 @@ static int rtmd_get_phy_info(struct rtmd_ctrl *ctrl, int pn, struct rtmd_phy_inf
 	bus = ctrl->bus[ctrl->port[pn].smi_bus].mii_bus;
 	smi_addr = ctrl->port[pn].smi_addr;
 	phyid = rtmd_get_phy_id(mdiobus_get_phy(bus, smi_addr));
+	*phyinfo = (struct rtmd_phy_info){};
 
 	/* Determine PHY specific characteristics for polling fine tuning */
-	memset(phyinfo, 0, sizeof(*phyinfo));
 	switch (phyid) {
 	case RTMD_PHY_AQR113C_A:
 	case RTMD_PHY_AQR113C_B:
