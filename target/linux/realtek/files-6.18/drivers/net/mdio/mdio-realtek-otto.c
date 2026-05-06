@@ -684,19 +684,18 @@ static u32 rtmdio_get_phy_id(struct phy_device *phydev)
 
 static int rtmdio_get_phy_info(struct rtmdio_ctrl *ctrl, int pn, struct rtmdio_phy_info *phyinfo)
 {
-	struct mii_bus *bus = ctrl->bus[ctrl->port[pn].smi_bus].mii_bus;
-	int addr = ctrl->port[pn].smi_addr;
-	int ret = 0;
-	u32 phyid;
+	struct mii_bus *bus;
+	u32 smi_addr, phyid;
 
-	/*
-	 * Depending on the attached PHY the polling mechanism must be fine tuned. Basically
-	 * this boils down to which registers must be read and if there are any special
-	 * features.
-	 */
+	if (!test_bit(pn, ctrl->valid_ports))
+		return -EINVAL;
+
+	bus = ctrl->bus[ctrl->port[pn].smi_bus].mii_bus;
+	smi_addr = ctrl->port[pn].smi_addr;
+	phyid = rtmdio_get_phy_id(mdiobus_get_phy(bus, smi_addr));
+
+	/* Determine PHY specific characteristics for polling fine tuning */
 	memset(phyinfo, 0, sizeof(*phyinfo));
-	phyid = rtmdio_get_phy_id(mdiobus_get_phy(bus, addr));
-
 	switch (phyid) {
 	case RTMDIO_PHY_AQR113C_A:
 	case RTMDIO_PHY_AQR113C_B:
@@ -728,11 +727,10 @@ static int rtmdio_get_phy_info(struct rtmdio_ctrl *ctrl, int pn, struct rtmdio_p
 		break;
 	default:
 		dev_warn(&bus->dev, "skip polling setup for phy 0x%08x on port %d\n", phyid, pn);
-		ret = -EINVAL;
-		break;
+		return -EINVAL;
 	}
 
-	return ret;
+	return 0;
 }
 
 static int rtmdio_838x_setup_ctrl(struct rtmdio_ctrl *ctrl)
