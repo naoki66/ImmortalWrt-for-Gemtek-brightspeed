@@ -180,8 +180,8 @@
  * all 8 ports of the PHY individually.
  *
  * While the C45 clause stuff is pretty standard the legacy functions basically track
- * the accesses and the state of the bus with the attributes page[], raw[] and portaddr
- * of the bus_priv structure. The page selection works as follows:
+ * the accesses and the state of the bus with the rtmd_port attributes of the control
+ * structure. The page selection works as follows:
  *
  * phy_write(phydev, RTMD_PAGE_SELECT, 12)	: store internal page 12 in driver
  * phy_write(phydev, 7, 33)			: write page=12, reg=7, val=33
@@ -233,6 +233,7 @@ struct rtmd_ctrl {
 struct rtmd_chan {
 	struct rtmd_ctrl *ctrl;
 	u8 smi_bus;
+	s8 port[PHY_MAX_ADDR];
 };
 
 struct rtmd_command_data {
@@ -281,14 +282,8 @@ static inline struct rtmd_ctrl *rtmd_ctrl_from_bus(struct mii_bus *bus)
 static int rtmd_phy_to_port(struct mii_bus *bus, int phy)
 {
 	struct rtmd_chan *chan = bus->priv;
-	struct rtmd_ctrl *ctrl = chan->ctrl;
-	int pn;
 
-	for_each_port(ctrl, pn)
-		if (ctrl->port[pn].smi_bus == chan->smi_bus && ctrl->port[pn].smi_addr == phy)
-			return pn;
-
-	return -ENOENT;
+	return chan->port[phy];
 }
 
 static int rtmd_run_cmd(struct mii_bus *bus, u32 cmd,
@@ -537,7 +532,7 @@ static int rtmd_read_c45(struct mii_bus *bus, int phy, int devnum, int regnum)
 
 	pn = rtmd_phy_to_port(bus, phy);
 	if (pn < 0)
-		return pn;
+		return -ENOENT;
 
 	guard(mutex)(&ctrl->lock);
 	ret = (*ctrl->cfg->read_c45)(bus, pn, devnum, regnum, &val);
@@ -554,7 +549,7 @@ static int rtmd_read_c22(struct mii_bus *bus, int phy, int regnum)
 
 	pn = rtmd_phy_to_port(bus, phy);
 	if (pn < 0)
-		return pn;
+		return -ENOENT;
 
 	guard(mutex)(&ctrl->lock);
 	if (regnum == RTMD_PAGE_SELECT &&
@@ -577,7 +572,7 @@ static int rtmd_write_c45(struct mii_bus *bus, int phy, int devnum, int regnum, 
 
 	pn = rtmd_phy_to_port(bus, phy);
 	if (pn < 0)
-		return pn;
+		return -ENOENT;
 
 	guard(mutex)(&ctrl->lock);
 	ret = (*ctrl->cfg->write_c45)(bus, pn, devnum, regnum, val);
@@ -594,7 +589,7 @@ static int rtmd_write_c22(struct mii_bus *bus, int phy, int regnum, u16 val)
 
 	pn = rtmd_phy_to_port(bus, phy);
 	if (pn < 0)
-		return pn;
+		return -ENOENT;
 
 	guard(mutex)(&ctrl->lock);
 	page = ctrl->port[pn].page;
@@ -1008,6 +1003,7 @@ static int rtmd_probe_one(struct device *dev, struct rtmd_ctrl *ctrl,
 	struct rtmd_chan *chan;
 	struct mii_bus *bus;
 	int smi_bus, ret;
+	u32 pn;
 
 	ret = fwnode_property_read_u32(fw_bus, "reg", &smi_bus);
 	if (ret)
@@ -1024,6 +1020,13 @@ static int rtmd_probe_one(struct device *dev, struct rtmd_ctrl *ctrl,
 	chan = bus->priv;
 	chan->ctrl = ctrl;
 	chan->smi_bus = smi_bus;
+
+	/* setup reverse lookup bus/phy -> port */
+	for (int smi_addr = 0; smi_addr < ARRAY_SIZE(chan->port); smi_addr++)
+		chan->port[smi_addr] = -1;
+	for_each_port(ctrl, pn)
+		if (ctrl->port[pn].smi_bus == smi_bus)
+			chan->port[ctrl->port[pn].smi_addr] = pn;
 
 	bus->name = "Realtek MDIO bus";
 	bus->read = rtmd_read_c22;
