@@ -1,9 +1,9 @@
 From git@z Thu Jan  1 00:00:00 1970
-Subject: [PATCH v3 3/6] thermal/drivers/sun8i: replace
+Subject: [PATCH v4 2/5] thermal/drivers/sun8i: replace
  devm_reset_control_get to devm_reset_control_get_shared_deasserted
 From: Mikhail Kalashnikov <iuncuim@gmail.com>
-Date: Sat, 25 Oct 2025 12:31:26 +0800
-Message-Id: <20251025043129.160454-4-iuncuim@gmail.com>
+Date: Mon, 04 May 2026 13:02:42 +0800
+Message-Id: <20260504050245.646078-3-iuncuim@gmail.com>
 MIME-Version: 1.0
 Content-Type: text/plain; charset="utf-8"
 Content-Transfer-Encoding: 7bit
@@ -15,13 +15,14 @@ devm_reset_control_get_shared_deasserted().
 
 Signed-off-by: Mikhail Kalashnikov <iuncuim@gmail.com>
 Reviewed-by: Chen-Yu Tsai <wens@csie.org>
+Reviewed-by: Chen-Yu Tsai <wens@kernel.org>
 ---
  drivers/thermal/sun8i_thermal.c | 16 +---------------
  1 file changed, 1 insertion(+), 15 deletions(-)
 
 --- a/drivers/thermal/sun8i_thermal.c
 +++ b/drivers/thermal/sun8i_thermal.c
-@@ -344,11 +344,6 @@ out:
+@@ -342,11 +342,6 @@ out:
  	return ret;
  }
  
@@ -33,7 +34,7 @@ Reviewed-by: Chen-Yu Tsai <wens@csie.org>
  static struct regmap *sun8i_ths_get_sram_regmap(struct device_node *node)
  {
  	struct platform_device *sram_pdev;
-@@ -391,19 +386,10 @@ static int sun8i_ths_resource_init(struc
+@@ -389,19 +384,10 @@ static int sun8i_ths_resource_init(struc
  		return PTR_ERR(tmdev->regmap);
  
  	if (tmdev->chip->has_bus_clk_reset) {

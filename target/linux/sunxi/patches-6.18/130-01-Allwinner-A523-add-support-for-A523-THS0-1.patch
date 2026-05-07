@@ -1,9 +1,9 @@
 From git@z Thu Jan  1 00:00:00 1970
-Subject: [PATCH v3 6/6] Allwinner: A523: add support for A523 THS0/1
+Subject: [PATCH v4 5/5] Allwinner: A523: add support for A523 THS0/1
  controllers
 From: Mikhail Kalashnikov <iuncuim@gmail.com>
-Date: Sat, 25 Oct 2025 12:31:29 +0800
-Message-Id: <20251025043129.160454-7-iuncuim@gmail.com>
+Date: Mon, 04 May 2026 13:02:45 +0800
+Message-Id: <20260504050245.646078-6-iuncuim@gmail.com>
 MIME-Version: 1.0
 Content-Type: text/plain; charset="utf-8"
 Content-Transfer-Encoding: 7bit
@@ -108,7 +108,7 @@ Signed-off-by: Mikhail Kalashnikov <iuncuim@gmail.com>
 +			reg = <0x02009400 0x400>;
 +			interrupts = <GIC_SPI 62 IRQ_TYPE_LEVEL_HIGH>;
 +			clocks = <&ccu CLK_BUS_THS>, <&ccu CLK_GPADC1>;
-+			clock-names = "bus", "gpadc";
++			clock-names = "bus", "mod";
 +			resets = <&ccu RST_BUS_THS>;
 +			nvmem-cells = <&ths_calibration0>, <&ths_calibration1>;
 +			nvmem-cell-names = "calibration",
@@ -121,7 +121,7 @@ Signed-off-by: Mikhail Kalashnikov <iuncuim@gmail.com>
 +			reg = <0x0200a000 0x400>;
 +			interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>;
 +			clocks = <&ccu CLK_BUS_THS>, <&ccu CLK_GPADC0>;
-+			clock-names = "bus", "gpadc";
++			clock-names = "bus", "mod";
 +			resets = <&ccu RST_BUS_THS>;
 +			nvmem-cells = <&ths_calibration0>, <&ths_calibration1>;
 +			nvmem-cell-names = "calibration",

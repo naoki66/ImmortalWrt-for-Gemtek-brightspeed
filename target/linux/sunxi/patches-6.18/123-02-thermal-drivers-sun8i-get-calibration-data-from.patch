@@ -1,9 +1,9 @@
 From git@z Thu Jan  1 00:00:00 1970
-Subject: [PATCH v3 4/6] thermal/drivers/sun8i: get calibration data from
+Subject: [PATCH v4 3/5] thermal/drivers/sun8i: get calibration data from
  two nvmem cells
 From: Mikhail Kalashnikov <iuncuim@gmail.com>
-Date: Sat, 25 Oct 2025 12:31:27 +0800
-Message-Id: <20251025043129.160454-5-iuncuim@gmail.com>
+Date: Mon, 04 May 2026 13:02:43 +0800
+Message-Id: <20260504050245.646078-4-iuncuim@gmail.com>
 MIME-Version: 1.0
 Content-Type: text/plain; charset="utf-8"
 Content-Transfer-Encoding: 7bit
@@ -19,7 +19,7 @@ Signed-off-by: Mikhail Kalashnikov <iuncuim@gmail.com>
 
 --- a/drivers/thermal/sun8i_thermal.c
 +++ b/drivers/thermal/sun8i_thermal.c
-@@ -303,43 +303,70 @@ static int sun50i_h6_ths_calibrate(struc
+@@ -301,43 +301,70 @@ static int sun50i_h6_ths_calibrate(struc
  
  static int sun8i_ths_calibrate(struct ths_device *tmdev)
  {

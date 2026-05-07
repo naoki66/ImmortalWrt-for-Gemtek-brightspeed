@@ -1,17 +1,15 @@
 From git@z Thu Jan  1 00:00:00 1970
-Subject: [PATCH v3 5/6] thermal/drivers/sun8i: Add support for A523 THS0/1
+Subject: [PATCH v4 4/5] thermal/drivers/sun8i: Add support for A523 THS0/1
  controllers
 From: Mikhail Kalashnikov <iuncuim@gmail.com>
-Date: Sat, 25 Oct 2025 12:31:28 +0800
-Message-Id: <20251025043129.160454-6-iuncuim@gmail.com>
+Date: Mon, 04 May 2026 13:02:44 +0800
+Message-Id: <20260504050245.646078-5-iuncuim@gmail.com>
 MIME-Version: 1.0
 Content-Type: text/plain; charset="utf-8"
 Content-Transfer-Encoding: 7bit
 
 The A523 processor has two temperature controllers, THS0 and THS1.
-
 THS0 has only one temperature sensor, which is located in the DRAM.
-
 THS1 does have 3 sensors:
 ths1_0 - "big" cores
 ths1_1 - "little" cores
@@ -23,6 +21,7 @@ value from ths1_2, but uses separate calibration data, so we get two
 different values from real one.
 
 Signed-off-by: Mikhail Kalashnikov <iuncuim@gmail.com>
+Reviewed-by: Chen-Yu Tsai <wens@kernel.org>
 ---
  drivers/thermal/sun8i_thermal.c | 133 ++++++++++++++++++++++++++++++++
  1 file changed, 133 insertions(+)
@@ -42,7 +41,7 @@ Signed-off-by: Mikhail Kalashnikov <iuncuim@gmail.com>
  struct tsensor {
  	struct ths_device		*tmdev;
  	struct thermal_zone_device	*tzd;
-@@ -116,6 +122,15 @@ static int sun50i_h5_calc_temp(struct th
+@@ -114,6 +120,15 @@ static int sun50i_h5_calc_temp(struct th
  		return -1590 * reg / 10 + 276000;
  }
  
@@ -58,7 +57,7 @@ Signed-off-by: Mikhail Kalashnikov <iuncuim@gmail.com>
  static int sun8i_ths_get_temp(struct thermal_zone_device *tz, int *temp)
  {
  	struct tsensor *s = thermal_zone_device_priv(tz);
-@@ -301,6 +316,97 @@ static int sun50i_h6_ths_calibrate(struc
+@@ -299,6 +314,97 @@ static int sun50i_h6_ths_calibrate(struc
  	return 0;
  }
  
@@ -156,7 +155,7 @@ Signed-off-by: Mikhail Kalashnikov <iuncuim@gmail.com>
  static int sun8i_ths_calibrate(struct ths_device *tmdev)
  {
  	struct nvmem_cell *calcell = NULL;
-@@ -730,6 +836,31 @@ static const struct ths_thermal_chip sun
+@@ -722,6 +828,31 @@ static const struct ths_thermal_chip sun
  	.calc_temp = sun8i_ths_calc_temp,
  };
  
@@ -164,7 +163,7 @@ Signed-off-by: Mikhail Kalashnikov <iuncuim@gmail.com>
 +static const struct ths_thermal_chip sun55i_a523_ths0 = {
 +	.sensor_num = 1,
 +	.has_bus_clk_reset = true,
-+	.has_gpadc_clk = true,
++	.has_mod_clk = true,
 +	.ft_deviation = 5000,
 +	.temp_data_base = SUN50I_H6_THS_TEMP_DATA,
 +	.calibrate = sun55i_a523_ths_calibrate,
@@ -176,7 +175,7 @@ Signed-off-by: Mikhail Kalashnikov <iuncuim@gmail.com>
 +static const struct ths_thermal_chip sun55i_a523_ths1 = {
 +	.sensor_num = 3,
 +	.has_bus_clk_reset = true,
-+	.has_gpadc_clk = true,
++	.has_mod_clk = true,
 +	.ft_deviation = 5000,
 +	.temp_data_base = SUN50I_H6_THS_TEMP_DATA,
 +	.calibrate = sun55i_a523_ths_calibrate,
@@ -188,7 +187,7 @@ Signed-off-by: Mikhail Kalashnikov <iuncuim@gmail.com>
  static const struct of_device_id of_ths_match[] = {
  	{ .compatible = "allwinner,sun8i-a83t-ths", .data = &sun8i_a83t_ths },
  	{ .compatible = "allwinner,sun8i-h3-ths", .data = &sun8i_h3_ths },
-@@ -740,6 +871,8 @@ static const struct of_device_id of_ths_
+@@ -732,6 +863,8 @@ static const struct of_device_id of_ths_
  	{ .compatible = "allwinner,sun50i-h6-ths", .data = &sun50i_h6_ths },
  	{ .compatible = "allwinner,sun20i-d1-ths", .data = &sun20i_d1_ths },
  	{ .compatible = "allwinner,sun50i-h616-ths", .data = &sun50i_h616_ths },
