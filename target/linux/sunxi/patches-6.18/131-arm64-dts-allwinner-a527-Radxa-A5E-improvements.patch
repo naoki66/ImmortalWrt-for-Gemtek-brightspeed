@@ -58,7 +58,7 @@
 +	bus-width = <4>;
 +	non-removable;
 +	// todo: investigate why clock above 40MHz makes data errors
-+	max-frequency = <15000000>;
++	max-frequency = <35000000>;
 +	status = "okay";
 +
 +	wlan: wifi@1 {
@@ -73,3 +73,18 @@
  &ohci0 {
  	status = "okay";
  };
+@@ -353,6 +391,14 @@
+ 	status = "okay";
+ };
+ 
++/* Bluetooth */
++&uart1 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&uart1_pins>, <&uart1_rts_cts_pins>;
++	uart-has-rtscts;
++	status = "okay";
++};
++
+ &usb_otg {
+ 	/*
+ 	 * The USB-C port is the primary power supply, so in this configuration
