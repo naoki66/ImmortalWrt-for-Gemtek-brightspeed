@@ -2747,29 +2747,14 @@ static int rtpcs_930x_sds_check_calibration(struct rtpcs_serdes *sds,
 
 static void rtpcs_930x_phy_enable_10g_1g(struct rtpcs_serdes *sds)
 {
-
-	u32 v;
-
 	/* Enable 1GBit PHY */
-	v = rtpcs_sds_read(sds, 0x02, MII_BMCR);
-	pr_info("%s 1gbit phy: %08x\n", __func__, v);
-	v &= ~BMCR_PDOWN;
-	rtpcs_sds_write(sds, 0x02, MII_BMCR, v);
-	pr_info("%s 1gbit phy enabled: %08x\n", __func__, v);
+	rtpcs_sds_write_bits(sds, 0x02, MII_BMCR, 11, 11, 0x0); /* BMCR_PDOWN */
 
 	/* Enable 10GBit PHY */
-	v = rtpcs_sds_read(sds, 0x04, MII_BMCR);
-	pr_info("%s 10gbit phy: %08x\n", __func__, v);
-	v &= ~BMCR_PDOWN;
-	rtpcs_sds_write(sds, 0x04, MII_BMCR, v);
-	pr_info("%s 10gbit phy after: %08x\n", __func__, v);
+	rtpcs_sds_write_bits(sds, 0x04, MII_BMCR, 11, 11, 0x0); /* BMCR_PDOWN */
 
 	/* dal_longan_construct_mac_default_10gmedia_fiber */
-	v = rtpcs_sds_read(sds, 0x1f, 11);
-	pr_info("%s set medium: %08x\n", __func__, v);
-	v |= BIT(1);
-	rtpcs_sds_write(sds, 0x1f, 11, v);
-	pr_info("%s set medium after: %08x\n", __func__, v);
+	rtpcs_sds_write_bits(sds, 0x1f, 11, 1, 1, 0x1);
 }
 
 static int rtpcs_930x_sds_10g_idle(struct rtpcs_serdes *sds)
