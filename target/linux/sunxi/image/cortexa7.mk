@@ -366,7 +366,7 @@ define Device/rongpin_rp-t113
   $(call Device/FitImageGzip)
   DEVICE_VENDOR := Rongpin
   DEVICE_MODEL := RP-T113
-  DEVICE_PACKAGES:=kmod-rtc-sunxi kmod-rtl8xxxu rtl8723bu-firmware wpad-basic-mbedtls
+  DEVICE_PACKAGES:=kmod-rtc-sunxi kmod-rtl8xxxu rtl8723bu-firmware wpad-openssl
   SOC := sun8i-t113s
   IMAGE/sdcard.img.gz := sunxi-sdcard | append-metadata | gzip
 endef
