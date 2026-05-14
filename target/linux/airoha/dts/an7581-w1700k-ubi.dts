@@ -375,6 +375,7 @@
 
 &gsw_phy1 {
 	status = "okay";
+	interrupts = <1>;
 	pinctrl-names = "gbe-led";
 	pinctrl-0 = <&gswp1_led0_pins>;
 };
@@ -386,6 +387,7 @@
 
 &gsw_phy2 {
 	status = "okay";
+	interrupts = <2>;
 	pinctrl-names = "gbe-led";
 	pinctrl-0 = <&gswp2_led0_pins>;
 };
