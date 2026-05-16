@@ -318,9 +318,14 @@
 	nvmem-cell-names = "mac-address";
 };
 
+&pon_pcs {
+	status = "okay";
+};
+
 &gdm2 {
 	status = "okay";
 
+	managed = "in-band-status";
 	phy-handle = <&phy8>;
 	phy-mode = "usxgmii";
 
@@ -329,9 +334,14 @@
 	openwrt,netdev-name = "wan";
 };
 
+&eth_pcs {
+	status = "okay";
+};
+
 &gdm4 {
 	status = "okay";
 
+	managed = "in-band-status";
 	phy-handle = <&phy5>;
 	phy-mode = "usxgmii";
 
