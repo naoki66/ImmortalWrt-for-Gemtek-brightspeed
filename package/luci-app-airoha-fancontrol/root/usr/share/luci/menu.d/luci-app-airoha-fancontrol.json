@@ -1,5 +1,5 @@
 {
-	"admin/system/fan": {
+	"admin/status/fan": {
 		"title": "Fan Control",
 		"order": 90,
 		"action": {
@@ -10,7 +10,7 @@
 			"uci": { "fan": true }
 		}
 	},
-	"admin/system/fan/status": {
+	"admin/status/fan/status": {
 		"title": "Status",
 		"order": 1,
 		"action": {
@@ -18,7 +18,7 @@
 			"path": "fan/status"
 		}
 	},
-	"admin/system/fan/settings": {
+	"admin/status/fan/settings": {
 		"title": "Settings",
 		"order": 2,
 		"action": {
