@@ -47,7 +47,7 @@ jobs:
       - name: Merge upstream
         if: steps.check.outputs.has_updates == 'true'
         run: |
-          git merge --allow-unrelated-histories --no-edit upstream/master || {
+          git merge --no-edit upstream/master || {
             echo "::error::Merge failed. Conflicts need manual resolution."
             git diff --name-only --diff-filter=U
             exit 1

@@ -90,7 +90,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.date.outputs.date }}
-          name: ${{ format('{0} - Router Build', steps.date.outputs.date) }}
+          name: ${{ format('{0} - XR1710G Build', steps.date.outputs.date) }}
           body: ${{ github.event.inputs.release_notes }}
           draft: false
           prerelease: ${{ github.event.inputs.release_type == 'prerelease' }}
