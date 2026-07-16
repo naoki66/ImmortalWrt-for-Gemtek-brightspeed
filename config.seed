@@ -5281,7 +5281,7 @@ CONFIG_PACKAGE_luci-app-autoreboot=y
 # CONFIG_PACKAGE_luci-app-cifs-mount is not set
 # CONFIG_PACKAGE_luci-app-cjdns is not set
 # CONFIG_PACKAGE_luci-app-clamav is not set
-CONFIG_PACKAGE_luci-app-clientstatus=y
+# CONFIG_PACKAGE_luci-app-clientstatus is not set
 # CONFIG_PACKAGE_luci-app-cloudflared is not set
 # CONFIG_PACKAGE_luci-app-commands is not set
 # CONFIG_PACKAGE_luci-app-coovachilli is not set
@@ -5435,7 +5435,7 @@ CONFIG_PACKAGE_luci-app-wechatpush=y
 # CONFIG_PACKAGE_WECHATPUSH_Enable_Local_Disk_Information_Detection is not set
 CONFIG_PACKAGE_WECHATPUSH_Enable_Host_Information_Detection=y
 CONFIG_PACKAGE_luci-app-wifihistory=y
-CONFIG_PACKAGE_luci-app-wifischedule=y
+# CONFIG_PACKAGE_luci-app-wifischedule is not set
 CONFIG_PACKAGE_luci-app-wol=y
 # CONFIG_PACKAGE_luci-app-xfrpc is not set
 # CONFIG_PACKAGE_luci-app-xinetd is not set
@@ -5519,7 +5519,7 @@ CONFIG_PACKAGE_default-settings=y
 CONFIG_PACKAGE_default-settings-chn=y
 CONFIG_PACKAGE_luci-i18n-airoha-fancontrol-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-airoha-npu-zh-cn=y
-CONFIG_PACKAGE_luci-i18n-clientstatus-zh-cn=y
+# CONFIG_PACKAGE_luci-i18n-clientstatus-zh-cn is not set
 CONFIG_PACKAGE_luci-i18n-lucky-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-mlo-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-arpbind-zh-cn=y
@@ -5978,7 +5978,7 @@ CONFIG_PACKAGE_luci-i18n-wifihistory-zh-cn=y
 # CONFIG_PACKAGE_luci-i18n-wifischedule-uk is not set
 # CONFIG_PACKAGE_luci-i18n-wifischedule-vi is not set
 # CONFIG_PACKAGE_luci-i18n-wifischedule-yua is not set
-CONFIG_PACKAGE_luci-i18n-wifischedule-zh-cn=y
+# CONFIG_PACKAGE_luci-i18n-wifischedule-zh-cn is not set
 # CONFIG_PACKAGE_luci-i18n-wifischedule-zh-tw is not set
 # CONFIG_PACKAGE_luci-i18n-wol-ar is not set
 # CONFIG_PACKAGE_luci-i18n-wol-bg is not set
@@ -6321,7 +6321,7 @@ CONFIG_PACKAGE_nftables-json=y
 # CONFIG_PACKAGE_bind-tools is not set
 CONFIG_PACKAGE_chinadns-ng=y
 # CONFIG_PACKAGE_coredns is not set
-CONFIG_PACKAGE_clientstatus=y
+# CONFIG_PACKAGE_clientstatus is not set
 CONFIG_PACKAGE_ddns-go=y
 CONFIG_PACKAGE_ddns-scripts=y
 CONFIG_PACKAGE_ddns-scripts-aliyun=y
@@ -6921,7 +6921,7 @@ CONFIG_PACKAGE_v2ray-plugin=y
 # CONFIG_PACKAGE_wfb-ng is not set
 # CONFIG_PACKAGE_wfb-ng-tun is not set
 # CONFIG_PACKAGE_wifi-chipset-detect is not set
-CONFIG_PACKAGE_wifischedule=y
+# CONFIG_PACKAGE_wifischedule is not set
 # end of Wireless
 
 #
@@ -6966,7 +6966,7 @@ CONFIG_WPA_MBO_SUPPORT=y
 # CONFIG_PACKAGE_wpa-supplicant-wolfssl is not set
 # CONFIG_PACKAGE_wpad is not set
 # CONFIG_PACKAGE_wpad-basic is not set
-CONFIG_PACKAGE_wpad-mbedtls=y
+# CONFIG_PACKAGE_wpad-mbedtls is not set
 # CONFIG_PACKAGE_wpad-basic-openssl is not set
 # CONFIG_PACKAGE_wpad-basic-wolfssl is not set
 # CONFIG_PACKAGE_wpad-mesh-mbedtls is not set
@@ -6975,6 +6975,7 @@ CONFIG_PACKAGE_wpad-mbedtls=y
 # CONFIG_PACKAGE_wpad-mini is not set
 # CONFIG_PACKAGE_wpad-openssl is not set
 # CONFIG_PACKAGE_wpad-wolfssl is not set
+CONFIG_PACKAGE_wpad-basic-mbedtls=y
 # end of WirelessAPD
 
 #
