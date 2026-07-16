@@ -129,7 +129,7 @@ define Device/gemtek_xr1710g-ubi
   DEVICE_ALT0_MODEL := XR1710G
   DEVICE_ALT0_VARIANT := UBI
   DEVICE_DTS := an7581-xr1710g-ubi
-  DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware fitblk kmod-i2c-an7581 kmod-hwmon-nct7802 kmod-mt7996e kmod-mt7996-firmware wpad-basic-mbedtls rtl826x-firmware kmod-crypto-hw-eip93 kmod-br-netfilter kmod-tcp-bbr kmod-nf-nathelper-pptp luci-app-airoha-npu luci-app-mlo
+  DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware fitblk kmod-i2c-an7581 kmod-hwmon-nct7802 kmod-mt7996e kmod-mt7996-firmware wpad-basic-mbedtls rtl826x-firmware kmod-crypto-hw-eip93 kmod-br-netfilter kmod-tcp-bbr kmod-nf-nathelper-pptp luci-app-airoha-npu luci-app-mlo luci-app-airoha-fancontrol luci-app-airoha-flowsense
   UBINIZE_OPTS := -E 5
   BLOCKSIZE := 128k
   PAGESIZE := 2048
