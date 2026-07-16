@@ -589,6 +589,25 @@ function renderModeBanner(dm) {
 }
 
 /* ── Conflict Alerts ── */
+function translateAlertMsg(msg) {
+	var t = _(msg);
+	if (t !== msg) return t;
+	var m = msg.match(/^([^(]+)\s*\(([^)]+)\)\s*(.*)$/);
+	if (m) {
+		var template = m[1].trim() + '. ' + m[3].trim();
+		template = template.replace(/\.\s*\./g, '.');
+		var tt = _(template);
+		if (tt !== template) {
+			var firstPeriod = tt.indexOf('。');
+			if (firstPeriod === -1) firstPeriod = tt.indexOf('.');
+			if (firstPeriod !== -1) {
+				return tt.substring(0, firstPeriod) + ' (' + m[2] + ')' + tt.substring(firstPeriod);
+			}
+		}
+	}
+	return msg;
+}
+
 function renderConflictAlerts(alertData) {
 	var alerts = (alertData && Array.isArray(alertData.alerts)) ? alertData.alerts : [];
 	if (!alerts.length) return E('div', { 'id': 'conflict-alerts' });
@@ -597,8 +616,8 @@ function renderConflictAlerts(alertData) {
 		return E('div', { 'class': 'alert-item ' + (isErr ? 'alert-error' : 'alert-warning') }, [
 			E('span', { 'class': 'alert-icon' }, isErr ? '\u26A0' : '\u26A1'),
 			E('div', {}, [
-				E('div', { 'class': 'alert-title' }, a.title || ''),
-				E('div', { 'class': 'alert-msg' }, a.message || '')
+				E('div', { 'class': 'alert-title' }, _(a.title || '')),
+				E('div', { 'class': 'alert-msg' }, translateAlertMsg(a.message || ''))
 			])
 		]);
 	});
