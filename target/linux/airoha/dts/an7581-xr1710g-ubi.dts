@@ -253,6 +253,10 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pcie2_rst_pins>;
 };
+&cpufreq {
+	reg = <0x0 0x1FA20000 0x0 0x2C0 0x0 0x1EFBE000 0x0 0x800>;
+	reg-names = "chip-scu", "mcucfg";
+};
 &npu {
 	firmware-name = "airoha/en7581_MT7996_npu_rv32.bin",
 		"airoha/en7581_MT7996_npu_data.bin";
