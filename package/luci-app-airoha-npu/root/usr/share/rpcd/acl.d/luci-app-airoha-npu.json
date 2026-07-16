@@ -1,25 +1,32 @@
 {
 	"luci-app-airoha-npu": {
-		"description": "Grant access to Airoha SoC status (NPU + CPU + Overclock)",
+		"description": "Grant access to Airoha SoC status (NPU + CPU + Overclock + Offload)",
 		"read": {
 			"ubus": {
-				"luci.airoha_npu": [ "getStatus", "getPpeEntries", "getTokenInfo", "getFrameEngine", "getVlanOffload", "getPPPoEOffload" ]
+				"luci.airoha_npu": [ "getStatus", "getPpeEntries", "getTokenInfo", "getFrameEngine", "getVlanOffload", "getPppoeOffload", "getFlowOffload" ]
 			},
 			"file": {
 				"/sys/kernel/debug/ppe/entries": [ "read" ],
 				"/sys/kernel/debug/ppe/bind": [ "read" ],
 				"/sys/devices/system/cpu/cpufreq/policy0/*": [ "read" ],
-				"/sys/kernel/debug/ieee80211/*/mt76/token_info": [ "read" ]
+				"/sys/kernel/debug/ieee80211/*/mt76/token_info": [ "read" ],
+				"/proc/sys/net/bridge/bridge-nf-filter-vlan-tagged": [ "read" ],
+				"/proc/sys/net/netfilter/nf_conntrack_pptp_helper": [ "read" ]
 			}
 		},
 		"write": {
 			"ubus": {
-				"luci.airoha_npu": [ "setGovernor", "setMaxFreq", "setOverclock", "setVlanOffload", "setPPPoEOffload" ]
+				"luci.airoha_npu": [ "setGovernor", "setMaxFreq", "setOverclock", "setVlanOffload", "setPppoeOffload", "setFlowOffload" ],
+				"uci": [ "set", "commit" ]
 			},
 			"file": {
 				"/sys/devices/system/cpu/cpufreq/policy0/scaling_governor": [ "write" ],
 				"/sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq": [ "write" ],
-				"/dev/mem": [ "read", "write" ]
+				"/dev/mem": [ "read", "write" ],
+				"/proc/sys/net/bridge/bridge-nf-filter-vlan-tagged": [ "write" ],
+				"/proc/sys/net/netfilter/nf_conntrack_pptp_helper": [ "write" ],
+				"/etc/sysctl.d/14-vlan-offload.conf": [ "write" ],
+				"/etc/sysctl.d/15-pppoe-offload.conf": [ "write" ]
 			}
 		}
 	}

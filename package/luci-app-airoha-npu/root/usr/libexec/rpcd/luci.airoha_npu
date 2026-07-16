@@ -454,56 +454,67 @@ get_vlan_offload() {
 set_vlan_offload() {
 	local enabled
 	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
-
-	# jsonfilter returns empty string for integer 0; treat empty as 0
 	[ -z "$enabled" ] && enabled="0"
-
 	if [ "$enabled" != "0" ] && [ "$enabled" != "1" ]; then
 		echo '{"error":"enabled must be 0 or 1"}'
 		return
 	fi
-
 	if ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null; then
 		echo '{"error":"failed - bridge module may not be loaded"}'
 		return
 	fi
-
-	# Persist across reboots
 	echo "net.bridge.bridge-nf-filter-vlan-tagged=$enabled" > /etc/sysctl.d/14-vlan-offload.conf
 	printf '{"result":"ok","enabled":%d}' "$enabled"
 }
 
 get_pppoe_offload() {
 	local val
-	val=$(cat /proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged 2>/dev/null)
-	printf '{"enabled":%d}' "${val:-0}"
+	val=$(cat /proc/sys/net/netfilter/nf_conntrack_pptp_helper 2>/dev/null)
+	[ -z "$val" ] && val=0
+	printf '{"enabled":%d}' "$val"
 }
 
 set_pppoe_offload() {
 	local enabled
 	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
-
-	# jsonfilter returns empty string for integer 0; treat empty as 0
 	[ -z "$enabled" ] && enabled="0"
-
 	if [ "$enabled" != "0" ] && [ "$enabled" != "1" ]; then
 		echo '{"error":"enabled must be 0 or 1"}'
 		return
 	fi
-
-	if ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged 2>/dev/null; then
-		echo '{"error":"failed - bridge module may not be loaded"}'
+	if ! echo "$enabled" > /proc/sys/net/netfilter/nf_conntrack_pptp_helper 2>/dev/null; then
+		echo '{"error":"failed - nf_conntrack_pptp module may not be loaded"}'
 		return
 	fi
+	echo "net.netfilter.nf_conntrack_pptp_helper=$enabled" > /etc/sysctl.d/15-pppoe-offload.conf
+	printf '{"result":"ok","enabled":%d}' "$enabled"
+}
 
-	# Persist across reboots
-	echo "net.bridge.bridge-nf-filter-pppoe-tagged=$enabled" > /etc/sysctl.d/15-pppoe-offload.conf
+get_flow_offload() {
+	local val=0
+	if [ -f "/sys/kernel/debug/ppe/bind" ]; then
+		local cnt=$(grep -c "^[0-9a-fA-F]" /sys/kernel/debug/ppe/bind 2>/dev/null)
+		[ "$cnt" -gt 0 ] && val=1
+	fi
+	printf '{"enabled":%d}' "$val"
+}
+
+set_flow_offload() {
+	local enabled
+	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
+	[ -z "$enabled" ] && enabled="0"
+	if [ "$enabled" != "0" ] && [ "$enabled" != "1" ]; then
+		echo '{"error":"enabled must be 0 or 1"}'
+		return
+	fi
+	uci set firewall.@defaults[0].flow_offloading="$enabled" 2>/dev/null
+	uci commit firewall 2>/dev/null
 	printf '{"result":"ok","enabled":%d}' "$enabled"
 }
 
 case "$1" in
 	list)
-		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"},"setOverclock":{"freq_mhz":"int"},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPPPoEOffload":{},"setPPPoEOffload":{"enabled":"int"}}'
+		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"},"setOverclock":{"freq_mhz":"int"}}'
 		;;
 	call)
 		case "$2" in
@@ -538,12 +549,19 @@ case "$1" in
 				read input
 				set_vlan_offload "$input"
 				;;
-			getPPPoEOffload)
+			getPppoeOffload)
 				get_pppoe_offload
 				;;
-			setPPPoEOffload)
+			setPppoeOffload)
 				read input
 				set_pppoe_offload "$input"
+				;;
+			getFlowOffload)
+				get_flow_offload
+				;;
+			setFlowOffload)
+				read input
+				set_flow_offload "$input"
 				;;
 			*)
 				echo '{"error":"Invalid method"}'

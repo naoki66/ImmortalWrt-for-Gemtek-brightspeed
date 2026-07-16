@@ -13,8 +13,10 @@ var callSetMaxFreq = rpc.declare({ object: 'luci.airoha_npu', method: 'setMaxFre
 var callSetOverclock = rpc.declare({ object: 'luci.airoha_npu', method: 'setOverclock', params: ['freq_mhz'] });
 var callGetVlanOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getVlanOffload' });
 var callSetVlanOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setVlanOffload', params: ['enabled'] });
-var callGetPPPoEOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getPPPoEOffload' });
-var callSetPPPoEOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setPPPoEOffload', params: ['enabled'] });
+var callGetPppoeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getPppoeOffload' });
+var callSetPppoeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setPppoeOffload', params: ['enabled'] });
+var callGetFlowOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getFlowOffload' });
+var callSetFlowOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setFlowOffload', params: ['enabled'] });
 
 /* ── Theme-adaptive CSS ── */
 var themeCSS = '\
@@ -309,8 +311,8 @@ function renderFeDiagram(fe, ti, st) {
 		// Row 2: CDM1/CDM2 (CPU) + CDM4/WiFi
 		E('div', { 'style': 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px' }, [
 			cdmCard('cdm1', 'CDM1', 'CPU DMA 1', 'P0'),
-			cdmCard('cdm2', 'CDM2', 'CPU DMA 2', 'P5')
-			//,cdm4WiFi
+			cdmCard('cdm2', 'CDM2', 'CPU DMA 2', 'P5'),
+			cdm4WiFi
 		]),
 		// Row 3: PPE + NPU
 		E('div', { 'style': 'display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px' }, [
@@ -391,34 +393,17 @@ function renderOcControls() {
 	]);
 }
 
-/* ── Offload Select controls ── */
-function renderVlanOffloadSelect(enabled) {
-	var cur = enabled ? '1' : '0';
-	return E('select', { 'id': 'vlan-offload-select', 'class': 'cbi-input-select', 'style': 'min-width:140px', 'change': function(ev) {
-		var v = parseInt(ev.target.value);
+function renderOffloadSelect(enabled, id, callFn) {
+	return E('select', { 'id': id, 'class':'cbi-input-select', 'style':'min-width:120px', 'change':function(ev){
+		var val = ev.target.value === '1' ? 1 : 0;
 		ev.target.disabled = true;
-		callSetVlanOffload(v).then(function(r) {
+		callFn(val).then(function(r){
 			ev.target.disabled = false;
-			if (r && r.error) ui.addNotification(null, E('p', {}, _('Error: ') + r.error), 'error');
-		}).catch(function() { ev.target.disabled = false; });
+			if(r && r.error) ui.addNotification(null, E('p',{},_('Error: ')+r.error), 'error');
+		}).catch(function(){ ev.target.disabled = false; });
 	}}, [
-		E('option', { 'value': '0', 'selected': cur === '0' ? '' : null }, _('Disabled')),
-		E('option', { 'value': '1', 'selected': cur === '1' ? '' : null }, _('Enabled'))
-	]);
-}
-
-function renderPPPoEOffloadSelect(enabled) {
-	var cur = enabled ? '1' : '0';
-	return E('select', { 'id': 'pppoe-offload-select', 'class': 'cbi-input-select', 'style': 'min-width:140px', 'change': function(ev) {
-		var v = parseInt(ev.target.value);
-		ev.target.disabled = true;
-		callSetPPPoEOffload(v).then(function(r) {
-			ev.target.disabled = false;
-			if (r && r.error) ui.addNotification(null, E('p', {}, _('Error: ') + r.error), 'error');
-		}).catch(function() { ev.target.disabled = false; });
-	}}, [
-		E('option', { 'value': '0', 'selected': cur === '0' ? '' : null }, _('Disabled')),
-		E('option', { 'value': '1', 'selected': cur === '1' ? '' : null }, _('Enabled'))
+		E('option', {'value':'1', 'selected': enabled ? '' : null}, _('Enabled')),
+		E('option', {'value':'0', 'selected': enabled ? null : ''}, _('Disabled'))
 	]);
 }
 
@@ -436,12 +421,13 @@ function renderPpeRows(entries) {
 /* ── Main View ── */
 return view.extend({
 	load: function() {
-		return Promise.all([ callNpuStatus(), callPpeEntries(), callTokenInfo(), callFrameEngine(), callGetVlanOffload(), callGetPPPoEOffload() ]);
+		return Promise.all([ callNpuStatus(), callPpeEntries(), callTokenInfo(), callFrameEngine(), callGetVlanOffload(), callGetPppoeOffload(), callGetFlowOffload() ]);
 	},
 
 	render: function(data) {
 		injectCSS();
-		var st = data[0]||{}, ppe = data[1]||{}, ti = data[2]||{}, fe = data[3]||{}, vo = data[4]||{}, po = data[5]||{};
+		var st = data[0]||{}, ppe = data[1]||{}, ti = data[2]||{}, fe = data[3]||{};
+		var vo = data[4]||{enabled:0}, ppo = data[5]||{enabled:0}, flo = data[6]||{enabled:0};
 		var entries = Array.isArray(ppe.entries) ? ppe.entries : [];
 		var memR = Array.isArray(st.memory_regions) ? st.memory_regions : [];
 
@@ -473,9 +459,11 @@ return view.extend({
 					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('Reserved Memory'))),
 						E('td',{'class':'td','id':'npu-memory'}, calcTotalMem(memR)+' ('+memR.length+' regions)') ]),
 					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('VLAN Offload'))),
-						E('td',{'class':'td'}, renderVlanOffloadSelect(vo.enabled)) ]),
+						E('td',{'class':'td'}, renderOffloadSelect(vo.enabled, 'vlan-offload-select', function(v){return callSetVlanOffload(v);})) ]),
 					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('PPPoE Offload'))),
-						E('td',{'class':'td'}, renderPPPoEOffloadSelect(po.enabled)) ])
+						E('td',{'class':'td'}, renderOffloadSelect(ppo.enabled, 'pppoe-offload-select', function(v){return callSetPppoeOffload(v);})) ]),
+					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('Flow Offload'))),
+						E('td',{'class':'td'}, renderOffloadSelect(flo.enabled, 'flow-offload-select', function(v){return callSetFlowOffload(v);})) ])
 				]),
 
 				// Frame Engine diagram (includes WiFi bands, PPE flows, NPU indicator)
@@ -496,20 +484,22 @@ return view.extend({
 		]);
 
 		poll.add(L.bind(function() {
-			return Promise.all([ callNpuStatus(), callPpeEntries(), callTokenInfo(), callFrameEngine(), callGetVlanOffload(), callGetPPPoEOffload() ]).then(L.bind(function(d) {
+			return Promise.all([ callNpuStatus(), callPpeEntries(), callTokenInfo(), callFrameEngine(), callGetVlanOffload(), callGetPppoeOffload(), callGetFlowOffload() ]).then(L.bind(function(d) {
 				injectCSS();
-				var st=d[0]||{}, ppe=d[1]||{}, ti=d[2]||{}, fe=d[3]||{}, vo=d[4]||{}, po=d[5]||{};
+				var st=d[0]||{}, ppe=d[1]||{}, ti=d[2]||{}, fe=d[3]||{};
+				var vo=d[4]||{enabled:0}, ppo=d[5]||{enabled:0}, flo=d[6]||{enabled:0};
 				var entries = Array.isArray(ppe.entries)?ppe.entries:[];
 
 				updateFreqBar(st.cpu_hw_freq,st.cpu_min_freq,st.cpu_max_freq,st.pll_freq_mhz,st.cpu_governor);
 				var gs=document.getElementById('cpu-governor-select'); if(gs&&!gs.matches(':focus')) gs.value=st.cpu_governor||'';
 				var fs=document.getElementById('cpu-maxfreq-select'); if(fs&&!fs.matches(':focus')) fs.value=(st.cpu_max_freq||0).toString();
 
-				var vs=document.getElementById('vlan-offload-select'); if(vs&&!vs.matches(':focus')) vs.value=(vo.enabled?'1':'0');
-				var ps=document.getElementById('pppoe-offload-select'); if(ps&&!ps.matches(':focus')) ps.value=(po.enabled?'1':'0');
-
 				var se=document.getElementById('npu-status');
 				if(se){se.innerHTML='';var sp=document.createElement('span');sp.className=st.npu_loaded?'label-success':'label-danger';sp.textContent=st.npu_loaded?(_('Active')+(st.npu_device?' ('+st.npu_device+')':'')):_('Not Active');se.appendChild(sp);}
+
+				var vs=document.getElementById('vlan-offload-select'); if(vs&&!vs.matches(':focus')) vs.value = vo.enabled ? '1' : '0';
+				var ps=document.getElementById('pppoe-offload-select'); if(ps&&!ps.matches(':focus')) ps.value = ppo.enabled ? '1' : '0';
+				var fls=document.getElementById('flow-offload-select'); if(fls&&!fls.matches(':focus')) fls.value = flo.enabled ? '1' : '0';
 
 				var fc=document.getElementById('fe-container'); if(fc){fc.innerHTML='';fc.appendChild(renderFeDiagram(fe, ti, st));}
 
