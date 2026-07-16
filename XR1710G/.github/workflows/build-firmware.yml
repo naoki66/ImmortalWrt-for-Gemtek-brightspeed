@@ -29,7 +29,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 10
-          submodules: true
 
       - name: Get current date
         id: date
