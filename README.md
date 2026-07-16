@@ -1,93 +1,175 @@
 <img src="https://avatars.githubusercontent.com/u/53193414?s=200&v=4" alt="logo" width="200" height="200" align="right">
 
-# Project ImmortalWrt
+# ImmortalWrt for Gemtek XR1710G
 
-ImmortalWrt is a fork of [OpenWrt](https://openwrt.org), with more packages ported, more devices supported, default optimized profiles and localization modifications for mainland China users.<br/>
-Compared to upstream, we allow to use (non-upstreamable) modifications/hacks to provide better feature/performance/support.
+基于 [ImmortalWrt](https://github.com/immortalwrt/immortalwrt) 为 Gemtek XR1710G（Brightspeed XR1710G）路由器定制的固件。
 
-Default login address: http://192.168.1.1 or http://immortalwrt.lan, username: __root__, password: _none_.
+默认登录地址：http://192.168.1.1 或 http://immortalwrt.lan，用户名：__root__，密码：_无_。
 
-## Download
-Built firmware images are available for many architectures and come with a package selection to be used as WiFi home router. To quickly find a factory image usable to migrate from a vendor stock firmware to ImmortalWrt, try the *Firmware Selector*.
+## 设备规格
 
-- [ImmortalWrt Firmware Selector](https://firmware-selector.immortalwrt.org/)
+| 项目 | 规格 |
+|------|------|
+| SoC | Airoha AN7581（ARM Cortex-A73 双核） |
+| RAM | 1GB DDR4 |
+| Flash | 512MB NAND |
+| WiFi | MediaTek MT7996E（Wi-Fi 7 三频） |
+| 以太网 | 3×LAN + 1×WAN |
+| 传感器 | Nuvoton NCT7802（温度/风扇） |
 
-If your device is supported, please follow the **Info** link to see install instructions or consult the support resources listed below.
+## 固件特性
 
-## Development
-To build your own firmware you need a GNU/Linux, BSD or macOS system (case sensitive filesystem required). Cygwin is unsupported because of the lack of a case sensitive file system.<br/>
+### 核心定制
 
-  ### Requirements
-  To build with this project, Debian 11 is preferred. And you need use the CPU based on AMD64 architecture, with at least 4GB RAM and 25 GB available disk space. Make sure the __Internet__ is accessible.
+- 独立设备树 [an7581-xr1710g-ubi.dts](target/linux/airoha/dts/an7581-xr1710g-ubi.dts)（不依赖公共 dtsi）
+- 9 个内核补丁（[target/linux/airoha/patches-6.18/](target/linux/airoha/patches-6.18/)）：
+  - `303-01/02`: MediaTek PHY 校准修复
+  - `675-01~04`: nft_flow_offload 桥接/VLAN/WDMA 支持
+  - `910-02`: USB/PCIe 时钟修复
+  - `910-04`: NPU MBQ 超时修复
+  - `990-01`: 桥接 FDB 漫游失效修复
+- base-files 定制：[01_leds](target/linux/airoha/an7581/base-files/etc/board.d/01_leds)、[02_network](target/linux/airoha/an7581/base-files/etc/board.d/02_network)、[airoha_fan](target/linux/airoha/an7581/base-files/etc/init.d/airoha_fan)、[platform.sh](target/linux/airoha/an7581/base-files/lib/upgrade/platform.sh)
 
-  The following tools are needed to compile ImmortalWrt, the package names vary between distributions.
+### 预装 LuCI 应用（37 个，全部含中文翻译）
 
-  - Here is an example for Debian/Ubuntu users:<br/>
-    - Method 1:
-      <details>
-        <summary>Setup dependencies via APT</summary>
+#### 设备专属（来自仓库 [package/](package/)）
 
-        ```bash
-        sudo apt update -y
-        sudo apt full-upgrade -y
-        sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
-          bzip2 ccache clang cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib \
-          g++-multilib git gnutls-dev gperf haveged help2man intltool lib32gcc-s1 libc6-dev-i386 libelf-dev \
-          libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev \
-          libreadline-dev libssl-dev libtool libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp nano \
-          ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils \
-          python3-pyelftools qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs \
-          upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd
-        ```
-      </details>
-    - Method 2:
-      ```bash
-      sudo bash -c 'bash <(curl -s https://build-scripts.immortalwrt.org/init_build_environment.sh)'
-      ```
+| 应用 | 来源 | 功能 |
+|------|------|------|
+| `luci-app-airoha-npu` | [rchen14b/luci-app-airoha-npu](https://github.com/rchen14b/luci-app-airoha-npu) | SoC 状态监控 + 超频 |
+| `luci-app-airoha-fancontrol` | [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) | 风扇速度/温度控制 |
+| `luci-app-airoha-flowsense` | [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) | PPE 硬件 offload 监控 |
+| `luci-app-lucky` | [gdy666/luci-app-lucky](https://github.com/gdy666/luci-app-lucky) | Lucky（DDNS/反代/端口转发） |
 
-  Note:
-  - Do everything as an unprivileged user, not root, without sudo.
-  - Using CPUs based on other architectures should be fine to compile ImmortalWrt, but more hacks are needed - No warranty at all.
-  - You must __not__ have spaces or non-ascii characters in PATH or in the work folders on the drive.
-  - If you're using Windows Subsystem for Linux (or WSL), removing Windows folders from PATH is required, please see [Build system setup WSL](https://openwrt.org/docs/guide-developer/build-system/wsl) documentation.
-  - Using macOS as the host build OS is __not__ recommended. No warranty at all. You can get tips from [Build system setup macOS](https://openwrt.org/docs/guide-developer/build-system/buildroot.exigence.macosx) documentation.
-  - For more details, please see [Build system setup](https://openwrt.org/docs/guide-developer/build-system/install-buildsystem) documentation.
+#### 网络代理
 
-  ### Quickstart
-  1. Run `git clone -b <branch> --single-branch --filter=blob:none https://github.com/immortalwrt/immortalwrt` to clone the source code.
-  2. Run `cd immortalwrt` to enter source directory.
-  3. Run `./scripts/feeds update -a` to obtain all the latest package definitions defined in feeds.conf / feeds.conf.default
-  4. Run `./scripts/feeds install -a` to install symlinks for all obtained packages into package/feeds/
-  5. Run `make menuconfig` to select your preferred configuration for the toolchain, target system & firmware packages.
-  6. Run `make` to build your firmware. This will download all sources, build the cross-compile toolchain and then cross-compile the GNU/Linux kernel & all chosen applications for your target system.
+| 应用 | 核心依赖 | 功能 |
+|------|---------|------|
+| `luci-app-openclash` | mihomo | Clash 图形化客户端 |
+| `luci-app-passwall` | sing-box / xray-core / shadowsocks-rust / haproxy | 多协议代理客户端（含 Xray/SingBox/SS-Rust/Haproxy/Simple-Obfs/V2ray-Plugin） |
+| `luci-app-zerotier` | zerotier | ZeroTier 虚拟局域网 |
 
-  ### Related Repositories
-  The main repository uses multiple sub-repositories to manage packages of different categories. All packages are installed via the OpenWrt package manager called opkg. If you're looking to develop the web interface or port packages to ImmortalWrt, please find the fitting repository below.
-  - [LuCI Web Interface](https://github.com/immortalwrt/luci): Modern and modular interface to control the device via a web browser.
-  - [ImmortalWrt Packages](https://github.com/immortalwrt/packages): Community repository of ported packages.
-  - [OpenWrt Routing](https://github.com/openwrt/routing): Packages specifically focused on (mesh) routing.
-  - [OpenWrt Video](https://github.com/openwrt/video): Packages specifically focused on display servers and clients (Xorg and Wayland).
+#### DNS 相关
 
-## Support Information
-For a list of supported devices see the [OpenWrt Hardware Database](https://openwrt.org/supported_devices)
-  ### Documentation
-  - [Quick Start Guide](https://openwrt.org/docs/guide-quick-start/start)
-  - [User Guide](https://openwrt.org/docs/guide-user/start)
-  - [Developer Documentation](https://openwrt.org/docs/guide-developer/start)
-  - [Technical Reference](https://openwrt.org/docs/techref/start)
+| 应用 | 核心依赖 | 功能 |
+|------|---------|------|
+| `luci-app-adguardhome` | adguardhome | AdGuard Home 广告过滤 |
+| `luci-app-smartdns` | smartdns, smartdns-ui | SmartDNS DNS 加速/分流 |
+| `luci-app-ddns-go` | ddns-go | DDNS-Go 动态域名（支持阿里云/Cloudflare/DNSPod） |
+| `luci-app-ddns` | ddns-scripts | 传统 DDNS 脚本 |
 
-  ### Support Community
-  - Support Chat: group [@ctcgfw_openwrt_discuss](https://t.me/ctcgfw_openwrt_discuss) on [Telegram](https://telegram.org/).
-  - Support Chat: group [#immortalwrt](https://matrix.to/#/#immortalwrt:matrix.org) on [Matrix](https://matrix.org/).
+#### 网络工具
 
-## License
-ImmortalWrt is licensed under [GPL-2.0-only](https://spdx.org/licenses/GPL-2.0-only.html).
+| 应用 | 功能 |
+|------|------|
+| `luci-app-upnp` | UPnP 自动端口转发 |
+| `luci-app-firewall` | 防火墙（firewall4/nftables） |
+| `luci-app-arpbind` | IP/MAC 绑定 |
+| `luci-app-banip` | IP 黑名单封锁 |
+| `luci-app-clientstatus` | 客户端状态监控 |
+| `luci-app-mlo` | MLO（Wi-Fi 7 多链路操作） |
+| `luci-app-package-manager` | APK 包管理器 |
+| `luci-app-ttyd` | Web 终端 |
+| `luci-app-msd_lite` | MSD Lite |
 
-## Acknowledgements
-<table>
-  <tr>
-    <td><a href="https://dlercloud.com/"><img src="https://user-images.githubusercontent.com/22235437/111103249-f9ec6e00-8588-11eb-9bfc-67cc55574555.png" width="183" height="52" border="0" alt="Dler Cloud"></a></td>
-    <td><a href="https://www.jetbrains.com/"><img src="https://resources.jetbrains.com/storage/products/company/brand/logos/jb_square.png" width="120" height="120" border="0" alt="JetBrains Black Box Logo logo"></a></td>
-    <td><a href="https://sourceforge.net/"><img src="https://sourceforge.net/sflogo.php?type=17&group_id=3663829" alt="SourceForge" width=200></a></td>
-  </tr>
-</table>
+#### 系统工具
+
+| 应用 | 功能 |
+|------|------|
+| `luci-app-autoreboot` | 定时重启 |
+| `luci-app-watchcat` | 网络看门狗 |
+| `luci-app-wol` | 网络唤醒 |
+| `luci-app-vlmcsd` | KMS 激活服务 |
+| `luci-app-rtp2httpd` | RTP 转 HTTP |
+| `luci-app-udpxy` | UDP 组播代理 |
+| `luci-app-wechatpush` | 微信推送通知 |
+| `luci-app-wifihistory` | WiFi 历史记录 |
+| `luci-app-wifischedule` | WiFi 定时开关 |
+
+### 主要系统包
+
+**网络核心**
+- `dnsmasq-full`（完整版 DNS/DHCP）
+- `firewall4` + `nftables`（nftables 防火墙）
+- `wpad-mbedtls`（完整版，支持 802.11v/k/11ax）
+- `odhcp6c` / `odhcpd-ipv6only`（IPv6）
+- `ppp` / `ppp-mod-pppoe`（PPPoE）
+
+**内核模块（kmod）**
+- `kmod-mt7996-firmware` / `kmod-mt7996e`（MT7996 Wi-Fi 7 驱动）
+- `kmod-crypto-hw-eip93`（硬件加密加速）
+- `kmod-nft-offload` / `kmod-nft-fullcone`（硬件流量卸载/全锥 NAT）
+- `kmod-br-netfilter` / `kmod-tcp-bbr`（桥接 Netfilter / BBR 拥塞控制）
+- `kmod-hwmon-nct7802`（NCT7802 温度传感器）
+- `kmod-i2c-an7581` / `kmod-leds-gpio` / `kmod-gpio-button-hotplug`
+- `kmod-phy-realtek` / `kmod-mt76-connac` / `kmod-mt76-core`
+
+**系统工具**
+- `bash` / `coreutils` / `curl` / `ip-full`
+- `htop` / `tcpdump` / `iperf3` / `ethtool-full`
+- `luci-theme-argon` + `luci-theme-bootstrap`
+- `default-settings-chn`（中文默认设置）
+
+**代理核心**
+- `sing-box` / `xray-core` / `shadowsocks-rust-sslocal` / `shadowsocks-rust-ssserver`
+- `haproxy` / `chinadns-ng` / `geoview` / `dns2socks` / `microsocks` / `v2ray-plugin` / `ipt2socks`
+
+## GitHub Actions 工作流
+
+| 工作流 | 触发方式 | 功能 |
+|--------|---------|------|
+| [build-firmware.yml](.github/workflows/build-firmware.yml) | 手动 (workflow_dispatch) | 构建固件并发布 Release |
+| [sync-upstream.yml](.github/workflows/sync-upstream.yml) | 每 3 天定时 + 手动 | 同步 ImmortalWrt 上游 |
+
+**构建配置**：仓库根目录的 [config.seed](config.seed) 是完整配置文件，Action 自动执行 `cp config.seed .config && make defconfig`。
+
+**Release 格式**：
+- Tag：`YYYYMMDD`
+- 名称：`YYYYMMDD - XR1710G Build`
+- 选项：`release` / `prerelease` / `none`
+
+## 下载
+
+- [Releases 页面](https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/releases)
+- 固件文件：`immortalwrt-airoha-an7581-gemtek_xr1710g-ubi-squashfs-sysupgrade.itb`
+- 升级方法：LuCI → 系统 → 备份/升级 → 刷写固件
+
+## 本地构建（可选）
+
+```bash
+git clone https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G.git
+cd ImmortalWrt-for-Gemtek-XR1710G
+./scripts/feeds update -a
+./scripts/feeds install -a
+cp config.seed .config
+make defconfig
+make -j$(nproc)
+```
+
+构建环境要求：GNU/Linux 系统（Debian 11+ 推荐），AMD64 架构，至少 4GB RAM 和 25GB 可用磁盘空间。详细依赖请参考 [ImmortalWrt 官方文档](https://openwrt.org/docs/guide-developer/build-system/install-buildsystem)。
+
+## 致谢
+
+### 上游固件
+- [immortalwrt/immortalwrt](https://github.com/immortalwrt/immortalwrt) - ImmortalWrt 主项目
+- [immortalwrt/luci](https://github.com/immortalwrt/luci) - LuCI Web 界面
+- [immortalwrt/packages](https://github.com/immortalwrt/packages) - 社区软件包仓库
+- [openwrt/routing](https://github.com/openwrt/routing) - OpenWrt 路由相关包
+- [openwrt/mt76](https://github.com/openwrt/mt76) - MediaTek WiFi 驱动
+
+### 参考项目
+- [YYH2913/openwrt](https://github.com/YYH2913/openwrt) - XR1710G 6.18 内核集成参考（an7581-xr1710g-ubi.dts 基础结构）
+- [lvcdy/openwrt_xr1710g](https://github.com/lvcdy/openwrt_xr1710g) - XR1710G 早期移植参考（分区表、PHY 配置）
+
+### LuCI 应用来源
+- [rchen14b/luci-app-airoha-npu](https://github.com/rchen14b/luci-app-airoha-npu) - Airoha NPU 状态监控（PR #4 合并中文翻译）
+- [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) - Airoha 风扇控制与 FlowSense（commit db3f1c8）
+- [gdy666/luci-app-lucky](https://github.com/gdy666/luci-app-lucky) - Lucky 多功能工具
+
+### 相关工具
+- [JetBrains](https://www.jetbrains.com/) - 开发工具支持
+- [SourceForge](https://sourceforge.net/) - 镜像托管
+
+## 许可证
+
+[GPL-2.0-only](https://spdx.org/licenses/GPL-2.0-only.html)（继承 ImmortalWrt）
