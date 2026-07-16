@@ -1,0 +1,105 @@
+From: ImmortalWrt XR1710G Build
+Subject: [PATCH] PCI: mediatek-gen3: Add airoha,x2-mode support for AN7581
+
+Add support for the legacy "airoha,x2-mode" device tree property
+used by some Airoha AN7581 devices (e.g. Gemtek XR1710G) to enable
+PCIe 2-lanes mode.
+
+This is an alternative binding to the standard "num-lanes = <2>"
+approach. When "airoha,x2-mode" is present:
+- 2-lanes mode is enabled
+- "airoha,np-scu" can be used instead of "airoha,scu"
+- "sec-pcie-mac" is optional (EQ config is applied to main base only)
+
+Signed-off-by: ImmortalWrt XR1710G Build
+---
+ drivers/pci/controller/pcie-mediatek-gen3.c | 57 +++++++++++++++++++--
+ 1 file changed, 52 insertions(+), 5 deletions(-)
+
+--- a/drivers/pci/controller/pcie-mediatek-gen3.c
++++ b/drivers/pci/controller/pcie-mediatek-gen3.c
+@@ -922,6 +922,22 @@ static int mtk_pcie_parse_port(struct mt
+ 			pcie->num_lanes = num_lanes;
+ 	}
+ 
++	/* Support legacy airoha,x2-mode property */
++	if (device_is_compatible(dev, "airoha,en7581-pcie") &&
++	    of_property_read_bool(dev->of_node, "airoha,x2-mode")) {
++		pcie->num_lanes = 2;
++		dev_info(dev, "using airoha,x2-mode for 2-lanes operation\n");
++	}
++
++	/* Support airoha,np-scu as alternative to airoha,scu */
++	if (device_is_compatible(dev, "airoha,en7581-pcie") &&
++	    pcie->num_lanes == 2 &&
++	    !of_property_read_bool(dev->of_node, "airoha,scu") &&
++	    of_property_read_bool(dev->of_node, "airoha,np-scu")) {
++		dev_info(dev, "using airoha,np-scu for SCU access\n");
++	}
++
+ 	/* Map secondary PCIe for 2-lanes mode for EN7581 */
+ 	if (pcie->num_lanes == 2 && device_is_compatible(dev, "airoha,en7581-pcie")) {
+ 		regs = platform_get_resource_byname(pdev, IORESOURCE_MEM, "sec-pcie-mac");
+@@ -930,7 +946,12 @@ static int mtk_pcie_parse_port(struct mt
+ 		pcie->sec_base = devm_ioremap_resource(dev, regs);
+ 		if (IS_ERR(pcie->sec_base))
+ 			return dev_err_probe(dev, PTR_ERR(pcie->sec_base), "failed to map secondary register base\n");
++	} else if (pcie->num_lanes == 2 && device_is_compatible(dev, "airoha,en7581-pcie")) {
++		/* In x2-mode without sec-pcie-mac, we only have the main base.
++		 * This is the legacy binding used by some devices.
++		 */
++		dev_info(dev, "2-lanes mode without sec-pcie-mac (legacy x2-mode binding)\n");
+ 	}
++
+ 
+ 	return 0;
+ }
+@@ -997,8 +1018,18 @@ static int mtk_pcie_en7581_power_up(stru
+ 	if (num_lanes == 2) {
+ 		scu = syscon_regmap_lookup_by_phandle(dev->of_node, "airoha,scu");
+ 		if (IS_ERR(scu))
+-			return dev_err_probe(dev, PTR_ERR(scu), "failed to map SCU regmap\n");
++		{
++			/* Try airoha,np-scu as fallback */
++			scu = syscon_regmap_lookup_by_phandle(dev->of_node, "airoha,np-scu");
++			if (IS_ERR(scu))
++				return dev_err_probe(dev, PTR_ERR(scu),
++						     "failed to map SCU regmap (tried airoha,scu and airoha,np-scu)\n");
++
++			dev_info(dev, "using airoha,np-scu for SCU MUX configuration\n");
++		}
++	}
++
++	if (num_lanes == 2 && !scu) {
++		return dev_err_probe(dev, -EINVAL, "SCU regmap required for 2-lanes mode\n");
+ 	}
+ 
+ 	/*
+@@ -1072,10 +1105,24 @@ static int mtk_pcie_en7581_power_up(stru
+ 	/* Configure all the lines to the same EQ config */
+ 	for (i = 0; i < num_lanes; i++) {
+ 		void __iomem *base = pcie->base;
++		bool use_sec_base = true;
+ 
+-		if (i == 1)
+-			base = pcie->sec_base;
+-
++		if (i == 1) {
++			if (pcie->sec_base) {
++				base = pcie->sec_base;
++			} else {
++				/* Legacy x2-mode: only main base is available.
++				 * Skip the second iteration since both lanes
++				 * are configured through the primary MAC.
++				 */
++				dev_dbg(dev, "skipping lane %d EQ config (no sec-pcie-mac, using x2-mode)\n", i);
++				use_sec_base = false;
++			}
++		}
++
++		if (!use_sec_base)
++			continue;
++
+ 		val = FIELD_PREP(PCIE_VAL_LN0_DOWNSTREAM, 0x47) |
+ 			FIELD_PREP(PCIE_VAL_LN1_DOWNSTREAM, 0x47) |
+ 			FIELD_PREP(PCIE_VAL_LN0_UPSTREAM, 0x41) |

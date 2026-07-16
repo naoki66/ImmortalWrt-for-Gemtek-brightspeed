@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
 /dts-v1/;
 #include <dt-bindings/leds/common.h>
 #include <dt-bindings/gpio/gpio.h>
@@ -197,6 +197,7 @@
 &pcie0 {
 	status = "okay";
 	airoha,x2-mode;
+	airoha,np-scu = <&scuclk>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pcie0_rst_pins>;
 	pcie@0,0 {
@@ -238,6 +239,10 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pcie2_rst_pins>;
 };
+&cpufreq {
+	reg = <0x0 0x1FA20000 0x0 0x2C0 0x0 0x1EFBE000 0x0 0x800>;
+	reg-names = "chip-scu", "mcucfg";
+};
 &npu {
 	firmware-name = "airoha/en7581_MT7996_npu_rv32.bin",
 		"airoha/en7581_MT7996_npu_data.bin";
@@ -256,6 +261,7 @@
 	status = "okay";
 	nvmem-cells = <&lan_mac 0>;
 	nvmem-cell-names = "mac-address";
+	openwrt,netdev-name = "cpu";
 };
 &gdm2 {
 	status = "okay";
