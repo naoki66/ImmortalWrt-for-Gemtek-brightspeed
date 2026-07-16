@@ -1,0 +1,13 @@
+{
+	"admin/status/flowsense": {
+		"title": "FlowSense",
+		"order": 16,
+		"action": {
+			"type": "view",
+			"path": "airoha_flowsense/status"
+		},
+		"depends": {
+			"acl": [ "luci-app-airoha-flowsense" ]
+		}
+	}
+}

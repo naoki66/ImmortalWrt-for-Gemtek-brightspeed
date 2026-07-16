@@ -1,0 +1,82 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+USE_PROCD=1
+
+# Dynamically find NCT7802 fan controller hwmon device
+find_nct7802() {
+	for hwmon in /sys/class/hwmon/hwmon*; do
+		if [ -f "$hwmon/name" ] && [ "$(cat "$hwmon/name" 2>/dev/null)" = "nct7802" ]; then
+			echo "$hwmon"
+			return
+		fi
+	done
+	echo "/sys/class/hwmon/hwmon3"  # fallback
+}
+
+HWMON=$(find_nct7802)
+
+apply_curve() {
+	local preset="$1"
+	local temp pwm
+
+	# Read curve settings from UCI
+	# Note: point5_pwm is read-only (fixed at 255), so only set temp for point 5
+	for i in 1 2 3 4 5; do
+		temp=$(uci -q get fan.${preset}.point${i}_temp)
+		pwm=$(uci -q get fan.${preset}.point${i}_pwm)
+
+		if [ -n "$temp" ]; then
+			# Temperature in milli-celsius
+			echo $((temp * 1000)) > ${HWMON}/pwm1_auto_point${i}_temp 2>/dev/null
+		fi
+
+		# PWM is writable only for points 1-4
+		if [ -n "$pwm" ] && [ "$i" -lt 5 ]; then
+			echo "$pwm" > ${HWMON}/pwm1_auto_point${i}_pwm 2>/dev/null
+		fi
+	done
+}
+
+apply_settings() {
+	local mode preset manual_pwm
+
+	[ ! -d "$HWMON" ] && return 1
+
+	mode=$(uci -q get fan.settings.mode)
+	preset=$(uci -q get fan.settings.curve_preset)
+	manual_pwm=$(uci -q get fan.settings.manual_pwm)
+
+	# Disable auto mode temporarily to write settings
+	echo 1 > ${HWMON}/pwm1_enable 2>/dev/null
+
+	case "$mode" in
+		manual)
+			# Set manual PWM and keep in manual mode
+			[ -n "$manual_pwm" ] && echo "$manual_pwm" > ${HWMON}/pwm1 2>/dev/null
+			;;
+		auto|*)
+			# Apply selected curve preset
+			[ -n "$preset" ] && apply_curve "$preset"
+			# Enable automatic mode
+			echo 2 > ${HWMON}/pwm1_enable 2>/dev/null
+			;;
+	esac
+}
+
+start_service() {
+	if [ -f "/etc/init.d/airoha_fan" ]; then
+		/etc/init.d/airoha_fan stop 2>/dev/null
+		/etc/init.d/airoha_fan disable 2>/dev/null
+	fi
+
+	apply_settings
+}
+
+reload_service() {
+	apply_settings
+}
+
+service_triggers() {
+	procd_add_reload_trigger "fan"
+}

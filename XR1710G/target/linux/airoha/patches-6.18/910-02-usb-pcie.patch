@@ -1,0 +1,21 @@
+diff --git a/drivers/clk/clk-en7523.c b/drivers/clk/clk-en7523.c
+index 15bbdeb60b8e..d7352019ab23 100644
+--- a/drivers/clk/clk-en7523.c
++++ b/drivers/clk/clk-en7523.c
+@@ -37,6 +37,7 @@
+ #define REG_NP_SCU_SSTR			0x9c
+ #define REG_PCIE_XSI0_SEL_MASK		GENMASK(14, 13)
+ #define REG_PCIE_XSI1_SEL_MASK		GENMASK(12, 11)
++#define REG_USB_PCIE_SEL		BIT(3)
+ #define REG_CRYPTO_CLKSRC2		0x20c
+ 
+ #define REG_RST_CTRL2			0x830
+@@ -693,7 +694,7 @@ static int en7581_clk_hw_init(struct platform_device *pdev,
+ 		return err;
+ 
+ 	regmap_clear_bits(clk_map, REG_NP_SCU_SSTR,
+-			  REG_PCIE_XSI0_SEL_MASK | REG_PCIE_XSI1_SEL_MASK);
++			  REG_PCIE_XSI0_SEL_MASK | REG_PCIE_XSI1_SEL_MASK | REG_USB_PCIE_SEL);
+ 	regmap_update_bits(clk_map, REG_NP_SCU_PCIC, REG_PCIE_CTRL,
+ 			   FIELD_PREP(REG_PCIE_CTRL, 3));
+ 

@@ -1,0 +1,53 @@
+#!/bin/sh
+
+# NPU Jitter Daemon
+# Continuously pings a target and writes jitter stats to /tmp/npu-jitter.json
+# Started by /etc/init.d/npu-jitter at boot
+
+TARGET="${1:-1.1.1.1}"
+RESULT_FILE="/tmp/npu-jitter.json"
+WINDOW=10
+INTERVAL=2  # seconds between pings
+
+ping_values=""
+count=0
+
+while true; do
+	# Single ping, 1 second timeout
+	rtt=$(ping -c 1 -W 1 "$TARGET" 2>/dev/null | awk -F'/' '/min.*avg/{printf "%.2f", $5}')
+
+	if [ -n "$rtt" ]; then
+		ping_values="$ping_values $rtt"
+		count=$((count + 1))
+
+		# Trim to window size
+		if [ "$count" -gt "$WINDOW" ]; then
+			ping_values=$(echo "$ping_values" | awk '{
+				for (i = NF - '"$WINDOW"' + 1; i <= NF; i++) printf $i " "
+			}')
+			count=$WINDOW
+		fi
+
+		# Calculate mean absolute deviation (jitter) and last ping
+		result=$(echo "$ping_values" | awk -v c="$count" '{
+			n = NF
+			sum = 0
+			for (i = 1; i <= n; i++) sum += $i
+			avg = sum / n
+			dev = 0
+			for (i = 1; i <= n; i++) dev += ($i > avg ? $i - avg : avg - $i)
+			jitter = dev / n
+			last = $n
+			printf "{\"jitter\":%.2f,\"last_ping\":%.2f,\"samples\":%d,\"target\":\"%s\",\"reachable\":true,\"available\":true}", \
+				jitter, last, c, "'"$TARGET"'"
+		}')
+
+		echo "$result" > "$RESULT_FILE"
+	else
+		# Unreachable — preserve sample count but mark unreachable
+		printf '{"jitter":0,"last_ping":0,"samples":%d,"target":"%s","reachable":false,"available":true}\n' \
+			"$count" "$TARGET" > "$RESULT_FILE"
+	fi
+
+	sleep "$INTERVAL"
+done

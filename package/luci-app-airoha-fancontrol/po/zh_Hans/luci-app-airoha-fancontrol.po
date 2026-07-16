@@ -1,0 +1,106 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: zh_Hans\n"
+
+msgid "Fan Control - Status"
+msgstr "风扇控制 - 状态"
+
+msgid "Fan Control - Settings"
+msgstr "风扇控制 - 设置"
+
+msgid "Configure fan control mode and speed curves."
+msgstr "配置风扇控制模式和转速曲线。"
+
+msgid "Fan Status"
+msgstr "风扇状态"
+
+msgid "Fan Speed"
+msgstr "风扇转速"
+
+msgid "Control Mode"
+msgstr "控制模式"
+
+msgid "Mode"
+msgstr "模式"
+
+msgid "Automatic (Follow Curve)"
+msgstr "自动（跟随曲线）"
+
+msgid "Manual (Fixed Speed)"
+msgstr "手动（固定转速）"
+
+msgid "Manual Override"
+msgstr "手动覆盖"
+
+msgid "Active Preset"
+msgstr "当前预设"
+
+msgid "Manual Fan Speed (PWM)"
+msgstr "手动风扇转速 (PWM)"
+
+msgid "Set a fixed PWM value (0-255). 0 = Off, 255 = Full Speed"
+msgstr "设置固定的 PWM 值 (0-255)。0 = 关闭，255 = 满速"
+
+msgid "Fan Curve Preset"
+msgstr "风扇曲线预设"
+
+msgid "Quiet - Lower speeds, higher temps"
+msgstr "静音 - 低转速，高温度"
+
+msgid "Balanced - Good mix of noise and cooling"
+msgstr "均衡 - 噪音与散热的良好平衡"
+
+msgid "Performance - Higher speeds, lower temps"
+msgstr "性能 - 高转速，低温度"
+
+msgid "Custom - Define your own curve"
+msgstr "自定义 - 设定您自己的曲线"
+
+msgid "Curve Preview"
+msgstr "曲线预览"
+
+msgid "Custom Curve Editor"
+msgstr "自定义曲线编辑器"
+
+msgid "Define temperature thresholds and corresponding fan speeds."
+msgstr "定义温度阈值及对应的风扇转速。"
+
+msgid "Curve Points"
+msgstr "曲线点"
+
+msgid "Point %d Temperature (°C)"
+msgstr "点 %d 温度 (°C)"
+
+msgid "Point %d PWM (0-255)"
+msgstr "点 %d PWM (0-255)"
+
+msgid "Temperatures"
+msgstr "温度"
+
+msgid "System"
+msgstr "系统"
+
+msgid "CPU"
+msgstr "CPU"
+
+msgid "Board (Fan Curve)"
+msgstr "主板（风扇曲线）"
+
+msgid "10G PHY"
+msgstr "10G PHY"
+
+msgid "Switch PHY"
+msgstr "交换芯片 PHY"
+
+msgid "WiFi"
+msgstr "WiFi"
+
+msgid "2.4 GHz Radio"
+msgstr "2.4 GHz 无线"
+
+msgid "5 GHz Radio"
+msgstr "5 GHz 无线"
+
+msgid "6 GHz Radio"
+msgstr "6 GHz 无线"

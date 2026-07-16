@@ -1,0 +1,176 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 3.8\n"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:327
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:406
+msgid "Active"
+msgstr "已激活"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:284
+msgid "Airoha SoC Status"
+msgstr "Airoha SoC 状态"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:224
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:233
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:237
+msgid "Apply"
+msgstr "应用"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:221
+msgid "Applying..."
+msgstr "正在应用..."
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:350
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:420
+msgid "Bound:"
+msgstr "已绑定："
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:362
+msgid "Bytes"
+msgstr "字节"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:310
+msgid "CPU Cores"
+msgstr "CPU 核心"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:288
+msgid "CPU Frequency"
+msgstr "CPU 频率"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:229
+msgid "CPU set to"
+msgstr "CPU 设置为"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:291
+msgid "Current Frequency"
+msgstr "当前频率"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:244
+msgid ""
+"Direct PLL programming. Governor locked to performance. Stock max: 1200 MHz. "
+"Tested stable up to 1500 MHz."
+msgstr ""
+"直接 PLL 编程，调速器锁定为性能模式，官方上限：1200 MHz。"
+"实测稳定可达 1500 MHz。"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:360
+msgid "Ethernet"
+msgstr "以太网"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:85
+msgid "Failed to set governor:"
+msgstr "设置调速器失败："
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:112
+msgid "Failed to set max frequency:"
+msgstr "设置最大频率失败："
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:212
+msgid "Frequency must be 500-1600 MHz"
+msgstr "频率必须介于 500–1600 MHz 之间"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:296
+msgid "Governor"
+msgstr "调速器"
+
+#: feeds/luci/applications/luci-app-airoha-npu/root/usr/share/rpcd/acl.d/luci-app-airoha-npu.json:3
+msgid "Grant access to Airoha SoC status (NPU + CPU + Overclock)"
+msgstr "授予访问 Airoha SoC 状态（NPU + CPU + 超频）的权限"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:355
+msgid "Index"
+msgstr "索引"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:301
+msgid "Max Frequency"
+msgstr "最大频率"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:331
+msgid "NPU Clock / Cores"
+msgstr "NPU 时钟 / 核心"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:321
+msgid "NPU Firmware Version"
+msgstr "NPU 固件版本"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:318
+msgid "NPU Information"
+msgstr "NPU 信息"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:325
+msgid "NPU Status"
+msgstr "NPU 状态"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:359
+msgid "New Flow"
+msgstr "新连接"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:328
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:411
+msgid "Not Active"
+msgstr "未激活"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:322
+msgid "Not available"
+msgstr "不可用"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:339
+msgid "Offload Statistics"
+msgstr "卸载统计"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:358
+msgid "Original Flow"
+msgstr "原始连接"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:306
+msgid "Overclock"
+msgstr "超频"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:226
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:234
+msgid "Overclock failed:"
+msgstr "超频失败："
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:347
+msgid "PPE Flow Offload Entries"
+msgstr "PPE 硬件加速表"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:361
+msgid "Packets"
+msgstr "数据包"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:335
+msgid "Reserved Memory"
+msgstr "NPU 内存"
+
+#: feeds/luci/applications/luci-app-airoha-npu/root/usr/share/luci/menu.d/luci-app-airoha-npu.json:3
+msgid "SoC Status"
+msgstr "SoC 状态"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:356
+msgid "State"
+msgstr "状态"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:349
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:419
+msgid "Total:"
+msgstr "总计："
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:357
+msgid "Type"
+msgstr "类型"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:351
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:421
+msgid "Unbound:"
+msgstr "未绑定："

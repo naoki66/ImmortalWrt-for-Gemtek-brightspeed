@@ -1,0 +1,15 @@
+---
+ drivers/net/ethernet/airoha/airoha_npu.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/drivers/net/ethernet/airoha/airoha_npu.c
++++ b/drivers/net/ethernet/airoha/airoha_npu.c
+@@ -192,7 +192,7 @@ static int airoha_npu_send_msg(struct ai
+ 	ret = regmap_read_poll_timeout_atomic(npu->regmap,
+ 					      REG_CR_MBQ0_CTRL(3) + offset,
+ 					      val, (val & MBOX_MSG_DONE),
+-					      100, 100 * MSEC_PER_SEC);
++					      100, 1000 * MSEC_PER_SEC);
+ 	if (!ret && FIELD_GET(MBOX_MSG_STATUS, val) != NPU_MBOX_SUCCESS)
+ 		ret = -EINVAL;
+ 

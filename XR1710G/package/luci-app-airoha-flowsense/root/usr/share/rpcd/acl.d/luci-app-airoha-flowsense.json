@@ -1,0 +1,28 @@
+{
+	"luci-app-airoha-flowsense": {
+		"description": "Grant access to Airoha FlowSense offload & PPE monitor",
+		"read": {
+			"ubus": {
+				"luci.airoha_flowsense": [ "getStatus", "getPpeEntries", "getTokenInfo", "getFrameEngine", "getVlanOffload", "getFlowOffload", "getPppoeOffload", "getTxStats", "getDeviceMode", "getWanHealth", "getJitterResult", "getWifiStats", "getBridgeStats", "getNpuBypass", "getConflictAlerts", "getEthStats" ]
+			},
+			"file": {
+				"/sys/kernel/debug/ppe/entries": [ "read" ],
+				"/sys/kernel/debug/ppe/bind": [ "read" ],
+				"/sys/devices/system/cpu/cpufreq/policy0/*": [ "read" ],
+				"/sys/kernel/debug/ieee80211/*/mt76/token_info": [ "read" ],
+				"/sys/kernel/debug/ieee80211/*/mt76/tx_stats": [ "read" ]
+			}
+		},
+		"write": {
+			"ubus": {
+				"luci.airoha_flowsense": [ "setVlanOffload", "setFlowOffload", "setPppoeOffload" ]
+			},
+			"file": {
+				"/proc/sys/net/bridge/bridge-nf-filter-vlan-tagged": [ "read", "write" ],
+				"/proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged": [ "read", "write" ],
+				"/etc/sysctl.d/14-vlan-offload.conf": [ "write" ],
+				"/etc/sysctl.d/15-pppoe-offload.conf": [ "write" ]
+			}
+		}
+	}
+}

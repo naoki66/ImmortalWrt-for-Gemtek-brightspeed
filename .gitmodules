@@ -1,0 +1,3 @@
+[submodule "u-boot"]
+	path = u-boot
+	url = https://github.com/naoki66/u-boot-an7581.git

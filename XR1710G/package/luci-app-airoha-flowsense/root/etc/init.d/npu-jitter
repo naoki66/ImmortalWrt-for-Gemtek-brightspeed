@@ -1,0 +1,30 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+STOP=10
+USE_PROCD=1
+
+DAEMON=/usr/libexec/npu-jitter-daemon
+PIDFILE=/var/run/npu-jitter.pid
+
+start_service() {
+	local target
+	target=$(uci get npu-monitor.jitter.target 2>/dev/null || echo "1.1.1.1")
+
+	procd_open_instance
+	procd_set_param command "$DAEMON" "$target"
+	procd_set_param pidfile "$PIDFILE"
+	procd_set_param respawn 30 5 0
+	procd_set_param stdout 0
+	procd_set_param stderr 0
+	procd_close_instance
+}
+
+stop_service() {
+	rm -f /tmp/npu-jitter.json
+}
+
+reload_service() {
+	stop
+	start
+}

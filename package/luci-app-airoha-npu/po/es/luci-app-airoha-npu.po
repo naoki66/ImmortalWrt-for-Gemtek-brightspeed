@@ -1,0 +1,176 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 3.8\n"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:327
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:406
+msgid "Active"
+msgstr "Activo"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:284
+msgid "Airoha SoC Status"
+msgstr "Estado del SoC Airoha"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:224
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:233
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:237
+msgid "Apply"
+msgstr "Aplicar"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:221
+msgid "Applying..."
+msgstr "Aplicando..."
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:350
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:420
+msgid "Bound:"
+msgstr "Atado:"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:362
+msgid "Bytes"
+msgstr "Bytes"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:310
+msgid "CPU Cores"
+msgstr "Núcleos de CPU"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:288
+msgid "CPU Frequency"
+msgstr "Frecuencia de la CPU"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:229
+msgid "CPU set to"
+msgstr "CPU configurada en"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:291
+msgid "Current Frequency"
+msgstr "Frecuencia actual"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:244
+msgid ""
+"Direct PLL programming. Governor locked to performance. Stock max: 1200 MHz. "
+"Tested stable up to 1500 MHz."
+msgstr ""
+"Programación directa por PLL. Regulador ajustado al rendimiento. Máxima de "
+"fábrica: 1200 MHz. Estabilidad comprobada hasta 1500 MHz."
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:360
+msgid "Ethernet"
+msgstr "Ethernet"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:85
+msgid "Failed to set governor:"
+msgstr "No se pudo establecer el regulador:"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:112
+msgid "Failed to set max frequency:"
+msgstr "No se pudo establecer la frecuencia máxima:"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:212
+msgid "Frequency must be 500-1600 MHz"
+msgstr "La frecuencia debe ser de 500-1600 MHz"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:296
+msgid "Governor"
+msgstr "Regulador"
+
+#: feeds/luci/applications/luci-app-airoha-npu/root/usr/share/rpcd/acl.d/luci-app-airoha-npu.json:3
+msgid "Grant access to Airoha SoC status (NPU + CPU + Overclock)"
+msgstr "Otorgar acceso al estado del SoC Airoha (NPU + CPU + Overclock)"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:355
+msgid "Index"
+msgstr "Índice"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:301
+msgid "Max Frequency"
+msgstr "Máx. frecuencia"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:331
+msgid "NPU Clock / Cores"
+msgstr "Reloj/núcleos de NPU"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:321
+msgid "NPU Firmware Version"
+msgstr "Versión de firmware de la NPU"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:318
+msgid "NPU Information"
+msgstr "Información de la NPU"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:325
+msgid "NPU Status"
+msgstr "Estado de la NPU"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:359
+msgid "New Flow"
+msgstr "Nuevo flujo"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:328
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:411
+msgid "Not Active"
+msgstr "No activo"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:322
+msgid "Not available"
+msgstr "No disponible"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:339
+msgid "Offload Statistics"
+msgstr "Estadísticas de descarga"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:358
+msgid "Original Flow"
+msgstr "Flujo original"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:306
+msgid "Overclock"
+msgstr "Overclock"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:226
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:234
+msgid "Overclock failed:"
+msgstr "Overclock fallido:"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:347
+msgid "PPE Flow Offload Entries"
+msgstr "Entradas de descarga de flujo de PPE"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:361
+msgid "Packets"
+msgstr "Packets"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:335
+msgid "Reserved Memory"
+msgstr "Memoria reservada"
+
+#: feeds/luci/applications/luci-app-airoha-npu/root/usr/share/luci/menu.d/luci-app-airoha-npu.json:3
+msgid "SoC Status"
+msgstr "Procesadores"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:356
+msgid "State"
+msgstr "Estado"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:349
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:419
+msgid "Total:"
+msgstr "Total:"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:357
+msgid "Type"
+msgstr "Tipo"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:351
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:421
+msgid "Unbound:"
+msgstr "Desatado:"

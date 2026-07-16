@@ -1,0 +1,244 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: zh_Hans\n"
+
+msgid "Airoha FlowSense"
+msgstr "Airoha FlowSense"
+
+msgid "Disabled"
+msgstr "已禁用"
+
+msgid "Enabled"
+msgstr "已启用"
+
+msgid "Error: "
+msgstr "错误："
+
+msgid "HW Flow Offload"
+msgstr "硬件流量卸载"
+
+msgid "Index"
+msgstr "索引"
+
+msgid "No entries"
+msgstr "无条目"
+
+msgid "Original"
+msgstr "原始"
+
+msgid "PPPoE Offload"
+msgstr "PPPoE 加速"
+
+msgid "State"
+msgstr "状态"
+
+msgid "Translated"
+msgstr "转换后"
+
+msgid "Type"
+msgstr "类型"
+
+msgid "VLAN Offload"
+msgstr "VLAN 加速"
+
+# Compass labels
+msgid "NPU PATH"
+msgstr "NPU 路径"
+
+msgid "HW BUFFER"
+msgstr "硬件缓冲"
+
+msgid "INTEGRITY"
+msgstr "完整性"
+
+msgid "LATENCY"
+msgstr "延迟"
+
+# Status labels
+msgid "HW ACCELERATED"
+msgstr "硬件加速"
+
+msgid "NPU IDLE"
+msgstr "NPU 空闲"
+
+msgid "CPU PATH"
+msgstr "CPU 路径"
+
+msgid "ROUTER MODE"
+msgstr "路由模式"
+
+msgid "AP MODE"
+msgstr "AP 模式"
+
+# Health status
+msgid "GOOD"
+msgstr "良好"
+
+msgid "FAIR"
+msgstr "一般"
+
+msgid "WEAK"
+msgstr "较弱"
+
+msgid "POOR"
+msgstr "较差"
+
+msgid "No clients"
+msgstr "无客户端"
+
+msgid "Idle"
+msgstr "空闲"
+
+msgid "OK"
+msgstr "正常"
+
+msgid "WARN"
+msgstr "警告"
+
+msgid "CRIT"
+msgstr "严重"
+
+msgid "CLEAN"
+msgstr "正常"
+
+msgid "NO DATA"
+msgstr "无数据"
+
+msgid "NO CLIENTS"
+msgstr "无客户端"
+
+msgid "ACTIVE"
+msgstr "活动"
+
+msgid "IDLE"
+msgstr "空闲"
+
+msgid "DROPPING"
+msgstr "丢包"
+
+msgid "HEALTHY"
+msgstr "健康"
+
+msgid "N/A"
+msgstr "N/A"
+
+# Band labels
+msgid "BND FLOWS"
+msgstr "BND 流"
+
+msgid "UNB FLOWS"
+msgstr "UNB 流"
+
+msgid "CPU LOAD"
+msgstr "CPU 负载"
+
+msgid "OFFLOADED"
+msgstr "已卸载"
+
+msgid "MBPS"
+msgstr "Mbps"
+
+msgid "STA"
+msgstr "客户端"
+
+# Ethernet
+msgid "WAN"
+msgstr "WAN"
+
+msgid "LAN 1"
+msgstr "LAN 1"
+
+msgid "LAN 2"
+msgstr "LAN 2"
+
+msgid "LAN 3"
+msgstr "LAN 3"
+
+msgid "LAN 4"
+msgstr "LAN 4"
+
+msgid "NO LINK"
+msgstr "无连接"
+
+msgid "TX"
+msgstr "发送"
+
+msgid "RX"
+msgstr "接收"
+
+msgid "Mb"
+msgstr "Mb"
+
+# Offload settings
+msgid "Auto-detected"
+msgstr "自动检测"
+
+msgid "DHCP disabled in UCI"
+msgstr "UCI 中 DHCP 已禁用"
+
+msgid "No WAN IP detected"
+msgstr "未检测到 WAN IP"
+
+msgid "Local gateway detected"
+msgstr "检测到本地网关"
+
+# Alert messages
+msgid "Ghost Shaper Active"
+msgstr "Ghost Shaper 活动"
+
+msgid "NPU HW offload is bypassing CAKE SQM. Offloaded flows skip bufferbloat management — latency protection is inactive under load."
+msgstr "NPU 硬件卸载绕过了 CAKE SQM。卸载的流量跳过了缓冲区管理——负载下的延迟保护未激活。"
+
+msgid "Physical Bottleneck"
+msgstr "物理瓶颈"
+
+msgid "Hardware errors detected on WAN. Check WAN cable or SFP. Latency stats may be misleading."
+msgstr "检测到 WAN 硬件错误。请检查 WAN 网线或 SFP。延迟统计可能不准确。"
+
+msgid "NPU Bypass Detected"
+msgstr "检测到 NPU 绕过"
+
+msgid "HW offload is enabled but ISP latency is high. Latency management may be skipped by hardware acceleration."
+msgstr "硬件卸载已启用，但 ISP 延迟较高。延迟管理可能被硬件加速跳过。"
+
+# Band health
+msgid "No clients"
+msgstr "无客户端"
+
+msgid "Drop:"
+msgstr "丢包："
+
+# Terminal
+msgid "entries"
+msgstr "条目"
+
+msgid "showing"
+msgstr "显示"
+
+msgid "flows"
+msgstr "流"
+
+msgid "v4"
+msgstr "v4"
+
+msgid "v6"
+msgstr "v6"
+
+msgid "more"
+msgstr "更多"
+
+msgid "no entries"
+msgstr "无条目"
+
+msgid "VLAN offload not supported on this device"
+msgstr "此设备不支持 VLAN 加速"
+
+msgid "PPPoE offload not supported on this device"
+msgstr "此设备不支持 PPPoE 加速"
+
+msgid "failed to set VLAN offload"
+msgstr "设置 VLAN 加速失败"
+
+msgid "failed to set PPPoE offload"
+msgstr "设置 PPPoE 加速失败"

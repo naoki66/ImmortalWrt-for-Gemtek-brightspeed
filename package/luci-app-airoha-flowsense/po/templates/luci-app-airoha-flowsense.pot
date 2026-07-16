@@ -1,0 +1,41 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Airoha FlowSense"
+msgstr ""
+
+msgid "Disabled"
+msgstr ""
+
+msgid "Enabled"
+msgstr ""
+
+msgid "Error: "
+msgstr ""
+
+msgid "HW Flow Offload"
+msgstr ""
+
+msgid "Index"
+msgstr ""
+
+msgid "No entries"
+msgstr ""
+
+msgid "Original"
+msgstr ""
+
+msgid "PPPoE Offload"
+msgstr ""
+
+msgid "State"
+msgstr ""
+
+msgid "Translated"
+msgstr ""
+
+msgid "Type"
+msgstr ""
+
+msgid "VLAN Offload"
+msgstr ""

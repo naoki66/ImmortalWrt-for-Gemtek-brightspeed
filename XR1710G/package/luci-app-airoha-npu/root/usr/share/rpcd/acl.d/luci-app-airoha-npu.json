@@ -1,0 +1,26 @@
+{
+	"luci-app-airoha-npu": {
+		"description": "Grant access to Airoha SoC status (NPU + CPU + Overclock)",
+		"read": {
+			"ubus": {
+				"luci.airoha_npu": [ "getStatus", "getPpeEntries", "getTokenInfo", "getFrameEngine" ]
+			},
+			"file": {
+				"/sys/kernel/debug/ppe/entries": [ "read" ],
+				"/sys/kernel/debug/ppe/bind": [ "read" ],
+				"/sys/devices/system/cpu/cpufreq/policy0/*": [ "read" ],
+				"/sys/kernel/debug/ieee80211/*/mt76/token_info": [ "read" ]
+			}
+		},
+		"write": {
+			"ubus": {
+				"luci.airoha_npu": [ "setGovernor", "setMaxFreq", "setOverclock" ]
+			},
+			"file": {
+				"/sys/devices/system/cpu/cpufreq/policy0/scaling_governor": [ "write" ],
+				"/sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq": [ "write" ],
+				"/dev/mem": [ "read", "write" ]
+			}
+		}
+	}
+}
