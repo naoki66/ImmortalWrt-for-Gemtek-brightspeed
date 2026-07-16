@@ -1,0 +1,395 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: luci-app-mlo\n"
+"PO-Revision-Date: 2026-04-10 18:00+0800\n"
+"Last-Translator: OpenAI Codex\n"
+"Language-Team: Chinese (Simplified Han script)\n"
+"Language: zh_Hans\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:203
+msgid "%d MLO interface(s) override the auto-generated MLD ifname."
+msgstr "%d 个 MLO 接口覆盖了自动生成的 MLD ifname。"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:197
+msgid "%d MLO interface(s) still have fewer than two radios selected."
+msgstr "%d 个 MLO 接口当前选择的 radio 少于 2 个。"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:529
+msgid "802.11w Management Frame Protection"
+msgstr "802.11w 管理帧保护"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:369
+msgid ""
+"A dedicated editor for OpenWrt Multi-Link Operation. Compared with the stock "
+"Wireless page, this view can manage multi-radio <code>device</code> lists, "
+"show MLD runtime state, and prefill safer MLO defaults."
+msgstr ""
+"这是一个专用于 OpenWrt 多链路操作（MLO）的编辑器。相比默认无线页面，它可以管"
+"理多 radio 的 <code>device</code> 列表、显示 MLD 运行状态，并预填更安全的 "
+"MLO 默认值。"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:278
+msgid "AP MLO is usually paired with WPA3-SAE or OWE"
+msgstr "AP MLO 通常搭配 WPA3-SAE 或 OWE 使用"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:461
+msgid "Access Point"
+msgstr "接入点"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:337
+msgid "Active"
+msgstr "活动"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:237
+msgid "Active MLD ifnames"
+msgstr "活动的 MLD ifname"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:378
+msgid "Add MLO-ready interface"
+msgstr "添加支持 MLO 的接口"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:447
+msgid "Advanced"
+msgstr "高级"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:392
+msgid ""
+"At least two configured radios are required before an MLO interface can be "
+"created."
+msgstr "至少需要 2 个已配置 radio 才能创建 MLO 接口。"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:485
+msgid "Attached network(s)"
+msgstr "绑定的网络"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:553
+msgid "BSSID"
+msgstr "BSSID"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:462
+msgid "Client"
+msgstr "客户端"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:234
+msgid "Configured radios"
+msgstr "已配置的 radio"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:281
+msgid "Custom ifname overrides the default ap-mldX / sta-mldX naming"
+msgstr "自定义 ifname 会覆盖默认的 ap-mldX / sta-mldX 命名"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:290
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:314
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:530
+msgid "Disabled"
+msgstr "已禁用"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:573
+msgid "Disassociate on low ACK"
+msgstr "低 ACK 时断开关联"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:373
+msgid ""
+"Edit all wireless interfaces here. The dedicated overview columns help "
+"identify which sections are already MLO-ready and which ones still need "
+"runtime or security cleanup."
+msgstr ""
+"可在这里编辑所有无线接口。专用概览列可以帮助识别哪些 section 已具备 MLO 条"
+"件，哪些仍需要补齐运行状态或安全配置。"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:379
+msgid "Edit wireless interface"
+msgstr "编辑无线接口"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:455
+msgid "Enable MLO"
+msgstr "启用 MLO"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:567
+msgid "Enable OCV"
+msgstr "启用 OCV"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:563
+msgid "Enable U-APSD"
+msgstr "启用 U-APSD"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:558
+msgid "Enable WDS / 4-address mode"
+msgstr "启用 WDS / 4 地址模式"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:290
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:449
+msgid "Enabled"
+msgstr "已启用"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:500
+msgid "Encryption"
+msgstr "加密"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:501
+msgid ""
+"For AP MLO, WPA3-SAE with Management Frame Protection set to Required is the "
+"most compatible starting point in this tree."
+msgstr "对于 AP MLO，本代码树里最兼容的起始配置通常是 WPA3-SAE，并将管理帧保护设为“必需”。"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:445
+msgid "General"
+msgstr "常规"
+
+#: luci-app-mlo/root/usr/share/rpcd/acl.d/luci-app-mlo.json:3
+msgid "Grant access to LuCI app MLO"
+msgstr "授予访问 LuCI MLO 应用的权限"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:496
+msgid "Hide SSID"
+msgstr "隐藏 SSID"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:542
+msgid "Interface name"
+msgstr "接口名"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:486
+msgid ""
+"Logical network names from <code>/etc/config/network</code>, for example "
+"<code>lan</code>."
+msgstr "来自 <code>/etc/config/network</code> 的逻辑网络名，例如 <code>lan</code>。"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:548
+msgid "MAC address"
+msgstr "MAC 地址"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:338
+msgid "MLD runtime"
+msgstr "MLD 运行态"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:288
+#: luci-app-mlo/root/usr/share/luci/menu.d/luci-app-mlo.json:3
+msgid "MLO"
+msgstr "MLO"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:228
+msgid "MLO Overview"
+msgstr "MLO 概览"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:200
+msgid ""
+"MLO is configured, but no active runtime MLD interface is currently reported."
+msgstr "已配置 MLO，但当前没有检测到活动的运行时 MLD 接口。"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:480
+msgid "MLO requires at least two radio devices"
+msgstr "MLO 至少需要 2 个 radio 设备"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:236
+msgid "MLO-enabled"
+msgstr "已启用 MLO"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:460
+msgid "Mode"
+msgstr "模式"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:275
+msgid "Needs at least two radios"
+msgstr "至少需要 2 个 radio"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:299
+msgid "Networks"
+msgstr "网络"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:194
+msgid "No MLO-enabled wireless interface is configured yet."
+msgstr "当前还没有配置启用 MLO 的无线接口。"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:325
+msgid "No active interface was reported yet"
+msgstr "当前还没有上报活动接口"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:507
+msgid "No encryption"
+msgstr "不加密"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:324
+msgid "No runtime state"
+msgstr "无运行状态"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:192
+msgid "No wireless interfaces are configured yet."
+msgstr "当前还没有配置任何无线接口。"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:506
+msgid "OWE"
+msgstr "OWE"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:189
+msgid "Only one radio is configured. MLO needs at least two radios."
+msgstr "当前只配置了 1 个 radio。MLO 至少需要 2 个 radio。"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:531
+msgid "Optional"
+msgstr "可选"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:549
+msgid "Optional override for the generated interface MAC address."
+msgstr "可选，用于覆盖自动生成的接口 MAC 地址。"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:543
+msgid ""
+"Optional override. Leave empty to use auto-generated names such as <code>ap-"
+"mld0</code> or <code>sta-mld0</code>."
+msgstr "可选覆盖项。留空时会使用自动生成的名称，例如 <code>ap-mld0</code> 或 <code>sta-mld0</code>。"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:511
+msgid "Passphrase"
+msgstr "密码"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:524
+msgid "Passphrase is required for the selected encryption"
+msgstr "所选加密方式必须填写密码"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:337
+msgid "Present"
+msgstr "已存在"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:433
+msgid "Profile"
+msgstr "配置概览"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:248
+msgid "Quick Add AP MLO"
+msgstr "快速添加 AP MLO"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:255
+msgid "Quick Add STA MLO"
+msgstr "快速添加 STA MLO"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:466
+msgid "Radio devices"
+msgstr "Radio 设备"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:293
+msgid "Radios"
+msgstr "Radio 列表"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:262
+msgid "Refresh Runtime Status"
+msgstr "刷新运行状态"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:532
+msgid "Required"
+msgstr "必需"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:439
+msgid "Runtime"
+msgstr "运行状态"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:222
+msgid ""
+"Runtime detection looks healthy. Auto-generated MLD names appear as <code>ap-"
+"mldX</code> or <code>sta-mldX</code>."
+msgstr "运行状态检测正常。自动生成的 MLD 名称通常显示为 <code>ap-mldX</code> 或 <code>sta-mldX</code>。"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:341
+msgid "Runtime radios"
+msgstr "运行时 radios"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:292
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:491
+msgid "SSID"
+msgstr "SSID"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:327
+msgid "Save & Apply, then verify driver support if this persists"
+msgstr "请先“保存并应用”；如果仍然如此，再检查驱动是否支持"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:315
+msgid "Section is disabled in UCI"
+msgstr "该 section 在 UCI 中已禁用"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:300
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:446
+msgid "Security"
+msgstr "安全"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:477
+msgid "Select at least one radio device"
+msgstr "至少选择 1 个 radio 设备"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:467
+msgid "Select one radio for normal Wi-Fi, or two or more radios for MLO."
+msgstr "普通 Wi-Fi 请选择 1 个 radio；MLO 请至少选择 2 个 radio。"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:288
+msgid "Single-link"
+msgstr "单链路"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:342
+msgid "Stations"
+msgstr "终端数"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:230
+msgid ""
+"This page is focused on backend MLO settings and runtime visibility. It "
+"complements the stock Wireless page by handling multi-radio <code>device</"
+"code> lists directly."
+msgstr "此页面聚焦于 MLO 后端配置和运行状态可见性。它通过直接处理多 radio 的 <code>device</code> 列表，补足了默认无线页面的不足。"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:505
+msgid "WPA/WPA2 mixed PSK"
+msgstr "WPA/WPA2 混合 PSK"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:504
+msgid "WPA2-PSK"
+msgstr "WPA2-PSK"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:503
+msgid "WPA2/WPA3 mixed"
+msgstr "WPA2/WPA3 混合"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:502
+msgid "WPA3-SAE"
+msgstr "WPA3-SAE"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:456
+msgid ""
+"When enabled, this <code>wifi-iface</code> spans multiple radios through a "
+"multi-value <code>device</code> list."
+msgstr "启用后，此 <code>wifi-iface</code> 会通过多值 <code>device</code> 列表跨多个 radio 工作。"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:368
+msgid "Wi-Fi MLO"
+msgstr "Wi-Fi MLO"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:372
+msgid "Wireless Interfaces"
+msgstr "无线接口"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:235
+msgid "Wireless interfaces"
+msgstr "无线接口"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:56
+msgid "channel %s"
+msgstr "信道 %s"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:340
+msgid "ifname"
+msgstr "ifname"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:237
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:298
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:299
+msgid "none"
+msgstr "无"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:340
+msgid "unknown"
+msgstr "未知"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:292
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:300
+msgid "unset"
+msgstr "未设置"

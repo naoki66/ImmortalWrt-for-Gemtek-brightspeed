@@ -445,9 +445,65 @@ get_frame_engine() {
 	printf '"cdm2":{"tx":%d,"rx_cpu":%d,"rx_hwf":%d,"rx_cpu_drop":%d,"rx_hwf_drop":%d}}' "$cdm2_tx" "$cdm2_rxcpu" "$cdm2_rxhwf" "$cdm2_rxcpud" "$cdm2_rxhwfd"
 }
 
+get_vlan_offload() {
+	local val
+	val=$(cat /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null)
+	printf '{"enabled":%d}' "${val:-0}"
+}
+
+set_vlan_offload() {
+	local enabled
+	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
+
+	# jsonfilter returns empty string for integer 0; treat empty as 0
+	[ -z "$enabled" ] && enabled="0"
+
+	if [ "$enabled" != "0" ] && [ "$enabled" != "1" ]; then
+		echo '{"error":"enabled must be 0 or 1"}'
+		return
+	fi
+
+	if ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null; then
+		echo '{"error":"failed - bridge module may not be loaded"}'
+		return
+	fi
+
+	# Persist across reboots
+	echo "net.bridge.bridge-nf-filter-vlan-tagged=$enabled" > /etc/sysctl.d/14-vlan-offload.conf
+	printf '{"result":"ok","enabled":%d}' "$enabled"
+}
+
+get_pppoe_offload() {
+	local val
+	val=$(cat /proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged 2>/dev/null)
+	printf '{"enabled":%d}' "${val:-0}"
+}
+
+set_pppoe_offload() {
+	local enabled
+	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
+
+	# jsonfilter returns empty string for integer 0; treat empty as 0
+	[ -z "$enabled" ] && enabled="0"
+
+	if [ "$enabled" != "0" ] && [ "$enabled" != "1" ]; then
+		echo '{"error":"enabled must be 0 or 1"}'
+		return
+	fi
+
+	if ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged 2>/dev/null; then
+		echo '{"error":"failed - bridge module may not be loaded"}'
+		return
+	fi
+
+	# Persist across reboots
+	echo "net.bridge.bridge-nf-filter-pppoe-tagged=$enabled" > /etc/sysctl.d/15-pppoe-offload.conf
+	printf '{"result":"ok","enabled":%d}' "$enabled"
+}
+
 case "$1" in
 	list)
-		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"},"setOverclock":{"freq_mhz":"int"}}'
+		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"},"setOverclock":{"freq_mhz":"int"},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPPPoEOffload":{},"setPPPoEOffload":{"enabled":"int"}}'
 		;;
 	call)
 		case "$2" in
@@ -474,6 +530,20 @@ case "$1" in
 				;;
 			getFrameEngine)
 				get_frame_engine
+				;;
+			getVlanOffload)
+				get_vlan_offload
+				;;
+			setVlanOffload)
+				read input
+				set_vlan_offload "$input"
+				;;
+			getPPPoEOffload)
+				get_pppoe_offload
+				;;
+			setPPPoEOffload)
+				read input
+				set_pppoe_offload "$input"
 				;;
 			*)
 				echo '{"error":"Invalid method"}'

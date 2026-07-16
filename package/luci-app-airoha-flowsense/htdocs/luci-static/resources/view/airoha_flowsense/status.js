@@ -22,11 +22,8 @@ var callTokenInfo        = rpc.declare({ object: 'luci.airoha_flowsense', method
 var callFrameEngine      = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getFrameEngine' });
 var callTxStats          = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getTxStats' });
 var callGetVlanOffload   = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getVlanOffload' });
-var callSetVlanOffload   = rpc.declare({ object: 'luci.airoha_flowsense', method: 'setVlanOffload', params: ['enabled'] });
 var callGetFlowOffload   = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getFlowOffload' });
-var callSetFlowOffload   = rpc.declare({ object: 'luci.airoha_flowsense', method: 'setFlowOffload', params: ['enabled'] });
 var callGetPppoeOffload      = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getPppoeOffload' });
-var callSetPppoeOffload      = rpc.declare({ object: 'luci.airoha_flowsense', method: 'setPppoeOffload', params: ['enabled'] });
 var callGetDeviceMode    = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getDeviceMode' });
 var callGetNpuBypass     = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getNpuBypass' });
 var callGetWanHealth     = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getWanHealth' });
@@ -249,49 +246,23 @@ function freqBarState(hw, min, max, pll, gov) {
 
 
 
-function renderVlanOffloadSelect(enabled) {
-	var cur = enabled ? '1' : '0';
-	return E('select', { 'id': 'vlan-offload-select', 'class': 'cbi-input-select', 'style': 'min-width:140px', 'change': function(ev) {
-		var v = parseInt(ev.target.value);
-		ev.target.disabled = true;
-		callSetVlanOffload(v).then(function(r) {
-			ev.target.disabled = false;
-			if (r && r.error) ui.addNotification(null, E('p', {}, _('Error: ') + r.error), 'error');
-		}).catch(function() { ev.target.disabled = false; });
-	}}, [
-		E('option', { 'value': '0', 'selected': cur === '0' ? '' : null }, _('Disabled')),
-		E('option', { 'value': '1', 'selected': cur === '1' ? '' : null }, _('Enabled'))
-	]);
+function renderOffloadBadge(enabled, id) {
+	return E('span', {
+		'id': id,
+		'class': 'offload-badge ' + (enabled ? 'offload-on' : 'offload-off')
+	}, enabled ? _('Enabled') : _('Disabled'));
 }
 
-function renderFlowOffloadSelect(enabled) {
-	var cur = enabled ? '1' : '0';
-	return E('select', { 'id': 'flow-offload-select', 'class': 'cbi-input-select', 'style': 'min-width:140px', 'change': function(ev) {
-		var v = parseInt(ev.target.value);
-		ev.target.disabled = true;
-		callSetFlowOffload(v).then(function(r) {
-			ev.target.disabled = false;
-			if (r && r.error) ui.addNotification(null, E('p', {}, _('Error: ') + r.error), 'error');
-		}).catch(function() { ev.target.disabled = false; });
-	}}, [
-		E('option', { 'value': '0', 'selected': cur === '0' ? '' : null }, _('Disabled')),
-		E('option', { 'value': '1', 'selected': cur === '1' ? '' : null }, _('Enabled'))
-	]);
+function renderVlanOffloadStatus(enabled) {
+	return renderOffloadBadge(enabled, 'vlan-offload-status');
 }
 
-function renderPppoeOffloadSelect(enabled) {
-	var cur = enabled ? '1' : '0';
-	return E('select', { 'id': 'pppoe-offload-select', 'class': 'cbi-input-select', 'style': 'min-width:140px', 'change': function(ev) {
-		var v = parseInt(ev.target.value);
-		ev.target.disabled = true;
-		callSetPppoeOffload(v).then(function(r) {
-			ev.target.disabled = false;
-			if (r && r.error) ui.addNotification(null, E('p', {}, _('Error: ') + r.error), 'error');
-		}).catch(function() { ev.target.disabled = false; });
-	}}, [
-		E('option', { 'value': '0', 'selected': cur === '0' ? '' : null }, _('Disabled')),
-		E('option', { 'value': '1', 'selected': cur === '1' ? '' : null }, _('Enabled'))
-	]);
+function renderFlowOffloadStatus(enabled) {
+	return renderOffloadBadge(enabled, 'flow-offload-status');
+}
+
+function renderPppoeOffloadStatus(enabled) {
+	return renderOffloadBadge(enabled, 'pppoe-offload-status');
 }
 
 /* ── PPE Panels ── */
@@ -1449,16 +1420,16 @@ return view.extend({
 				renderModeBanner(dm),
 				E('div',{'style':'display:flex;align-items:center;justify-content:space-evenly;margin-top:10px;flex-wrap:wrap;width:100%'},[
 					E('label',{'style':'display:flex;align-items:center;gap:6px;font-size:13px'},[
-						E('span',{'id':'flow-offload-badge','class':'offload-badge '+(flo.enabled?'offload-on':'offload-off')},_('HW Flow Offload')),
-						renderFlowOffloadSelect(flo.enabled)
+						E('span',{'class':'soc-text','style':'font-weight:600'},_('HW Flow Offload')),
+						renderFlowOffloadStatus(flo.enabled)
 					]),
 					E('label',{'style':'display:flex;align-items:center;gap:6px;font-size:13px'},[
-						E('span',{'id':'vlan-offload-badge','class':'offload-badge '+(vo.enabled?'offload-on':'offload-off')},_('VLAN Offload')),
-						renderVlanOffloadSelect(vo.enabled)
+						E('span',{'class':'soc-text','style':'font-weight:600'},_('VLAN Offload')),
+						renderVlanOffloadStatus(vo.enabled)
 					]),
 					E('label',{'style':'display:flex;align-items:center;gap:6px;font-size:13px'},[
-						E('span',{'id':'pppoe-offload-badge','class':'offload-badge '+(ppo.enabled?'offload-on':'offload-off')},_('PPPoE Offload')),
-						renderPppoeOffloadSelect(ppo.enabled)
+						E('span',{'class':'soc-text','style':'font-weight:600'},_('PPPoE Offload')),
+						renderPppoeOffloadStatus(ppo.enabled)
 					])
 				]),
 				E('div',{'style':'margin-top:12px'}, renderPpeTerminal(ppe))
@@ -1510,11 +1481,11 @@ return view.extend({
 					alertWrap.innerHTML = fresh.innerHTML;
 				}
 
-				// Offload selects + badges
-				function _setOffloadBadge(id, on) { var b=document.getElementById(id); if(b) b.className='offload-badge '+(on?'offload-on':'offload-off'); }
-				var vs=document.getElementById('vlan-offload-select'); if(vs&&!vs.matches(':focus')) vs.value=(vo.enabled?'1':'0'); _setOffloadBadge('vlan-offload-badge',vo.enabled);
-				var fls=document.getElementById('flow-offload-select'); if(fls&&!fls.matches(':focus')) fls.value=(flo.enabled?'1':'0'); _setOffloadBadge('flow-offload-badge',flo.enabled);
-				var pps=document.getElementById('pppoe-offload-select'); if(pps&&!pps.matches(':focus')) pps.value=(ppo.enabled?'1':'0'); _setOffloadBadge('pppoe-offload-badge',ppo.enabled);
+				// Offload status badges
+				function _setOffloadStatus(id, on) { var b=document.getElementById(id); if(b) { b.className='offload-badge '+(on?'offload-on':'offload-off'); b.textContent=on?_('Enabled'):_('Disabled'); } }
+				_setOffloadStatus('vlan-offload-status', vo.enabled);
+				_setOffloadStatus('flow-offload-status', flo.enabled);
+				_setOffloadStatus('pppoe-offload-status', ppo.enabled);
 
 				// Ethernet port gauges — compute per-port Mbps deltas from cumulative byte counters
 				var ethPorts = (eth && Array.isArray(eth.ports)) ? eth.ports : [];

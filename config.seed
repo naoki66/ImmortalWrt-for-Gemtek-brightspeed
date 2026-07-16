@@ -5259,6 +5259,7 @@ CONFIG_PACKAGE_luci-mod-system=y
 CONFIG_PACKAGE_luci-app-adguardhome=y
 CONFIG_PACKAGE_luci-app-airoha-npu=y
 CONFIG_PACKAGE_luci-app-airoha-flowsense=y
+CONFIG_PACKAGE_luci-i18n-airoha-flowsense-zh-cn=y
 # CONFIG_PACKAGE_luci-app-advanced-reboot is not set
 # CONFIG_PACKAGE_luci-app-airplay2 is not set
 # CONFIG_PACKAGE_luci-app-amule is not set
@@ -5271,7 +5272,7 @@ CONFIG_PACKAGE_luci-app-arpbind=y
 # CONFIG_PACKAGE_luci-app-attendedsysupgrade is not set
 CONFIG_PACKAGE_luci-app-autoreboot=y
 # CONFIG_PACKAGE_luci-app-babeld is not set
-CONFIG_PACKAGE_luci-app-banip=y
+# CONFIG_PACKAGE_luci-app-banip is not set
 # CONFIG_PACKAGE_luci-app-bcp38 is not set
 # CONFIG_PACKAGE_luci-app-bitsrunlogin-go is not set
 # CONFIG_PACKAGE_luci-app-bmx7 is not set
@@ -5560,7 +5561,7 @@ CONFIG_PACKAGE_luci-i18n-autoreboot-zh-cn=y
 # CONFIG_PACKAGE_luci-i18n-banip-uk is not set
 # CONFIG_PACKAGE_luci-i18n-banip-vi is not set
 # CONFIG_PACKAGE_luci-i18n-banip-yua is not set
-CONFIG_PACKAGE_luci-i18n-banip-zh-cn=y
+# CONFIG_PACKAGE_luci-i18n-banip-zh-cn is not set
 # CONFIG_PACKAGE_luci-i18n-banip-zh-tw is not set
 # CONFIG_PACKAGE_luci-i18n-base-ar is not set
 # CONFIG_PACKAGE_luci-i18n-base-bg is not set
@@ -7011,7 +7012,7 @@ CONFIG_PACKAGE_adguardhome=y
 # CONFIG_PACKAGE_atlas-probe is not set
 # CONFIG_PACKAGE_atlas-sw-probe is not set
 # CONFIG_PACKAGE_atlas-sw-probe-rpc is not set
-CONFIG_PACKAGE_banip=y
+# CONFIG_PACKAGE_banip is not set
 # CONFIG_PACKAGE_batctl-default is not set
 # CONFIG_PACKAGE_batctl-full is not set
 # CONFIG_PACKAGE_batctl-tiny is not set

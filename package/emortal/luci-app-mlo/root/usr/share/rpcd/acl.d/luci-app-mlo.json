@@ -1,0 +1,15 @@
+{
+	"luci-app-mlo": {
+		"description": "Grant access to LuCI app MLO",
+		"read": {
+			"ubus": {
+				"iwinfo": [ "assoclist" ],
+				"luci-rpc": [ "getWirelessDevices" ]
+			},
+			"uci": [ "wireless", "network" ]
+		},
+		"write": {
+			"uci": [ "wireless" ]
+		}
+	}
+}

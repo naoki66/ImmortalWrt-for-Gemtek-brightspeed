@@ -1,0 +1,18 @@
+{
+	"admin/network/mlo": {
+		"title": "MLO",
+		"order": 16,
+		"action": {
+			"type": "view",
+			"path": "mlo"
+		},
+		"depends": {
+			"acl": [ "luci-app-mlo" ],
+			"uci": {
+				"wireless": {
+					"@wifi-device": true
+				}
+			}
+		}
+	}
+}

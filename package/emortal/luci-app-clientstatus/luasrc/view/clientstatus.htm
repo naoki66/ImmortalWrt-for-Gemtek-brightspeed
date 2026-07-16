@@ -1,0 +1,824 @@
+﻿<%+header%>
+
+<style>
+:root {
+  --cs-surface: #fff;
+  --cs-surface-h: #f8faff;
+  --cs-thead-bg: #f8f9fb;
+  --cs-text: #1a1a2e;
+  --cs-text-2: #555;
+  --cs-text-3: #888;
+  --cs-text-ph: #aaa;
+  --cs-border: #eee;
+  --cs-border-lt: #f0f0f0;
+  --cs-divider: #ddd;
+  --cs-green-bg: #e8f5e9;  --cs-green: #2e7d32;
+  --cs-red-bg: #ffebee;    --cs-red: #c62828;
+  --cs-blue-bg: #e3f2fd;   --cs-blue: #1565c0;
+  --cs-orange-bg: #fff3e0; --cs-orange: #e65100;
+  --cs-purple-bg: #f3e5f5; --cs-purple: #7b1fa2;
+  --cs-teal-bg: #e0f2f1;   --cs-teal: #00695c;
+  --cs-off-bg: #f5f5f5;    --cs-off: #999;
+  --cs-shadow: 0 2px 12px rgba(0,0,0,.06);
+  --cs-pri: #1565c0;
+  --cs-pri-h: #0d47a1;
+  --cs-rst: #c62828;
+  --cs-rst-h: #b71c1c;
+  --cs-tog-bg: #ddd;
+  --cs-tog-on: #1565c0;
+}
+
+.dark, body.dark, html.dark, [data-theme="dark"] {
+  --cs-surface: #1e1e32; --cs-surface-h: #28284a;
+  --cs-thead-bg: #1a1a2e; --cs-text: #e4e4f0; --cs-text-2: #a0a0b8;
+  --cs-text-3: #707088; --cs-text-ph: #505068;
+  --cs-border: #333350; --cs-border-lt: #2a2a44; --cs-divider: #383858;
+  --cs-green-bg: #0d3318;  --cs-green: #66bb6a;
+  --cs-red-bg: #3a1515;    --cs-red: #ef5350;
+  --cs-blue-bg: #0d1f3a;   --cs-blue: #64b5f6;
+  --cs-orange-bg: #3a2800; --cs-orange: #ffb74d;
+  --cs-purple-bg: #2a1030; --cs-purple: #ce93d8;
+  --cs-teal-bg: #002a25;   --cs-teal: #4db6ac;
+  --cs-off-bg: #252540;    --cs-off: #707088;
+  --cs-shadow: 0 2px 16px rgba(0,0,0,.35);
+  --cs-pri: #64b5f6; --cs-pri-h: #90caf9;
+  --cs-rst: #ef5350; --cs-rst-h: #e57373;
+  --cs-tog-bg: #383858; --cs-tog-on: #64b5f6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not([data-theme="light"]) {
+    --cs-surface: #1e1e32; --cs-surface-h: #28284a;
+    --cs-thead-bg: #1a1a2e; --cs-text: #e4e4f0; --cs-text-2: #a0a0b8;
+    --cs-text-3: #707088; --cs-text-ph: #505068;
+    --cs-border: #333350; --cs-border-lt: #2a2a44; --cs-divider: #383858;
+    --cs-green-bg: #0d3318;  --cs-green: #66bb6a;
+    --cs-red-bg: #3a1515;    --cs-red: #ef5350;
+    --cs-blue-bg: #0d1f3a;   --cs-blue: #64b5f6;
+    --cs-orange-bg: #3a2800; --cs-orange: #ffb74d;
+    --cs-purple-bg: #2a1030; --cs-purple: #ce93d8;
+    --cs-teal-bg: #002a25;   --cs-teal: #4db6ac;
+    --cs-off-bg: #252540;    --cs-off: #707088;
+    --cs-shadow: 0 2px 16px rgba(0,0,0,.35);
+    --cs-pri: #64b5f6; --cs-pri-h: #90caf9;
+    --cs-rst: #ef5350; --cs-rst-h: #e57373;
+    --cs-tog-bg: #383858; --cs-tog-on: #64b5f6;
+  }
+}
+
+* { box-sizing: border-box; }
+.cs-wrap { width: 100%; max-width: none; }
+.cs-table-wrap::-webkit-scrollbar { height: 6px; }
+.cs-table-wrap::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+.cs-table-wrap::-webkit-scrollbar-track { background: #f0f0f0; }
+
+.cs-cards { display: flex; gap: 26px; margin-bottom: 10px; flex-wrap: nowrap; justify-content: space-between; }
+.cs-card {
+  flex: 1 1 0;
+  max-width: none;
+  background: var(--cs-surface); border-radius: 12px;
+  padding: 6px 6px; box-shadow: var(--cs-shadow);
+  display: flex; align-items: center; gap: 24px;
+}
+.cs-card-icon {
+  width: 30px; height: 30px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; flex-shrink: 0;
+}
+.cs-card-icon.green  { background: var(--cs-green-bg);  color: var(--cs-green); }
+.cs-card-icon.red    { background: var(--cs-red-bg);    color: var(--cs-red); }
+.cs-card-icon.blue   { background: var(--cs-blue-bg);   color: var(--cs-blue); }
+.cs-card-icon.orange { background: var(--cs-orange-bg); color: var(--cs-orange); }
+.cs-card-icon.purple { background: var(--cs-purple-bg); color: var(--cs-purple); }
+.cs-card-icon.teal   { background: var(--cs-teal-bg);   color: var(--cs-teal); }
+.cs-card-num { font-size: 22px; font-weight: 700; line-height: 1; color: var(--cs-text); }
+.cs-card-label { font-size: 13px; color: var(--cs-text-3); margin-top: 4px; }
+
+.cs-wrap .cs-toolbar .cs-search,
+.cs-wrap .cs-toolbar .cs-filter {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+.cs-wrap .cs-toolbar .cs-btn-base,
+#cs-reset, #cs-refresh {
+  height: auto !important;
+  min-height: 0 !important;
+  line-height: normal !important;
+}
+#cs-reset, #cs-refresh {
+  padding: 2px 6px !important;
+  font-size: 12px !important;
+}
+
+.cs-search {
+  flex: 1;
+  width: 240px;
+  padding: 1px 6px; border: 1px solid var(--cs-divider); border-radius: 8px;
+  font-size: 12px; outline: none;
+  background: var(--cs-surface); color: var(--cs-text);
+  transition: border-color .2s, box-shadow .2s;
+}
+.cs-search::placeholder { color: var(--cs-text-ph); }
+.cs-search:focus { border-color: var(--cs-pri); box-shadow: 0 0 0 3px rgba(21,101,192,.1); }
+
+.cs-filter {
+  padding: 1px 6px; border: 1px solid var(--cs-divider); border-radius: 8px;
+  font-size: 12px; background: var(--cs-surface); color: var(--cs-text);
+  cursor: pointer; outline: none;
+}
+#cs-filter, #cs-acl-filter, #cs-nct-filter {
+  width: 80px !important; max-width: 80px !important; min-width: 0 !important;
+  -webkit-appearance: none; -moz-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23555'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  padding-right: 18px !important;
+}
+.cs-filter-label { font-size: 12px; }
+.cs-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; }
+.cs-toolbar-left { display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; }
+.cs-btn-base {
+  padding: 2px 6px; border: none; border-radius: 8px;
+  font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 3px;
+  transition: background .2s;
+}
+.cs-btn-base:active { transform: scale(.97); }
+.cs-btn-base svg { width: 16px; height: 12px; transition: transform .4s; }
+.cs-btn-base.loading svg { animation: spin .8s linear infinite; }
+.cs-refresh-btn { background: var(--cs-pri); color: #fff; }
+.cs-refresh-btn:hover { background: var(--cs-pri-h); }
+.cs-reset-btn { background: var(--cs-rst); color: #fff; }
+.cs-reset-btn:hover { background: var(--cs-rst-h); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.cs-table-wrap {
+  background: var(--cs-surface); border-radius: 12px;
+  box-shadow: var(--cs-shadow); overflow: hidden;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.cs-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.cs-table thead { background: var(--cs-thead-bg); }
+.cs-table th {
+  padding: 10px 6px; text-align: left; font-weight: 600; color: var(--cs-text-3);
+  font-size: 12px; text-transform: uppercase; letter-spacing: .5px;
+  border-bottom: 1px solid var(--cs-border);
+  cursor: pointer; user-select: none; white-space: nowrap;
+}
+.cs-table th:hover { color: var(--cs-pri); }
+.cs-table th .sort-arrow { display: inline-block; margin-left: 4px; opacity: .3; font-size: 10px; }
+.cs-table th.sorted .sort-arrow { opacity: 1; color: var(--cs-pri); }
+.cs-table td { padding: 12px 6px; border-bottom: 1px solid var(--cs-border-lt); vertical-align: middle; color: var(--cs-text); }
+.cs-table tr:last-child td { border-bottom: none; }
+.cs-table tr:hover { background: var(--cs-surface-h); }
+
+.cs-badge { display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; border-radius: 20px;
+  font-size: 13px; font-weight: 500;
+  white-space: nowrap;
+ }
+.cs-badge.online  { background: var(--cs-green-bg); color: var(--cs-green); }
+.cs-badge.offline { background: var(--cs-off-bg);  color: var(--cs-off); }
+.cs-badge-dot { width: 7px; height: 7px; border-radius: 50%; }
+.cs-badge.online .cs-badge-dot  { background: var(--cs-green); animation: pulse-dot 2s ease-in-out infinite; }
+.cs-badge.offline .cs-badge-dot { background: var(--cs-off); }
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+.cs-acl {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; border-radius: 20px; font-size: 13px;
+  font-weight: 500; cursor: pointer; transition: all .2s; user-select: none;
+  white-space: nowrap;
+}
+.cs-acl.allowed { background: var(--cs-green-bg); color: var(--cs-green); }
+.cs-acl.allowed:hover { background: var(--cs-red-bg); color: var(--cs-red); }
+.cs-acl.blocked { background: var(--cs-red-bg); color: var(--cs-red); }
+.cs-acl.blocked:hover { background: var(--cs-green-bg); color: var(--cs-green); }
+.cs-acl.loading { opacity: .5; pointer-events: none; }
+
+.cs-nct {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; border-radius: 20px; font-size: 13px;
+  font-weight: 500; white-space: nowrap;
+}
+.cs-nct.ethernet { background: var(--cs-teal-bg); color: var(--cs-teal); }
+.cs-nct.wireless { background: var(--cs-purple-bg); color: var(--cs-purple); }
+
+.cs-mono { font-family: 'SF Mono','Cascadia Code','Consolas',monospace; font-size: 13px; color: var(--cs-text-2); }
+.cs-mac { font-family: 'SF Mono','Cascadia Code','Consolas',monospace; font-size: 13px; color: var(--cs-text-2); letter-spacing: .3px; }
+.cs-hostname { font-weight: 500; color: var(--cs-text); cursor: pointer; }
+.cs-hostname:hover { color: var(--cs-pri); }
+.cs-hostname.editing { cursor: default; }
+.cs-hostname.editing:hover { color: var(--cs-text); }
+.cs-custom-mark {
+  font-size: 11px; color: var(--cs-pri); margin-left: 3px;
+  cursor: help; opacity: .7;
+}
+.cs-hostname-input {
+  padding: 3px 8px; border: 1px solid var(--cs-pri); border-radius: 4px;
+  font-size: 13px; font-weight: 500; outline: none;
+  background: var(--cs-surface); color: var(--cs-text);
+  width: 100%; max-width: 200px;
+  box-shadow: 0 0 0 2px rgba(21,101,192,.15);
+}
+.cs-duration { font-variant-numeric: tabular-nums; color: var(--cs-text-2); }
+.cs-empty { text-align: center; padding: 80px 20px; color: var(--cs-text-ph); }
+.cs-empty-icon { font-size: 48px; margin-bottom: 12px; }
+.cs-empty-text { font-size: 15px; }
+
+.cs-speed {
+  font-family: 'SF Mono','Cascadia Code','Consolas',monospace;
+  font-size: 13px; font-variant-numeric: tabular-nums;
+  white-space: nowrap; text-align: left;
+}
+.cs-speed-down { color: var(--cs-green); }
+.cs-speed-up   { color: var(--cs-blue); }
+.cs-speed-zero { color: var(--cs-text-ph); }
+
+.cs-auto { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--cs-text-3); }
+.cs-toggle { position: relative; width: 36px; height: 20px; cursor: pointer; }
+.cs-toggle input { display: none; }
+.cs-toggle-track { position: absolute; inset: 0; background: var(--cs-tog-bg); border-radius: 10px; transition: background .2s; }
+.cs-toggle input:checked + .cs-toggle-track { background: var(--cs-tog-on); }
+.cs-toggle-track::after {
+  content: ''; position: absolute; width: 16px; height: 16px;
+  background: #fff; border-radius: 50%; top: 2px; left: 2px;
+  transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.cs-toggle input:checked + .cs-toggle-track::after { transform: translateX(16px); }
+.cs-actions { display: flex; align-items: center; gap: 12px; }
+.cs-toast {
+  position: fixed; bottom: 24px; right: 24px;
+  padding: 12px 20px; border-radius: 8px;
+  font-size: 14px; font-weight: 500; color: #fff;
+  opacity: 0; transform: translateY(10px);
+  transition: all .3s; pointer-events: none; z-index: 9999;
+  max-width: calc(100vw - 48px); word-break: break-all;
+}
+.cs-toast.show { opacity: 1; transform: translateY(0); }
+.cs-toast.success { background: var(--cs-green); }
+.cs-toast.error { background: var(--cs-red); }
+
+/* Mobile cell labels — hidden on desktop */
+.cs-cell-label { display: none; }
+
+@media (max-width: 1150px) {
+  .cs-wrap { padding: 0 12px; }
+  .cs-cards { display: grid; grid-template-columns: repeat(3, 120px); justify-content: space-between; row-gap: 10px; margin-bottom: 16px; }
+  .cs-card { max-width: none; padding: 6px; gap: 6px; border-radius: 8px; }
+  .cs-card-icon { width: 42px; height: 42px; border-radius: 10px; }
+  .cs-card-num { font-size: 22px; }
+  .cs-card-label { font-size: 12px; }
+
+  .cs-toolbar { flex-direction: column; align-items: stretch; }
+  .cs-toolbar-left { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
+  .cs-actions { justify-content: space-between; width: 100%; }
+
+  .cs-search { flex: 1; width: 0; max-width: 240px; padding: 1px 2px; font-size: 12px; border-radius: 4px; }
+  .cs-filter { padding: 1px 2px; font-size: 12px; border-radius: 8px; }
+  .cs-filter-label { font-size: 12px; }
+
+  .cs-table-wrap { overflow-x: visible; background: transparent; box-shadow: none; border-radius: 0; }
+  .cs-table thead { display: none; }
+  .cs-table, .cs-table tbody, .cs-table tr, .cs-table td { display: block; }
+  .cs-badge { font-size: 10px; }
+  .cs-nct { font-size: 10px; }
+  .cs-acl { font-size: 10px; }
+
+  .cs-table tr {
+    background: var(--cs-surface);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    padding: 12px 14px;
+    box-shadow: var(--cs-shadow);
+    display: grid;
+    grid-template-columns: repeat(16, 1fr);
+    gap: 6px 8px;
+    align-items: center;
+  }
+  .cs-table tr:hover { background: var(--cs-surface-h); }
+  .cs-table td { border-bottom: none; padding: 2px 0; }
+
+  /* Row 1: Status, NCT, ↓Speed, ↑Speed, ACL */
+  .cs-table td:nth-child(1) { grid-column: 1 / 4;   grid-row: 1; justify-self: start; }
+  .cs-table td:nth-child(6) { grid-column: 4 / 7;   grid-row: 1; justify-self: center; }
+  .cs-table td:nth-child(7) { grid-column: 7 / 11;  grid-row: 1; justify-self: center; }
+  .cs-table td:nth-child(8) { grid-column: 11 / 15; grid-row: 1; justify-self: center; }
+  .cs-table td:nth-child(9) { grid-column: 15 / 17; grid-row: 1; justify-self: end; }
+
+  /* Row 2: Hostname, IP */
+  .cs-table td:nth-child(2) {
+    grid-column: 1 / 10; grid-row: 2;
+    margin-top: 3px; padding-top: 8px;
+    border-top: 1px solid var(--cs-border-lt);
+  }
+  .cs-table td:nth-child(4) {
+    grid-column: 10 / 17; grid-row: 2;
+    margin-top: 3px; padding-top: 8px;
+    border-top: 1px solid var(--cs-border-lt);
+  }
+
+  /* Row 3: MAC, Duration */
+  .cs-table td:nth-child(3) { grid-column: 1 / 10;  grid-row: 3; }
+  .cs-table td:nth-child(5) { grid-column: 10 / 17; grid-row: 3; }
+
+  /* Hide labels: Status, NCT, ACL */
+  .cs-table td:nth-child(1) .cs-cell-label,
+  .cs-table td:nth-child(6) .cs-cell-label,
+  .cs-table td:nth-child(9) .cs-cell-label { display: none !important; }
+  .cs-mono, .cs-mac { white-space: nowrap; }
+  .cs-cell-label { display: inline; font-size: 11px; color: var(--cs-text-3); font-weight: 500; text-transform: uppercase; letter-spacing: .3px; margin-right: 4px; }
+  .cs-hostname-input { max-width: 100%; }
+  .cs-empty { padding: 40px 16px; }
+  .cs-empty-icon { font-size: 32px; margin-bottom: 8px; }
+  .cs-empty-text { font-size: 13px; }
+  .cs-toast { left: 16px; right: 16px; bottom: 16px; text-align: center; }
+}
+
+@media (max-width: 480px) {
+  .cs-wrap { padding: 0 8px; min-width: 320px; }
+  .cs-cards { gap: 14px; grid-template-columns: 1fr 1fr 1fr; }
+  .cs-card { padding: 6px; gap: 6px; border-radius: 8px; }
+  .cs-card-icon { width: 36px; height: 36px; font-size: 18px; border-radius: 6px; }
+  .cs-card-num { font-size: 16px; }
+  .cs-card-label { font-size: 10px; }
+  #cs-search { font-size: 9px !important; }
+  .cs-search { flex: 1; min-width: 60px; padding: 1px 6px; font-size: 9px; border-radius: 4px; }
+  #cs-filter, #cs-acl-filter, #cs-nct-filter { font-size: 9px !important; width: 62px !important; }
+  .cs-filter { padding: 1px 2px; font-size: 9px; border-radius: 4px; }
+  .cs-filter-label, .cs-auto { font-size: 9px; }
+  .cs-toggle { position: relative; width: 32px; height: 17px; cursor: pointer; }
+  .cs-toggle-track::after { content: ''; width: 12px; height: 12px; }
+  .cs-toggle input:checked + .cs-toggle-track::after { transform: translateX(14px); }
+  #cs-reset, #cs-refresh { padding: 1px 6px !important; font-size: 10px !important; }
+  .cs-btn-base { padding: 1px 6px; font-size: 10px;  gap: 2px; }
+  .cs-btn-base svg { width: 8px; height: 10px; transition: transform .4s; }
+  .cs-table tr { padding: 6px 6px; gap: 5px 5px; }
+  .cs-badge, .cs-acl, .cs-nct { font-size: 10px; padding: 3px 3px; }
+  .cs-hostname, .cs-mono, .cs-mac, .cs-duration , .cs-speed { font-size: 10px; }
+}
+
+</style>
+
+<div class="cs-wrap">
+
+  <div class="cs-cards">
+    <div class="cs-card">
+      <div class="cs-card-icon blue">📱</div>
+      <div class="cs-card-body">
+        <div class="cs-card-num" id="cs-total">0</div>
+        <div class="cs-card-label"><%:Total Devices%></div>
+      </div>
+    </div>
+    <div class="cs-card">
+      <div class="cs-card-icon purple">📶</div>
+      <div class="cs-card-body">
+        <div class="cs-card-num" id="cs-wireless">0</div>
+        <div class="cs-card-label"><%:Wireless%></div>
+      </div>
+    </div>
+    <div class="cs-card">
+      <div class="cs-card-icon teal">🔌</div>
+      <div class="cs-card-body">
+        <div class="cs-card-num" id="cs-ethernet">0</div>
+        <div class="cs-card-label"><%:Ethernet%></div>
+      </div>
+    </div>
+    <div class="cs-card">
+      <div class="cs-card-icon green">✅</div>
+      <div class="cs-card-body">
+        <div class="cs-card-num" id="cs-online">0</div>
+        <div class="cs-card-label"><%:Online%></div>
+      </div>
+    </div>
+    <div class="cs-card">
+      <div class="cs-card-icon red">⭕</div>
+      <div class="cs-card-body">
+        <div class="cs-card-num" id="cs-offline">0</div>
+        <div class="cs-card-label"><%:Offline%></div>
+      </div>
+    </div>
+    <div class="cs-card">
+      <div class="cs-card-icon orange">🚫</div>
+      <div class="cs-card-body">
+        <div class="cs-card-num" id="cs-blocked">0</div>
+        <div class="cs-card-label"><%:Blocked%></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cs-toolbar">
+    <div class="cs-toolbar-left">
+      <input class="cs-search" id="cs-search" type="text" placeholder="<%:Search hostname, IP, MAC...%>">
+      <span class="cs-filter-label"><%:Filter:%></span>
+      <select class="cs-filter" id="cs-filter">
+        <option value="all"><%:All NCS%></option>
+        <option value="online"><%:Online%></option>
+        <option value="offline"><%:Offline%></option>
+      </select>
+      <select class="cs-filter" id="cs-acl-filter">
+        <option value="all"><%:All ACL%></option>
+        <option value="Allowed"><%:Allowed%></option>
+        <option value="Blocked"><%:Blocked%></option>
+      </select>
+      <select class="cs-filter" id="cs-nct-filter">
+        <option value="all"><%:All NCT%></option>
+        <option value="Wireless"><%:Wireless%></option>
+        <option value="Ethernet"><%:Ethernet%></option>
+      </select>
+    </div>
+    <div class="cs-actions">
+      <label class="cs-auto">
+        <%:Auto refresh%>
+        <div class="cs-toggle">
+          <input type="checkbox" id="cs-autorefresh" checked>
+          <div class="cs-toggle-track"></div>
+        </div>
+      </label>
+      <button class="cs-btn-base cs-reset-btn" id="cs-reset" onclick="csReset()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+        </svg>
+        <%:Reset%>
+      </button>
+      <button class="cs-btn-base cs-refresh-btn" id="cs-refresh" onclick="csFetch()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+        </svg>
+        <%:Refresh%>
+      </button>
+    </div>
+  </div>
+
+  <div class="cs-table-wrap">
+    <table class="cs-table">
+      <thead>
+        <tr>
+          <th data-col="status" class="sorted"><%:Status%> <span class="sort-arrow">▼</span></th>
+          <th data-col="hostname"><%:Hostname%> <span class="sort-arrow">▼</span></th>
+          <th data-col="mac"><%:MAC%> <span class="sort-arrow">▼</span></th>
+          <th data-col="ipv4"><%:IP%> <span class="sort-arrow">▼</span></th>
+          <th data-col="duration"><%:Duration%> <span class="sort-arrow">▼</span></th>
+          <th data-col="nct"><%:NCT%> <span class="sort-arrow">▼</span></th>
+          <th data-col="speed_down">↓ <%:SPEED%> <span class="sort-arrow">▼</span></th>
+          <th data-col="speed_up">↑ <%:SPEED%> <span class="sort-arrow">▼</span></th>
+          <th data-col="acl"><%:ACL%> <span class="sort-arrow">▼</span></th>
+        </tr>
+      </thead>
+      <tbody id="cs-body">
+      </tbody>
+    </table>
+    <div class="cs-empty" id="cs-empty" style="display:none;">
+      <div class="cs-empty-icon">📡</div>
+      <div class="cs-empty-text"><%:No clients found. Waiting...%></div>
+    </div>
+  </div>
+</div>
+
+<div class="cs-toast" id="cs-toast"></div>
+
+<script>
+(function() {
+  var allClients = [];
+  var speedData = {};
+  var sortCol = 'status';
+  var sortAsc = true;
+  var timer = null;
+  var speedTimer = null;
+  var lastMtime = -1;
+
+  function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function escapeAttr(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function getCsrfToken() {
+    var m = location.href.match(/[?&]token=([^&]+)/);
+    if (m) return decodeURIComponent(m[1]);
+    m = document.cookie.match(/(?:^|;\s*)sysauth=([^;]*)/);
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+
+  function csPost(url, data, callback) {
+    var params = ['token=' + encodeURIComponent(getCsrfToken())];
+    for (var key in data) {
+      if (data.hasOwnProperty(key)) {
+        params.push(encodeURIComponent(key) + '=' + encodeURIComponent(data[key]));
+      }
+    }
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== 4) return;
+      try { callback(JSON.parse(xhr.responseText)); }
+      catch(e) { callback({ ok: false, error: 'parse error' }); }
+    }
+    xhr.send(params.join('&'));
+  }
+
+  function showToast(msg, type) {
+    var t = document.getElementById('cs-toast');
+    t.textContent = msg;
+    t.className = 'cs-toast ' + (type || 'success') + ' show';
+    setTimeout(function() { t.className = 'cs-toast'; }, 2500);
+  }
+
+  function parseDuration(str) {
+    var t = 0, m;
+    m = str.match(/(\d+)d/); if (m) t += parseInt(m[1]) * 86400;
+    m = str.match(/(\d+)h/); if (m) t += parseInt(m[1]) * 3600;
+    m = str.match(/(\d+)m/); if (m) t += parseInt(m[1]) * 60;
+    m = str.match(/(\d+)s/); if (m) t += parseInt(m[1]);
+    return t;
+  }
+
+  function isWirelessNct(nct) {
+    return nct && nct !== 'Ethernet' && nct !== '—' && nct !== '' && nct !== '-';
+  }
+
+  function fmtSpeed(bps) {
+    if (!bps || bps <= 0) return '-';
+    if (bps < 1024) return bps + 'B/s';
+    if (bps < 1048576) return (bps / 1024).toFixed(1) + 'KB/s';
+    if (bps < 1073741824) return (bps / 1048576).toFixed(1) + 'MB/s';
+    return (bps / 1073741824).toFixed(2) + 'GB/s';
+  }
+
+  function getVal(c, col) {
+    switch (col) {
+      case 'status':     return c.status === 'online' ? 0 : 1;
+      case 'hostname':   return (c.hostname || '').toLowerCase();
+      case 'mac':        return c.mac.toLowerCase();
+      case 'ipv4':       return c.ipv4;
+      case 'duration':   return parseDuration(c.duration);
+      case 'nct':        return isWirelessNct(c.nct) ? 1 : 0;
+      case 'acl':        return c.acl === 'Blocked' ? 0 : 1;
+      case 'speed_down': return (speedData[c.mac] || {}).rx || 0;
+      case 'speed_up':   return (speedData[c.mac] || {}).tx || 0;
+      default: return '';
+    }
+  }
+
+  function sortClients() {
+    allClients.sort(function(a, b) {
+      var va = getVal(a, sortCol), vb = getVal(b, sortCol);
+      if (typeof va === 'number') return sortAsc ? va - vb : vb - va;
+      if (va < vb) return sortAsc ? -1 : 1;
+      if (va > vb) return sortAsc ? 1 : -1;
+      return 0;
+    });
+  }
+
+  function toggleAcl(mac, el) {
+    if (el.classList.contains('loading')) return;
+    el.classList.add('loading');
+    csPost('<%=url("admin/services/clientstatus/toggle_acl")%>', { mac: mac }, function(resp) {
+      el.classList.remove('loading');
+      if (resp && resp.ok) {
+        showToast(resp.blocked ? mac + ' → <%:Blocked%>' : mac + ' → <%:Allowed%>', 'success');
+        csFetch();
+      } else {
+        showToast('Error: ' + ((resp && resp.error) || 'request failed'), 'error');
+      }
+    });
+  }
+
+  function saveHostname(mac, hostname, callback) {
+    csPost('<%=url("admin/services/clientstatus/save_hostname")%>', {
+      mac: mac,
+      hostname: hostname
+    }, function(resp) {
+      if (resp && resp.ok) {
+        showToast(mac + (hostname ? ' → ' + hostname : ' → <%:Delete%>'), 'success');
+      } else {
+        showToast('Error: ' + ((resp && resp.error) || 'request failed'), 'error');
+      }
+      if (callback) callback();
+    });
+  }
+
+  function startHostnameEdit(cell) {
+    if (cell.classList.contains('editing')) return;
+    cell.classList.add('editing');
+    var mac = cell.getAttribute('data-mac');
+    var currentName = cell.getAttribute('data-name');
+    var origName = cell.getAttribute('data-orig') || '';
+    var textSpan = cell.querySelector('.cs-hostname-text');
+    if (!textSpan) { cell.classList.remove('editing'); return; }
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'cs-hostname-input';
+    input.value = currentName;
+    input.maxLength = 64;
+    input.placeholder = origName || '<%:Enter hostname%>';
+    textSpan.style.display = 'none';
+    cell.appendChild(input);
+    input.focus();
+    input.select();
+    var done = false;
+    function finish() {
+      if (done) return; done = true;
+      cell.classList.remove('editing');
+      if (input.parentNode) input.parentNode.removeChild(input);
+      textSpan.style.display = '';
+    }
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        var val = input.value.trim();
+        finish();
+        if (val !== currentName) saveHostname(mac, val, function() { csFetch(); });
+      }
+      if (e.key === 'Escape') { e.preventDefault(); finish(); }
+    });
+    input.addEventListener('blur', function() { setTimeout(finish, 150); });
+  }
+
+  function render() {
+    var search    = document.getElementById('cs-search').value.toLowerCase();
+    var filter    = document.getElementById('cs-filter').value;
+    var aclFilter = document.getElementById('cs-acl-filter').value;
+    var nctFilter = document.getElementById('cs-nct-filter').value;
+    var tbody     = document.getElementById('cs-body');
+    var empty     = document.getElementById('cs-empty');
+
+    sortClients();
+
+    var html = '', shown = 0;
+    for (var i = 0; i < allClients.length; i++) {
+      var c = allClients[i];
+      if (filter !== 'all' && c.status !== filter) continue;
+      if (aclFilter !== 'all' && c.acl !== aclFilter) continue;
+      if (nctFilter !== 'all') {
+        if (nctFilter === 'Ethernet' && c.nct !== 'Ethernet') continue;
+        if (nctFilter === 'Wireless' && c.nct === 'Ethernet') continue;
+      }
+      if (search && (c.hostname + c.mac + c.ipv4 + (c.nct || '')).toLowerCase().indexOf(search) === -1) continue;
+
+      var sc = c.status === 'online' ? 'online' : 'offline';
+      var sl = c.status === 'online' ? '<%:Online%>' : '<%:Offline%>';
+      var ac = c.acl === 'Blocked' ? 'blocked' : 'allowed';
+      var al = c.acl === 'Blocked' ? '<%:Blocked%>' : '<%:Allowed%>';
+      var isWl = isWirelessNct(c.nct);
+      var nc = isWl ? 'wireless' : 'ethernet';
+      var nl = isWl ? c.nct : '<%:Ethernet%>';
+      var hostDisplay = escapeHtml(c.hostname);
+      var customMark = c.custom ? ' <span class="cs-custom-mark">&#9998;</span>' : '';
+      var sp = speedData[c.mac] || { rx: 0, tx: 0 };
+
+      html += '<tr data-mac="' + escapeAttr(c.mac) + '">';
+      html += '<td><span class="cs-badge ' + sc + '"><span class="cs-badge-dot"></span>' + sl + '</span></td>';
+      html += '<td class="cs-hostname" data-mac="' + escapeAttr(c.mac) + '" data-name="' + escapeAttr(c.hostname) + '" data-orig="' + escapeAttr(c.orig_hostname || '') + '" title="<%:Click to edit%>">';
+      html += '<span class="cs-cell-label"><%:Hostname%>:</span>';
+      html += '<span class="cs-hostname-text">' + hostDisplay + customMark + '</span>';
+      html += '</td>';
+      html += '<td class="cs-mac"><span class="cs-cell-label"><%:MAC%>:</span>' + escapeHtml(c.mac) + '</td>';
+      html += '<td class="cs-mono"><span class="cs-cell-label"><%:IP%>:</span>' + (c.status === 'offline' ? '-' : escapeHtml(c.ipv4 || '-')) + '</td>';
+      html += '<td class="cs-duration"><span class="cs-cell-label"><%:Duration%>:</span>' + escapeHtml(c.duration) + '</td>';
+      html += '<td><span class="cs-cell-label"><%:NCT%>:</span>' + ('<span class="cs-nct ' + nc + '">' + escapeHtml(nl) + '</span>') + '</td>';
+      html += '<td class="cs-speed cs-speed-down"><span class="cs-cell-label">↓</span><span class="cs-speed-val">' + fmtSpeed(sp.rx) + '</span></td>';
+      html += '<td class="cs-speed cs-speed-up"><span class="cs-cell-label">↑</span><span class="cs-speed-val">' + fmtSpeed(sp.tx) + '</span></td>';
+      html += '<td><span class="cs-cell-label"><%:ACL%>:</span><span class="cs-acl ' + ac + '" data-mac="' + escapeAttr(c.mac) + '" title="<%:Click to toggle%>">' + al + '</span></td>';
+      html += '</tr>';
+      shown++;
+    }
+
+    tbody.innerHTML = html;
+    empty.style.display = shown === 0 ? 'block' : 'none';
+
+    var total = allClients.length, online = 0, blocked = 0, wireless = 0, ethernet = 0;
+    for (var j = 0; j < total; j++) {
+      if (allClients[j].status === 'online') online++;
+      if (allClients[j].acl === 'Blocked') blocked++;
+      if (isWirelessNct(allClients[j].nct)) wireless++; else ethernet++;
+    }
+    document.getElementById('cs-total').textContent     = total;
+    document.getElementById('cs-online').textContent    = online;
+    document.getElementById('cs-offline').textContent   = total - online;
+    document.getElementById('cs-blocked').textContent   = blocked;
+    document.getElementById('cs-wireless').textContent  = wireless;
+    document.getElementById('cs-ethernet').textContent  = ethernet;
+  }
+
+  function renderSpeed() {
+    var rows = document.querySelectorAll('#cs-body tr[data-mac]');
+    for (var i = 0; i < rows.length; i++) {
+      var mac = rows[i].getAttribute('data-mac');
+      var sp = speedData[mac];
+      var cells = rows[i].getElementsByClassName('cs-speed-val');
+      if (cells.length >= 2) {
+        cells[0].textContent = sp ? fmtSpeed(sp.rx) : '—';
+        cells[1].textContent = sp ? fmtSpeed(sp.tx) : '—';
+      }
+    }
+  }
+
+  function csFetch() {
+    var btn = document.getElementById('cs-refresh');
+    btn.classList.add('loading');
+    XHR.get('<%=url("admin/services/clientstatus/data")%>', null, function(x, data) {
+      btn.classList.remove('loading');
+      if (data) {
+        allClients = data.clients || [];
+        render();
+      }
+    });
+  }
+  window.csFetch = csFetch;
+
+  function csSpeed() {
+    XHR.get('<%=url("admin/services/clientstatus/speed")%>?_=' + Date.now(), null, function(x, data) {
+      if (data && data.clients) {
+        speedData = data.clients;
+        if (allClients.length > 0) renderSpeed();
+      }
+    });
+  }
+
+  function csReset() {
+    var btn = document.getElementById('cs-reset');
+    if (btn.classList.contains('loading')) return;
+    btn.classList.add('loading');
+    csPost('<%=url("admin/services/clientstatus/reset")%>', {}, function(resp) {
+      btn.classList.remove('loading');
+      if (resp && resp.ok) {
+        showToast('<%:Client data cleared%>', 'success');
+        speedData = {};
+        csFetch();
+      } else {
+        showToast('Error: ' + ((resp && resp.error) || 'request failed'), 'error');
+      }
+    });
+  }
+  window.csReset = csReset;
+
+  function csCheck() {
+    XHR.get('<%=url("admin/services/clientstatus/mtime")%>?_=' + Date.now(), null, function(x, data) {
+      if (data && typeof data.mtime !== 'undefined') {
+        if (lastMtime === -1 || data.mtime !== lastMtime) {
+          lastMtime = data.mtime;
+          csFetch();
+        }
+      }
+    });
+  }
+
+  document.getElementById('cs-body').addEventListener('click', function(e) {
+    var aclEl = e.target.closest('.cs-acl');
+    if (aclEl) {
+      if (!aclEl.classList.contains('loading')) toggleAcl(aclEl.getAttribute('data-mac'), aclEl);
+      return;
+    }
+    var hostEl = e.target.closest('.cs-hostname');
+    if (hostEl && !hostEl.classList.contains('editing')) startHostnameEdit(hostEl);
+  });
+
+  var ths = document.querySelectorAll('.cs-table th[data-col]');
+  for (var k = 0; k < ths.length; k++) {
+    ths[k].addEventListener('click', (function(th) {
+      return function() {
+        var col = th.getAttribute('data-col');
+        if (sortCol === col) { sortAsc = !sortAsc; }
+        else { sortCol = col; sortAsc = true; }
+        for (var m = 0; m < ths.length; m++) {
+          ths[m].classList.remove('sorted');
+          ths[m].querySelector('.sort-arrow').textContent = '▼';
+        }
+        th.classList.add('sorted');
+        th.querySelector('.sort-arrow').textContent = sortAsc ? '▲' : '▼';
+        render();
+      };
+    })(ths[k]));
+  }
+
+  document.getElementById('cs-search').addEventListener('input', render);
+  document.getElementById('cs-filter').addEventListener('change', render);
+  document.getElementById('cs-acl-filter').addEventListener('change', render);
+  document.getElementById('cs-nct-filter').addEventListener('change', render);
+
+  function startTimer() { stopTimer(); timer = setInterval(csCheck, 30000); }
+  function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
+  function startSpeedTimer() { stopSpeedTimer(); speedTimer = setInterval(csSpeed, 5000); }
+  function stopSpeedTimer() { if (speedTimer) { clearInterval(speedTimer); speedTimer = null; } }
+
+  document.getElementById('cs-autorefresh').addEventListener('change', function() {
+    if (this.checked) { startTimer(); startSpeedTimer(); }
+    else { stopTimer(); stopSpeedTimer(); }
+  });
+
+  csCheck();
+  csSpeed();
+  startTimer();
+  startSpeedTimer();
+})();
+</script>
+
+<%+footer%>

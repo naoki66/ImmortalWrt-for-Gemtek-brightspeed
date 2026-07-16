@@ -1,0 +1,381 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8"
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:203
+msgid "%d MLO interface(s) override the auto-generated MLD ifname."
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:197
+msgid "%d MLO interface(s) still have fewer than two radios selected."
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:529
+msgid "802.11w Management Frame Protection"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:369
+msgid ""
+"A dedicated editor for OpenWrt Multi-Link Operation. Compared with the stock "
+"Wireless page, this view can manage multi-radio <code>device</code> lists, "
+"show MLD runtime state, and prefill safer MLO defaults."
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:278
+msgid "AP MLO is usually paired with WPA3-SAE or OWE"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:461
+msgid "Access Point"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:337
+msgid "Active"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:237
+msgid "Active MLD ifnames"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:378
+msgid "Add MLO-ready interface"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:447
+msgid "Advanced"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:392
+msgid ""
+"At least two configured radios are required before an MLO interface can be "
+"created."
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:485
+msgid "Attached network(s)"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:553
+msgid "BSSID"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:462
+msgid "Client"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:234
+msgid "Configured radios"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:281
+msgid "Custom ifname overrides the default ap-mldX / sta-mldX naming"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:290
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:314
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:530
+msgid "Disabled"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:573
+msgid "Disassociate on low ACK"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:373
+msgid ""
+"Edit all wireless interfaces here. The dedicated overview columns help "
+"identify which sections are already MLO-ready and which ones still need "
+"runtime or security cleanup."
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:379
+msgid "Edit wireless interface"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:455
+msgid "Enable MLO"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:567
+msgid "Enable OCV"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:563
+msgid "Enable U-APSD"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:558
+msgid "Enable WDS / 4-address mode"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:290
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:449
+msgid "Enabled"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:500
+msgid "Encryption"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:501
+msgid ""
+"For AP MLO, WPA3-SAE with Management Frame Protection set to Required is the "
+"most compatible starting point in this tree."
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:445
+msgid "General"
+msgstr ""
+
+#: luci-app-mlo/root/usr/share/rpcd/acl.d/luci-app-mlo.json:3
+msgid "Grant access to LuCI app MLO"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:496
+msgid "Hide SSID"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:542
+msgid "Interface name"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:486
+msgid ""
+"Logical network names from <code>/etc/config/network</code>, for example "
+"<code>lan</code>."
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:548
+msgid "MAC address"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:338
+msgid "MLD runtime"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:288
+#: luci-app-mlo/root/usr/share/luci/menu.d/luci-app-mlo.json:3
+msgid "MLO"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:228
+msgid "MLO Overview"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:200
+msgid ""
+"MLO is configured, but no active runtime MLD interface is currently reported."
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:480
+msgid "MLO requires at least two radio devices"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:236
+msgid "MLO-enabled"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:460
+msgid "Mode"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:275
+msgid "Needs at least two radios"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:299
+msgid "Networks"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:194
+msgid "No MLO-enabled wireless interface is configured yet."
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:325
+msgid "No active interface was reported yet"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:507
+msgid "No encryption"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:324
+msgid "No runtime state"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:192
+msgid "No wireless interfaces are configured yet."
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:506
+msgid "OWE"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:189
+msgid "Only one radio is configured. MLO needs at least two radios."
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:531
+msgid "Optional"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:549
+msgid "Optional override for the generated interface MAC address."
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:543
+msgid ""
+"Optional override. Leave empty to use auto-generated names such as <code>ap-"
+"mld0</code> or <code>sta-mld0</code>."
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:511
+msgid "Passphrase"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:524
+msgid "Passphrase is required for the selected encryption"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:337
+msgid "Present"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:433
+msgid "Profile"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:248
+msgid "Quick Add AP MLO"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:255
+msgid "Quick Add STA MLO"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:466
+msgid "Radio devices"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:293
+msgid "Radios"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:262
+msgid "Refresh Runtime Status"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:532
+msgid "Required"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:439
+msgid "Runtime"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:222
+msgid ""
+"Runtime detection looks healthy. Auto-generated MLD names appear as <code>ap-"
+"mldX</code> or <code>sta-mldX</code>."
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:341
+msgid "Runtime radios"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:292
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:491
+msgid "SSID"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:327
+msgid "Save & Apply, then verify driver support if this persists"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:315
+msgid "Section is disabled in UCI"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:300
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:446
+msgid "Security"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:477
+msgid "Select at least one radio device"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:467
+msgid "Select one radio for normal Wi-Fi, or two or more radios for MLO."
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:288
+msgid "Single-link"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:342
+msgid "Stations"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:230
+msgid ""
+"This page is focused on backend MLO settings and runtime visibility. It "
+"complements the stock Wireless page by handling multi-radio <code>device</"
+"code> lists directly."
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:505
+msgid "WPA/WPA2 mixed PSK"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:504
+msgid "WPA2-PSK"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:503
+msgid "WPA2/WPA3 mixed"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:502
+msgid "WPA3-SAE"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:456
+msgid ""
+"When enabled, this <code>wifi-iface</code> spans multiple radios through a "
+"multi-value <code>device</code> list."
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:368
+msgid "Wi-Fi MLO"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:372
+msgid "Wireless Interfaces"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:235
+msgid "Wireless interfaces"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:56
+msgid "channel %s"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:340
+msgid "ifname"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:237
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:298
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:299
+msgid "none"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:340
+msgid "unknown"
+msgstr ""
+
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:292
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:300
+msgid "unset"
+msgstr ""

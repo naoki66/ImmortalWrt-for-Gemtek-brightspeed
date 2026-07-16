@@ -1,0 +1,106 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+STOP=10
+USE_PROCD=1
+CONF=clientstatus
+
+CHAIN_NAME="clientstatus_block"
+CHAIN_TABLE="inet fw4"
+
+is_nft() {
+	[ -x /usr/sbin/nft ] && nft list tables 2>/dev/null | grep -q 'inet fw4'
+}
+
+is_ipt() {
+	[ -x /usr/sbin/iptables ] || [ -x /usr/bin/iptables ]
+}
+
+remove_fw_rules_nft() {
+	nft delete chain inet fw4 "$CHAIN_NAME" 2>/dev/null
+	nft delete set inet fw4 blocked_macs 2>/dev/null
+}
+
+apply_fw_rules_nft() {
+	remove_fw_rules_nft
+	nft add set inet fw4 blocked_macs { type ether_addr \; }
+	nft add chain inet fw4 "$CHAIN_NAME" \
+		{ type filter hook forward priority -1 \; policy accept \; }
+	nft add rule inet fw4 "$CHAIN_NAME" ether saddr @blocked_macs drop
+	_add_mac_to_nft_set() {
+		[ -n "$1" ] && nft add element inet fw4 blocked_macs { "$1" } 2>/dev/null
+	}
+	config_list_foreach main blocked_mac _add_mac_to_nft_set
+}
+
+remove_fw_rules_ipt() {
+	iptables  -D FORWARD -j "$CHAIN_NAME" 2>/dev/null
+	iptables  -F "$CHAIN_NAME" 2>/dev/null
+	iptables  -X "$CHAIN_NAME" 2>/dev/null
+
+	ip6tables -D FORWARD -j "$CHAIN_NAME" 2>/dev/null
+	ip6tables -F "$CHAIN_NAME" 2>/dev/null
+	ip6tables -X "$CHAIN_NAME" 2>/dev/null
+}
+
+apply_fw_rules_ipt() {
+	remove_fw_rules_ipt
+	iptables  -N "$CHAIN_NAME"
+	ip6tables -N "$CHAIN_NAME"
+	iptables  -I FORWARD 1 -j "$CHAIN_NAME"
+	ip6tables -I FORWARD 1 -j "$CHAIN_NAME"
+	_add_mac_to_ipt() {
+		[ -n "$1" ] || return
+		iptables  -A "$CHAIN_NAME" -m mac --mac-source "$1" -j DROP
+		ip6tables -A "$CHAIN_NAME" -m mac --mac-source "$1" -j DROP
+	}
+	config_list_foreach main blocked_mac _add_mac_to_ipt
+}
+
+apply_fw_rules() {
+	if is_nft; then
+		apply_fw_rules_nft
+	elif is_ipt; then
+		apply_fw_rules_ipt
+	else
+		logger -t clientstatus "No supported firewall backend found"
+		return 1
+	fi
+}
+
+remove_fw_rules() {
+	if is_nft; then
+		remove_fw_rules_nft
+	elif is_ipt; then
+		remove_fw_rules_ipt
+	fi
+}
+
+start_service() {
+	config_load $CONF
+	config_get enabled main enabled 0
+
+	[ "$enabled" = "1" ] || return 0
+
+	apply_fw_rules
+
+	procd_open_instance
+	procd_set_param command /usr/bin/clientstatus
+	procd_set_param respawn 3600 5 5
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_close_instance
+}
+
+stop_service() {
+	remove_fw_rules
+}
+
+reload_service() {
+	stop
+	start
+}
+
+service_triggers() {
+	procd_add_reload_trigger "$CONF"
+}

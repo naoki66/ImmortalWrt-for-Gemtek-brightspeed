@@ -453,40 +453,6 @@ get_vlan_offload() {
 	printf '{"enabled":%d}' "${val:-0}"
 }
 
-set_vlan_offload() {
-	local enabled
-	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
-
-	# jsonfilter returns empty string for integer 0; treat empty as 0
-	[ -z "$enabled" ] && enabled="0"
-
-	if [ "$enabled" != "0" ] && [ "$enabled" != "1" ]; then
-		echo '{"error":"enabled must be 0 or 1"}'
-		return
-	fi
-
-	# Try to load bridge module if not loaded
-	modprobe bridge 2>/dev/null
-
-	# Check if the sysctl file exists
-	local sysctl_file="/proc/sys/net/bridge/bridge-nf-filter-vlan-tagged"
-	if [ ! -f "$sysctl_file" ]; then
-		echo '{"error":"VLAN offload not supported on this device"}'
-		return
-	fi
-
-	if ! echo "$enabled" > "$sysctl_file" 2>/dev/null; then
-		echo '{"error":"failed to set VLAN offload"}'
-		return
-	fi
-
-	# Persist across reboots
-	mkdir -p /etc/sysctl.d
-	echo "net.bridge.bridge-nf-filter-vlan-tagged=$enabled" > /etc/sysctl.d/14-vlan-offload.conf
-	chmod 644 /etc/sysctl.d/14-vlan-offload.conf 2>/dev/null
-	printf '{"result":"ok","enabled":%d}' "$enabled"
-}
-
 get_flow_offload() {
 	local fo foh
 	fo=$(uci get firewall.@defaults[0].flow_offloading 2>/dev/null)
@@ -498,66 +464,10 @@ get_flow_offload() {
 	fi
 }
 
-set_flow_offload() {
-	local enabled
-	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
-
-	[ -z "$enabled" ] && enabled="0"
-
-	if [ "$enabled" != "0" ] && [ "$enabled" != "1" ]; then
-		echo '{"error":"enabled must be 0 or 1"}'
-		return
-	fi
-
-	if [ "$enabled" = "1" ]; then
-		uci set firewall.@defaults[0].flow_offloading='1'
-		uci set firewall.@defaults[0].flow_offloading_hw='1'
-	else
-		uci delete firewall.@defaults[0].flow_offloading 2>/dev/null
-		uci delete firewall.@defaults[0].flow_offloading_hw 2>/dev/null
-	fi
-	uci commit firewall
-	/etc/init.d/firewall reload >/dev/null 2>&1 &
-	printf '{"result":"ok","enabled":%d}' "$enabled"
-}
-
 get_pppoe_offload() {
 	local val
 	val=$(cat /proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged 2>/dev/null)
 	printf '{"enabled":%d}' "${val:-0}"
-}
-
-set_pppoe_offload() {
-	local enabled
-	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
-
-	[ -z "$enabled" ] && enabled="0"
-
-	if [ "$enabled" != "0" ] && [ "$enabled" != "1" ]; then
-		echo '{"error":"enabled must be 0 or 1"}'
-		return
-	fi
-
-	# Try to load bridge module if not loaded
-	modprobe bridge 2>/dev/null
-
-	# Check if the sysctl file exists
-	local sysctl_file="/proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged"
-	if [ ! -f "$sysctl_file" ]; then
-		echo '{"error":"PPPoE offload not supported on this device"}'
-		return
-	fi
-
-	if ! echo "$enabled" > "$sysctl_file" 2>/dev/null; then
-		echo '{"error":"failed to set PPPoE offload"}'
-		return
-	fi
-
-	# Persist across reboots
-	mkdir -p /etc/sysctl.d
-	echo "net.bridge.bridge-nf-filter-pppoe-tagged=$enabled" > /etc/sysctl.d/15-pppoe-offload.conf
-	chmod 644 /etc/sysctl.d/15-pppoe-offload.conf 2>/dev/null
-	printf '{"result":"ok","enabled":%d}' "$enabled"
 }
 
 get_device_mode() {
@@ -1022,7 +932,7 @@ get_eth_stats() {
 
 case "$1" in
 	list)
-		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getTxStats":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getDeviceMode":{},"getWanHealth":{},"getJitterResult":{},"getWifiStats":{},"getBridgeStats":{},"getNpuBypass":{},"getConflictAlerts":{},"getEthStats":{}}'
+		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getTxStats":{},"getVlanOffload":{},"getFlowOffload":{},"getPppoeOffload":{},"getDeviceMode":{},"getWanHealth":{},"getJitterResult":{},"getWifiStats":{},"getBridgeStats":{},"getNpuBypass":{},"getConflictAlerts":{},"getEthStats":{}}'
 		;;
 	call)
 		case "$2" in
@@ -1044,23 +954,11 @@ case "$1" in
 			getVlanOffload)
 				get_vlan_offload
 				;;
-			setVlanOffload)
-				read input
-				set_vlan_offload "$input"
-				;;
 			getFlowOffload)
 				get_flow_offload
 				;;
-			setFlowOffload)
-				read input
-				set_flow_offload "$input"
-				;;
 			getPppoeOffload)
 				get_pppoe_offload
-				;;
-			setPppoeOffload)
-				read input
-				set_pppoe_offload "$input"
 				;;
 			getDeviceMode)
 				get_device_mode
