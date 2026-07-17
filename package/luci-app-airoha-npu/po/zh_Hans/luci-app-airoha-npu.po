@@ -17,8 +17,8 @@ msgid "Active"
 msgstr "已激活"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:284
-msgid "Airoha SoC Status"
-msgstr "Airoha SoC 状态"
+msgid "Airoha NPU Status"
+msgstr "Airoha NPU状态"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:224
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:233
@@ -84,8 +84,8 @@ msgid "Governor"
 msgstr "调速器"
 
 #: feeds/luci/applications/luci-app-airoha-npu/root/usr/share/rpcd/acl.d/luci-app-airoha-npu.json:3
-msgid "Grant access to Airoha SoC status (NPU + CPU + Overclock)"
-msgstr "授予访问 Airoha SoC 状态（NPU + CPU + 超频）的权限"
+msgid "Grant access to Airoha NPU status (NPU + CPU + Overclock)"
+msgstr "授予访问 Airoha NPU 状态（NPU + CPU + 超频）的权限"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:355
 msgid "Index"
@@ -108,6 +108,9 @@ msgid "NPU Information"
 msgstr "NPU 信息"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:325
+msgid "NPU & Offload Engine"
+msgstr "NPU硬件引擎"
+
 msgid "NPU Status"
 msgstr "NPU 状态"
 
@@ -127,6 +130,18 @@ msgstr "不可用"
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:339
 msgid "Offload Statistics"
 msgstr "卸载统计"
+
+msgid "Flow Offload"
+msgstr "硬件流量加速"
+
+msgid "PPPoE Offload"
+msgstr "PPPoE 加速"
+
+msgid "VLAN Offload"
+msgstr "VLAN 加速"
+
+msgid "HW Offload"
+msgstr "硬件加速"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:358
 msgid "Original Flow"

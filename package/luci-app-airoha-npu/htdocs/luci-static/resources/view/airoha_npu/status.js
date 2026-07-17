@@ -31,6 +31,11 @@ var themeCSS = '\
 .soc-band-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}\
 .soc-gdm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}\
 .soc-cdm-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:10px}\
+.offload-row{display:flex;align-items:center;justify-content:space-evenly;flex-wrap:wrap;gap:12px;padding:10px 0}\
+.offload-item{display:flex;align-items:center;gap:8px;font-size:13px}\
+.offload-badge{font-size:13px;font-weight:700;letter-spacing:1px;padding:2px 10px;border-radius:3px;font-family:monospace;display:inline-flex;align-items:center}\
+.offload-on{background:rgba(0,255,0,0.12);color:#00ff00;border:1px solid rgba(0,255,0,0.35)}\
+.offload-off{background:rgba(255,160,0,0.15);color:#ffa000;border:1px solid rgba(255,160,0,0.35)}\
 ';
 
 function isDarkMode() {
@@ -393,17 +398,31 @@ function renderOcControls() {
 	]);
 }
 
-function renderOffloadSelect(enabled, id, callFn) {
-	return E('select', { 'id': id, 'class':'cbi-input-select', 'style':'min-width:120px', 'change':function(ev){
-		var val = ev.target.value === '1' ? 1 : 0;
-		ev.target.disabled = true;
-		callFn(val).then(function(r){
-			ev.target.disabled = false;
-			if(r && r.error) ui.addNotification(null, E('p',{},_('Error: ')+r.error), 'error');
-		}).catch(function(){ ev.target.disabled = false; });
-	}}, [
-		E('option', {'value':'1', 'selected': enabled ? '' : null}, _('Enabled')),
-		E('option', {'value':'0', 'selected': enabled ? null : ''}, _('Disabled'))
+function renderOffloadBadge(enabled, id) {
+	return E('span', {
+		'id': id,
+		'class': 'offload-badge ' + (enabled ? 'offload-on' : 'offload-off')
+	}, enabled ? _('Enabled') : _('Disabled'));
+}
+
+function renderOffloadSelect(enabled, id, callFn, badgeId) {
+	return E('div', { 'class': 'offload-item' }, [
+		E('select', { 'id': id, 'class':'cbi-input-select', 'style':'min-width:100px', 'change':function(ev){
+			var val = ev.target.value === '1' ? 1 : 0;
+			ev.target.disabled = true;
+			callFn(val).then(function(r){
+				ev.target.disabled = false;
+				if(r && r.error) ui.addNotification(null, E('p',{},_('Error: ')+r.error), 'error');
+				else {
+					var b = document.getElementById(badgeId);
+					if(b) { b.className = 'offload-badge '+(val?'offload-on':'offload-off'); b.textContent = val?_('Enabled'):_('Disabled'); }
+				}
+			}).catch(function(){ ev.target.disabled = false; });
+		}}, [
+			E('option', {'value':'1', 'selected': enabled ? '' : null}, _('Enabled')),
+			E('option', {'value':'0', 'selected': enabled ? null : ''}, _('Disabled'))
+		]),
+		renderOffloadBadge(enabled, badgeId)
 	]);
 }
 
@@ -432,7 +451,7 @@ return view.extend({
 		var memR = Array.isArray(st.memory_regions) ? st.memory_regions : [];
 
 		var view = E('div',{'class':'cbi-map'},[
-			E('h2',{},_('Airoha SoC Status')),
+			E('h2',{},_('Airoha NPU Status')),
 
 			// CPU Frequency
 			E('div',{'class':'cbi-section'},[
@@ -457,14 +476,22 @@ return view.extend({
 					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('Firmware / Clock / Cores'))),
 						E('td',{'class':'td','id':'npu-info'}, (st.npu_version||'N/A')+' | '+(st.npu_clock?(st.npu_clock/1e6).toFixed(0)+' MHz':'N/A')+' | '+(st.npu_cores||0)+' cores') ]),
 					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('Reserved Memory'))),
-						E('td',{'class':'td','id':'npu-memory'}, calcTotalMem(memR)+' ('+memR.length+' regions)') ]),
-					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('VLAN Offload'))),
-						E('td',{'class':'td'}, renderOffloadSelect(vo.enabled, 'vlan-offload-select', function(v){return callSetVlanOffload(v);})) ]),
-					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('PPPoE Offload'))),
-						E('td',{'class':'td'}, renderOffloadSelect(ppo.enabled, 'pppoe-offload-select', function(v){return callSetPppoeOffload(v);})) ]),
-					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('Flow Offload'))),
-						E('td',{'class':'td'}, renderOffloadSelect(flo.enabled, 'flow-offload-select', function(v){return callSetFlowOffload(v);})) ])
+					E('td',{'class':'td','id':'npu-memory'}, calcTotalMem(memR)+' ('+memR.length+' regions)') ])
+			]),
+			E('div',{'class':'offload-row'},[
+				E('div',{'class':'offload-item'},[
+					E('span',{'class':'soc-text','style':'font-weight:600'},_('VLAN Offload')),
+					renderOffloadSelect(vo.enabled, 'vlan-offload-select', function(v){return callSetVlanOffload(v);}, 'vlan-offload-badge')
 				]),
+				E('div',{'class':'offload-item'},[
+					E('span',{'class':'soc-text','style':'font-weight:600'},_('PPPoE Offload')),
+					renderOffloadSelect(ppo.enabled, 'pppoe-offload-select', function(v){return callSetPppoeOffload(v);}, 'pppoe-offload-badge')
+				]),
+				E('div',{'class':'offload-item'},[
+					E('span',{'class':'soc-text','style':'font-weight:600'},_('Flow Offload')),
+					renderOffloadSelect(flo.enabled, 'flow-offload-select', function(v){return callSetFlowOffload(v);}, 'flow-offload-badge')
+				])
+			]),
 
 				// Frame Engine diagram (includes WiFi bands, PPE flows, NPU indicator)
 				E('div',{'style':'margin-top:12px'},[ E('h4',{'class':'soc-text','style':'font-size:14px;margin-bottom:8px'},_('Frame Engine'))]),
@@ -497,9 +524,15 @@ return view.extend({
 				var se=document.getElementById('npu-status');
 				if(se){se.innerHTML='';var sp=document.createElement('span');sp.className=st.npu_loaded?'label-success':'label-danger';sp.textContent=st.npu_loaded?(_('Active')+(st.npu_device?' ('+st.npu_device+')':'')):_('Not Active');se.appendChild(sp);}
 
-				var vs=document.getElementById('vlan-offload-select'); if(vs&&!vs.matches(':focus')) vs.value = vo.enabled ? '1' : '0';
-				var ps=document.getElementById('pppoe-offload-select'); if(ps&&!ps.matches(':focus')) ps.value = ppo.enabled ? '1' : '0';
-				var fls=document.getElementById('flow-offload-select'); if(fls&&!fls.matches(':focus')) fls.value = flo.enabled ? '1' : '0';
+				function _updateOffload(selectId, badgeId, on) {
+					var sel = document.getElementById(selectId);
+					if(sel && !sel.matches(':focus')) sel.value = on ? '1' : '0';
+					var b = document.getElementById(badgeId);
+					if(b) { b.className = 'offload-badge '+(on?'offload-on':'offload-off'); b.textContent = on?_('Enabled'):_('Disabled'); }
+				}
+				_updateOffload('vlan-offload-select', 'vlan-offload-badge', vo.enabled);
+				_updateOffload('pppoe-offload-select', 'pppoe-offload-badge', ppo.enabled);
+				_updateOffload('flow-offload-select', 'flow-offload-badge', flo.enabled);
 
 				var fc=document.getElementById('fe-container'); if(fc){fc.innerHTML='';fc.appendChild(renderFeDiagram(fe, ti, st));}
 

@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ImmortalWrt
+Date: Fri, 18 Jul 2026 01:30:00 +0800
+Subject: [PATCH] pmdomain: mediatek: allow AIROHA_CPU_PM_DOMAIN on ARCH_AIROHA
+
+The AIROHA_CPU_PM_DOMAIN config is defined inside the "MediaTek PM Domains"
+menu which depends on ARCH_MEDIATEK || COMPILE_TEST. This prevents the
+option from being visible on ARCH_AIROHA platforms, causing cpufreq to
+fail with "Failed to set OPP config" because the CPU power domain driver
+is not built.
+
+Add ARCH_AIROHA to the menu dependency so that AIROHA_CPU_PM_DOMAIN can
+be enabled on Airoha platforms without enabling COMPILE_TEST.
+
+Signed-off-by: ImmortalWrt
+---
+ drivers/pmdomain/mediatek/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/drivers/pmdomain/mediatek/Kconfig
++++ b/drivers/pmdomain/mediatek/Kconfig
+@@ -1,6 +1,6 @@
+ # SPDX-License-Identifier: GPL-2.0-only
+
+ menu "MediaTek PM Domains"
+-	depends on ARCH_MEDIATEK || COMPILE_TEST
++	depends on ARCH_MEDIATEK || ARCH_AIROHA || COMPILE_TEST
+
+ config MTK_SCPSYS
+ 	bool "MediaTek SCPSYS Support"

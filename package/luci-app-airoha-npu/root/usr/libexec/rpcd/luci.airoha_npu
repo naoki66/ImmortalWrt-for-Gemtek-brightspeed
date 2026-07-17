@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Airoha SoC Status RPC backend for LuCI (NPU + CPU + Overclock)
+# Airoha NPU Status RPC backend for LuCI (NPU + CPU + Overclock)
 
 . /lib/functions.sh
 
@@ -469,9 +469,9 @@ set_vlan_offload() {
 
 get_pppoe_offload() {
 	local val
-	val=$(cat /proc/sys/net/netfilter/nf_conntrack_pptp_helper 2>/dev/null)
-	[ -z "$val" ] && val=0
-	printf '{"enabled":%d}' "$val"
+	# Use bridge-nf-filter-pppoe-tagged sysctl (consistent with flowsense)
+	val=$(cat /proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged 2>/dev/null)
+	printf '{"enabled":%d}' "${val:-0}"
 }
 
 set_pppoe_offload() {
@@ -482,21 +482,33 @@ set_pppoe_offload() {
 		echo '{"error":"enabled must be 0 or 1"}'
 		return
 	fi
-	if ! echo "$enabled" > /proc/sys/net/netfilter/nf_conntrack_pptp_helper 2>/dev/null; then
-		echo '{"error":"failed - nf_conntrack_pptp module may not be loaded"}'
+	# Load bridge module if needed and set sysctl (consistent with flowsense)
+	if [ "$enabled" = "1" ]; then
+		modprobe bridge 2>/dev/null
+	fi
+	if ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged 2>/dev/null; then
+		echo '{"error":"failed - bridge module may not be loaded"}'
 		return
 	fi
-	echo "net.netfilter.nf_conntrack_pptp_helper=$enabled" > /etc/sysctl.d/15-pppoe-offload.conf
+	echo "net.bridge.bridge-nf-filter-pppoe-tagged=$enabled" > /etc/sysctl.d/13-pppoe-offload.conf
+	# Also load PPTP conntrack helper for PPPoE offload support
+	if [ "$enabled" = "1" ]; then
+		modprobe nf_conntrack_pptp 2>/dev/null
+		modprobe nf_nat_pptp 2>/dev/null
+	fi
 	printf '{"result":"ok","enabled":%d}' "$enabled"
 }
 
 get_flow_offload() {
-	local val=0
-	if [ -f "/sys/kernel/debug/ppe/bind" ]; then
-		local cnt=$(grep -c "^[0-9a-fA-F]" /sys/kernel/debug/ppe/bind 2>/dev/null)
-		[ "$cnt" -gt 0 ] && val=1
+	# Check UCI config (consistent with flowsense)
+	local fo foh
+	fo=$(uci get firewall.@defaults[0].flow_offloading 2>/dev/null)
+	foh=$(uci get firewall.@defaults[0].flow_offloading_hw 2>/dev/null)
+	if [ "$fo" = "1" ] && [ "$foh" = "1" ]; then
+		printf '{"enabled":1}'
+	else
+		printf '{"enabled":0}'
 	fi
-	printf '{"enabled":%d}' "$val"
 }
 
 set_flow_offload() {
@@ -507,8 +519,12 @@ set_flow_offload() {
 		echo '{"error":"enabled must be 0 or 1"}'
 		return
 	fi
+	# Set both flow_offloading and flow_offloading_hw (consistent with flowsense)
 	uci set firewall.@defaults[0].flow_offloading="$enabled" 2>/dev/null
+	uci set firewall.@defaults[0].flow_offloading_hw="$enabled" 2>/dev/null
 	uci commit firewall 2>/dev/null
+	# Restart firewall to apply changes
+	/etc/init.d/firewall restart 2>/dev/null &
 	printf '{"result":"ok","enabled":%d}' "$enabled"
 }
 

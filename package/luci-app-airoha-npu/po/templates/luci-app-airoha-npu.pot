@@ -7,7 +7,7 @@ msgid "Active"
 msgstr ""
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:284
-msgid "Airoha SoC Status"
+msgid "Airoha NPU Status"
 msgstr ""
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:224
@@ -72,7 +72,7 @@ msgid "Governor"
 msgstr ""
 
 #: feeds/luci/applications/luci-app-airoha-npu/root/usr/share/rpcd/acl.d/luci-app-airoha-npu.json:3
-msgid "Grant access to Airoha SoC status (NPU + CPU + Overclock)"
+msgid "Grant access to Airoha NPU status (NPU + CPU + Overclock)"
 msgstr ""
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:355

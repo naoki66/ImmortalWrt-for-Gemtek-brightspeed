@@ -1,6 +1,6 @@
 {
 	"luci-app-airoha-npu": {
-		"description": "Grant access to Airoha SoC status (NPU + CPU + Overclock + Offload)",
+		"description": "Grant access to Airoha NPU status (NPU + CPU + Overclock + Offload)",
 		"read": {
 			"ubus": {
 				"luci.airoha_npu": [ "getStatus", "getPpeEntries", "getTokenInfo", "getFrameEngine", "getVlanOffload", "getPppoeOffload", "getFlowOffload" ]

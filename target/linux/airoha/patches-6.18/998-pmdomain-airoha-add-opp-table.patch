@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ImmortalWrt
+Date: Fri, 18 Jul 2026 02:30:00 +0800
+Subject: [PATCH] pmdomain: airoha: add OPP table for CPU PM domain
+
+The airoha-cpufreq driver uses PD_FLAG_REQUIRED_OPP when attaching the
+CPU PM domain, which requires the genpd device to have an OPP table
+loaded. Without calling dev_pm_opp_of_add_table(), the OPP table
+defined in the device tree (operating-points-v2) is never loaded,
+causing dev_pm_domain_attach_list() to fail with error 1 and cpufreq
+probe to fail.
+
+Add dev_pm_opp_of_add_table() call in the probe function to load the
+OPP table from device tree.
+
+Signed-off-by: ImmortalWrt
+---
+ drivers/pmdomain/mediatek/airoha-cpu-pmdomain.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+--- a/drivers/pmdomain/mediatek/airoha-cpu-pmdomain.c
++++ b/drivers/pmdomain/mediatek/airoha-cpu-pmdomain.c
+@@ -3,6 +3,7 @@
+ #include <linux/arm-smccc.h>
+ #include <linux/bitfield.h>
+ #include <linux/clk-provider.h>
++#include <linux/pm_opp.h>
+ #include <linux/module.h>
+ #include <linux/platform_device.h>
+ #include <linux/pm_domain.h>
+@@ -93,6 +94,11 @@ static int airoha_cpu_pmdomain_probe(struct platform_device *pdev)
+ 	if (ret)
+ 		return ret;
+
++	/* Load OPP table from device tree for PD_FLAG_REQUIRED_OPP */
++	ret = devm_pm_opp_of_add_table(dev);
++	if (ret)
++		return ret;
++
+ 	/* Init and register a PD for CPU */
+ 	pd = &priv->pd;
+ 	pd->name = "cpu_pd";

@@ -23,19 +23,22 @@ gemtek,w1700k-ubi)
 	uci set wireless.radio1.country='US'
 	uci set wireless.radio2.country='US'
 
-	# --- radio0: 2.4 GHz  EHT40, auto channel ---
+	# --- radio0: 2.4 GHz  EHT40, auto channel, txpower 28 dBm ---
 	uci set wireless.radio0.channel='auto'
 	uci set wireless.radio0.htmode='EHT40'
+	uci set wireless.radio0.txpower='28'
 	uci set wireless.radio0.disabled='0'
 
-	# --- radio1: 5 GHz  EHT160, ch 36 ---
+	# --- radio1: 5 GHz  EHT160, ch 36, txpower 28 dBm ---
 	uci set wireless.radio1.channel='36'
 	uci set wireless.radio1.htmode='EHT160'
+	uci set wireless.radio1.txpower='28'
 	uci set wireless.radio1.disabled='0'
 
-	# --- radio2: 6 GHz  EHT320, ch 37 ---
+	# --- radio2: 6 GHz  EHT320, ch 37, txpower 28 dBm ---
 	uci set wireless.radio2.channel='37'
 	uci set wireless.radio2.htmode='EHT320'
+	uci set wireless.radio2.txpower='28'
 	uci set wireless.radio2.disabled='0'
 
 	uci commit wireless

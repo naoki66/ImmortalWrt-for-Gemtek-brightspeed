@@ -4,7 +4,7 @@ msgstr ""
 "Language: zh_Hans\n"
 
 msgid "Airoha FlowSense"
-msgstr "Airoha FlowSense"
+msgstr "Airoha 流量传感器"
 
 msgid "Disabled"
 msgstr "已禁用"
@@ -16,7 +16,7 @@ msgid "Error: "
 msgstr "错误："
 
 msgid "HW Flow Offload"
-msgstr "硬件流量卸载"
+msgstr "硬件流量加速"
 
 msgid "Index"
 msgstr "索引"
@@ -188,7 +188,7 @@ msgid "Ghost Shaper Active"
 msgstr "Ghost Shaper 活动"
 
 msgid "NPU HW offload is bypassing CAKE SQM. Offloaded flows skip bufferbloat management — latency protection is inactive under load."
-msgstr "NPU 硬件卸载绕过了 CAKE SQM。卸载的流量跳过了缓冲区管理——负载下的延迟保护未激活。"
+msgstr "NPU 硬件加速绕过了 CAKE SQM。加速的流量跳过了缓冲区管理——负载下的延迟保护未激活。"
 
 msgid "Physical Bottleneck"
 msgstr "物理瓶颈"
@@ -200,7 +200,7 @@ msgid "NPU Bypass Detected"
 msgstr "检测到 NPU 绕过"
 
 msgid "HW offload is enabled but ISP latency is high. Latency management may be skipped by hardware acceleration."
-msgstr "硬件卸载已启用，但 ISP 延迟较高。延迟管理可能被硬件加速跳过。"
+msgstr "硬件加速已启用，但 ISP 延迟较高。延迟管理可能被硬件加速跳过。"
 
 # Band health
 msgid "No clients"
