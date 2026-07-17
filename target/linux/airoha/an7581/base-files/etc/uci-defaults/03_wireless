@@ -2,6 +2,12 @@
 #
 # Copyright (C) 2026 ImmortalWrt
 #
+# MT7996 tri-band WiFi 7 defaults for Gemtek XR1710G / W1700K
+#   radio0: 2.4 GHz 2x2
+#   radio1: 5 GHz 4x4
+#   radio2: 6 GHz 4x4
+# US country code on all radios
+#
 
 [ ! -e /etc/config/wireless ] && exit 0
 
@@ -12,9 +18,25 @@ board=$(board_name)
 case "$board" in
 gemtek,xr1710g-ubi|\
 gemtek,w1700k-ubi)
-	uci get wireless.radio0.country > /dev/null 2>&1 || uci set wireless.radio0.country='US'
-	uci get wireless.radio1.country > /dev/null 2>&1 || uci set wireless.radio1.country='US'
-	uci get wireless.radio2.country > /dev/null 2>&1 || uci set wireless.radio2.country='US'
+	# Country code
+	uci set wireless.radio0.country='US'
+	uci set wireless.radio1.country='US'
+	uci set wireless.radio2.country='US'
+
+	# --- radio0: 2.4 GHz  EHT40, auto channel ---
+	uci set wireless.radio0.channel='auto'
+	uci set wireless.radio0.htmode='EHT40'
+	uci set wireless.radio0.disabled='0'
+
+	# --- radio1: 5 GHz  EHT160, ch 36 ---
+	uci set wireless.radio1.channel='36'
+	uci set wireless.radio1.htmode='EHT160'
+	uci set wireless.radio1.disabled='0'
+
+	# --- radio2: 6 GHz  EHT320, ch 37 ---
+	uci set wireless.radio2.channel='37'
+	uci set wireless.radio2.htmode='EHT320'
+	uci set wireless.radio2.disabled='0'
 
 	uci commit wireless
 	;;
