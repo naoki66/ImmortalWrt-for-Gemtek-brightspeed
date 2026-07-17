@@ -25,10 +25,10 @@ Link: https://github.com/openwrt/mt76/pull/954
 
 --- a/mt7996/eeprom.c
 +++ b/mt7996/eeprom.c
-@@ -95,6 +95,60 @@ mt7996_eeprom_parse_stream(const u8 *eep
+@@ -67,6 +95,60 @@ mt7996_eeprom_parse_stream(const u8 *eep
  	}
  }
- 
+
 +/* Minimum acceptable tx_power value in half-dBm units.
 + * Values below this are considered invalid/calibration-missing and
 + * will be replaced with firmware defaults.
@@ -85,14 +85,13 @@ Link: https://github.com/openwrt/mt76/pull/954
  static bool mt7996_eeprom_variant_valid(struct mt7996_dev *dev, const u8 *def)
  {
  #define FEM_INT	0
-@@ -136,6 +190,9 @@ mt7996_eeprom_check_or_use_default(struc
+@@ -137,6 +190,9 @@ mt7996_eeprom_check_or_use_default(struc
  	if (use_default)
  		dev_warn(dev->mt76.dev, "eeprom check failed, using default\n");
- 
+
 +	/* Always apply tx_power fixup, even for valid EEPROMs with
 +	 * suspiciously low power values from incomplete factory data.
 +	 */
  	mt7996_eeprom_fixup_tx_power(dev, fw->data);
- 
+
  	if (!use_default && mt7996_eeprom_variant_valid(dev, fw->data))
- 
