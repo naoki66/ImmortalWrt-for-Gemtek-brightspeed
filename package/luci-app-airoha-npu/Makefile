@@ -7,9 +7,10 @@ PKG_VERSION:=1.1.0
 PKG_RELEASE:=1
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=XR1710G Maintainer
+TITLE:=LuCI Airoha XR1710G NPU Status (NPU, CPU, Frame Engine)
 
-LUCI_TITLE:=LuCI Airoha NPU Status (NPU, CPU, Frame Engine)
-LUCI_DESCRIPTION:=Displays real-time Airoha NPU status including NPU utilization, \
+LUCI_TITLE:=LuCI Airoha XR1710G NPU Status (NPU, CPU, Frame Engine)
+LUCI_DESCRIPTION:=Displays real-time Airoha XR1710G NPU status including NPU utilization, \
 	CPU frequency and load, frame engine statistics, and supports CPU overclocking.
 LUCI_DEPENDS:=+luci-base @TARGET_airoha
 

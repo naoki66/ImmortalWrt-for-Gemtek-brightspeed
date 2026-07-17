@@ -170,7 +170,7 @@ msgstr "NPU 内存"
 
 #: feeds/luci/applications/luci-app-airoha-npu/root/usr/share/luci/menu.d/luci-app-airoha-npu.json:3
 msgid "SoC Status"
-msgstr "SoC 状态"
+msgstr "Airoha SOC状态"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:356
 msgid "State"
