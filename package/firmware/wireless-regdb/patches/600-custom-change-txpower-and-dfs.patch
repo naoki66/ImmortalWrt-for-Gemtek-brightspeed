@@ -12,7 +12,7 @@
  	(5725 - 5850 @ 80), (33)
  	# 60 GHz band channels 1,4: 28dBm, channels 2,3: 44dBm
  	# ref: http://www.miit.gov.cn/n11293472/n11505629/n11506593/n11960250/n11960606/n11960700/n12330791.files/n12330790.pdf
-@@ -2081,17 +2080,15 @@ country US: DFS-FCC
+@@ -2081,20 +2080,18 @@ country US: DFS-FCC
  	(920 - 928 @ 8), (30)
  	(2400 - 2472 @ 40), (30)
  	# 5.15 ~ 5.25 GHz: 30 dBm for master mode, 23 dBm for clients
@@ -31,5 +31,8 @@
  	(5850 - 5895 @ 40), (27), NO-OUTDOOR, AUTO-BW, NO-IR
  	# 6g band
  	# https://www.federalregister.gov/documents/2020/05/26/2020-11236/unlicensed-use-of-the-6ghz-band
--	(5925 - 7125 @ 320), (12), NO-OUTDOOR
+-	(5925 - 7125 @ 320), (12), NO-OUTDOOR, NO-IR
 +	(5925 - 7125 @ 320), (28)
+ 	# 60g band
+ 	# reference: section IV-D https://docs.fcc.gov/public/attachments/FCC-16-89A1.pdf
+ 	# channels 1-6 EIRP=40dBm(43dBm peak)
