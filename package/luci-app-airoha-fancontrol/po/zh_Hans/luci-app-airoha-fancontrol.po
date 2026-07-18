@@ -11,14 +11,6 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: Poedit 3.8\n"
 
-#: htdocs/luci-static/resources/view/fan/status.js:92
-msgid "Fan Control - Status"
-msgstr "风扇控制 - 状态"
-
-#: htdocs/luci-static/resources/view/fan/settings.js:127
-msgid "Fan Control - Settings"
-msgstr "风扇控制 - 设置"
-
 #: htdocs/luci-static/resources/view/fan/settings.js:128
 msgid "Configure fan control mode and speed curves."
 msgstr "配置风扇控制模式和速度曲线。"

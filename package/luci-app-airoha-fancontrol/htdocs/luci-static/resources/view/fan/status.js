@@ -89,7 +89,7 @@ return view.extend({
 		var modeText = _(status.fan_mode_desc || 'Unknown');
 
 		var viewEl = E('div', { 'class': 'cbi-map' }, [
-			E('h2', {}, _('Fan Control - Status')),
+			E('h2', {}, _('Status')),
 			E('div', { 'class': 'cbi-section' }, [
 				E('h3', {}, _('Fan Status')),
 				E('div', { 'class': 'cbi-section-node' }, [
