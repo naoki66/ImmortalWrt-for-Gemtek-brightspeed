@@ -154,7 +154,7 @@ msgstr "系统"
 
 #: htdocs/luci-static/resources/view/fan/status.js:120
 msgid "CPU"
-msgstr "CPU"
+msgstr "CPU温度"
 
 #: htdocs/luci-static/resources/view/fan/status.js:121
 msgid "Board (Fan Curve)"
@@ -162,11 +162,11 @@ msgstr "主板（风扇曲线）"
 
 #: htdocs/luci-static/resources/view/fan/status.js:122
 msgid "10G PHY"
-msgstr "10G 物理层"
+msgstr "10G芯片"
 
 #: htdocs/luci-static/resources/view/fan/status.js:123
 msgid "Switch PHY"
-msgstr "交换物理层"
+msgstr "交换机芯片"
 
 #: htdocs/luci-static/resources/view/fan/status.js:127
 msgid "WiFi"
