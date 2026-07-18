@@ -47,6 +47,10 @@ msgstr "已绑定："
 msgid "Bytes"
 msgstr "字节"
 
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:470
+msgid "Control Settings"
+msgstr "CPU控制设置"
+
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:310
 msgid "CPU Cores"
 msgstr "CPU 核心"
@@ -71,13 +75,9 @@ msgstr "CPU 设置为"
 msgid "Current Frequency"
 msgstr "当前频率"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:244
-msgid ""
-"Direct PLL programming. Governor locked to performance. Stock max: 1200 MHz. "
-"Tested stable up to 1500 MHz."
-msgstr ""
-"直接 PLL 编程，调速器锁定为性能模式，官方上限：1200 MHz。"
-"实测稳定可达 1500 MHz。"
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:493
+msgid "Overclock governor locked to performance. Stock max: 1200 MHz. Recommended max 1500 MHz."
+msgstr "超频运行模式锁定为性能模式，官方默认：1200 MHz。最大建议1500 MHz"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:360
 msgid "Ethernet"
@@ -124,6 +124,10 @@ msgstr "索引"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:301
 msgid "Max Frequency"
+msgstr "最大频率"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:476
+msgid "Max Freq"
 msgstr "最大频率"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:331
@@ -216,10 +220,6 @@ msgstr "已禁用"
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:387
 msgid "Must be 500-1600 MHz"
 msgstr "必须在 500-1600 MHz 之间"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:397
-msgid "Direct PLL. Stock max 1200 MHz. Stable up to 1500 MHz."
-msgstr "直接 PLL 编程，默认最大 1200 MHz，稳定可达 1500 MHz。"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:356
 msgid "State"

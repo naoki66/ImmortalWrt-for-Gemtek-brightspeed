@@ -457,19 +457,39 @@ return view.extend({
 			E('div',{'class':'cbi-section'},[
 				E('h3',{},_('CPU Frequency')),
 				E('table',{'class':'table'},[
-					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('CPU Info'))), E('td',{'class':'td'}, [
-					E('div',{'style':'line-height:1.6'}, [
+					E('tr',{'class':'tr'},[ E('td',{'class':'td','width':'25%'},E('strong',{},_('CPU Info'))), E('td',{'class':'td'}, E('div',{'style':'display:flex;align-items:center;gap:8px;flex-wrap:wrap'},[
 						E('span',{'style':'font-weight:600'}, (st.soc_compat||'')),
-						E('span',{'style':'color:#999'}, ' · '),
+						E('span',{'style':'color:#999'}, '·'),
 						E('span',{}, (st.cpu_arch||'') + ' x ' + (st.cpu_count||0)),
-						st.cpu_temp && st.cpu_temp!=='N/A' ? E('span',{}, ' (' + st.cpu_temp + ')') : null,
-						E('span',{'style':'color:#999;margin-left:12px'}, _('Core Count') + ': ' + (st.cpu_count||0))
-					])
-				]) ]),
-					E('tr',{'class':'tr'},[ E('td',{'class':'td','width':'33%'},E('strong',{},_('Current Frequency'))), E('td',{'class':'td'}, renderFreqBar(st.cpu_hw_freq,st.cpu_min_freq,st.cpu_max_freq,st.pll_freq_mhz,st.cpu_governor)) ]),
-					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('Governor'))), E('td',{'class':'td'}, renderGovSelect(st.cpu_avail_governors,st.cpu_governor)) ]),
-					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('Max Frequency'))), E('td',{'class':'td'}, renderMaxFreqSelect(st.cpu_avail_freqs,st.cpu_max_freq)) ]),
-					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('Overclock'))), E('td',{'class':'td'}, renderOcControls()) ])
+						st.cpu_temp && st.cpu_temp!=='N/A' ? E('span',{}, '(' + st.cpu_temp + ')') : null,
+						E('span',{'style':'color:#999'}, _('Core Count') + ': ' + (st.cpu_count||0))
+					])) ]),
+					E('tr',{'class':'tr'},[ E('td',{'class':'td','width':'25%'},E('strong',{},_('Current Frequency'))), E('td',{'class':'td'}, renderFreqBar(st.cpu_hw_freq,st.cpu_min_freq,st.cpu_max_freq,st.pll_freq_mhz,st.cpu_governor)) ]),
+					E('tr',{'class':'tr'},[ E('td',{'class':'td','width':'25%'},E('strong',{},_('Control Settings'))), E('td',{'class':'td'}, E('div',{'style':'display:flex;align-items:center;gap:16px;flex-wrap:wrap'},[
+						E('div',{'style':'display:flex;align-items:center;gap:8px'},[
+							E('span',{'style':'font-size:85%;color:#666'},_('Governor')),
+							renderGovSelect(st.cpu_avail_governors,st.cpu_governor)
+						]),
+						E('div',{'style':'display:flex;align-items:center;gap:8px'},[
+							E('span',{'style':'font-size:85%;color:#666'},_('Max Freq')),
+							renderMaxFreqSelect(st.cpu_avail_freqs,st.cpu_max_freq)
+						])
+					])) ]),
+					E('tr',{'class':'tr'},[ E('td',{'class':'td','width':'25%'},E('strong',{},_('Overclock'))), E('td',{'class':'td'}, E('div',{'style':'display:flex;align-items:center;gap:8px;flex-wrap:wrap'},[
+						E('input',{'id':'oc-freq-input','type':'number','min':'500','max':'1600','step':'50','value':'1400','class':'cbi-input-text','style':'width:80px'}),
+						E('span',{'style':'font-size:85%;color:#666'},'MHz'),
+						E('button',{'class':'cbi-button cbi-button-action','click':function(){
+							var f=parseInt(document.getElementById('oc-freq-input').value);
+							if(isNaN(f)||f<500||f>1600){ui.addNotification(null,E('p',{},_('Must be 500-1600 MHz')),'error');return;}
+							if(f>1400&&!confirm('Frequencies above 1400 MHz may be unstable. Continue?')) return;
+							var btn=this;btn.disabled=true;btn.textContent=_('Applying...');
+							callSetOverclock(f).then(function(r){btn.disabled=false;btn.textContent=_('Apply');
+								if(r&&r.error) ui.addNotification(null,E('p',{},_('Failed: ')+r.error),'error');
+								else if(r&&r.result==='ok') ui.addNotification(null,E('p',{},_('CPU set to ')+r.actual_mhz+' MHz'),'info');
+							}).catch(function(e){btn.disabled=false;btn.textContent=_('Apply');});
+						}},_('Apply')),
+						E('span',{'style':'font-size:85%;color:#666'},_('Overclock governor locked to performance. Stock max: 1200 MHz. Recommended max 1500 MHz.'))
+					])) ])
 				])
 			]),
 
