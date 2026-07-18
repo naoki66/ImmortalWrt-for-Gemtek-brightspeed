@@ -451,7 +451,7 @@ return view.extend({
 		var memR = Array.isArray(st.memory_regions) ? st.memory_regions : [];
 
 		var view = E('div',{'class':'cbi-map'},[
-			E('h2',{},_('Airoha NPU Status')),
+			E('h2',{},_('Airoha SoC Status')),
 
 			// CPU Frequency
 			E('div',{'class':'cbi-section'},[
