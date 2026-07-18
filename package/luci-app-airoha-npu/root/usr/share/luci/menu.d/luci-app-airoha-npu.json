@@ -1,6 +1,6 @@
 {
 	"admin/status/npu": {
-		"title": "Airoha Soc Status",
+		"title": "Airoha SoC Status",
 		"order": 15,
 		"action": {
 			"type": "view",
