@@ -75,7 +75,7 @@ endif
 
 _ignore = $(foreach p,$(IGNORE_PACKAGES),--ignore $(p))
 
-prepare-tmpinfo: FORCE
+prepare-tmpinfo: fix-feeds-warnings FORCE
 	@+$(MAKE) -r -s $(STAGING_DIR_HOST)/.prereq-build $(PREP_MK)
 	mkdir -p tmp/info feeds
 	[ -e $(TOPDIR)/feeds/base ] || ln -sf ../package $(TOPDIR)/feeds/base
@@ -90,6 +90,16 @@ prepare-tmpinfo: FORCE
 	./scripts/package-metadata.pl pkgaux tmp/.packageinfo > tmp/.packageauxvars || { rm -f tmp/.packageauxvars; false; }
 	./scripts/package-metadata.pl usergroup tmp/.packageinfo > tmp/.packageusergroup || { rm -f tmp/.packageusergroup; false; }
 	touch $(TOPDIR)/tmp/.build
+
+# Local hook: remove feeds/packages/multimedia directory to avoid
+# GStreamer-related dependency warnings. The multimedia packages depend on
+# libmesa/libwayland/libgraphene from the OpenWrt "video" feed, which is
+# intentionally not enabled in feeds.conf.default because XR1710G is a
+# headless router. Without this hook, `make menuconfig` prints many
+# "dependency does not exist" warnings for gst1-* packages. The hook runs
+# before prepare-tmpinfo and is idempotent (uses a marker file).
+fix-feeds-warnings: FORCE
+	@$(TOPDIR)/scripts/fix-feeds-gst-warnings.sh
 
 .config: ./scripts/config/conf $(if $(CONFIG_HAVE_DOT_CONFIG),,prepare-tmpinfo)
 	@+if [ \! -e .config ] || ! grep CONFIG_HAVE_DOT_CONFIG .config >/dev/null; then \
@@ -269,4 +279,3 @@ ifeq ($(findstring v,$(DEBUG)),)
 endif
 .PHONY: help FORCE
 .NOTPARALLEL:
-
