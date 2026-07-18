@@ -471,7 +471,7 @@ return view.extend({
 				E('table',{'class':'table'},[
 					E('tr',{'class':'tr'},[ E('td',{'class':'td','width':'33%'},E('strong',{},_('NPU Status'))),
 						E('td',{'class':'td','id':'npu-status'}, st.npu_loaded ?
-							E('span',{'class':'offload-badge offload-on'},_('Activated')+(st.npu_device?' ('+st.npu_device+')':'')) :
+							E('span',{},[E('span',{'class':'offload-badge offload-on'},_('Activated')), st.npu_device ? E('span',{},' ('+st.npu_device+')') : null]) :
 							E('span',{'class':'offload-badge offload-off'},_('Not Activated'))) ]),
 					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('Firmware / Clock / Cores'))),
 						E('td',{'class':'td','id':'npu-info'}, (st.npu_version||'N/A')+' | '+(st.npu_clock?(st.npu_clock/1e6).toFixed(0)+' MHz':'N/A')+' | '+(st.npu_cores||0)+' cores') ]),
@@ -522,7 +522,7 @@ return view.extend({
 				var fs=document.getElementById('cpu-maxfreq-select'); if(fs&&!fs.matches(':focus')) fs.value=(st.cpu_max_freq||0).toString();
 
 				var se=document.getElementById('npu-status');
-				if(se){se.innerHTML='';var sp=document.createElement('span');sp.className='offload-badge '+(st.npu_loaded?'offload-on':'offload-off');sp.textContent=st.npu_loaded?(_('Activated')+(st.npu_device?' ('+st.npu_device+')':'')):_('Not Activated');se.appendChild(sp);}
+				if(se){se.innerHTML='';var sp=document.createElement('span');sp.className='offload-badge '+(st.npu_loaded?'offload-on':'offload-off');sp.textContent=st.npu_loaded?_('Activated'):_('Not Activated');se.appendChild(sp);if(st.npu_loaded&&st.npu_device){var dp=document.createElement('span');dp.textContent=' ('+st.npu_device+')';se.appendChild(dp);}}
 
 				function _updateOffload(selectId, badgeId, on) {
 					var sel = document.getElementById(selectId);
