@@ -97,6 +97,21 @@ msgstr "性能"
 msgid "custom"
 msgstr "自定义"
 
+msgid "Full Speed"
+msgstr "全速"
+
+msgid "Manual"
+msgstr "手动"
+
+msgid "Automatic"
+msgstr "自动"
+
+msgid "Auto (Closed Loop)"
+msgstr "自动（闭环）"
+
+msgid "Unknown"
+msgstr "未知"
+
 #: htdocs/luci-static/resources/view/fan/settings.js:153
 msgid "Curve Preview"
 msgstr "曲线预览"

@@ -86,7 +86,7 @@ return view.extend({
 	render: function(status) {
 		status = status || {};
 		var modeClass = status.fan_mode === 2 ? 'label-success' : 'label-warning';
-		var modeText = status.fan_mode_desc || 'Unknown';
+		var modeText = _(status.fan_mode_desc || 'Unknown');
 
 		var viewEl = E('div', { 'class': 'cbi-map' }, [
 			E('h2', {}, _('Fan Control - Status')),
@@ -147,7 +147,7 @@ return view.extend({
 				updateFanGauge(status.fan_rpm || 0, status.fan_percentage || 0);
 				var modeEl = document.getElementById('fan-mode');
 				if (modeEl) {
-					modeEl.textContent = status.fan_mode_desc || 'Unknown';
+					modeEl.textContent = _(status.fan_mode_desc || 'Unknown');
 					modeEl.className = status.fan_mode === 2 ? 'label-success' : 'label-warning';
 				}
 				var presetEl = document.getElementById('fan-preset');
