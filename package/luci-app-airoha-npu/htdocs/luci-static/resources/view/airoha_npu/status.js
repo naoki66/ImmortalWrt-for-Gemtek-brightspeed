@@ -471,8 +471,8 @@ return view.extend({
 				E('table',{'class':'table'},[
 					E('tr',{'class':'tr'},[ E('td',{'class':'td','width':'33%'},E('strong',{},_('NPU Status'))),
 						E('td',{'class':'td','id':'npu-status'}, st.npu_loaded ?
-							E('span',{'class':'label-success'},_('Active')+(st.npu_device?' ('+st.npu_device+')':'')) :
-							E('span',{'class':'label-danger'},_('Not Active'))) ]),
+							E('span',{'class':'offload-badge offload-on'},_('Activated')+(st.npu_device?' ('+st.npu_device+')':'')) :
+							E('span',{'class':'offload-badge offload-off'},_('Not Activated'))) ]),
 					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('Firmware / Clock / Cores'))),
 						E('td',{'class':'td','id':'npu-info'}, (st.npu_version||'N/A')+' | '+(st.npu_clock?(st.npu_clock/1e6).toFixed(0)+' MHz':'N/A')+' | '+(st.npu_cores||0)+' cores') ]),
 					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('Reserved Memory'))),
@@ -522,7 +522,7 @@ return view.extend({
 				var fs=document.getElementById('cpu-maxfreq-select'); if(fs&&!fs.matches(':focus')) fs.value=(st.cpu_max_freq||0).toString();
 
 				var se=document.getElementById('npu-status');
-				if(se){se.innerHTML='';var sp=document.createElement('span');sp.className=st.npu_loaded?'label-success':'label-danger';sp.textContent=st.npu_loaded?(_('Active')+(st.npu_device?' ('+st.npu_device+')':'')):_('Not Active');se.appendChild(sp);}
+				if(se){se.innerHTML='';var sp=document.createElement('span');sp.className='offload-badge '+(st.npu_loaded?'offload-on':'offload-off');sp.textContent=st.npu_loaded?(_('Activated')+(st.npu_device?' ('+st.npu_device+')':'')):_('Not Activated');se.appendChild(sp);}
 
 				function _updateOffload(selectId, badgeId, on) {
 					var sel = document.getElementById(selectId);

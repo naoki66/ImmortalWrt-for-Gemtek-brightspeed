@@ -16,6 +16,12 @@ msgstr ""
 msgid "Active"
 msgstr "已激活"
 
+msgid "Activated"
+msgstr "已激活"
+
+msgid "Not Activated"
+msgstr "未激活"
+
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:284
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:454
 #: feeds/luci/applications/luci-app-airoha-npu/root/usr/share/luci/menu.d/luci-app-airoha-npu.json:3
