@@ -83,7 +83,22 @@ msgstr "频率必须介于 500–1600 MHz 之间"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:296
 msgid "Governor"
-msgstr "调速器"
+msgstr "运行模式"
+
+msgid "conservative"
+msgstr "保守模式"
+
+msgid "ondemand"
+msgstr "按需模式"
+
+msgid "userspace"
+msgstr "用户空间"
+
+msgid "powersave"
+msgstr "省电模式"
+
+msgid "performance"
+msgstr "性能模式"
 
 #: feeds/luci/applications/luci-app-airoha-npu/root/usr/share/rpcd/acl.d/luci-app-airoha-npu.json:3
 msgid "Grant access to Airoha NPU status (NPU + CPU + Overclock)"

@@ -368,7 +368,7 @@ function renderGovSelect(avail, active) {
 	return E('select', { 'id':'cpu-governor-select','class':'cbi-input-select','style':'min-width:140px','change':function(ev){
 		var g=ev.target.value; ev.target.disabled=true;
 		callSetGovernor(g).then(function(r){ev.target.disabled=false;if(r&&r.error) ui.addNotification(null,E('p',{},_('Error: ')+r.error),'error');}).catch(function(){ev.target.disabled=false;});
-	}}, gs.map(function(g){return E('option',{'value':g,'selected':g===active?'':null},g);}));
+	}}, gs.map(function(g){return E('option',{'value':g,'selected':g===active?'':null},_(g));}));
 }
 
 function renderMaxFreqSelect(avail, cur) {
