@@ -17,7 +17,7 @@ msgid "Active"
 msgstr "已激活"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:284
-msgid "Airoha NPU Status"
+msgid "Airoha SoC Status"
 msgstr "Airoha NPU状态"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:224

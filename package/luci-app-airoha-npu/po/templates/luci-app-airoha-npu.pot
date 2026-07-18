@@ -7,7 +7,7 @@ msgid "Active"
 msgstr ""
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:284
-msgid "Airoha NPU Status"
+msgid "Airoha SoC Status"
 msgstr ""
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:224
