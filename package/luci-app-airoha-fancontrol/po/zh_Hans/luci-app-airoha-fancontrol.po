@@ -15,6 +15,10 @@ msgstr ""
 msgid "Configure fan control mode and speed curves."
 msgstr "配置风扇控制模式和速度曲线。"
 
+#: htdocs/luci-static/resources/view/fan/status.js:93
+msgid "View real-time fan speed and system temperatures."
+msgstr "查看实时风扇转速和系统温度。"
+
 #: htdocs/luci-static/resources/view/fan/status.js:42
 msgid "Fan Speed"
 msgstr "风扇转速"
@@ -26,17 +30,19 @@ msgstr "风扇状态"
 #: htdocs/luci-static/resources/view/fan/settings.js:130
 #: htdocs/luci-static/resources/view/fan/status.js:98
 msgid "Control Mode"
-msgstr "控制模式"
+msgstr "风扇控制模式"
 
 #: htdocs/luci-static/resources/view/fan/settings.js:133
 msgid "Mode"
 msgstr "模式"
 
 #: htdocs/luci-static/resources/view/fan/settings.js:134
+#: htdocs/luci-static/resources/view/fan/status.js:159
 msgid "Automatic (Follow Curve)"
 msgstr "自动（跟随曲线）"
 
 #: htdocs/luci-static/resources/view/fan/settings.js:135
+#: htdocs/luci-static/resources/view/fan/status.js:159
 msgid "Manual (Fixed Speed)"
 msgstr "手动（固定速度）"
 
@@ -48,32 +54,28 @@ msgstr "手动风扇速度（PWM）"
 msgid "Set a fixed PWM value (0-255). 0 = Off, 255 = Full Speed"
 msgstr "设置固定 PWM 值（0-255）。0 = 关闭，255 = 全速"
 
-#: htdocs/luci-static/resources/view/fan/status.js:104
-msgid "Active Preset"
-msgstr "当前预设"
-
-#: htdocs/luci-static/resources/view/fan/status.js:107
-#: htdocs/luci-static/resources/view/fan/status.js:156
-msgid "Manual Override"
-msgstr "手动覆盖"
-
 #: htdocs/luci-static/resources/view/fan/settings.js:145
+#: htdocs/luci-static/resources/view/fan/status.js:104
 msgid "Fan Curve Preset"
 msgstr "风扇曲线预设"
 
 #: htdocs/luci-static/resources/view/fan/settings.js:146
+#: htdocs/luci-static/resources/view/fan/status.js:166
 msgid "Quiet - Lower speeds, higher temps"
 msgstr "静音 - 更低转速，更高温度"
 
 #: htdocs/luci-static/resources/view/fan/settings.js:147
+#: htdocs/luci-static/resources/view/fan/status.js:170
 msgid "Balanced - Good mix of noise and cooling"
 msgstr "平衡 - 噪音和散热的良好平衡"
 
 #: htdocs/luci-static/resources/view/fan/settings.js:148
+#: htdocs/luci-static/resources/view/fan/status.js:167
 msgid "Performance - Higher speeds, lower temps"
 msgstr "性能 - 更高转速，更低温度"
 
 #: htdocs/luci-static/resources/view/fan/settings.js:149
+#: htdocs/luci-static/resources/view/fan/status.js:168
 msgid "Custom - Define your own curve"
 msgstr "自定义 - 定义你自己的曲线"
 

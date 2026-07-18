@@ -124,7 +124,7 @@ return view.extend({
 		var curves = data[1] || {};
 		var m, s, o;
 
-		m = new form.Map('fan', _('Settings'),
+		m = new form.Map('fan', null,
 			_('Configure fan control mode and speed curves.'));
 
 		s = m.section(form.NamedSection, 'settings', 'fancontrol', _('Control Mode'));
