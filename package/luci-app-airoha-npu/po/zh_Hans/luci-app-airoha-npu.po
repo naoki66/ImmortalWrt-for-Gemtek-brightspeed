@@ -173,6 +173,28 @@ msgstr "NPU 内存"
 msgid "Airoha Soc Status"
 msgstr "Airoha SoC状态"
 
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:476
+msgid "Firmware / Clock / Cores"
+msgstr "固件 / 时钟 / 核心"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:497
+msgid "Frame Engine"
+msgstr "帧引擎"
+
+msgid "Enabled"
+msgstr "已启用"
+
+msgid "Disabled"
+msgstr "已禁用"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:387
+msgid "Must be 500-1600 MHz"
+msgstr "必须在 500-1600 MHz 之间"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:397
+msgid "Direct PLL. Stock max 1200 MHz. Stable up to 1500 MHz."
+msgstr "直接 PLL 编程，默认最大 1200 MHz，稳定可达 1500 MHz。"
+
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:356
 msgid "State"
 msgstr "状态"
