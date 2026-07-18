@@ -105,8 +105,7 @@ return view.extend({
 						E('div', { 'class': 'cbi-value-field' }, [
 							E('span', { 'id': 'fan-preset' },
 								status.uci_mode === 'manual' ? _('Manual Override') :
-								(status.uci_preset || 'balanced').charAt(0).toUpperCase() +
-								(status.uci_preset || 'balanced').slice(1))
+								_(status.uci_preset || 'balanced'))
 						])
 					])
 				])
@@ -154,8 +153,7 @@ return view.extend({
 				var presetEl = document.getElementById('fan-preset');
 				if (presetEl) {
 					presetEl.textContent = status.uci_mode === 'manual' ? _('Manual Override') :
-						(status.uci_preset || 'balanced').charAt(0).toUpperCase() +
-						(status.uci_preset || 'balanced').slice(1);
+						_(status.uci_preset || 'balanced');
 				}
 			}, this));
 		}, this), 3);

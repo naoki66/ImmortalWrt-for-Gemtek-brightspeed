@@ -107,7 +107,7 @@ function drawCurveCanvas(canvasId, curves, activePreset) {
 		ctx.fillRect(width - 100, legendY, 15, 15);
 		ctx.fillStyle = '#333';
 		ctx.textAlign = 'left';
-		ctx.fillText(preset.charAt(0).toUpperCase() + preset.slice(1), width - 80, legendY + 12);
+		ctx.fillText(_(preset), width - 80, legendY + 12);
 		legendY += 20;
 	});
 }

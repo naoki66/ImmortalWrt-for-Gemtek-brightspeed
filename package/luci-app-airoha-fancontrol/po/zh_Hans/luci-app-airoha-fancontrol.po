@@ -85,6 +85,18 @@ msgstr "性能 - 更高转速，更低温度"
 msgid "Custom - Define your own curve"
 msgstr "自定义 - 定义你自己的曲线"
 
+msgid "quiet"
+msgstr "静音"
+
+msgid "balanced"
+msgstr "平衡"
+
+msgid "performance"
+msgstr "性能"
+
+msgid "custom"
+msgstr "自定义"
+
 #: htdocs/luci-static/resources/view/fan/settings.js:153
 msgid "Curve Preview"
 msgstr "曲线预览"
@@ -159,7 +171,7 @@ msgstr "6 GHz 无线"
 
 #: root/usr/share/luci/menu.d/luci-app-airoha-fancontrol.json:3
 msgid "Fan Control"
-msgstr "风扇控制"
+msgstr "Airoha 风扇控制"
 
 #: root/usr/share/luci/menu.d/luci-app-airoha-fancontrol.json:14
 msgid "Status"
