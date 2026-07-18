@@ -462,7 +462,7 @@ return view.extend({
 						E('span',{'style':'font-weight:600'}, (st.soc_compat||'')),
 						E('span',{'style':'color:#999'}, ' · '),
 						E('span',{}, (st.cpu_arch||'') + ' x ' + (st.cpu_count||0)),
-						st.cpu_temp && st.cpu_temp!=='N/A' ? E('span',{}, ' (' + fmtFreq(st.cpu_hw_freq) + ', ' + st.cpu_temp + ')') : null
+						st.cpu_temp && st.cpu_temp!=='N/A' ? E('span',{}, ' (' + st.cpu_temp + ')') : null
 					]),
 					E('div',{'style':'font-size:12px;color:#999;margin-top:4px'}, _('Core Count') + ': ' + (st.cpu_count||0))
 				]) ]),

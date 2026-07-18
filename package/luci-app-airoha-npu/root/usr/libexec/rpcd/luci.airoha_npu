@@ -131,13 +131,7 @@ get_status() {
 		fi
 	done
 
-	# SoC compatible (vendor/model)
-	local soc_compat=""
-	if [ -f "/proc/device-tree/compatible" ]; then
-		soc_compat=$(tr '\0' '\n' < "/proc/device-tree/compatible" 2>/dev/null | head -1)
-	elif [ -f "/sys/firmware/devicetree/base/compatible" ]; then
-		soc_compat=$(tr '\0' '\n' < "/sys/firmware/devicetree/base/compatible" 2>/dev/null | head -1)
-	fi
+	local soc_compat="airoha an7581"
 
 	printf '{"npu_version":"%s","npu_loaded":%s,"npu_device":"%s","npu_clock":%d,"npu_cores":%d,"offload_bound":%d,"offload_total":%d,"memory_regions":%s,"cpu_cur_freq":%d,"cpu_hw_freq":%d,"cpu_governor":"%s","cpu_avail_governors":"%s","cpu_min_freq":%d,"cpu_max_freq":%d,"cpu_avail_freqs":"%s","cpu_count":%d,"pll_freq_mhz":%d,"cpu_arch":"%s","cpu_temp":"%s","soc_compat":"%s"}' \
 		"${npu_ver:-Unknown}" "$npu_loaded" "${npu_device:-}" "${npu_clock:-0}" "${npu_cores:-0}" "${offload_bound:-0}" "${offload_total:-0}" "$regions" \
