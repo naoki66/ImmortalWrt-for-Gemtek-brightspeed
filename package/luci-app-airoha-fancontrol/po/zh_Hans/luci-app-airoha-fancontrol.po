@@ -188,6 +188,9 @@ msgstr "状态"
 msgid "Settings"
 msgstr "设置"
 
+msgid "auto"
+msgstr "自动"
+
 #: root/usr/share/rpcd/acl.d/luci-app-airoha-fancontrol.json:3
 msgid "Grant access to Airoha fan control"
 msgstr "授予 Airoha 风扇控制权限"
