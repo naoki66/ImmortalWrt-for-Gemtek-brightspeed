@@ -458,12 +458,13 @@ return view.extend({
 				E('h3',{},_('CPU Frequency')),
 				E('table',{'class':'table'},[
 					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('CPU Cores'))), E('td',{'class':'td'}, [
-					E('div',{}, [
-						E('span',{'class':'soc-text','style':'font-weight:600'}, (st.soc_compat||'')),
-						E('span',{'class':'soc-muted'}, ' · ' + (st.cpu_arch||'') + ' x ' + (st.cpu_count||0)),
-						st.cpu_temp && st.cpu_temp!=='N/A' ? E('span',{'class':'soc-muted'}, ' (' + fmtFreq(st.cpu_hw_freq) + ', ' + st.cpu_temp + ')') : null
+					E('div',{'style':'line-height:1.6'}, [
+						E('span',{'style':'font-weight:600'}, (st.soc_compat||'')),
+						E('span',{'style':'color:#999'}, ' · '),
+						E('span',{}, (st.cpu_arch||'') + ' x ' + (st.cpu_count||0)),
+						st.cpu_temp && st.cpu_temp!=='N/A' ? [E('span',{}, ' ('), E('span',{}, fmtFreq(st.cpu_hw_freq)), E('span',{}, ', '), E('span',{}, st.cpu_temp), E('span',{}, ')')] : null
 					]),
-					E('div',{'class':'soc-muted','style':'font-size:12px'}, _('Core Count: ') + (st.cpu_count||0))
+					E('div',{'style':'font-size:12px;color:#999;margin-top:4px'}, _('Core Count') + ': ' + (st.cpu_count||0))
 				]) ]),
 					E('tr',{'class':'tr'},[ E('td',{'class':'td','width':'33%'},E('strong',{},_('Current Frequency'))), E('td',{'class':'td'}, renderFreqBar(st.cpu_hw_freq,st.cpu_min_freq,st.cpu_max_freq,st.pll_freq_mhz,st.cpu_governor)) ]),
 					E('tr',{'class':'tr'},[ E('td',{'class':'td'},E('strong',{},_('Governor'))), E('td',{'class':'td'}, renderGovSelect(st.cpu_avail_governors,st.cpu_governor)) ]),

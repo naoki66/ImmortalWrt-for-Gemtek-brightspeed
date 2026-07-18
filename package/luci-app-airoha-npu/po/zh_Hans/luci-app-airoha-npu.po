@@ -51,6 +51,7 @@ msgstr "字节"
 msgid "CPU Cores"
 msgstr "CPU 核心"
 
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:467
 msgid "Core Count"
 msgstr "核心数量"
 
