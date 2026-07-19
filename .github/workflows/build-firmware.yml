@@ -6,12 +6,12 @@ on:
       release_type:
         description: 'Release Type'
         required: true
-        default: 'release'
+        default: 'none'
         type: choice
         options:
+          - none
           - release
           - prerelease
-          - none
       release_notes:
         description: 'Release Notes'
         required: false
