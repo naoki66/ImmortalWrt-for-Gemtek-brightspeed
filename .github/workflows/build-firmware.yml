@@ -35,6 +35,12 @@ jobs:
         run: |
           echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
 
+      - name: Get commit hash
+        id: commit
+        run: |
+          echo "short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "full=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
       - name: Setup build environment
         run: |
           sudo apt update
@@ -88,8 +94,8 @@ jobs:
         if: github.event.inputs.release_type != 'none'
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ steps.date.outputs.date }}
-          name: ${{ format('{0} - XR1710G Build', steps.date.outputs.date) }}
+          tag_name: ${{ format('{0}-{1}', steps.date.outputs.date, steps.commit.outputs.short) }}
+          name: ${{ format('{0} - XR1710G Build ({1})', steps.date.outputs.date, steps.commit.outputs.short) }}
           body: ${{ github.event.inputs.release_notes }}
           draft: false
           prerelease: ${{ github.event.inputs.release_type == 'prerelease' }}
