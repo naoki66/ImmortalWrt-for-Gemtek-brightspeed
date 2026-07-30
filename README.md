@@ -2,20 +2,37 @@
 
 # ImmortalWrt for Gemtek XR1710G
 
+[![Build Status](https://img.shields.io/github/actions/workflow/status/naoki66/ImmortalWrt-for-Gemtek-XR1710G/build-firmware.yml?branch=master&label=Build)](https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/actions/workflows/build-firmware.yml)
+[![Sync Status](https://img.shields.io/github/actions/workflow/status/naoki66/ImmortalWrt-for-Gemtek-XR1710G/sync-upstream.yml?branch=master&label=Sync)](https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/actions/workflows/sync-upstream.yml)
+[![Upstream](https://img.shields.io/badge/upstream-immortalwrt%40ae202f7f-blue)](https://github.com/immortalwrt/immortalwrt)
+[![Synced](https://img.shields.io/badge/synced-2026--07--30%20merged-brightgreen)](#)
+[![Kernel](https://img.shields.io/badge/kernel-6.18-red)](https://www.kernel.org/)
+[![SoC](https://img.shields.io/badge/SoC-Airoha%20AN7581GT-orange)]()
+[![License](https://img.shields.io/badge/license-GPL--2.0-green)](https://spdx.org/licenses/GPL-2.0-only.html)
+
 基于 [ImmortalWrt](https://github.com/immortalwrt/immortalwrt) 为 Gemtek XR1710G（Brightspeed XR1710G）路由器定制的固件。
 
-默认登录地址：http://192.168.1.1 或 http://immortalwrt.lan，用户名：__root__，密码：_无_。
+默认登录地址：http://192.168.1.1 或 http://immortalwrt.lan，用户名：**root**，密码：*无*。
 
 ## 设备规格
 
-| 项目 | 规格 |
+| 项目 | 参数 |
 |------|------|
-| SoC | Airoha AN7581（ARM Cortex-A73 双核） |
-| RAM | 1GB DDR4 |
-| Flash | 512MB NAND |
-| WiFi | MediaTek MT7996E（Wi-Fi 7 三频） |
-| 以太网 | 3×LAN + 1×WAN |
-| 传感器 | Nuvoton NCT7802（温度/风扇） |
+| **SoC** | Airoha AN7581GT (1.3GHz 4核CPU + 8核NPU) |
+| **内存** | 2GB |
+| **闪存** | 512MB |
+| **网口** | 2×10G RTL8261BE + 2×1G AN7581 |
+| **PWM风扇** | 新通 NCT7802 |
+| **电源规格** | 12V 5A |
+
+### 无线局域网 (MT7996AV BE19000)
+
+| 频段 | 芯片 | 规格 | 最高速率 |
+|------|------|------|----------|
+| WLAN1 | MT7976GN | 2.4GHz 4×4 (Tx/Rx) 4096 QAM 40 MHz | 1376 Mbps |
+| WLAN2 | MT7977BN | 5GHz 4×4 (Tx/Rx) 4096 QAM 160 MHz | 5.76 Gbps |
+| WLAN3 | MT7977AN | 6GHz 4×5 (Tx/Rx) 4096 QAM 320 MHz (backhaul) | 10 Gbps |
+
 
 ## 固件特性
 
