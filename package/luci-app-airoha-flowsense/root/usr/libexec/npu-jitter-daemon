@@ -4,7 +4,7 @@
 # Continuously pings a target and writes jitter stats to /tmp/npu-jitter.json
 # Started by /etc/init.d/npu-jitter at boot
 
-TARGET="${1:-1.1.1.1}"
+TARGET="${1:-223.5.5.5}"
 RESULT_FILE="/tmp/npu-jitter.json"
 WINDOW=10
 INTERVAL=2  # seconds between pings

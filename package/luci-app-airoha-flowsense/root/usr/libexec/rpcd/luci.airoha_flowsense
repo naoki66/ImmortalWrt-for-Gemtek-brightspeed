@@ -561,7 +561,7 @@ get_jitter_result() {
 	if [ -f "$result_file" ]; then
 		cat "$result_file"
 	else
-		echo '{"jitter":0,"last_ping":0,"samples":0,"target":"1.1.1.1","reachable":false,"available":false}'
+		echo '{"jitter":0,"last_ping":0,"samples":0,"target":"223.5.5.5","reachable":false,"available":false}'
 	fi
 }
 
@@ -930,9 +930,29 @@ get_eth_stats() {
 	printf ']}'
 }
 
+get_ping_target() {
+	local target
+	target=$(uci get npu-monitor.@jitter[0].target 2>/dev/null || echo "223.5.5.5")
+	printf '{"target":"%s"}' "$target"
+}
+
+set_ping_target() {
+	local input target
+	input=$(cat 2>/dev/null)
+	target=$(echo "$input" | jsonfilter -e '@.target' 2>/dev/null)
+	if [ -z "$target" ]; then
+		echo '{"error":"Missing target parameter"}'
+		return
+	fi
+	uci set npu-monitor.@jitter[0].target="$target"
+	uci commit npu-monitor
+	/etc/init.d/npu-jitter restart 2>/dev/null
+	printf '{"success":true,"target":"%s"}' "$target"
+}
+
 case "$1" in
 	list)
-		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getTxStats":{},"getVlanOffload":{},"getFlowOffload":{},"getPppoeOffload":{},"getDeviceMode":{},"getWanHealth":{},"getJitterResult":{},"getWifiStats":{},"getBridgeStats":{},"getNpuBypass":{},"getConflictAlerts":{},"getEthStats":{}}'
+		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getTxStats":{},"getVlanOffload":{},"getFlowOffload":{},"getPppoeOffload":{},"getDeviceMode":{},"getWanHealth":{},"getJitterResult":{},"getWifiStats":{},"getBridgeStats":{},"getNpuBypass":{},"getConflictAlerts":{},"getEthStats":{},"getPingTarget":{},"setPingTarget":{"target":"str"}}'
 		;;
 	call)
 		case "$2" in
@@ -983,6 +1003,12 @@ case "$1" in
 				;;
 			getEthStats)
 				get_eth_stats
+				;;
+			getPingTarget)
+				get_ping_target
+				;;
+			setPingTarget)
+				set_ping_target
 				;;
 			*)
 				echo '{"error":"Invalid method"}'

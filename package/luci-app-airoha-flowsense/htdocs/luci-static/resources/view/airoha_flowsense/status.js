@@ -32,6 +32,8 @@ var callGetConflictAlerts= rpc.declare({ object: 'luci.airoha_flowsense', method
 var callGetWifiStats     = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getWifiStats' });
 var callGetBridgeStats   = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getBridgeStats' });
 var callGetEthStats      = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getEthStats' });
+var callGetPingTarget    = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getPingTarget' });
+var callSetPingTarget    = rpc.declare({ object: 'luci.airoha_flowsense', method: 'setPingTarget', params: ['target'] });
 
 /* ── Theme-adaptive CSS ── */
 var themeCSS = '\
@@ -1302,7 +1304,7 @@ function renderCompassCards(cs, bypass, jitter, wan, wifi, bridge, mode) {
 	// West card: Latency
 	var latVal   = cs.latMs > 0 ? cs.latMs.toFixed(1)+'ms' : (jitter.available===false ? 'N/A' : '---');
 	var latColor = cs.latColor;
-	var latSub   = 'Jitter: '+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  '+(jitter.target||'1.1.1.1');
+	var latSub   = 'Jitter: '+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  Ping: '+(jitter.target||'223.5.5.5')+' ✏';
 
 	function card(title, val, color, sub) {
 		return E('div', { 'class': 'compass-card' }, [
@@ -1365,8 +1367,28 @@ function updateCompassCards(cs, bypass, jitter, wan, wifi, bridge, mode) {
 	}
 
 	var latVal = cs.latMs > 0 ? cs.latMs.toFixed(1)+'ms' : (jitter.available===false?'N/A':'---');
+	var latTarget = jitter.target||'223.5.5.5';
 	setCard(divs[2], latVal, cs.latColor,
-		'Jitter: '+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  '+(jitter.target||'1.1.1.1'));
+		'Jitter: '+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  Ping: '+latTarget+' ✏');
+	var latSub = divs[2] && divs[2].querySelector('.compass-card-sub');
+	if (latSub) {
+		latSub.style.cursor = 'pointer';
+		latSub.title = _('Click to change ping target');
+		latSub.onclick = function() {
+			var newTarget = window.prompt(_('Ping target IP:'), latTarget);
+			if (newTarget && newTarget !== latTarget) {
+				callSetPingTarget(newTarget).then(function(res) {
+					if (res && res.success) {
+						window.alert(_('Ping target changed to: ') + res.target);
+					} else {
+						window.alert(_('Failed to set ping target'));
+					}
+				}).catch(function(err) {
+					window.alert(_('Error: ') + err);
+				});
+			}
+		};
+	}
 
 	var hb = cs.hwBuf || {};
 	setCard(divs[3],
