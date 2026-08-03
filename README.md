@@ -4,9 +4,9 @@
 
 [![Build Status](https://img.shields.io/github/actions/workflow/status/naoki66/ImmortalWrt-for-Gemtek-XR1710G/build-firmware.yml?branch=master&label=Build)](https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/actions/workflows/build-firmware.yml)
 [![Sync Status](https://img.shields.io/github/actions/workflow/status/naoki66/ImmortalWrt-for-Gemtek-XR1710G/sync-upstream.yml?branch=master&label=Sync)](https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/actions/workflows/sync-upstream.yml)
-[![Upstream](https://img.shields.io/badge/upstream-immortalwrt%40ae202f7f-blue)](https://github.com/immortalwrt/immortalwrt)
-[![Synced](https://img.shields.io/badge/synced-2026--07--30%20merged-brightgreen)](#)
-[![Kernel](https://img.shields.io/badge/kernel-6.18-red)](https://www.kernel.org/)
+[![Upstream](https://img.shields.io/badge/upstream-immortalwrt%40e5ca16047f-blue)](https://github.com/immortalwrt/immortalwrt)
+[![Synced](https://img.shields.io/badge/synced-2026--08--03%20merged-brightgreen)](#)
+[![Kernel](https://img.shields.io/badge/kernel-6.18.41-red)](https://www.kernel.org/)
 [![SoC](https://img.shields.io/badge/SoC-Airoha%20AN7581GT-orange)]()
 [![License](https://img.shields.io/badge/license-GPL--2.0-green)](https://spdx.org/licenses/GPL-2.0-only.html)
 
@@ -38,16 +38,19 @@
 
 ### 核心定制
 
-- 独立设备树 [an7581-xr1710g-ubi.dts](target/linux/airoha/dts/an7581-xr1710g-ubi.dts)（不依赖公共 dtsi）
-- 9 个内核补丁（[target/linux/airoha/patches-6.18/](target/linux/airoha/patches-6.18/)）：
+- 独立设备树 [an7581-xr1710g-ubi.dts](target/linux/airoha/dts/an7581-xr1710g-ubi.dts)（不依赖公共 dtsi，含 PCIe 3.0 x2 模式配置）
+- 11 个定制内核补丁（[target/linux/airoha/patches-6.18/](target/linux/airoha/patches-6.18/)）：
   - `303-01/02`: MediaTek PHY 校准修复
-  - `675-01~04`: nft_flow_offload 桥接/VLAN/WDMA 支持
+  - `675-01~04`: nft_flow_offload 桥接/VLAN/WDMA 支持（适配内核 6.18.41）
   - `910-02`: USB/PCIe 时钟修复
-  - `910-04`: NPU MBQ 超时修复
+  - `910-04`: NPU MBQ 超时修复（100s→1000s）
+  - `912`: PCIe 3.0 x2 链路支持（EN7581 Gen3 速度协商）
   - `990-01`: 桥接 FDB 漫游失效修复
-- base-files 定制：[01_leds](target/linux/airoha/an7581/base-files/etc/board.d/01_leds)、[02_network](target/linux/airoha/an7581/base-files/etc/board.d/02_network)、[airoha_fan](target/linux/airoha/an7581/base-files/etc/init.d/airoha_fan)、[platform.sh](target/linux/airoha/an7581/base-files/lib/upgrade/platform.sh)
+- mt76 驱动补丁（[package/kernel/mt76/patches/](package/kernel/mt76/patches/)）：
+  - `001`: mt7996 PS sync TLV 修复（backport 上游 `06b69763f2`，修复 5GHz+6GHz MLO AP 硬锁 RX NAPI 路径问题）
+- base-files 定制：[01_leds](target/linux/airoha/an7581/base-files/etc/board.d/01_leds)、[02_network](target/linux/airoha/an7581/base-files/etc/board.d/02_network)、[03_wireless](target/linux/airoha/an7581/base-files/etc/uci-defaults/03_wireless)（SSID 分频段命名 + 30dBm 发射功率）、[airoha_fan](target/linux/airoha/an7581/base-files/etc/init.d/airoha_fan)、[99-ppe-reload](target/linux/airoha/an7581/base-files/etc/hotplug.d/net/99-ppe-reload)（无线接口创建时自动重载防火墙触发 PPE 绑定）、[platform.sh](target/linux/airoha/an7581/base-files/lib/upgrade/platform.sh)
 
-### 预装 LuCI 应用（37 个，全部含中文翻译）
+### 预装 LuCI 应用（26 个，全部含中文翻译）
 
 #### 设备专属（来自仓库 [package/](package/)）
 
@@ -55,8 +58,8 @@
 |------|------|------|
 | `luci-app-airoha-npu` | [rchen14b/luci-app-airoha-npu](https://github.com/rchen14b/luci-app-airoha-npu) | SoC 状态监控 + 超频 |
 | `luci-app-airoha-fancontrol` | [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) | 风扇速度/温度控制 |
-| `luci-app-airoha-flowsense` | [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) | PPE 硬件 offload 监控 |
-| `luci-app-lucky` | [gdy666/luci-app-lucky](https://github.com/gdy666/luci-app-lucky) | Lucky（DDNS/反代/端口转发） |
+| `luci-app-airoha-flowsense` | [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) | PPE 硬件 offload 监控 + 延迟检测（支持自定义 Ping 目标） |
+| `luci-app-lucky` | [sirpdboy/luci-app-lucky](https://github.com/sirpdboy/luci-app-lucky) | Lucky（DDNS/反代/端口转发） |
 
 #### 网络代理
 
@@ -82,8 +85,6 @@
 | `luci-app-upnp` | UPnP 自动端口转发 |
 | `luci-app-firewall` | 防火墙（firewall4/nftables） |
 | `luci-app-arpbind` | IP/MAC 绑定 |
-| `luci-app-banip` | IP 黑名单封锁 |
-| `luci-app-clientstatus` | 客户端状态监控 |
 | `luci-app-mlo` | MLO（Wi-Fi 7 多链路操作） |
 | `luci-app-package-manager` | APK 包管理器 |
 | `luci-app-ttyd` | Web 终端 |
@@ -101,7 +102,6 @@
 | `luci-app-udpxy` | UDP 组播代理 |
 | `luci-app-wechatpush` | 微信推送通知 |
 | `luci-app-wifihistory` | WiFi 历史记录 |
-| `luci-app-wifischedule` | WiFi 定时开关 |
 
 ### 主要系统包
 
@@ -115,7 +115,7 @@
 **内核模块（kmod）**
 - `kmod-mt7996-firmware` / `kmod-mt7996e`（MT7996 Wi-Fi 7 驱动）
 - `kmod-crypto-hw-eip93`（硬件加密加速）
-- `kmod-nft-offload` / `kmod-nft-fullcone`（硬件流量卸载/全锥 NAT）
+- `kmod-nft-offload`（硬件流量卸载）
 - `kmod-br-netfilter` / `kmod-tcp-bbr`（桥接 Netfilter / BBR 拥塞控制）
 - `kmod-hwmon-nct7802`（NCT7802 温度传感器）
 - `kmod-i2c-an7581` / `kmod-leds-gpio` / `kmod-gpio-button-hotplug`
@@ -123,7 +123,7 @@
 
 **系统工具**
 - `bash` / `coreutils` / `curl` / `ip-full`
-- `htop` / `tcpdump` / `iperf3` / `ethtool-full`
+- `htop` / `tcpdump` / `iperf3` / `ethtool-full` / `pciutils`
 - `luci-theme-argon` + `luci-theme-bootstrap`
 - `default-settings-chn`（中文默认设置）
 
@@ -141,8 +141,8 @@
 **构建配置**：仓库根目录的 [config.seed](config.seed) 是完整配置文件，Action 自动执行 `cp config.seed .config && make defconfig`。
 
 **Release 格式**：
-- Tag：`YYYYMMDD`
-- 名称：`YYYYMMDD - XR1710G Build`
+- Tag：`YYYYMMDD-<short-hash>`
+- 名称：`YYYYMMDD - XR1710G Build (<short-hash>)`
 - 选项：`release` / `prerelease` / `none`
 
 ## 下载
@@ -181,7 +181,7 @@ make -j$(nproc)
 ### LuCI 应用来源
 - [rchen14b/luci-app-airoha-npu](https://github.com/rchen14b/luci-app-airoha-npu) - Airoha NPU 状态监控（PR #4 合并中文翻译）
 - [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) - Airoha 风扇控制与 FlowSense（commit db3f1c8）
-- [gdy666/luci-app-lucky](https://github.com/gdy666/luci-app-lucky) - Lucky 多功能工具
+- [sirpdboy/luci-app-lucky](https://github.com/sirpdboy/luci-app-lucky) - Lucky 多功能工具
 
 ### 相关工具
 - [JetBrains](https://www.jetbrains.com/) - 开发工具支持
@@ -190,3 +190,9 @@ make -j$(nproc)
 ## 许可证
 
 [GPL-2.0-only](https://spdx.org/licenses/GPL-2.0-only.html)（继承 ImmortalWrt）
+
+## 赞赏
+
+如果这个固件对你有帮助，可以请作者喝杯咖啡 ☕
+
+<img src="c6ea388c976395326514814f80d512d5.png" alt="微信赞赏码" width="300">
