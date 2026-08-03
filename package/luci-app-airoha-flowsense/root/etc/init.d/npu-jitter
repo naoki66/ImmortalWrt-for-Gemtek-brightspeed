@@ -9,7 +9,7 @@ PIDFILE=/var/run/npu-jitter.pid
 
 start_service() {
 	local target
-	target=$(uci get npu-monitor.jitter.target 2>/dev/null || echo "1.1.1.1")
+	target=$(uci get npu-monitor.@jitter[0].target 2>/dev/null || echo "223.5.5.5")
 
 	procd_open_instance
 	procd_set_param command "$DAEMON" "$target"
