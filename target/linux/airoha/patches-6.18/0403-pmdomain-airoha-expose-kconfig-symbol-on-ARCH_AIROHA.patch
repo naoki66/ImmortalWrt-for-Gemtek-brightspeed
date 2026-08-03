@@ -1,0 +1,61 @@
+From e014d172830afbdd1feb863549c9ca91c52d79cd Mon Sep 17 00:00:00 2001
+From: Yanghan Ye <yyh94306@gmail.com>
+Date: Sun, 12 Apr 2026 18:55:53 +0800
+Subject: [PATCH] pmdomain: airoha: expose Kconfig symbol on ARCH_AIROHA
+
+OpenWrt already enables CONFIG_AIROHA_CPU_PM_DOMAIN on the 6.18 Airoha
+target, but the symbol currently lives inside the MediaTek PM domains
+menu gated by ARCH_MEDIATEK || COMPILE_TEST. As a result, the option is
+silently dropped from the final .config and the CPU PM domain driver is
+never built.
+
+Move the Airoha-specific symbol out of the MediaTek-only menu and gate
+it on ARCH_AIROHA instead.
+
+Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+---
+ drivers/pmdomain/mediatek/Kconfig | 25 +++++++++++++------------
+ 1 file changed, 13 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/pmdomain/mediatek/Kconfig b/drivers/pmdomain/mediatek/Kconfig
+index 0e34a51..0d0ac4f 100644
+--- a/drivers/pmdomain/mediatek/Kconfig
++++ b/drivers/pmdomain/mediatek/Kconfig
+@@ -1,5 +1,18 @@
+ # SPDX-License-Identifier: GPL-2.0-only
+ 
++config AIROHA_CPU_PM_DOMAIN
++	tristate "Airoha CPU power domain"
++	default ARCH_AIROHA
++	depends on ARCH_AIROHA || COMPILE_TEST
++	depends on HAVE_ARM_SMCCC
++	depends on PM
++	select PM_GENERIC_DOMAINS
++	help
++	  Say y here to enable CPU power domain support for Airoha SoC.
++
++	  CPU frequency and power is controlled by ATF with SMC command to
++	  set performance states.
++
+ menu "MediaTek PM Domains"
+ 	depends on ARCH_MEDIATEK || COMPILE_TEST
+ 
+@@ -26,16 +39,4 @@ config MTK_SCPSYS_PM_DOMAINS
+ 	  Control Processor System (SCPSYS) has several power management related
+ 	  tasks in the system.
+ 
+-config AIROHA_CPU_PM_DOMAIN
+-	tristate "Airoha CPU power domain"
+-	default ARCH_AIROHA
+-	depends on HAVE_ARM_SMCCC
+-	depends on PM
+-	select PM_GENERIC_DOMAINS
+-	help
+-	  Say y here to enable CPU power domain support for Airoha SoC.
+-
+-	  CPU frequency and power is controlled by ATF with SMC command to
+-	  set performance states.
+-
+ endmenu
+-- 
+2.43.0

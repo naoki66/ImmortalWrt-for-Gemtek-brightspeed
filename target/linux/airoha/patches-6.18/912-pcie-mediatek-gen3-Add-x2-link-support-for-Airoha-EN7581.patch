@@ -1,0 +1,95 @@
+diff --git a/drivers/pci/controller/pcie-mediatek-gen3.c b/drivers/pci/controller/pcie-mediatek-gen3.c
+--- a/drivers/pci/controller/pcie-mediatek-gen3.c
++++ b/drivers/pci/controller/pcie-mediatek-gen3.c
+@@ -75,6 +75,11 @@
+ #define PCIE_LINK_STATUS_REG		0x154
+ #define PCIE_PORT_LINKUP		BIT(8)
+ 
++/* EN7581 NP_SCU register offsets for x2 link Gen3 speed-up */
++#define NP_SCU_LANE_CFG0		0x830
++#define NP_SCU_LANE_CFG1		0x834
++#define NP_SCU_CTRL_REG			0x88
++
+ #define PCIE_MSI_SET_NUM		8
+ #define PCIE_MSI_IRQS_PER_SET		32
+ #define PCIE_MSI_IRQS_NUM \
+@@ -229,6 +234,9 @@
+ 	DECLARE_BITMAP(msi_irq_in_use, PCIE_MSI_IRQS_NUM);
+ 
+ 	const struct mtk_gen3_pcie_pdata *soc;
++
++	/* EN7581 x2 Gen3 speed-up */
++	struct regmap *np_scu;
+ };
+ 
+ /* LTSSM state in PCIE_LTSSM_STATUS_REG bit[28:24] */
+@@ -1024,6 +1032,15 @@
+ 		regmap_update_bits(scu, SCU_PCIC, SCU_PCIC_PCIE_CTRL,
+ 				   FIELD_PREP(SCU_PCIC_PCIE_CTRL, BIT(1)));
+ 
++	/* Lookup NP_SCU for x2 serdes/Gen3 support */
++	if (num_lanes == 2) {
++		pcie->np_scu = syscon_regmap_lookup_by_phandle(dev->of_node, "airoha,np-scu");
++		if (IS_ERR(pcie->np_scu)) {
++			dev_warn(dev, "np_scu not available, Gen3 speed-up disabled\n");
++			pcie->np_scu = NULL;
++		}
++	}
++
+ 	/*
+ 	 * Unlike the other MediaTek Gen3 controllers, the Airoha EN7581
+ 	 * requires PHY initialization and power-on before PHY reset deassert.
+@@ -1099,6 +1116,53 @@
+ 		dev_err(dev, "failed to deassert PERSTOUTs\n");
+ 		goto err_perstout_deassert;
+ 	}
++	/*
++	 * Wait for link training, then check speed and toggle serdes
++	 * to force Gen3 retraining if link negotiated Gen2.
++	 */
++	if (num_lanes == 2 && pcie->np_scu) {
++		void __iomem *cfg;
++		u8 cap_ptr;
++		u32 val_hdr, lnk;
++		int speed = 0;
++
++		msleep(800);
++
++		val_hdr = readl_relaxed(pcie->base + PCIE_LINK_STATUS_REG);
++		if (val_hdr & PCIE_PORT_LINKUP) {
++			cfg = pcie->base + PCIE_CFG_OFFSET_ADDR;
++
++			/* Walk PCI cap list to find PCIe cap (ID=0x10) */
++			cap_ptr = readl_relaxed(cfg + PCI_CAPABILITY_LIST) & 0xFF;
++			while (cap_ptr >= 0x40) {
++				val_hdr = readl_relaxed(cfg + cap_ptr);
++				if ((val_hdr & 0xFF) == PCI_CAP_ID_EXP) {
++					lnk = readl_relaxed(cfg + cap_ptr + PCI_EXP_LNKCTL);
++					speed = (lnk >> 16) & PCI_EXP_LNKSTA_CLS;
++					break;
++				}
++				cap_ptr = (val_hdr >> 8) & 0xFF;
++			}
++
++			if (speed > 0 && speed < 3) {
++				dev_info(dev, "x2: link at Gen%d, toggling serdes for Gen3\n", speed);
++				regmap_update_bits(pcie->np_scu, NP_SCU_LANE_CFG0,
++						   BIT(7) | BIT(8), BIT(7) | BIT(8));
++				regmap_update_bits(pcie->np_scu, NP_SCU_LANE_CFG1,
++						   BIT(26) | BIT(27), BIT(26) | BIT(27));
++				msleep(1000);
++				regmap_update_bits(pcie->np_scu, NP_SCU_LANE_CFG0,
++						   BIT(7) | BIT(8), 0);
++				regmap_update_bits(pcie->np_scu, NP_SCU_LANE_CFG1,
++						   BIT(26) | BIT(27), 0);
++				msleep(2000);
++				dev_info(dev, "x2: serdes toggle done, link retraining\n");
++			} else {
++				dev_info(dev, "x2: link at Gen%d, no toggle needed\n", speed);
++			}
++		}
++	}
++
+ 
+ 	return 0;
+ 
