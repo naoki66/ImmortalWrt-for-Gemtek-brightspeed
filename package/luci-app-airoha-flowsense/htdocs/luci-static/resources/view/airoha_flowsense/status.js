@@ -571,8 +571,8 @@ function needleTip(latencyMs) {
 }
 
 function latencyColor(ms) {
-	if (ms <= 20) return '#00cc44';
-	if (ms <= 60) return '#f5a623';
+	if (ms <= 60) return '#00cc44';
+	if (ms <= 100) return '#f5a623';
 	return '#d0021b';
 }
 
