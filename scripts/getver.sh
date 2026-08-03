@@ -43,6 +43,18 @@ try_git() {
 			REV="${UPSTREAM_REV}+$((REV - UPSTREAM_REV))"
 		fi
 
+		# Count custom commits after last upstream sync
+		CUSTOM_BASE="$(git log --merges --grep="upstream" --format="%H" -1 2>/dev/null)"
+		if [ -n "$CUSTOM_BASE" ]; then
+			CUSTOM_REV="$(git rev-list ${CUSTOM_BASE}..HEAD --no-merges 2>/dev/null | wc -l | awk '{print $1}')"
+			if [ "$CUSTOM_REV" -gt 0 ]; then
+				case "$REV" in
+					*+*) ;;  # already has local count from upstream tracking
+					*) REV="${REV}+${CUSTOM_REV}" ;;
+				esac
+			fi
+		fi
+
 		REV="${REV:+r$REV-$(git log -n 1 --no-show-signature --format="%h" $UPSTREAM_BASE)}"
 
 		;;
