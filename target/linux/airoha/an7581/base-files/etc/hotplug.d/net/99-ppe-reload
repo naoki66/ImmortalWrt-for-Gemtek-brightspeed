@@ -1,0 +1,11 @@
+#!/bin/sh
+
+# Reload firewall when wireless interfaces are created to trigger PPE binding.
+# Without this, NPU hardware offload does not bind to wireless interfaces
+# until a manual firewall reload is performed.
+
+case "$INTERFACE" in
+	phy*|ap*)
+		/etc/init.d/firewall reload
+		;;
+esac
