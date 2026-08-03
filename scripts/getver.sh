@@ -55,7 +55,14 @@ try_git() {
 			fi
 		fi
 
-		REV="${REV:+r$REV-$(git log -n 1 --no-show-signature --format="%h" $UPSTREAM_BASE)}"
+		# Format: r<rev>[+<custom>] - <upstream-hash> - <head-hash>
+		UPSTREAM_HASH="$(git log -n 1 --no-show-signature --format="%h" $CUSTOM_BASE 2>/dev/null)"
+		HEAD_HASH="$(git log -n 1 --no-show-signature --format="%h" HEAD 2>/dev/null)"
+		if [ -n "$UPSTREAM_HASH" ] && [ -n "$HEAD_HASH" ] && [ "$UPSTREAM_HASH" != "$HEAD_HASH" ]; then
+			REV="${REV:+r$REV-${UPSTREAM_HASH}-${HEAD_HASH}}"
+		else
+			REV="${REV:+r$REV-$(git log -n 1 --no-show-signature --format="%h" $UPSTREAM_BASE)}"
+		fi
 
 		;;
 	esac
