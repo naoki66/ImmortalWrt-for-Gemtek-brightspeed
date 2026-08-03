@@ -894,8 +894,8 @@ get_conflict_alerts() {
 	if [ "$hw_offload" = "1" ] && [ -f "$jitter_file" ]; then
 		local last_ping
 		last_ping=$(jsonfilter -i "$jitter_file" -e "@.last_ping" 2>/dev/null)
-		# Warn if ping > 60ms with hw offload on (something is wrong)
-		if [ -n "$last_ping" ] && awk "BEGIN{exit !($last_ping > 60)}"; then
+		# Warn if ping > 90ms with hw offload on (something is wrong)
+		if [ -n "$last_ping" ] && awk "BEGIN{exit !($last_ping > 90)}"; then
 			[ -n "$alerts" ] && alerts="${alerts},"
 			alerts="${alerts}{\"id\":\"npu_bypass_latency\",\"severity\":\"warning\",\"title\":\"NPU Bypass Detected\",\"message\":\"HW offload is enabled but ISP latency is high (${last_ping}ms). Latency management may be skipped by hardware acceleration.\"}"
 			alert_count=$((alert_count + 1))
