@@ -12,14 +12,13 @@ Based on MediaTek SDK patch by Bo-Cun Chen <bc-bocun.chen@mediatek.com>.
 
 Signed-off-by: Ryan Chen <rchen14b@gmail.com>
 ---
- net/netfilter/nft_flow_offload.c | 4 ++++
+ net/netfilter/nf_flow_table_path.c | 4 ++++
  1 file changed, 4 insertions(+)
 
-diff --git a/net/netfilter/nft_flow_offload.c b/net/netfilter/nft_flow_offload.c
---- a/net/netfilter/nft_flow_offload.c
-+++ b/net/netfilter/nft_flow_offload.c
-@@ -222,6 +222,10 @@
- 			}
+diff --git a/net/netfilter/nf_flow_table_path.c b/net/netfilter/nf_flow_table_path.c
+--- a/net/netfilter/nf_flow_table_path.c
++++ b/net/netfilter/nf_flow_table_path.c
+@@ -229,6 +229,10 @@
  			info->xmit_type = FLOW_OFFLOAD_XMIT_DIRECT;
  			break;
 +		case DEV_PATH_MTK_WDMA:
