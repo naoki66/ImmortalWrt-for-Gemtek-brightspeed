@@ -96,6 +96,7 @@ define Device/gemtek_w1700k-ubi
   DEVICE_ALT2_VENDOR := Quantum Fiber
   DEVICE_ALT2_MODEL := W1700K
   DEVICE_ALT2_VARIANT := UBI
+  SUPPORTED_DEVICES := gemtek,w1700k-ubi
   DEVICE_DTS := an7581-w1700k-ubi
   DEVICE_COMPAT_VERSION := 2.0
   DEVICE_COMPAT_MESSAGE := Partition table has been changed to cooperate \
@@ -128,6 +129,7 @@ define Device/gemtek_xr1710g-ubi
   DEVICE_ALT0_VENDOR := Brightspeed
   DEVICE_ALT0_MODEL := XR1710G
   DEVICE_ALT0_VARIANT := UBI
+  SUPPORTED_DEVICES := gemtek,xr1710g-ubi
   DEVICE_DTS := an7581-xr1710g-ubi
   DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware fitblk kmod-i2c-an7581 \
 		    kmod-hwmon-nct7802 kmod-mt7996-firmware wpad-mbedtls \

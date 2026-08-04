@@ -1,0 +1,22 @@
+From: OpenWrt
+Subject: net: phy: allow DTS to override LED devicename
+
+Allow PHY LED nodes to specify a custom devicename via the
+'linux,led-devicename' property. This is useful when the default
+devicename (e.g. "mt7530-0:09") is not user-friendly and a simpler
+name like "lan3" is preferred in the sysfs LED class device name.
+
+--- a/drivers/net/phy/phy_device.c
++++ b/drivers/net/phy/phy_device.c
+@@ -3410,8 +3410,11 @@ static int of_phy_led(struct phy_device
+ 	cdev->max_brightness = 1;
+ 	init_data.devicename = dev_name(&phydev->mdio.dev);
+ 	init_data.fwnode = of_fwnode_handle(led);
+ 	init_data.devname_mandatory = true;
+ 
++	of_property_read_string(led, "linux,led-devicename",
++				&init_data.devicename);
++
+ 	err = led_classdev_register_ext(dev, cdev, &init_data);
+ 	if (err)
+ 		return err;

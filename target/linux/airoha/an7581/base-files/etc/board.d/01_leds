@@ -20,10 +20,10 @@ gemtek,w1700k-ubi)
 	ucidef_set_led_netdev "lan4-green" "lan4" "green:lan-4" "lan4" "link_1000 tx rx"
 	;;
 gemtek,xr1710g-ubi)
-	ucidef_set_led_netdev "lan3-yellow" "lan3" "yellow:lan-3" "lan3" "link_10 link_100"
-	ucidef_set_led_netdev "lan3-green" "lan3" "green:lan-3" "lan3" "link_1000 tx rx"
-	ucidef_set_led_netdev "lan4-yellow" "lan4" "yellow:lan-4" "lan4" "link_10 link_100"
-	ucidef_set_led_netdev "lan4-green" "lan4" "green:lan-4" "lan4" "link_1000 tx rx"
+	ucidef_set_led_netdev "lan3-amber" "lan3" "lan3:amber" "lan3" "link_10 link_100"
+	ucidef_set_led_netdev "lan3-green" "lan3" "lan3:green" "lan3" "link_1000 tx rx"
+	ucidef_set_led_netdev "lan4-amber" "lan4" "lan4:amber" "lan4" "link_10 link_100"
+	ucidef_set_led_netdev "lan4-green" "lan4" "lan4:green" "lan4" "link_1000 tx rx"
 	;;
 esac
 

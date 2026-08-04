@@ -1,0 +1,6 @@
+#!/bin/sh
+# Disable igmpproxy by default (SSDP/UPnP multicast causes "Too many origins" warnings)
+
+/etc/init.d/igmpproxy disable 2>/dev/null
+
+exit 0

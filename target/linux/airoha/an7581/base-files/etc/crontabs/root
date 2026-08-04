@@ -1,0 +1,4 @@
+# 每天 21:30 关灯（仅正面绿色灯）
+30 21 * * * echo none > /sys/class/leds/status:green/trigger && echo 0 > /sys/class/leds/status:green/brightness
+# 每天 07:00 开灯（仅正面绿色灯）
+0 7 * * * echo default-on > /sys/class/leds/status:green/trigger

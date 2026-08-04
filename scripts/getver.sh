@@ -27,42 +27,24 @@ try_git() {
 		GET_REV="$(git log -n 1 --format="%h" --until "$GET_REV")"
 		;&  # FALLTHROUGH
 	*)
-		BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-		ORIGIN="$(git rev-parse --verify --symbolic-full-name ${BRANCH}@{u} 2>/dev/null)"
-		[ -n "$ORIGIN" ] || ORIGIN="$(git rev-parse --verify --symbolic-full-name main@{u} 2>/dev/null)"
-		REV="$(git rev-list ${REBOOT}..$GET_REV 2>/dev/null | wc -l | awk '{print $1}')"
+		UPSTREAM_REF="$(git rev-parse --verify upstream/master 2>/dev/null)"
+		if [ -z "$UPSTREAM_REF" ]; then
+			BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+			UPSTREAM_REF="$(git rev-parse --verify --symbolic-full-name ${BRANCH}@{u} 2>/dev/null)"
+			[ -n "$UPSTREAM_REF" ] || UPSTREAM_REF="$(git rev-parse --verify --symbolic-full-name main@{u} 2>/dev/null)"
+		fi
 
-		if [ -n "$ORIGIN" ]; then
-			UPSTREAM_BASE="$(git merge-base $GET_REV $ORIGIN)"
-			UPSTREAM_REV="$(git rev-list ${REBOOT}..$UPSTREAM_BASE 2>/dev/null | wc -l | awk '{print $1}')"
+		if [ -n "$UPSTREAM_REF" ]; then
+			UPSTREAM_BASE="$(git merge-base $GET_REV $UPSTREAM_REF)"
+			UPSTREAM_HASH="$(git log -n 1 --no-show-signature --format="%h" $UPSTREAM_BASE)"
 		else
-			UPSTREAM_REV=0
+			UPSTREAM_HASH="$(git log -n 1 --no-show-signature --format="%h" $GET_REV)"
 		fi
 
-		if [ "$REV" -gt "$UPSTREAM_REV" ]; then
-			REV="${UPSTREAM_REV}+$((REV - UPSTREAM_REV))"
-		fi
+		LOCAL_HASH="$(git log -n 1 --no-show-signature --format="%h" $GET_REV)"
+		BUILD_DATE="$(date +%Y-%-m-%-d)"
 
-		# Count custom commits after last upstream sync
-		CUSTOM_BASE="$(git log --merges --grep="upstream" --format="%H" -1 2>/dev/null)"
-		if [ -n "$CUSTOM_BASE" ]; then
-			CUSTOM_REV="$(git rev-list ${CUSTOM_BASE}..HEAD --no-merges 2>/dev/null | wc -l | awk '{print $1}')"
-			if [ "$CUSTOM_REV" -gt 0 ]; then
-				case "$REV" in
-					*+*) ;;  # already has local count from upstream tracking
-					*) REV="${REV}+${CUSTOM_REV}" ;;
-				esac
-			fi
-		fi
-
-		# Format: r<rev>[+<custom>] - <upstream-hash> - <head-hash>
-		UPSTREAM_HASH="$(git log -n 1 --no-show-signature --format="%h" $CUSTOM_BASE 2>/dev/null)"
-		HEAD_HASH="$(git log -n 1 --no-show-signature --format="%h" HEAD 2>/dev/null)"
-		if [ -n "$UPSTREAM_HASH" ] && [ -n "$HEAD_HASH" ] && [ "$UPSTREAM_HASH" != "$HEAD_HASH" ]; then
-			REV="${REV:+r$REV-${UPSTREAM_HASH}-${HEAD_HASH}}"
-		else
-			REV="${REV:+r$REV-$(git log -n 1 --no-show-signature --format="%h" $UPSTREAM_BASE)}"
-		fi
+		REV="${BUILD_DATE}-${UPSTREAM_HASH}-${LOCAL_HASH}"
 
 		;;
 	esac

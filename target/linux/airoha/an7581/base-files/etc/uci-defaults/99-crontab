@@ -1,0 +1,19 @@
+#!/bin/sh
+# Ensure default crontab entries exist in overlay
+# This runs once on first boot / factory reset, writing to overlay
+# which persists across sysupgrade (when /etc/crontabs/ is retained)
+
+mkdir -p /etc/crontabs
+
+# Only write if no existing crontab (preserve user modifications)
+if [ ! -s /etc/crontabs/root ]; then
+	cat > /etc/crontabs/root << 'EOF'
+# 每天 21:30 关灯（仅正面绿色灯）
+30 21 * * * echo none > /sys/class/leds/status:green/trigger && echo 0 > /sys/class/leds/status:green/brightness
+# 每天 07:00 开灯（仅正面绿色灯）
+0 7 * * * echo default-on > /sys/class/leds/status:green/trigger
+EOF
+	chmod 644 /etc/crontabs/root
+fi
+
+exit 0
