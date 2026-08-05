@@ -9,7 +9,7 @@ var _prevPseDrops    = null;
 var _prevCdmHwfDrops = null;
 var _prevBridgeDrops = null;
 var _prevPpeBnd      = null;  // for tachometer heartbeat
-var _maxUnbSeen      = 8;     // UNB scale denominator ‚Äî only grows, never shrinks
+var _maxUnbSeen      = 8;     // UNB scale denominator ‚Ä?only grows, never shrinks
 var _prevWifiRetry   = {};    // keyed by band_idx: {tx_packets, tx_retries}
 var _maxWifiThroughput = 1000; // legacy; superseded by per-band maxMbps in bandInfo
 var _prevEthBytes    = {};    // iface -> {tx, rx, time}
@@ -144,7 +144,7 @@ function pleHealth(free) {
 }
 
 function formatPleCount(free) {
-	if (typeof free !== 'number' || free < 0) return '‚Äî';
+	if (typeof free !== 'number' || free < 0) return '‚Ä?;
 	if (free >= 1000000) return (free/1000000).toFixed(1) + 'M';
 	if (free >= 1000)    return Math.round(free/1000) + 'K';
 	return free + '';
@@ -236,7 +236,7 @@ function updateBandChip(band, stats) {
 /* ‚îÄ‚îÄ CPU Frequency State (used by CPU/NPU tachometer) ‚îÄ‚îÄ */
 function freqBarState(hw, min, max, pll, gov) {
 	var pll_khz = (pll || 0) * 1000;
-	// cpufreq sysfs missing (e.g. AN7581 broken DVFS) ‚Äî fall back to PLL hardware read
+	// cpufreq sysfs missing (e.g. AN7581 broken DVFS) ‚Ä?fall back to PLL hardware read
 	if (!hw && pll_khz > 0)
 		return { freq: pll_khz, max: pll_khz, oc: false };
 	var oc = gov==='performance' && pll>0 && pll_khz>max;
@@ -311,8 +311,8 @@ function renderPpePanels(ppe) {
 	var bnd = ppe.bnd || { total: 0, entries: [] };
 	var unb = ppe.unb || { total: 0, entries: [] };
 	return E('div', { 'style': 'display:flex;gap:16px;align-items:flex-start' }, [
-		renderPpePanel('BND ‚Äî Hardware Offloaded', '#00c8ff', 'BND', 'label-success', bnd.entries, bnd.total, true),
-		renderPpePanel('UNB ‚Äî Pending / Learning', '#4caf50', 'UNB', '', unb.entries, unb.total, false)
+		renderPpePanel('BND ‚Ä?Hardware Offloaded', '#00c8ff', 'BND', 'label-success', bnd.entries, bnd.total, true),
+		renderPpePanel('UNB ‚Ä?Pending / Learning', '#4caf50', 'UNB', '', unb.entries, unb.total, false)
 	]);
 }
 
@@ -370,7 +370,7 @@ function buildTachoInner(ppe, cs, mode) {
 	var cx = 150, cy = 150;
 	// BND inner (anti-CW): 1 flow = 1 tick, max 90
 	var bndLit = Math.min(TICKS, bndTot);
-	// UNB outer (CW): sticky power-of-2 scale ‚Äî grows when new peak is seen, never shrinks
+	// UNB outer (CW): sticky power-of-2 scale ‚Ä?grows when new peak is seen, never shrinks
 	// This prevents the ring going backwards when UNB count drops across a scale boundary
 	if (unbTot > _maxUnbSeen) _maxUnbSeen = unbTot;
 	var UNB_SCALE = Math.pow(2, Math.ceil(Math.log2(_maxUnbSeen + 1)));
@@ -392,9 +392,9 @@ function buildTachoInner(ppe, cs, mode) {
 	p.push('<circle cx="150" cy="150" r="56" fill="none" stroke="var(--soc-border)" stroke-width="0.5" opacity="0.35"/>');
 	p.push('<circle cx="150" cy="150" r="69" fill="none" stroke="var(--soc-border)" stroke-width="0.5" opacity="0.35"/>');
 	p.push('<circle cx="150" cy="150" r="83" fill="none" stroke="var(--soc-border)" stroke-width="0.5" opacity="0.35"/>');
-	// Ring labels ‚Äî at 9 and 3 o'clock inside the BND inner ring (r<56 from centre)
+	// Ring labels ‚Ä?at 9 and 3 o'clock inside the BND inner ring (r<56 from centre)
 	p.push('<text x="107" y="153" text-anchor="middle" fill="#00c8ff" font-size="7" font-family="monospace" opacity="0.75">‚óÑBND</text>');
-	p.push('<text x="193" y="153" text-anchor="middle" fill="#ff9800" font-size="7" font-family="monospace" opacity="0.75">UNB‚ñ∫</text>');
+	p.push('<text x="193" y="153" text-anchor="middle" fill="#ff9800" font-size="7" font-family="monospace" opacity="0.75">UNB‚ñ?/text>');
 
 	// Heartbeat pulse on BND ring when new flows arrive
 	if (pulsing) {
@@ -402,10 +402,10 @@ function buildTachoInner(ppe, cs, mode) {
 	}
 
 	// 90 tick marks scaled to fit inside compass inner fill (r<98):
-	//   BND inner anti-clockwise: r=57‚Äì67
-	//   UNB outer clockwise:      r=71‚Äì81
+	//   BND inner anti-clockwise: r=57‚Ä?7
+	//   UNB outer clockwise:      r=71‚Ä?1
 	for (var i = 0; i < TICKS; i++) {
-		// UNB outer: clockwise (r=71‚Äì81)
+		// UNB outer: clockwise (r=71‚Ä?1)
 		var degU = (i / TICKS) * 360 - 90;
 		var radU = degU * Math.PI / 180;
 		var cU = Math.cos(radU), sU = Math.sin(radU);
@@ -417,7 +417,7 @@ function buildTachoInner(ppe, cs, mode) {
 		       ' stroke-width="1.5" stroke-linecap="round" opacity="'+(litU?'0.9':'0.22')+'"'+
 		       (isEdgeU?' filter="url(#f-tn6)"':'')+' />');
 
-		// BND inner: anti-clockwise (r=57‚Äì67)
+		// BND inner: anti-clockwise (r=57‚Ä?7)
 		var degB = -90 - (i / TICKS) * 360;
 		var radB = degB * Math.PI / 180;
 		var cB = Math.cos(radB), sB = Math.sin(radB);
@@ -430,7 +430,7 @@ function buildTachoInner(ppe, cs, mode) {
 		       (isEdgeB?' filter="url(#f-tn4)"':'')+' />');
 	}
 
-	// Centre readout ‚Äî mode + status at top, BND count large, IPv4/IPv6 split, UNB below
+	// Centre readout ‚Ä?mode + status at top, BND count large, IPv4/IPv6 split, UNB below
 	p.push('<text x="150" y="113" text-anchor="middle" fill="var(--soc-text)" font-size="9" font-weight="700" font-family="monospace" letter-spacing="2">'+modeText+'</text>');
 	p.push('<text x="150" y="124" text-anchor="middle" fill="'+statusCol+'" font-size="7" font-family="monospace" letter-spacing="1">'+statusText+'</text>');
 	p.push('<text x="150" y="144" text-anchor="middle" fill="'+bndColor+'" font-size="22" font-weight="700" font-family="monospace">'+bndTot+'</text>');
@@ -501,7 +501,7 @@ function buildPpeTerminalBody(ppe) {
 	s += sp(grn,'root@OpenWrt') + sp(mute,':~# ') + sp(wht,'ppe status --watch') + '\n\n';
 
 	// BND section
-	s += sp(cyn,'‚ñ† BND') + '  ' + sp(wht, bndTot+' flows');
+	s += sp(cyn,'‚ñ?BND') + '  ' + sp(wht, bndTot+' flows');
 	s += '  ' + sp(mute,'(v4:'+(bnd.ipv4||0)+' v6:'+(bnd.ipv6||0)+')') + '\n';
 	s += sp(sep, divLine) + '\n';
 
@@ -517,7 +517,7 @@ function buildPpeTerminalBody(ppe) {
 	s += '\n';
 
 	// UNB section
-	s += sp(org,'‚ñ† UNB') + '  ' + sp(wht, unbTot+' flows') + '\n';
+	s += sp(org,'‚ñ?UNB') + '  ' + sp(wht, unbTot+' flows') + '\n';
 	s += sp(sep, divLine) + '\n';
 
 	if (unbTot === 0) {
@@ -530,13 +530,13 @@ function buildPpeTerminalBody(ppe) {
 	}
 
 	s += '\n';
-	s += sp(grn,'root@OpenWrt') + sp(mute,':~# ') + '<span class="ppe-cursor" style="'+wht+'">‚ñå</span>';
+	s += sp(grn,'root@OpenWrt') + sp(mute,':~# ') + '<span class="ppe-cursor" style="'+wht+'">‚ñ?/span>';
 	return s;
 }
 
 function renderPpeTerminal(ppe) {
 	var bar = E('div', { 'class': 'ppe-terminal-bar' }, [
-		E('span', { 'class': 'ppe-terminal-title' }, 'ppe_monitor  ‚Äî  root@OpenWrt:~')
+		E('span', { 'class': 'ppe-terminal-title' }, 'ppe_monitor  ‚Ä? root@OpenWrt:~')
 	]);
 	var body = E('div', { 'class': 'ppe-terminal-body', 'id': 'ppe-terminal-body' });
 	body.innerHTML = buildPpeTerminalBody(ppe);
@@ -561,10 +561,10 @@ function arcPath(cx, cy, r, startDeg, endDeg) {
 }
 
 function needleTip(latencyMs) {
-	// Full west arc 120¬∞‚Üí240¬∞ (120¬∞ sweep). Log scale so low-latency range is sensitive.
+	// Full west arc 120¬∞‚Ü?40¬∞ (120¬∞ sweep). Log scale so low-latency range is sensitive.
 	// 0ms = 120¬∞ (lower-left, good), 100ms = 240¬∞ (upper-left, bad/near north)
 	var clamped = Math.min(Math.max(latencyMs||0, 0), 100);
-	var logPct = Math.log(clamped + 1) / Math.log(101); // 0‚Üí0, 100ms‚Üí1
+	var logPct = Math.log(clamped + 1) / Math.log(101); // 0‚Ü?, 100ms‚Ü?
 	var deg = 120 + logPct * 120;
 	var rad = deg * Math.PI / 180;
 	return [150 + 75 * Math.cos(rad), 150 + 75 * Math.sin(rad)];
@@ -582,7 +582,7 @@ function renderModeBanner(dm) {
 	var reason = dm.reason || '';
 	var reasonMap = { dhcp_disabled: 'DHCP disabled in UCI', no_wan: 'No WAN IP detected', local_gateway: 'Local gateway detected' };
 	var reasonText = reasonMap[reason] || '';
-	return E('div', { 'class': 'mode-banner' }, [
+	return E('div', { 'class': 'mode-banner', 'id': 'mode-banner' }, [
 		E('span', { 'class': 'mode-badge ' + (mode==='ap' ? 'mode-ap' : 'mode-router') },
 			mode === 'ap' ? 'AP MODE' : 'ROUTER MODE'),
 		E('span', { 'class': 'soc-muted', 'style': 'font-size:12px' }, 'Auto-detected' + (reasonText ? ' \u2014 '+reasonText : '')),
@@ -600,7 +600,7 @@ function translateAlertMsg(msg) {
 		template = template.replace(/\.\s*\./g, '.');
 		var tt = _(template);
 		if (tt !== template) {
-			var firstPeriod = tt.indexOf('„ÄÇ');
+			var firstPeriod = tt.indexOf('„Ä?);
 			if (firstPeriod === -1) firstPeriod = tt.indexOf('.');
 			if (firstPeriod !== -1) {
 				return tt.substring(0, firstPeriod) + ' (' + m[2] + ')' + tt.substring(firstPeriod);
@@ -626,23 +626,23 @@ function renderConflictAlerts(alertData) {
 	return E('div', { 'id': 'conflict-alerts', 'class': 'alert-wrap' }, items);
 }
 
-/* ‚îÄ‚îÄ HW Buffer Health (replaces SQM ‚Äî NPU traffic bypasses qdisc entirely) ‚îÄ‚îÄ */
+/* ‚îÄ‚îÄ HW Buffer Health (replaces SQM ‚Ä?NPU traffic bypasses qdisc entirely) ‚îÄ‚îÄ */
 function hwBufferState(fe, ppe, mode) {
 	fe = fe || {}; ppe = ppe || {}; mode = mode || 'router';
 
 	// PSE port drops: cumulative across all internal ports (0-9).
-	// These include CDM/PPE internal paths that drop normally ‚Äî not a reliable
+	// These include CDM/PPE internal paths that drop normally ‚Ä?not a reliable
 	// congestion signal on their own. Track for display only.
 	var ports = Array.isArray(fe.pse_ports) ? fe.pse_ports : [];
 	var pseDrops = 0;
 	ports.forEach(function(p) { pseDrops += (p.drops || 0); });
 
-	// CDM HW-forwarding drops ‚Äî frames the NPU forwarded that CDM couldn't accept.
+	// CDM HW-forwarding drops ‚Ä?frames the NPU forwarded that CDM couldn't accept.
 	// More sensitive than GDM TX drops (which only fire at wire-level jam) and
 	// directly reflects NPU path congestion.
 	var cdmHwfDrops = ((fe.cdm1||{}).rx_hwf_drop||0) + ((fe.cdm2||{}).rx_hwf_drop||0);
 
-	// Delta since last poll ‚Äî null on first call (baseline only, no alarm)
+	// Delta since last poll ‚Ä?null on first call (baseline only, no alarm)
 	var pseDelta    = (_prevPseDrops    !== null && pseDrops    >= _prevPseDrops)    ? (pseDrops    - _prevPseDrops)    : 0;
 	var cdmHwfDelta = (_prevCdmHwfDrops !== null && cdmHwfDrops >= _prevCdmHwfDrops) ? (cdmHwfDrops - _prevCdmHwfDrops) : 0;
 	_prevPseDrops    = pseDrops;
@@ -651,7 +651,7 @@ function hwBufferState(fe, ppe, mode) {
 	// DROPPING on CDM HW-forwarding drops or very high PSE bursts (>200/poll).
 	var activeDrop = cdmHwfDelta > 0 || pseDelta > 200;
 
-	// PPE offload efficiency ‚Äî BND/(BND+UNB). Shown in subtitle for info only.
+	// PPE offload efficiency ‚Ä?BND/(BND+UNB). Shown in subtitle for info only.
 	// LOW OFFLOAD state removed: low BND% when idle is expected, not a problem.
 	var ppeBound = (ppe.bnd || {}).total || 0;
 	var ppeUnb   = (ppe.unb || {}).total || 0;
@@ -677,13 +677,13 @@ function compassState(bypass, hwBuf, jitter, wan, wifi, bridge, mode) {
 	var cpuPct    = bypass.cpu_pct  || 0;
 	var wanMbps   = bypass.wan_mbps || 0;
 
-	// Latency ‚Äî jitter daemon pings upstream and works in both router and AP mode
+	// Latency ‚Ä?jitter daemon pings upstream and works in both router and AP mode
 	var latMs = jitter.last_ping || 0;
 
 	// Integrity / errors
 	var errCount = 0;
 	var eastAlarm = false;
-	var worstSignal = 0;  // dBm ‚Äî 0 means no data; always negative when valid
+	var worstSignal = 0;  // dBm ‚Ä?0 means no data; always negative when valid
 	// wbDelta holds per-band signal data; stored in cs so both render paths share it.
 	var wbDelta = [];
 	if (mode === 'router') {
@@ -691,7 +691,7 @@ function compassState(bypass, hwBuf, jitter, wan, wifi, bridge, mode) {
 		eastAlarm = errCount > 0;
 	} else {
 		// AP mode: use per-station RSSI from iw station dump (signal avg field).
-		// min_signal = worst (lowest dBm) station on that band ‚Äî most meaningful
+		// min_signal = worst (lowest dBm) station on that band ‚Ä?most meaningful
 		// for link integrity since one weak client degrades the whole band's airtime.
 		(wifi.bands||[]).filter(function(b){ return (b.stations||0) > 0; }).forEach(function(b) {
 			var sig = b.min_signal || 0;
@@ -742,13 +742,13 @@ function buildCompassSVG(cs, mode, ppe) {
 	var pWest     = arcPath(cx,cy,126, 120,240);
 
 	// Text label paths (pre-computed at r=140 for north, r=138 for others)
-	// North CW 215‚Üí325: text curves along top, reads L‚ÜíR
+	// North CW 215‚Ü?25: text curves along top, reads L‚ÜíR
 	var tpN = 'M 35.3 69.7 A 140 140 0 0 1 264.7 69.7';
-	// South CCW 150‚Üí30: text curves along bottom, reads L‚ÜíR
+	// South CCW 150‚Ü?0: text curves along bottom, reads L‚ÜíR
 	var tpS = 'M 30.5 219.0 A 138 138 0 0 0 269.5 219.0';
-	// East CW 300‚Üí60: text curves along right side, reads top‚Üíbottom
+	// East CW 300‚Ü?0: text curves along right side, reads top‚Üíbottom
 	var tpE = 'M 219.0 30.5 A 138 138 0 0 1 219.0 269.5';
-	// West CCW 240‚Üí120: text curves along left side, reads top‚Üíbottom
+	// West CCW 240‚Ü?20: text curves along left side, reads top‚Üíbottom
 	var tpW = 'M 81.0 30.5 A 138 138 0 0 0 81.0 269.5';
 
 	return '<svg viewBox="-8 -8 316 316" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:326px;display:block;margin:0 auto">' +
@@ -777,7 +777,7 @@ function buildCompassSVG(cs, mode, ppe) {
 	'<path id="cp-arc-south" d="'+pSouth+'" fill="none" stroke="'+cs.hwBuf.color+'" stroke-width="9" stroke-linecap="round" opacity="'+southOpacity+'"'+southAnim+'/>' +
 	// West: latency arc
 	'<path id="cp-arc-west" d="'+pWest+'" fill="none" stroke="'+cs.latColor+'" stroke-width="9" stroke-linecap="round" opacity="0.7"/>' +
-	// Quadrant labels ‚Äî curved textPath following each arc
+	// Quadrant labels ‚Ä?curved textPath following each arc
 	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" fill="#00c8ff"><textPath href="#tp-north" startOffset="50%" text-anchor="middle">NPU PATH</textPath></text>' +
 	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" id="cp-lbl-south"><textPath href="#tp-south" startOffset="50%" text-anchor="middle">HW BUFFER</textPath></text>' +
 	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" id="cp-lbl-east"><textPath href="#tp-east"  startOffset="50%" text-anchor="middle">INTEGRITY</textPath></text>' +
@@ -785,9 +785,9 @@ function buildCompassSVG(cs, mode, ppe) {
 	// Latency needle
 	'<line id="cp-needle" x1="150" y1="150" x2="'+tip[0].toFixed(1)+'" y2="'+tip[1].toFixed(1)+'" stroke="'+cs.latColor+'" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>' +
 	'<circle id="cp-needle-pivot" cx="150" cy="150" r="4" fill="'+cs.latColor+'" opacity="0.9"/>' +
-	// PPE state ring outside compass disc ‚Äî cyan=BND present, invisible otherwise
+	// PPE state ring outside compass disc ‚Ä?cyan=BND present, invisible otherwise
 	'<circle id="cp-ppe-glow" cx="150" cy="150" r="150" fill="none" stroke="'+ppeRing.color+'" stroke-width="5" style="'+ppeRing.style+'"/>' +
-	// Solid silver outer ring ‚Äî outermost dashboard border
+	// Solid silver outer ring ‚Ä?outermost dashboard border
 	'<circle cx="150" cy="150" r="155" fill="none" stroke="#222222" stroke-width="2.5"/>' +
 	'</svg>';
 }
@@ -852,7 +852,7 @@ function buildCpuNpuTacho(cs, ppe, st, ti) {
 	var offloadPct = ppeTotal > 0 ? Math.round(ppeBound / ppeTotal * 100)
 	               : (cs.npuActive ? 100 : 0);
 
-	// CPU frequency ‚Äî same source as the existing freq bar
+	// CPU frequency ‚Ä?same source as the existing freq bar
 	var fs       = freqBarState(st.cpu_hw_freq, st.cpu_min_freq, st.cpu_max_freq, st.pll_freq_mhz, st.cpu_governor);
 	var freqMhz  = Math.round(fs.freq / 1000);
 	var governor = (st.cpu_governor && st.cpu_governor !== 'unknown') ? st.cpu_governor.toUpperCase() : '';
@@ -863,10 +863,10 @@ function buildCpuNpuTacho(cs, ppe, st, ti) {
 	var npuColor     = offloadPct > 60 ? '#00c8ff' : offloadPct > 30 ? '#f5a623' : '#888';
 
 	var TICKS = 90;
-	// Outer ring (CW, r=71-81): CPU frequency, 500‚Äì1400 MHz
+	// Outer ring (CW, r=71-81): CPU frequency, 500‚Ä?400 MHz
 	var FREQ_MIN = 500, FREQ_MAX = 1400;
 	var freqLit = Math.round(Math.max(0, Math.min(TICKS, (freqMhz - FREQ_MIN) / (FREQ_MAX - FREQ_MIN) * TICKS)));
-	// Inner ring (anti-CW, r=57-67): CPU load, 0‚Äì100% = full scale
+	// Inner ring (anti-CW, r=57-67): CPU load, 0‚Ä?00% = full scale
 	var cpuLit = Math.round(Math.min(cpuPct, 100) / 100 * TICKS);
 
 	var cx = 150, cy = 150;
@@ -881,7 +881,7 @@ function buildCpuNpuTacho(cs, ppe, st, ti) {
 
 	// Ring labels at 9 and 3 o'clock
 	p.push('<text x="107" y="153" text-anchor="middle" fill="#ffe066" font-size="7" font-family="monospace" opacity="0.75">‚óÑLOAD</text>');
-	p.push('<text x="193" y="153" text-anchor="middle" fill="#00cc44" font-size="7" font-family="monospace" opacity="0.75">FREQ‚ñ∫</text>');
+	p.push('<text x="193" y="153" text-anchor="middle" fill="#00cc44" font-size="7" font-family="monospace" opacity="0.75">FREQ‚ñ?/text>');
 
 	// Tachometer ticks
 	for (var i = 0; i < TICKS; i++) {
@@ -917,7 +917,7 @@ function buildCpuNpuTacho(cs, ppe, st, ti) {
 	p.push('<text x="150" y="190" text-anchor="middle" fill="'+npuColor+'" font-size="13" font-weight="700" font-family="monospace">'+offloadPct+'%</text>');
 	p.push('<text x="150" y="200" text-anchor="middle" fill="var(--soc-muted)" font-size="7" font-family="monospace" letter-spacing="1.5">OFFLOADED</text>');
 
-	// PLE pool ‚Äî curved textPath at r=91, south arc (CCW 160¬∞‚Üí20¬∞), outside the freq ring.
+	// PLE pool ‚Ä?curved textPath at r=91, south arc (CCW 160¬∞‚Ü?0¬∞), outside the freq ring.
 	// Matches the "UNB/BND FLOWS" curved-text style used on the WiFi band gauges.
 	var pleFree = (ti && typeof ti.ple_free === 'number') ? ti.ple_free : -1;
 	var pleH    = pleHealth(pleFree);
@@ -928,14 +928,14 @@ function buildCpuNpuTacho(cs, ppe, st, ti) {
 	var plEX = (150 + plR * Math.cos( 20 * Math.PI / 180)).toFixed(1);
 	var plEY = (150 + plR * Math.sin( 20 * Math.PI / 180)).toFixed(1);
 	p.push('<defs><path id="cn-ple-arc" d="M '+plSX+' '+plSY+' A '+plR+' '+plR+' 0 0 0 '+plEX+' '+plEY+'" fill="none"/></defs>');
-	p.push('<text font-size="8" font-family="monospace" fill="'+pleH.color+'" opacity="0.9" letter-spacing="1"><textPath href="#cn-ple-arc" startOffset="50%" text-anchor="middle">PLE '+pleStr+' ‚óè '+pleH.text+'</textPath></text>');
+	p.push('<text font-size="8" font-family="monospace" fill="'+pleH.color+'" opacity="0.9" letter-spacing="1"><textPath href="#cn-ple-arc" startOffset="50%" text-anchor="middle">PLE '+pleStr+' ‚ó?'+pleH.text+'</textPath></text>');
 
 	return p.join('');
 }
 
 function _cnPpeRingStyle(ppe, ti) {
 	// PLE pool health overrides the BND-based cyan default when the WiFi TX buffer pool
-	// drops toward zero ‚Äî that's the precursor signal for mt7996 SER / TX wedge.
+	// drops toward zero ‚Ä?that's the precursor signal for mt7996 SER / TX wedge.
 	var ple = (ti && typeof ti.ple_free === 'number') ? ti.ple_free : -1;
 	if (ple >= 0 && ple < 100000) {
 		return { style: 'filter:blur(6px);opacity:0.85', color: '#f44336' };
@@ -963,10 +963,10 @@ function buildCpuNpuCompassSVG(cs, ppe, st, ti) {
 	'</defs>' +
 	// PPE/PLE-state ring rendered BEFORE outer circle so the circle fill covers the inward bleed
 	'<circle id="cn-glow" cx="150" cy="150" r="104" fill="none" stroke="'+ring.color+'" stroke-width="6" style="'+ring.style+'"/>' +
-	// Outer border ‚Äî tight around the tachometer content
+	// Outer border ‚Ä?tight around the tachometer content
 	'<circle cx="150" cy="150" r="102" style="fill:var(--soc-card-bg)" stroke="var(--soc-border)" stroke-width="1"/>' +
 	'<g id="cn-tacho">'+buildCpuNpuTacho(cs, ppe, st, ti)+'</g>' +
-	// Solid silver outer ring ‚Äî sits outside the PPE/PLE glow ring
+	// Solid silver outer ring ‚Ä?sits outside the PPE/PLE glow ring
 	'<circle cx="150" cy="150" r="109" fill="none" stroke="#222222" stroke-width="2.5"/>' +
 	'</svg>';
 }
@@ -1013,7 +1013,7 @@ function buildWifiBandTacho(bandIdx, ws, qType, bndCount, unbCount) {
 	var info    = bandInfo[bandIdx] || { name: 'Band '+bandIdx, accent: '#888' };
 	var accent   = info.accent;
 	var retryCol = info.rtyCol || '#888';
-	// Effective throughput: link capacity √ó success rate (1 ‚àí retry fraction)
+	// Effective throughput: link capacity √ó success rate (1 ‚à?retry fraction)
 	// Uses avg_exp_throughput since MT7996 HW TX path bypasses all kernel byte counters
 	var mbps    = (ws.avg_exp_throughput || 0) * (100 - (ws.retry_pct || 0)) / 100;
 	var retryVal = ws.retry_pct || 0;
@@ -1025,7 +1025,7 @@ function buildWifiBandTacho(bandIdx, ws, qType, bndCount, unbCount) {
 
 	var TICKS = 90;
 	var txLit    = Math.round(Math.min(TICKS, (mbps / maxScale) * TICKS));
-	var retryLit = Math.round(retryVal / 100 * TICKS); // 0‚Äì100% maps to 0‚Äì90 ticks
+	var retryLit = Math.round(retryVal / 100 * TICKS); // 0‚Ä?00% maps to 0‚Ä?0 ticks
 
 	var cx = 150, cy = 150;
 	var p = [];
@@ -1039,7 +1039,7 @@ function buildWifiBandTacho(bandIdx, ws, qType, bndCount, unbCount) {
 
 	// Ring labels at 9 / 3 o'clock
 	p.push('<text x="107" y="153" text-anchor="middle" fill="'+retryCol+'" font-size="7" font-family="monospace" opacity="0.75">‚óÑRTY</text>');
-	p.push('<text x="193" y="153" text-anchor="middle" fill="'+accent+'" font-size="7" font-family="monospace" opacity="0.75">TX‚ñ∫</text>');
+	p.push('<text x="193" y="153" text-anchor="middle" fill="'+accent+'" font-size="7" font-family="monospace" opacity="0.75">TX‚ñ?/text>');
 
 	// Tachometer ticks
 	for (var i = 0; i < TICKS; i++) {
@@ -1066,7 +1066,7 @@ function buildWifiBandTacho(bandIdx, ws, qType, bndCount, unbCount) {
 		       (edgeB?' filter="url(#f-wifi-rty-'+bandIdx+')"':'')+' />');
 	}
 
-	// UNB count arc at 12 o'clock (curved textPath, r=91, CW 200¬∞‚Üí340¬∞)
+	// UNB count arc at 12 o'clock (curved textPath, r=91, CW 200¬∞‚Ü?40¬∞)
 	var unbCnt = unbCount || 0;
 	var uR = 91;
 	var uSX = (150 + uR * Math.cos(200 * Math.PI / 180)).toFixed(1);
@@ -1078,7 +1078,7 @@ function buildWifiBandTacho(bandIdx, ws, qType, bndCount, unbCount) {
 	p.push('<defs><path id="'+uPid+'" d="M '+uSX+' '+uSY+' A '+uR+' '+uR+' 0 0 1 '+uEX+' '+uEY+'" fill="none"/></defs>');
 	p.push('<text font-size="8" font-family="monospace" fill="'+unbCol+'" opacity="0.9"><textPath href="#'+uPid+'" startOffset="50%" text-anchor="middle">'+unbCnt+' UNB</textPath></text>');
 
-	// BND count arc at 6 o'clock (curved textPath, r=91, CCW 160¬∞‚Üí20¬∞) ‚Äî opposite health arc
+	// BND count arc at 6 o'clock (curved textPath, r=91, CCW 160¬∞‚Ü?0¬∞) ‚Ä?opposite health arc
 	var bndCnt = bndCount || 0;
 	var bR = 91;
 	var bSX = (150 + bR * Math.cos(160 * Math.PI / 180)).toFixed(1);
@@ -1090,7 +1090,7 @@ function buildWifiBandTacho(bandIdx, ws, qType, bndCount, unbCount) {
 	p.push('<defs><path id="'+bPid+'" d="M '+bSX+' '+bSY+' A '+bR+' '+bR+' 0 0 0 '+bEX+' '+bEY+'" fill="none"/></defs>');
 	p.push('<text font-size="8" font-family="monospace" fill="'+bndCol+'" opacity="0.9"><textPath href="#'+bPid+'" startOffset="50%" text-anchor="middle">'+bndCnt+' BND</textPath></text>');
 
-	// Centre readout ‚Äî retry % above band name
+	// Centre readout ‚Ä?retry % above band name
 	if (retryVal > 0)
 		p.push('<text x="150" y="110" text-anchor="middle" fill="'+retryCol+'" font-size="7" font-family="monospace">'+retryVal+'% RTY</text>');
 	p.push('<text x="150" y="120" text-anchor="middle" fill="'+accent+'" font-size="10" font-weight="700" font-family="monospace" letter-spacing="1">'+info.name.toUpperCase()+'</text>');
@@ -1153,7 +1153,7 @@ function buildWifiTachoElements(wifi, ti, st, ppe) {
 	var bands = (wifi && Array.isArray(wifi.bands)) ? wifi.bands : [];
 	var fallbackType = (st && st.npu_loaded) ? 'npu' : 'dma';
 	var elems = [];
-	// 6 GHz ‚Üí 5 GHz ‚Üí 2.4 GHz (band index 2 ‚Üí 1 ‚Üí 0)
+	// 6 GHz ‚Ü?5 GHz ‚Ü?2.4 GHz (band index 2 ‚Ü?1 ‚Ü?0)
 	for (var b = 2; b >= 0; b--) {
 		var ws = null;
 		for (var j = 0; j < bands.length; j++) if (bands[j].band === b) { ws = bands[j]; break; }
@@ -1304,7 +1304,7 @@ function renderCompassCards(cs, bypass, jitter, wan, wifi, bridge, mode) {
 	// West card: Latency
 	var latVal   = cs.latMs > 0 ? cs.latMs.toFixed(1)+'ms' : (jitter.available===false ? 'N/A' : '---');
 	var latColor = cs.latColor;
-	var latSub   = 'Jitter: '+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  Ping: '+(jitter.target||'223.5.5.5')+' ‚úè';
+	var latSub   = 'Jitter: '+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  Ping: '+(jitter.target||'223.5.5.5')+' ‚ú?;
 
 	function card(title, val, color, sub) {
 		return E('div', { 'class': 'compass-card' }, [
@@ -1369,7 +1369,7 @@ function updateCompassCards(cs, bypass, jitter, wan, wifi, bridge, mode) {
 	var latVal = cs.latMs > 0 ? cs.latMs.toFixed(1)+'ms' : (jitter.available===false?'N/A':'---');
 	var latTarget = jitter.target||'223.5.5.5';
 	setCard(divs[2], latVal, cs.latColor,
-		'Jitter: '+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  Ping: '+latTarget+' ‚úè');
+		'Jitter: '+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  Ping: '+latTarget+' ‚ú?);
 	var latSub = divs[2] && divs[2].querySelector('.compass-card-sub');
 	if (latSub) {
 		latSub.style.cursor = 'pointer';
@@ -1420,7 +1420,7 @@ return view.extend({
 		var hwBuf = hwBufferState(fe, ppe, mode);
 		var cs = compassState(bypass, hwBuf, jitter, wan, wifi, bridge, mode);
 
-		// Compass SVG container ‚Äî tachometer is embedded inside (innerHTML so we can update by element ID)
+		// Compass SVG container ‚Ä?tachometer is embedded inside (innerHTML so we can update by element ID)
 		var compassSvgWrap = E('div', { 'class': 'compass-svg-wrap', 'id': 'compass-svg-wrap' });
 		compassSvgWrap.innerHTML = buildCompassSVG(cs, mode, ppe);
 
@@ -1462,7 +1462,7 @@ return view.extend({
 			]),
 		]);
 
-		// Data fetch + DOM update function ‚Äî called immediately and via poll
+		// Data fetch + DOM update function ‚Ä?called immediately and via poll
 		var fetchData = L.bind(function() {
 			return Promise.all([
 				callNpuStatus(), callPpeEntries(), callTokenInfo(), callFrameEngine(),
@@ -1508,13 +1508,20 @@ return view.extend({
 					alertWrap.innerHTML = fresh.innerHTML;
 				}
 
+				// Mode banner
+				var mb = document.getElementById('mode-banner');
+				if (mb) {
+					var newMb = renderModeBanner(dm);
+					mb.parentNode.replaceChild(newMb, mb);
+				}
+
 				// Offload status badges
 				function _setOffloadStatus(id, on) { var b=document.getElementById(id); if(b) { b.className='offload-badge '+(on?'offload-on':'offload-off'); b.textContent=on?_('Enabled'):_('Disabled'); } }
 				_setOffloadStatus('vlan-offload-status', vo.enabled);
 				_setOffloadStatus('flow-offload-status', flo.enabled);
 				_setOffloadStatus('pppoe-offload-status', ppo.enabled);
 
-				// Ethernet port gauges ‚Äî compute per-port Mbps deltas from cumulative byte counters
+				// Ethernet port gauges ‚Ä?compute per-port Mbps deltas from cumulative byte counters
 				var ethPorts = (eth && Array.isArray(eth.ports)) ? eth.ports : [];
 				var now = Date.now() / 1000;
 				ethPorts.forEach(function(p) {
