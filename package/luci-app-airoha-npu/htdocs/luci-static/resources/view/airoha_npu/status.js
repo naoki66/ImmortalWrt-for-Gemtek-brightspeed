@@ -17,6 +17,8 @@ var callGetPppoeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getP
 var callSetPppoeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setPppoeOffload', params: ['enabled'] });
 var callGetFlowOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getFlowOffload' });
 var callSetFlowOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setFlowOffload', params: ['enabled'] });
+var callGetApModeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getApModeOffload' });
+var callSetApModeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setApModeOffload', params: ['enabled'] });
 
 /* ── Theme-adaptive CSS ── */
 var themeCSS = '\
@@ -440,13 +442,14 @@ function renderPpeRows(entries) {
 /* ── Main View ── */
 return view.extend({
 	load: function() {
-		return Promise.all([ callNpuStatus(), callPpeEntries(), callTokenInfo(), callFrameEngine(), callGetVlanOffload(), callGetPppoeOffload(), callGetFlowOffload() ]);
+		return Promise.all([ callNpuStatus(), callPpeEntries(), callTokenInfo(), callFrameEngine(), callGetVlanOffload(), callGetPppoeOffload(), callGetFlowOffload(), callGetApModeOffload() ]);
 	},
 
 	render: function(data) {
 		injectCSS();
 		var st = data[0]||{}, ppe = data[1]||{}, ti = data[2]||{}, fe = data[3]||{};
 		var vo = data[4]||{enabled:0}, ppo = data[5]||{enabled:0}, flo = data[6]||{enabled:0};
+		var apo = data[7]||{enabled:0};
 		var entries = Array.isArray(ppe.entries) ? ppe.entries : [];
 		var memR = Array.isArray(st.memory_regions) ? st.memory_regions : [];
 
@@ -518,6 +521,10 @@ return view.extend({
 				E('div',{'class':'offload-item'},[
 					E('span',{'class':'soc-text','style':'font-weight:600'},_('Flow Offload')),
 					renderOffloadSelect(flo.enabled, 'flow-offload-select', function(v){return callSetFlowOffload(v);}, 'flow-offload-badge')
+				]),
+				E('div',{'class':'offload-item'},[
+					E('span',{'class':'soc-text','style':'font-weight:600'},_('AP Mode Acceleration')),
+					renderOffloadSelect(apo.enabled, 'apmode-offload-select', function(v){return callSetApModeOffload(v);}, 'apmode-offload-badge')
 				])
 			]),
 
@@ -539,10 +546,11 @@ return view.extend({
 		]);
 
 		poll.add(L.bind(function() {
-			return Promise.all([ callNpuStatus(), callPpeEntries(), callTokenInfo(), callFrameEngine(), callGetVlanOffload(), callGetPppoeOffload(), callGetFlowOffload() ]).then(L.bind(function(d) {
+			return Promise.all([ callNpuStatus(), callPpeEntries(), callTokenInfo(), callFrameEngine(), callGetVlanOffload(), callGetPppoeOffload(), callGetFlowOffload(), callGetApModeOffload() ]).then(L.bind(function(d) {
 				injectCSS();
 				var st=d[0]||{}, ppe=d[1]||{}, ti=d[2]||{}, fe=d[3]||{};
 				var vo=d[4]||{enabled:0}, ppo=d[5]||{enabled:0}, flo=d[6]||{enabled:0};
+				var apo=d[7]||{enabled:0};
 				var entries = Array.isArray(ppe.entries)?ppe.entries:[];
 
 				updateFreqBar(st.cpu_hw_freq,st.cpu_min_freq,st.cpu_max_freq,st.pll_freq_mhz,st.cpu_governor);
@@ -561,6 +569,7 @@ return view.extend({
 				_updateOffload('vlan-offload-select', 'vlan-offload-badge', vo.enabled);
 				_updateOffload('pppoe-offload-select', 'pppoe-offload-badge', ppo.enabled);
 				_updateOffload('flow-offload-select', 'flow-offload-badge', flo.enabled);
+				_updateOffload('apmode-offload-select', 'apmode-offload-badge', apo.enabled);
 
 				var fc=document.getElementById('fe-container'); if(fc){fc.innerHTML='';fc.appendChild(renderFeDiagram(fe, ti, st));}
 

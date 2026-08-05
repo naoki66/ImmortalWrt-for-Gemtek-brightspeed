@@ -554,9 +554,55 @@ set_flow_offload() {
 	printf '{"result":"ok","enabled":%d}' "$enabled"
 }
 
+get_apmode_offload() {
+	# AP mode acceleration requires:
+	# 1. Firewall default forward policy = ACCEPT
+	# 2. bridge-nf-call-iptables = 1
+	# 3. bridge-nf-call-ip6tables = 1
+	local fwd ipt ip6t
+	fwd=$(uci get firewall.@defaults[0].forward 2>/dev/null)
+	ipt=$(cat /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null)
+	ip6t=$(cat /proc/sys/net/bridge/bridge-nf-call-ip6tables 2>/dev/null)
+	if [ "$fwd" = "ACCEPT" ] && [ "$ipt" = "1" ] && [ "$ip6t" = "1" ]; then
+		printf '{"enabled":1}'
+	else
+		printf '{"enabled":0}'
+	fi
+}
+
+set_apmode_offload() {
+	local enabled
+	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
+	[ -z "$enabled" ] && enabled="0"
+	if [ "$enabled" != "0" ] && [ "$enabled" != "1" ]; then
+		echo '{"error":"enabled must be 0 or 1"}'
+		return
+	fi
+	# Load bridge module if needed
+	if [ "$enabled" = "1" ]; then
+		modprobe bridge 2>/dev/null
+	fi
+	# Set firewall forward policy
+	if [ "$enabled" = "1" ]; then
+		uci set firewall.@defaults[0].forward="ACCEPT" 2>/dev/null
+	else
+		uci set firewall.@defaults[0].forward="DROP" 2>/dev/null
+	fi
+	uci commit firewall 2>/dev/null
+	# Set bridge-nf-call sysctls
+	echo "$enabled" > /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null
+	echo "$enabled" > /proc/sys/net/bridge/bridge-nf-call-ip6tables 2>/dev/null
+	# Persist via sysctl.conf
+	echo "net.bridge.bridge-nf-call-iptables=$enabled" > /etc/sysctl.d/12-apmode-offload.conf
+	echo "net.bridge.bridge-nf-call-ip6tables=$enabled" >> /etc/sysctl.d/12-apmode-offload.conf
+	# Restart firewall to apply forward policy
+	/etc/init.d/firewall restart 2>/dev/null &
+	printf '{"result":"ok","enabled":%d}' "$enabled"
+}
+
 case "$1" in
 	list)
-		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"},"setOverclock":{"freq_mhz":"int"}}'
+		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"getApModeOffload":{},"setApModeOffload":{"enabled":"int"},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"},"setOverclock":{"freq_mhz":"int"}}'
 		;;
 	call)
 		case "$2" in
@@ -604,6 +650,13 @@ case "$1" in
 			setFlowOffload)
 				read input
 				set_flow_offload "$input"
+				;;
+			getApModeOffload)
+				get_apmode_offload
+				;;
+			setApModeOffload)
+				read input
+				set_apmode_offload "$input"
 				;;
 			*)
 				echo '{"error":"Invalid method"}'
