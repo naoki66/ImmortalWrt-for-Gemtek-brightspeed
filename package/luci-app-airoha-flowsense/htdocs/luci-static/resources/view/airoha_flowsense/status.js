@@ -1400,8 +1400,12 @@ function updateCompassCards(cs, bypass, jitter, wan, wifi, bridge, mode) {
 /* ── Main View ── */
 return view.extend({
 	load: function() {
-		// Progressive rendering: don't block on RPC calls, let the page render immediately
-		return Promise.resolve([]);
+		// Progressive rendering: fetch device mode early for initial banner
+		return Promise.all([
+			callGetDeviceMode()
+		]).then(function(dmResult) {
+			return [dmResult[0]];
+		});
 	},
 
 	render: function(data) {
@@ -1475,7 +1479,7 @@ return view.extend({
 			]).then(L.bind(function(d) {
 				injectCSS();
 				var st=d[0]||{}, ppe=d[1]||{}, ti=d[2]||{}, fe=d[3]||{};
-				var vo=d[4]||{}, txs=d[5]||{}, dm=d[6]||{};
+				var vo=d[4]||{}, txs=d[5]||{}, dm=d[0]||{};
 				var bypass=d[7]||{}, wan=d[8]||{};
 				var jitter=d[9]||{}, alertData=d[10]||{};
 				var wifi=d[11]||{}, bridge=d[12]||{};
