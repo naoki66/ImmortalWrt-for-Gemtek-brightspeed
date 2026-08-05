@@ -35,26 +35,32 @@ get_status() {
 	local offload_bound=$(cat /sys/kernel/debug/ppe/bind 2>/dev/null | grep -c "^[0-9a-fA-F]")
 	local offload_total=$(cat /sys/kernel/debug/ppe/entries 2>/dev/null | grep -c "^[0-9a-fA-F]")
 
-	local mem_info=$(dmesg | grep "reserved mem.*npu" | head -4)
+	# NPU memory regions don't change after boot — cache to avoid slow dmesg on every poll
+	local mem_cache="/tmp/npu-mem-regions.json"
 	local regions="[]"
-
-	if [ -n "$mem_info" ]; then
-		regions=$(echo "$mem_info" | awk '
-		BEGIN { printf "[" }
-		{
-			if (NR > 1) printf ","
-			match($0, /0x[0-9a-fA-F]+\.\.0x[0-9a-fA-F]+/)
-			range = substr($0, RSTART, RLENGTH)
-			split(range, a, "\\.\\.")
-			match($0, /\([0-9]+ [KMG]i?B\)/)
-			size = substr($0, RSTART+1, RLENGTH-2)
-			match($0, /non-reusable [^ ]+/)
-			name = substr($0, RSTART+13)
-			gsub(/@.*/, "", name)
-			printf "{\"name\":\"%s\",\"start\":\"%s\",\"end\":\"%s\",\"size\":\"%s\"}", name, a[1], a[2], size
-		}
-		END { printf "]" }
-		')
+	if [ -f "$mem_cache" ]; then
+		regions=$(cat "$mem_cache" 2>/dev/null)
+	else
+		local mem_info=$(dmesg 2>/dev/null | grep "reserved mem.*npu" | head -4)
+		if [ -n "$mem_info" ]; then
+			regions=$(echo "$mem_info" | awk '
+			BEGIN { printf "[" }
+			{
+				if (NR > 1) printf ","
+				match($0, /0x[0-9a-fA-F]+\.\.0x[0-9a-fA-F]+/)
+				range = substr($0, RSTART, RLENGTH)
+				split(range, a, "\\.\\.")
+				match($0, /\([0-9]+ [KMG]i?B\)/)
+				size = substr($0, RSTART+1, RLENGTH-2)
+				match($0, /non-reusable [^ ]+/)
+				name = substr($0, RSTART+13)
+				gsub(/@.*/, "", name)
+				printf "{\"name\":\"%s\",\"start\":\"%s\",\"end\":\"%s\",\"size\":\"%s\"}", name, a[1], a[2], size
+			}
+			END { printf "]" }
+			')
+		fi
+		echo "$regions" > "$mem_cache" 2>/dev/null
 	fi
 
 	# === CPU Frequency Status ===
