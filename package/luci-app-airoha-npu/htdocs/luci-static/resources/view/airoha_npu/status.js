@@ -383,20 +383,24 @@ function renderMaxFreqSelect(avail, cur) {
 }
 
 function renderOcControls() {
-	var inp = E('input',{'id':'oc-freq-input','type':'number','min':'500','max':'1600','step':'50','value':'1400','class':'cbi-input-text','style':'width:100px'});
+	var inp = E('input',{'id':'oc-freq-input','type':'number','min':'500','max':'1600','step':'50','value':'1200','class':'cbi-input-text','style':'width:100px'});
 	var btn = E('button',{'class':'cbi-button cbi-button-action','style':'margin-left:8px','click':function(){
 		var f=parseInt(document.getElementById('oc-freq-input').value);
 		if(isNaN(f)||f<500||f>1600){ui.addNotification(null,E('p',{},_('Must be 500-1600 MHz')),'error');return;}
-		if(f>1400&&!confirm('Frequencies above 1400 MHz may be unstable. Continue?')) return;
+		if(f>1200&&!confirm(_('Frequencies above 1200 MHz bypass BL31 voltage control and may cause system crash or reboot. Continue?'))) return;
 		btn.disabled=true;btn.textContent=_('Applying...');
 		callSetOverclock(f).then(function(r){btn.disabled=false;btn.textContent=_('Apply');
 			if(r&&r.error) ui.addNotification(null,E('p',{},_('Failed: ')+r.error),'error');
-			else if(r&&r.result==='ok') ui.addNotification(null,E('p',{},_('CPU set to ')+r.actual_mhz+' MHz'),'info');
+			else if(r&&r.result==='ok') {
+				var msg = _('CPU set to ')+r.actual_mhz+' MHz';
+				if(r.warning) msg += ' — ' + r.warning;
+				ui.addNotification(null,E('p',{},msg), r.warning ? 'warning' : 'info');
+			}
 		}).catch(function(e){btn.disabled=false;btn.textContent=_('Apply');});
 	}},_('Apply'));
 	return E('div',{'style':'display:flex;align-items:center;gap:8px;flex-wrap:wrap'},[
 		inp, E('span',{'class':'soc-muted'},'MHz'), btn,
-		E('span',{'class':'soc-muted','style':'font-size:85%;margin-left:8px'},_('Direct PLL. Stock max 1200 MHz. Stable up to 1500 MHz.'))
+		E('span',{'class':'soc-muted','style':'font-size:85%;margin-left:8px'},_('<=1200 MHz uses kernel cpufreq (safe). >1200 MHz uses direct PLL without voltage adjustment (risky).'))
 	]);
 }
 
@@ -428,6 +432,30 @@ function renderOffloadSelect(enabled, id, callFn, badgeId) {
 	]);
 }
 
+/* ── Reusable CPU info builders (used by initial render AND live updates) ── */
+function buildCpuInfoContent(st) {
+	return [
+		E('span',{'style':'font-weight:600'}, (st.soc_compat||'')),
+		E('span',{'style':'color:#999'}, '·'),
+		E('span',{}, (st.cpu_arch||'') + ' x ' + (st.cpu_count||0)),
+		st.cpu_temp && st.cpu_temp!=='N/A' ? E('span',{}, '(' + st.cpu_temp + ')') : null,
+		E('span',{'style':'color:#999'}, _('Core Count') + ': ' + (st.cpu_count||0))
+	];
+}
+
+function buildControlSettingsContent(st) {
+	return E('div',{'style':'display:flex;align-items:center;gap:16px;flex-wrap:wrap'},[
+		E('div',{'style':'display:flex;align-items:center;gap:8px'},[
+			E('span',{'style':'font-size:85%;color:#666'},_('Governor')),
+			renderGovSelect(st.cpu_avail_governors,st.cpu_governor)
+		]),
+		E('div',{'style':'display:flex;align-items:center;gap:8px'},[
+			E('span',{'style':'font-size:85%;color:#666'},_('Max Freq')),
+			renderMaxFreqSelect(st.cpu_avail_freqs,st.cpu_max_freq)
+		])
+	]);
+}
+
 /* ── PPE Table ── */
 function renderPpeRows(entries) {
 	return entries.slice(0,100).map(function(e) {
@@ -442,10 +470,12 @@ function renderPpeRows(entries) {
 /* ── Main View ── */
 return view.extend({
 	load: function() {
-		return Promise.all([ callNpuStatus(), callPpeEntries(), callTokenInfo(), callFrameEngine(), callGetVlanOffload(), callGetPppoeOffload(), callGetFlowOffload(), callGetApModeOffload() ]);
+		// Progressive rendering: don't block on RPC calls, let the page render immediately
+		return Promise.resolve([]);
 	},
 
 	render: function(data) {
+		data = data || [];
 		injectCSS();
 		var st = data[0]||{}, ppe = data[1]||{}, ti = data[2]||{}, fe = data[3]||{};
 		var vo = data[4]||{enabled:0}, ppo = data[5]||{enabled:0}, flo = data[6]||{enabled:0};
@@ -460,39 +490,28 @@ return view.extend({
 			E('div',{'class':'cbi-section'},[
 				E('h3',{},_('CPU Frequency')),
 				E('table',{'class':'table'},[
-					E('tr',{'class':'tr'},[ E('td',{'class':'td','width':'25%'},E('strong',{},_('CPU Info'))), E('td',{'class':'td'}, E('div',{'style':'display:flex;align-items:center;gap:8px;flex-wrap:wrap'},[
-						E('span',{'style':'font-weight:600'}, (st.soc_compat||'')),
-						E('span',{'style':'color:#999'}, '·'),
-						E('span',{}, (st.cpu_arch||'') + ' x ' + (st.cpu_count||0)),
-						st.cpu_temp && st.cpu_temp!=='N/A' ? E('span',{}, '(' + st.cpu_temp + ')') : null,
-						E('span',{'style':'color:#999'}, _('Core Count') + ': ' + (st.cpu_count||0))
-					])) ]),
-					E('tr',{'class':'tr'},[ E('td',{'class':'td','width':'25%'},E('strong',{},_('Current Frequency'))), E('td',{'class':'td'}, renderFreqBar(st.cpu_hw_freq,st.cpu_min_freq,st.cpu_max_freq,st.pll_freq_mhz,st.cpu_governor)) ]),
-					E('tr',{'class':'tr'},[ E('td',{'class':'td','width':'25%'},E('strong',{},_('Control Settings'))), E('td',{'class':'td'}, E('div',{'style':'display:flex;align-items:center;gap:16px;flex-wrap:wrap'},[
-						E('div',{'style':'display:flex;align-items:center;gap:8px'},[
-							E('span',{'style':'font-size:85%;color:#666'},_('Governor')),
-							renderGovSelect(st.cpu_avail_governors,st.cpu_governor)
-						]),
-						E('div',{'style':'display:flex;align-items:center;gap:8px'},[
-							E('span',{'style':'font-size:85%;color:#666'},_('Max Freq')),
-							renderMaxFreqSelect(st.cpu_avail_freqs,st.cpu_max_freq)
-						])
-					])) ]),
+					E('tr',{'class':'tr'},[ E('td',{'class':'td','width':'25%'},E('strong',{},_('CPU Info'))), E('td',{'class':'td'}, E('div',{'id':'cpu-info-content','style':'display:flex;align-items:center;gap:8px;flex-wrap:wrap'}, buildCpuInfoContent(st))) ]),
+					E('tr',{'class':'tr'},[ E('td',{'class':'td','width':'25%'},E('strong',{},_('Current Frequency'))), E('td',{'class':'td'}, E('div',{'id':'cpu-freq-content'}, renderFreqBar(st.cpu_hw_freq,st.cpu_min_freq,st.cpu_max_freq,st.pll_freq_mhz,st.cpu_governor))) ]),
+					E('tr',{'class':'tr'},[ E('td',{'class':'td','width':'25%'},E('strong',{},_('Control Settings'))), E('td',{'class':'td'}, E('div',{'id':'cpu-control-content'}, buildControlSettingsContent(st))) ]),
 					E('tr',{'class':'tr'},[ E('td',{'class':'td','width':'25%'},E('strong',{},_('Overclock'))), E('td',{'class':'td'}, E('div',{'style':'display:flex;align-items:center;gap:8px;flex-wrap:wrap'},[
-						E('input',{'id':'oc-freq-input','type':'number','min':'500','max':'1600','step':'50','value':'1400','class':'cbi-input-text','style':'width:80px'}),
-						E('span',{'style':'font-size:85%;color:#666'},'MHz'),
-						E('button',{'class':'cbi-button cbi-button-action','click':function(){
-							var f=parseInt(document.getElementById('oc-freq-input').value);
-							if(isNaN(f)||f<500||f>1600){ui.addNotification(null,E('p',{},_('Must be 500-1600 MHz')),'error');return;}
-							if(f>1400&&!confirm('Frequencies above 1400 MHz may be unstable. Continue?')) return;
-							var btn=this;btn.disabled=true;btn.textContent=_('Applying...');
-							callSetOverclock(f).then(function(r){btn.disabled=false;btn.textContent=_('Apply');
-								if(r&&r.error) ui.addNotification(null,E('p',{},_('Failed: ')+r.error),'error');
-								else if(r&&r.result==='ok') ui.addNotification(null,E('p',{},_('CPU set to ')+r.actual_mhz+' MHz'),'info');
-							}).catch(function(e){btn.disabled=false;btn.textContent=_('Apply');});
-						}},_('Apply')),
-						E('span',{'style':'font-size:85%;color:#666'},_('Overclock governor locked to performance. Stock max: 1200 MHz. Recommended max 1500 MHz.'))
-					])) ])
+					E('input',{'id':'oc-freq-input','type':'number','min':'500','max':'1600','step':'50','value':'1200','class':'cbi-input-text','style':'width:80px'}),
+					E('span',{'style':'font-size:85%;color:#666'},'MHz'),
+					E('button',{'class':'cbi-button cbi-button-action','click':function(){
+						var f=parseInt(document.getElementById('oc-freq-input').value);
+						if(isNaN(f)||f<500||f>1600){ui.addNotification(null,E('p',{},_('Must be 500-1600 MHz')),'error');return;}
+						if(f>1200&&!confirm(_('Frequencies above 1200 MHz bypass BL31 voltage control and may cause system crash or reboot. Continue?'))) return;
+						var btn=this;btn.disabled=true;btn.textContent=_('Applying...');
+						callSetOverclock(f).then(function(r){btn.disabled=false;btn.textContent=_('Apply');
+							if(r&&r.error) ui.addNotification(null,E('p',{},_('Failed: ')+r.error),'error');
+							else if(r&&r.result==='ok') {
+								var msg = _('CPU set to ')+r.actual_mhz+' MHz';
+								if(r.warning) msg += ' — ' + r.warning;
+								ui.addNotification(null,E('p',{},msg), r.warning ? 'warning' : 'info');
+							}
+						}).catch(function(e){btn.disabled=false;btn.textContent=_('Apply');});
+					}},_('Apply')),
+					E('span',{'style':'font-size:85%;color:#666'},_('<=1200 MHz: safe (kernel cpufreq). >1200 MHz: risky (direct PLL, no voltage adjustment).'))
+				])) ])
 				])
 			]),
 
@@ -545,20 +564,61 @@ return view.extend({
 			])
 		]);
 
-		poll.add(L.bind(function() {
-			return Promise.all([ callNpuStatus(), callPpeEntries(), callTokenInfo(), callFrameEngine(), callGetVlanOffload(), callGetPppoeOffload(), callGetFlowOffload(), callGetApModeOffload() ]).then(L.bind(function(d) {
+		// Data fetch + DOM update function — called immediately and via poll
+		// Each RPC call is wrapped with .catch() so one failure doesn't block others
+		function _safeCall(promise, fallback) {
+			return promise.catch(function() { return fallback; });
+		}
+
+		var fetchData = L.bind(function() {
+			return Promise.all([
+				_safeCall(callNpuStatus(), {}),
+				_safeCall(callPpeEntries(), {entries:[]}),
+				_safeCall(callTokenInfo(), {}),
+				_safeCall(callFrameEngine(), {}),
+				_safeCall(callGetVlanOffload(), {enabled:0}),
+				_safeCall(callGetPppoeOffload(), {enabled:0}),
+				_safeCall(callGetFlowOffload(), {enabled:0}),
+				_safeCall(callGetApModeOffload(), {enabled:0})
+			]).then(L.bind(function(d) {
 				injectCSS();
 				var st=d[0]||{}, ppe=d[1]||{}, ti=d[2]||{}, fe=d[3]||{};
 				var vo=d[4]||{enabled:0}, ppo=d[5]||{enabled:0}, flo=d[6]||{enabled:0};
 				var apo=d[7]||{enabled:0};
 				var entries = Array.isArray(ppe.entries)?ppe.entries:[];
 
-				updateFreqBar(st.cpu_hw_freq,st.cpu_min_freq,st.cpu_max_freq,st.pll_freq_mhz,st.cpu_governor);
-				var gs=document.getElementById('cpu-governor-select'); if(gs&&!gs.matches(':focus')) gs.value=st.cpu_governor||'';
-				var fs=document.getElementById('cpu-maxfreq-select'); if(fs&&!fs.matches(':focus')) fs.value=(st.cpu_max_freq||0).toString();
+				// CPU info — always re-render (just text spans, no user interaction)
+				var ci = document.getElementById('cpu-info-content');
+				if (ci) { ci.innerHTML = ''; buildCpuInfoContent(st).forEach(function(el) { if (el) ci.appendChild(el); }); }
+
+				// Freq bar — update in-place if elements exist, otherwise re-render container
+				var freqText = document.getElementById('cpu-freq-text');
+				if (freqText) {
+					updateFreqBar(st.cpu_hw_freq,st.cpu_min_freq,st.cpu_max_freq,st.pll_freq_mhz,st.cpu_governor);
+				} else {
+					var fc = document.getElementById('cpu-freq-content');
+					if (fc) { fc.innerHTML = ''; fc.appendChild(renderFreqBar(st.cpu_hw_freq,st.cpu_min_freq,st.cpu_max_freq,st.pll_freq_mhz,st.cpu_governor)); }
+				}
+
+				// Control settings — update values if selects exist, otherwise re-render container
+				var gs = document.getElementById('cpu-governor-select');
+				if (gs) {
+					if (!gs.matches(':focus')) gs.value = st.cpu_governor || '';
+					var fs = document.getElementById('cpu-maxfreq-select');
+					if (fs && !fs.matches(':focus')) fs.value = (st.cpu_max_freq || 0).toString();
+				} else {
+					var cc = document.getElementById('cpu-control-content');
+					if (cc) { cc.innerHTML = ''; cc.appendChild(buildControlSettingsContent(st)); }
+				}
 
 				var se=document.getElementById('npu-status');
 				if(se){se.innerHTML='';var sp=document.createElement('span');sp.className='offload-badge '+(st.npu_loaded?'offload-on':'offload-off');sp.textContent=st.npu_loaded?_('Activated'):_('Not Activated');se.appendChild(sp);if(st.npu_loaded&&st.npu_device){var dp=document.createElement('span');dp.textContent=' ('+st.npu_device+')';se.appendChild(dp);}}
+
+				var npuInfo=document.getElementById('npu-info');
+				if(npuInfo) npuInfo.textContent=(st.npu_version||'N/A')+' | '+(st.npu_clock?(st.npu_clock/1e6).toFixed(0)+' MHz':'N/A')+' | '+(st.npu_cores||0)+' cores';
+
+				var npuMem=document.getElementById('npu-memory');
+				if(npuMem){var memR2=Array.isArray(st.memory_regions)?st.memory_regions:[];npuMem.textContent=calcTotalMem(memR2)+' ('+memR2.length+' regions)';}
 
 				function _updateOffload(selectId, badgeId, on) {
 					var sel = document.getElementById(selectId);
@@ -571,12 +631,19 @@ return view.extend({
 				_updateOffload('flow-offload-select', 'flow-offload-badge', flo.enabled);
 				_updateOffload('apmode-offload-select', 'apmode-offload-badge', apo.enabled);
 
-				var fc=document.getElementById('fe-container'); if(fc){fc.innerHTML='';fc.appendChild(renderFeDiagram(fe, ti, st));}
+				var fcEl=document.getElementById('fe-container'); if(fcEl){fcEl.innerHTML='';fcEl.appendChild(renderFeDiagram(fe, ti, st));}
 
 				var tb=document.getElementById('ppe-entries-table');
 				if(tb){while(tb.rows.length>1)tb.deleteRow(1);renderPpeRows(entries).forEach(function(r){tb.appendChild(r);});}
-			},this));
-		},this), 5);
+			},this)).catch(function(err) {
+				console.error('[airoha_npu] fetchData error:', err);
+			});
+		}, this);
+
+		// Fetch data immediately (page shows with defaults, then updates)
+		fetchData();
+		// Poll for periodic updates
+		poll.add(fetchData, 5);
 
 		return view;
 	},

@@ -42,26 +42,32 @@ get_status() {
 	local offload_bound=$(cat /sys/kernel/debug/ppe/bind 2>/dev/null | grep -c "^[0-9a-fA-F]")
 	local offload_total=$(cat /sys/kernel/debug/ppe/entries 2>/dev/null | grep -c "^[0-9a-fA-F]")
 
-	local mem_info=$(dmesg | grep "reserved mem.*npu" | head -4)
+	# NPU memory regions don't change after boot — cache to avoid slow dmesg on every poll
+	local mem_cache="/tmp/npu-mem-regions.json"
 	local regions="[]"
-
-	if [ -n "$mem_info" ]; then
-		regions=$(echo "$mem_info" | awk '
-		BEGIN { printf "[" }
-		{
-			if (NR > 1) printf ","
-			match($0, /0x[0-9a-fA-F]+\.\.0x[0-9a-fA-F]+/)
-			range = substr($0, RSTART, RLENGTH)
-			split(range, a, "\\.\\.")
-			match($0, /\([0-9]+ [KMG]i?B\)/)
-			size = substr($0, RSTART+1, RLENGTH-2)
-			match($0, /non-reusable [^ ]+/)
-			name = substr($0, RSTART+13)
-			gsub(/@.*/, "", name)
-			printf "{\"name\":\"%s\",\"start\":\"%s\",\"end\":\"%s\",\"size\":\"%s\"}", name, a[1], a[2], size
-		}
-		END { printf "]" }
-		')
+	if [ -f "$mem_cache" ]; then
+		regions=$(cat "$mem_cache" 2>/dev/null)
+	else
+		local mem_info=$(dmesg 2>/dev/null | grep "reserved mem.*npu" | head -4)
+		if [ -n "$mem_info" ]; then
+			regions=$(echo "$mem_info" | awk '
+			BEGIN { printf "[" }
+			{
+				if (NR > 1) printf ","
+				match($0, /0x[0-9a-fA-F]+\.\.0x[0-9a-fA-F]+/)
+				range = substr($0, RSTART, RLENGTH)
+				split(range, a, "\\.\\.")
+				match($0, /\([0-9]+ [KMG]i?B\)/)
+				size = substr($0, RSTART+1, RLENGTH-2)
+				match($0, /non-reusable [^ ]+/)
+				name = substr($0, RSTART+13)
+				gsub(/@.*/, "", name)
+				printf "{\"name\":\"%s\",\"start\":\"%s\",\"end\":\"%s\",\"size\":\"%s\"}", name, a[1], a[2], size
+			}
+			END { printf "]" }
+			')
+		fi
+		echo "$regions" > "$mem_cache" 2>/dev/null
 	fi
 
 	# === CPU Frequency Status ===
@@ -318,12 +324,57 @@ set_overclock() {
 		return
 	fi
 
-	# Validate range (500-1600, crash likely above 1500 at stock voltage)
+	# Validate range (500-1600, crash likely above 1200 at stock voltage)
 	if [ "$target_mhz" -lt 500 ] || [ "$target_mhz" -gt 1600 ]; then
 		echo '{"error":"frequency must be 500-1600 MHz"}'
 		return
 	fi
 
+	# Round to nearest 50 MHz step (PLL granularity)
+	target_mhz=$(( (target_mhz + 25) / 50 * 50 ))
+
+	local cpufreq_path="/sys/devices/system/cpu/cpufreq/policy0"
+
+	# Read current PLL frequency from hardware to detect if we're already overclocked
+	local cur_pll_mhz=0
+	if command -v devmem > /dev/null 2>&1; then
+		local _pcw=$(($(devmem 0x1fa202b4 2>/dev/null)))
+		local _chg=$(($(devmem 0x1fa202b8 2>/dev/null)))
+		local _pcw_int=$(( (_pcw >> 24) & 0x7F ))
+		local _posdiv=$(( (_chg >> 4) & 7 ))
+		if [ "$_posdiv" -eq 0 ]; then
+			cur_pll_mhz=$((_pcw_int * 50))
+		else
+			cur_pll_mhz=$((_pcw_int * 50 / (1 << _posdiv)))
+		fi
+	fi
+
+	# For frequencies within the OPP table (<=1200 MHz), try the kernel
+	# cpufreq interface first. This ensures BL31/SMC handles voltage adjustment
+	# and the PLL switch is atomic (local_irq_save/restore in kernel driver).
+	# However, if the PLL was directly modified (overclocked >1200), the cpufreq
+	# driver's state is out of sync and won't actually reprogram the PLL.
+	# In that case, fall through to direct PLL programming.
+	if [ "$target_mhz" -le 1200 ] && [ "$cur_pll_mhz" -le 1200 ]; then
+		local freq_khz=$((target_mhz * 1000))
+		local avail=$(cat "$cpufreq_path/scaling_available_frequencies" 2>/dev/null)
+		if echo "$avail" | grep -qw "$freq_khz"; then
+			echo performance > "$cpufreq_path/scaling_governor" 2>/dev/null
+			echo "$freq_khz" > "$cpufreq_path/scaling_max_freq" 2>/dev/null
+			if [ $? -eq 0 ]; then
+				printf '{"result":"ok","target_mhz":%d,"actual_mhz":%d,"method":"cpufreq","warning":""}' \
+					"$target_mhz" "$target_mhz"
+				return
+			fi
+		fi
+	fi
+
+	# --- Direct PLL programming ---
+	# Used for frequencies > 1200 MHz, or when restoring from an overclock
+	# (cpufreq driver state is out of sync with hardware PLL).
+	# WARNING: For >1200 MHz, this bypasses BL31, so NO voltage adjustment.
+	# The kernel driver uses local_irq_save/restore for atomicity; we cannot
+	# do this from userspace, so interrupt races are also possible.
 	if ! command -v devmem > /dev/null 2>&1; then
 		echo '{"error":"devmem not available"}'
 		return
@@ -340,7 +391,7 @@ set_overclock() {
 	fi
 
 	# Lock governor to performance to prevent cpufreq from fighting
-	echo performance > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor 2>/dev/null
+	echo performance > "$cpufreq_path/scaling_governor" 2>/dev/null
 
 	# Read current register values
 	local cur_clkmux=$(($(devmem 0x1fa201e0)))
@@ -372,8 +423,11 @@ set_overclock() {
 		devmem 0x1fa202b8 32 $(printf "0x%08X" $((cleared | (posdiv << 4) | 1)))
 	fi
 
-	# Step 6: Wait for PLL lock
-	sleep 0.02
+	# Step 6: Wait for PLL lock (kernel uses udelay(20) = 20us)
+	# busybox sleep does not support fractional seconds, so use a busy-wait loop.
+	# The natural delay between devmem process invocations is already >1ms,
+	# which is far more than the ~20us the kernel waits, but add this as safety.
+	local _i=0; while [ "$_i" -lt 2000 ]; do _i=$((_i+1)); done
 
 	# Step 7: Enable ARMPLL path in CLK_MUX (set bit 0)
 	local cur_clkmux2=$(($(devmem 0x1fa201e0)))
@@ -405,8 +459,33 @@ set_overclock() {
 		read_freq=$((read_pcw * 50 / (1 << read_posdiv)))
 	fi
 
-	printf '{"result":"ok","target_mhz":%d,"actual_mhz":%d,"pcw":%d,"posdiv":%d}' \
-		"$target_mhz" "$read_freq" "$read_pcw" "$read_posdiv"
+	# Include warning for above-stock frequencies
+	local warning=""
+	if [ "$target_mhz" -gt 1200 ]; then
+		warning="No voltage adjustment (bypasses BL31). System may crash or reboot."
+	fi
+
+	# If target is within OPP table, sync cpufreq driver state so the governor
+	# and scaling_max_freq are aware of the new frequency. This is essential
+	# when restoring from an overclock (e.g., 1400→1200) because the cpufreq
+	# driver's internal state was out of sync with the hardware PLL.
+	if [ "$target_mhz" -le 1200 ]; then
+		local freq_khz=$((target_mhz * 1000))
+		local avail=$(cat "$cpufreq_path/scaling_available_frequencies" 2>/dev/null)
+		if echo "$avail" | grep -qw "$freq_khz"; then
+			echo "$freq_khz" > "$cpufreq_path/scaling_max_freq" 2>/dev/null
+			echo "$freq_khz" > "$cpufreq_path/scaling_min_freq" 2>/dev/null
+			# Force governor to re-evaluate by toggling
+			echo userspace > "$cpufreq_path/scaling_governor" 2>/dev/null
+			echo "$freq_khz" > "$cpufreq_path/scaling_setspeed" 2>/dev/null
+			echo performance > "$cpufreq_path/scaling_governor" 2>/dev/null
+			# Restore min to stock 500 MHz
+			echo 500000 > "$cpufreq_path/scaling_min_freq" 2>/dev/null
+		fi
+	fi
+
+	printf '{"result":"ok","target_mhz":%d,"actual_mhz":%d,"pcw":%d,"posdiv":%d,"method":"direct_pll","warning":"%s"}' \
+		"$target_mhz" "$read_freq" "$read_pcw" "$read_posdiv" "$warning"
 }
 
 get_frame_engine() {
@@ -555,15 +634,13 @@ set_flow_offload() {
 }
 
 get_apmode_offload() {
-	# AP mode acceleration requires:
-	# 1. Firewall default forward policy = ACCEPT
-	# 2. bridge-nf-call-iptables = 1
-	# 3. bridge-nf-call-ip6tables = 1
-	local fwd ipt ip6t
+	# AP mode acceleration status: forward=ACCEPT AND bridge-nf-call all disabled
+	local fwd ipt ip6t arp
 	fwd=$(uci get firewall.@defaults[0].forward 2>/dev/null)
 	ipt=$(cat /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null)
 	ip6t=$(cat /proc/sys/net/bridge/bridge-nf-call-ip6tables 2>/dev/null)
-	if [ "$fwd" = "ACCEPT" ] && [ "$ipt" = "1" ] && [ "$ip6t" = "1" ]; then
+	arp=$(cat /proc/sys/net/bridge/bridge-nf-call-arptables 2>/dev/null)
+	if [ "$fwd" = "ACCEPT" ] && [ "$ipt" = "0" ] && [ "$ip6t" = "0" ] && [ "$arp" = "0" ]; then
 		printf '{"enabled":1}'
 	else
 		printf '{"enabled":0}'
@@ -578,10 +655,14 @@ set_apmode_offload() {
 		echo '{"error":"enabled must be 0 or 1"}'
 		return
 	fi
-	# Load bridge module if needed
-	if [ "$enabled" = "1" ]; then
-		modprobe bridge 2>/dev/null
-	fi
+
+	# Always force bridge-nf-call-* to 0 (never write 1).
+	# These sysctls are incompatible with NPU/PPE hardware offload and break WiFi.
+	# Opening AP mode = re-assert they are disabled; closing = also keep them disabled.
+	echo 0 > /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null
+	echo 0 > /proc/sys/net/bridge/bridge-nf-call-ip6tables 2>/dev/null
+	echo 0 > /proc/sys/net/bridge/bridge-nf-call-arptables 2>/dev/null
+
 	# Set firewall forward policy
 	if [ "$enabled" = "1" ]; then
 		uci set firewall.@defaults[0].forward="ACCEPT" 2>/dev/null
@@ -589,12 +670,10 @@ set_apmode_offload() {
 		uci set firewall.@defaults[0].forward="DROP" 2>/dev/null
 	fi
 	uci commit firewall 2>/dev/null
-	# Set bridge-nf-call sysctls
-	echo "$enabled" > /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null
-	echo "$enabled" > /proc/sys/net/bridge/bridge-nf-call-ip6tables 2>/dev/null
-	# Persist via sysctl.conf
-	echo "net.bridge.bridge-nf-call-iptables=$enabled" > /etc/sysctl.d/12-apmode-offload.conf
-	echo "net.bridge.bridge-nf-call-ip6tables=$enabled" >> /etc/sysctl.d/12-apmode-offload.conf
+
+	# Clean up any stale sysctl config from previous versions
+	rm -f /etc/sysctl.d/12-apmode-offload.conf 2>/dev/null
+
 	# Restart firewall to apply forward policy
 	/etc/init.d/firewall restart 2>/dev/null &
 	printf '{"result":"ok","enabled":%d}' "$enabled"

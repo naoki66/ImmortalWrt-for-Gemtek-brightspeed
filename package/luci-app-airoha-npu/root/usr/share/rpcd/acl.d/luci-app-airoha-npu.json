@@ -11,8 +11,10 @@
 				"/sys/devices/system/cpu/cpufreq/policy0/*": [ "read" ],
 				"/sys/kernel/debug/ieee80211/*/mt76/token_info": [ "read" ],
 				"/proc/sys/net/bridge/bridge-nf-filter-vlan-tagged": [ "read" ],
+				"/proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged": [ "read" ],
 				"/proc/sys/net/bridge/bridge-nf-call-iptables": [ "read" ],
 				"/proc/sys/net/bridge/bridge-nf-call-ip6tables": [ "read" ],
+				"/proc/sys/net/bridge/bridge-nf-call-arptables": [ "read" ],
 				"/proc/sys/net/netfilter/nf_conntrack_pptp_helper": [ "read" ]
 			}
 		},
@@ -26,10 +28,11 @@
 				"/sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq": [ "write" ],
 				"/dev/mem": [ "read", "write" ],
 				"/proc/sys/net/bridge/bridge-nf-filter-vlan-tagged": [ "write" ],
+				"/proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged": [ "write" ],
 				"/proc/sys/net/bridge/bridge-nf-call-iptables": [ "write" ],
 				"/proc/sys/net/bridge/bridge-nf-call-ip6tables": [ "write" ],
+				"/proc/sys/net/bridge/bridge-nf-call-arptables": [ "write" ],
 				"/proc/sys/net/netfilter/nf_conntrack_pptp_helper": [ "write" ],
-				"/etc/sysctl.d/12-apmode-offload.conf": [ "write" ],
 				"/etc/sysctl.d/14-vlan-offload.conf": [ "write" ],
 				"/etc/sysctl.d/13-pppoe-offload.conf": [ "write" ]
 			}
