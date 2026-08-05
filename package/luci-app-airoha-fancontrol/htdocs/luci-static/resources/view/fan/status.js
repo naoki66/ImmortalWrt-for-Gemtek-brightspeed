@@ -80,11 +80,13 @@ function updateFanGauge(rpm, percentage) {
 
 return view.extend({
 	load: function() {
-		return callFanStatus();
+		// Progressive rendering: don't block on RPC call, let the page render immediately
+		return Promise.resolve([]);
 	},
 
-	render: function(status) {
-		status = status || {};
+	render: function(data) {
+		data = data || {};
+		var status = data || {};
 		var modeClass = status.fan_mode === 2 ? 'label-success' : 'label-warning';
 		var modeText = this.getModeText(status.uci_mode);
 		var presetText = this.getPresetText(status.uci_mode, status.uci_preset);
@@ -129,7 +131,8 @@ return view.extend({
 			])
 		]);
 
-		poll.add(L.bind(function() {
+		// Data fetch + DOM update function — called immediately and via poll
+		var fetchData = L.bind(function() {
 			return callFanStatus().then(L.bind(function(status) {
 				status = status || {};
 				updateGauge('temp-cpu', status.temp_cpu || 0);
@@ -150,7 +153,12 @@ return view.extend({
 					presetEl.textContent = this.getPresetText(status.uci_mode, status.uci_preset);
 				}
 			}, this));
-		}, this), 3);
+		}, this);
+
+		// Fetch data immediately (page shows with defaults, then updates)
+		fetchData();
+		// Poll for periodic updates
+		poll.add(fetchData, 3);
 
 		return viewEl;
 	},

@@ -45,7 +45,26 @@ find_phy_hwmon() {
 	echo ""
 }
 
-HWMON=$(find_nct7802)
+# Cache hwmon paths — they don't change after boot, avoid scanning on every RPC call
+_HWMON_CACHE="/tmp/fan-hwmon-cache.sh"
+if [ -f "$_HWMON_CACHE" ]; then
+	. "$_HWMON_CACHE"
+else
+	HWMON=$(find_nct7802)
+	PHY1_HWMON=$(find_phy_hwmon ":05")
+	PHY2_HWMON=$(find_phy_hwmon ":08")
+	WIFI_24G_HWMON=$(find_mt7996_hwmon 0)
+	WIFI_5G_HWMON=$(find_mt7996_hwmon 1)
+	WIFI_6G_HWMON=$(find_mt7996_hwmon 2)
+	cat > "$_HWMON_CACHE" 2>/dev/null <<EOF
+HWMON="$HWMON"
+PHY1_HWMON="$PHY1_HWMON"
+PHY2_HWMON="$PHY2_HWMON"
+WIFI_24G_HWMON="$WIFI_24G_HWMON"
+WIFI_5G_HWMON="$WIFI_5G_HWMON"
+WIFI_6G_HWMON="$WIFI_6G_HWMON"
+EOF
+fi
 
 read_temp() {
 	local file="$1"
@@ -73,10 +92,8 @@ get_status() {
 	temp_cpu=$(read_temp "/sys/class/thermal/thermal_zone0/temp")
 	temp_board=$(read_temp "${HWMON}/temp1_input")
 
-	local phy1_hwmon=$(find_phy_hwmon ":05")
-	local phy2_hwmon=$(find_phy_hwmon ":08")
-	temp_phy1=$([ -n "$phy1_hwmon" ] && read_temp "$phy1_hwmon/temp1_input" || echo 0)
-	temp_phy2=$([ -n "$phy2_hwmon" ] && read_temp "$phy2_hwmon/temp1_input" || echo 0)
+	temp_phy1=$([ -n "$PHY1_HWMON" ] && read_temp "$PHY1_HWMON/temp1_input" || echo 0)
+	temp_phy2=$([ -n "$PHY2_HWMON" ] && read_temp "$PHY2_HWMON/temp1_input" || echo 0)
 
 	fan_rpm=$(read_value "${HWMON}/fan1_input")
 	fan_pwm=$(read_value "${HWMON}/pwm1")
@@ -84,12 +101,9 @@ get_status() {
 	fan_percentage=$((fan_pwm * 100 / 255))
 
 	local wifi_24g=0 wifi_5g=0 wifi_6g=0
-	local wifi_24g_hwmon=$(find_mt7996_hwmon 0)
-	local wifi_5g_hwmon=$(find_mt7996_hwmon 1)
-	local wifi_6g_hwmon=$(find_mt7996_hwmon 2)
-	[ -n "$wifi_24g_hwmon" ] && wifi_24g=$(read_temp "$wifi_24g_hwmon/temp1_input")
-	[ -n "$wifi_5g_hwmon" ] && wifi_5g=$(read_temp "$wifi_5g_hwmon/temp1_input")
-	[ -n "$wifi_6g_hwmon" ] && wifi_6g=$(read_temp "$wifi_6g_hwmon/temp1_input")
+	[ -n "$WIFI_24G_HWMON" ] && wifi_24g=$(read_temp "$WIFI_24G_HWMON/temp1_input")
+	[ -n "$WIFI_5G_HWMON" ] && wifi_5g=$(read_temp "$WIFI_5G_HWMON/temp1_input")
+	[ -n "$WIFI_6G_HWMON" ] && wifi_6g=$(read_temp "$WIFI_6G_HWMON/temp1_input")
 
 	local uci_mode=$(uci -q get fan.settings.mode || echo "auto")
 	local uci_preset=$(uci -q get fan.settings.curve_preset || echo "balanced")
