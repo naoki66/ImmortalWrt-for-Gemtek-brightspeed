@@ -1,0 +1,18 @@
+From: Peter Chiu <chui-hao.chiu@mediatek.com>
+Date: Mon, 13 Feb 2023 11:03:53 +0800
+Subject: [PATCH] hostapd: mtk: 6G band does not require DFS
+
+The 6GHz band does not require DFS scanning. Skip the DFS check for
+6GHz frequencies to avoid unnecessary channel availability checks
+on 6GHz AP interfaces.
+
+--- a/src/ap/dfs.c
++++ b/src/ap/dfs.c
+@@ -1561,6 +1561,7 @@ int hostapd_is_dfs_required(struct hosta
+ 	if ((!(iface->drv_flags & WPA_DRIVER_FLAGS_DFS_OFFLOAD) &&
+ 	     !iface->conf->ieee80211h) ||
+ 	    !iface->current_mode ||
++	    is_6ghz_freq(iface->freq) ||
+ 	    iface->current_mode->mode != HOSTAPD_MODE_IEEE80211A)
+ 		return 0;
+ 

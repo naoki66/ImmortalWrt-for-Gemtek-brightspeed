@@ -1,0 +1,34 @@
+From: Chad Monroe <chad@monroe.io>
+Date: Mon, 24 Nov 2025 14:36:47 -0800
+Subject: [PATCH] hostapd: allow config EHT 320MHz rate
+
+Fix the ordering of CONF_OPER_CHWIDTH_320MHZ in the oper_chan_width enum.
+The first five values (0-4) are used in hostapd.conf and must maintain
+their defined values. 320MHz was placed after 8640MHz instead of as
+the 5th value, making it impossible to configure 320MHz channel width
+via hostapd.conf.
+
+--- a/src/common/defs.h
++++ b/src/common/defs.h
+@@ -481,19 +481,19 @@ enum chan_width {
+ };
+ 
+ /* VHT/EDMG/etc. channel widths
+- * Note: The first four values are used in hostapd.conf and as such, must
++ * Note: The first five values are used in hostapd.conf and as such, must
+  * maintain their defined values. Other values are used internally. */
+ enum oper_chan_width {
+ 	CONF_OPER_CHWIDTH_USE_HT = 0,
+ 	CONF_OPER_CHWIDTH_80MHZ = 1,
+ 	CONF_OPER_CHWIDTH_160MHZ = 2,
+ 	CONF_OPER_CHWIDTH_80P80MHZ = 3,
++	CONF_OPER_CHWIDTH_320MHZ = 4,
+ 	CONF_OPER_CHWIDTH_2160MHZ,
+ 	CONF_OPER_CHWIDTH_4320MHZ,
+ 	CONF_OPER_CHWIDTH_6480MHZ,
+ 	CONF_OPER_CHWIDTH_8640MHZ,
+ 	CONF_OPER_CHWIDTH_40MHZ_6GHZ,
+-	CONF_OPER_CHWIDTH_320MHZ,
+ };
+ 
+ enum key_flag {
