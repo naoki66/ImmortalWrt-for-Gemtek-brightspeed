@@ -50,7 +50,7 @@ msgid "HW BUFFER"
 msgstr "硬件缓冲"
 
 msgid "INTEGRITY"
-msgstr "完整性"
+msgstr "信号质量"
 
 msgid "LATENCY"
 msgstr "延迟"
@@ -242,3 +242,25 @@ msgstr "设置 VLAN 加速失败"
 
 msgid "failed to set PPPoE offload"
 msgstr "设置 PPPoE 加速失败"
+
+msgid "MODE detecting..."
+msgstr "MODE 探测中..."
+
+# Compass card titles (mixed case)
+msgid "NPU Path"
+msgstr "NPU 路径"
+
+msgid "Integrity"
+msgstr "信号质量"
+
+msgid "Latency"
+msgstr "延迟"
+
+msgid "HW Buffer"
+msgstr "硬件缓冲"
+
+msgid "ERROR"
+msgstr "错误"
+
+msgid "ERRORS"
+msgstr "错误"

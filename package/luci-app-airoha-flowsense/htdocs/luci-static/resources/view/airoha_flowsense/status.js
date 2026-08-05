@@ -378,7 +378,7 @@ function buildTachoInner(ppe, cs, mode) {
 	var unbLit = Math.min(TICKS, Math.round((unbTot / UNB_SCALE) * TICKS));
 
 	var modeText   = mode === 'ap' ? 'AP MODE' : 'ROUTER';
-	var statusText = cs.npuActive ? 'HW ACCELERATED' : (cs.hwEnabled ? 'NPU IDLE' : 'CPU PATH');
+	var statusText = cs.npuActive ? _('HW ACCELERATED') : (cs.hwEnabled ? _('NPU IDLE') : _('CPU PATH'));
 	var statusCol  = cs.npuActive ? '#00c8ff' : (cs.hwEnabled ? '#888' : '#ff6b35');
 	var bndColor   = bndTot > 0 ? '#00c8ff' : 'var(--soc-muted)';
 	var unbColor   = unbTot > 0 ? '#ff9800' : 'var(--soc-muted)';
@@ -578,14 +578,19 @@ function latencyColor(ms) {
 
 /* ── Mode Banner ── */
 function renderModeBanner(dm) {
-	var mode = dm.mode || 'router';
+	var mode = dm.mode || '';
 	var reason = dm.reason || '';
-	var reasonMap = { dhcp_disabled: 'DHCP disabled in UCI', no_wan: 'No WAN IP detected', local_gateway: 'Local gateway detected' };
+	if (!mode) {
+		return E('div', { 'class': 'mode-banner', 'id': 'mode-banner' }, [
+			E('span', { 'class': 'soc-muted', 'style': 'font-size:12px' }, _('MODE detecting...'))
+		]);
+	}
+	var reasonMap = { dhcp_disabled: _('DHCP disabled in UCI'), no_wan: _('No WAN IP detected'), local_gateway: _('Local gateway detected') };
 	var reasonText = reasonMap[reason] || '';
-	return E('div', { 'class': 'mode-banner' }, [
+	return E('div', { 'class': 'mode-banner', 'id': 'mode-banner' }, [
 		E('span', { 'class': 'mode-badge ' + (mode==='ap' ? 'mode-ap' : 'mode-router') },
-			mode === 'ap' ? 'AP MODE' : 'ROUTER MODE'),
-		E('span', { 'class': 'soc-muted', 'style': 'font-size:12px' }, 'Auto-detected' + (reasonText ? ' \u2014 '+reasonText : '')),
+			mode === 'ap' ? _('AP MODE') : _('ROUTER MODE')),
+		E('span', { 'class': 'soc-muted', 'style': 'font-size:12px' }, _('Auto-detected') + (reasonText ? ' \u2014 ' + reasonText : '')),
 		E('span', { 'id': 'mode-banner-status', 'style': 'margin-left:auto;font-size:12px;color:var(--soc-muted)' }, '')
 	]);
 }
@@ -778,10 +783,10 @@ function buildCompassSVG(cs, mode, ppe) {
 	// West: latency arc
 	'<path id="cp-arc-west" d="'+pWest+'" fill="none" stroke="'+cs.latColor+'" stroke-width="9" stroke-linecap="round" opacity="0.7"/>' +
 	// Quadrant labels — curved textPath following each arc
-	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" fill="#00c8ff"><textPath href="#tp-north" startOffset="50%" text-anchor="middle">NPU PATH</textPath></text>' +
-	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" id="cp-lbl-south"><textPath href="#tp-south" startOffset="50%" text-anchor="middle">HW BUFFER</textPath></text>' +
-	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" id="cp-lbl-east"><textPath href="#tp-east"  startOffset="50%" text-anchor="middle">INTEGRITY</textPath></text>' +
-	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" id="cp-lbl-west"><textPath href="#tp-west"  startOffset="50%" text-anchor="middle">LATENCY</textPath></text>' +
+	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" fill="#00c8ff"><textPath href="#tp-north" startOffset="50%" text-anchor="middle">' + _('NPU PATH') + '</textPath></text>' +
+	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" id="cp-lbl-south"><textPath href="#tp-south" startOffset="50%" text-anchor="middle">' + _('HW BUFFER') + '</textPath></text>' +
+	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" id="cp-lbl-east"><textPath href="#tp-east"  startOffset="50%" text-anchor="middle">' + _('INTEGRITY') + '</textPath></text>' +
+	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" id="cp-lbl-west"><textPath href="#tp-west"  startOffset="50%" text-anchor="middle">' + _('LATENCY') + '</textPath></text>' +
 	// Latency needle
 	'<line id="cp-needle" x1="150" y1="150" x2="'+tip[0].toFixed(1)+'" y2="'+tip[1].toFixed(1)+'" stroke="'+cs.latColor+'" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>' +
 	'<circle id="cp-needle-pivot" cx="150" cy="150" r="4" fill="'+cs.latColor+'" opacity="0.9"/>' +
@@ -826,6 +831,16 @@ function updateCompassSVG(cs, mode, ppe) {
 	sa('cp-needle',       'stroke',cs.latColor);
 	sa('cp-needle-pivot', 'fill',  cs.latColor);
 	sa('cp-lbl-south',    'fill',  cs.hwBuf.color);
+
+	// Update compass label text (translations may not be ready during initial render)
+	var cpText = document.getElementById('cp-lbl-north');
+	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = _('NPU PATH'); }
+	cpText = document.getElementById('cp-lbl-south');
+	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = _('HW BUFFER'); }
+	cpText = document.getElementById('cp-lbl-east');
+	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = _('INTEGRITY'); }
+	cpText = document.getElementById('cp-lbl-west');
+	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = _('LATENCY'); }
 	sa('cp-lbl-west',     'fill',  cs.latColor);
 	sa('cp-lbl-east',     'fill',  cs.eastColor);
 
@@ -859,7 +874,7 @@ function buildCpuNpuTacho(cs, ppe, st, ti) {
 
 	// Colours
 	var npuStatusCol = cs.npuActive ? '#00c8ff' : (cs.hwEnabled ? '#888' : '#ff6b35');
-	var npuStatus    = cs.npuActive ? 'HW ACCELERATED' : (cs.hwEnabled ? 'NPU IDLE' : 'CPU PATH');
+	var npuStatus    = cs.npuActive ? _('HW ACCELERATED') : (cs.hwEnabled ? _('NPU IDLE') : _('CPU PATH'));
 	var npuColor     = offloadPct > 60 ? '#00c8ff' : offloadPct > 30 ? '#f5a623' : '#888';
 
 	var TICKS = 90;
@@ -1270,7 +1285,7 @@ function renderCompassCards(cs, bypass, jitter, wan, wifi, bridge, mode) {
 	var rawBridgeDrops = bridge.tx_dropped || 0;
 	var bridgeDelta = (_prevBridgeDrops !== null && rawBridgeDrops >= _prevBridgeDrops) ? (rawBridgeDrops - _prevBridgeDrops) : 0;
 	_prevBridgeDrops = rawBridgeDrops;
-	var northVal   = cs.npuActive ? 'ACTIVE' : (cs.hwEnabled ? 'IDLE' : 'CPU PATH');
+	var northVal   = cs.npuActive ? _('ACTIVE') : (cs.hwEnabled ? _('IDLE') : _('CPU PATH'));
 	var northColor = cs.npuActive ? '#00c8ff' : (cs.hwEnabled ? '#888' : '#ff6b35');
 	var northSub   = mode === 'ap'
 		? 'CPU: '+cs.cpuPct+'%  |  Bridge drops Δ: '+bridgeDelta
@@ -1279,15 +1294,15 @@ function renderCompassCards(cs, bypass, jitter, wan, wifi, bridge, mode) {
 	// East card: Integrity
 	var eastVal, eastSub;
 	if (mode === 'router') {
-		eastVal = cs.eastAlarm ? cs.errCount+' ERROR'+(cs.errCount>1?'S':'') : 'CLEAN';
+		eastVal = cs.eastAlarm ? cs.errCount+' '+_('ERROR')+(cs.errCount>1?'S':'') : _('CLEAN');
 		eastSub = 'RX errors: '+(wan.rx_errors||0)+'  TX errors: '+(wan.tx_errors||0);
 	} else {
 		var ws = cs.worstSignal;
-		eastVal = cs.wbDelta.length === 0 ? 'NO CLIENTS'
-		        : ws === 0               ? 'NO DATA'
-		        : ws < -82               ? 'POOR'
-		        : ws < -75               ? 'WEAK'
-		        :                          'CLEAN';
+		eastVal = cs.wbDelta.length === 0 ? _('NO CLIENTS')
+		        : ws === 0               ? _('NO DATA')
+		        : ws < -82               ? _('POOR')
+		        : ws < -75               ? _('WEAK')
+		        :                          _('CLEAN');
 		var bnames = ['2.4G','5G','6G'];
 		eastSub = cs.wbDelta.length > 0
 			? 'Signal: '+cs.wbDelta.map(function(b){ return (bnames[b.band]||('B'+b.band))+': '+b.signal+' dBm'; }).join('  |  ')
@@ -1297,7 +1312,7 @@ function renderCompassCards(cs, bypass, jitter, wan, wifi, bridge, mode) {
 
 	// South card: HW Buffer Health
 	var hb = cs.hwBuf || {};
-	var southVal   = hb.activeDrop ? 'DROPPING' : 'HEALTHY';
+	var southVal   = hb.activeDrop ? _('DROPPING') : _('HEALTHY');
 	var southColor = hb.color || '#00cc44';
 	var southSub   = 'PSE Δ: '+hb.pseDelta+' CDM Δ: '+hb.cdmHwfDelta+' | PPE: '+hb.ppePct+'% BND ('+hb.ppeBound+'/'+hb.ppeTotal+')';
 
@@ -1315,10 +1330,10 @@ function renderCompassCards(cs, bypass, jitter, wan, wifi, bridge, mode) {
 	}
 
 	return E('div', { 'class': 'compass-cards', 'id': 'compass-cards' }, [
-		card('NPU Path',    northVal, northColor, northSub),
-		card('Integrity',   eastVal,  eastColor,  eastSub),
-		card('Latency',     latVal,   latColor,   latSub),
-		card('HW Buffer',   southVal, southColor, southSub)
+		card(_('NPU Path'),    northVal, northColor, northSub),
+		card(_('Integrity'),   eastVal,  eastColor,  eastSub),
+		card(_('Latency'),     latVal,   latColor,   latSub),
+		card(_('HW Buffer'),   southVal, southColor, southSub)
 	]);
 }
 
@@ -1341,25 +1356,25 @@ function updateCompassCards(cs, bypass, jitter, wan, wifi, bridge, mode) {
 	var bridgeDelta2 = (_prevBridgeDrops !== null && rawBridgeDrops2 >= _prevBridgeDrops) ? (rawBridgeDrops2 - _prevBridgeDrops) : 0;
 	_prevBridgeDrops = rawBridgeDrops2;
 
-	setCard(divs[0], cs.npuActive?'ACTIVE':(cs.hwEnabled?'IDLE':'CPU PATH'),
+	setCard(divs[0], cs.npuActive?_('ACTIVE'):(cs.hwEnabled?_('IDLE'):_('CPU PATH')),
 		cs.npuActive?'#00c8ff':(cs.hwEnabled?'#888':'#ff6b35'),
 		mode==='ap'
 			?'CPU: '+cs.cpuPct+'%  |  Bridge drops Δ: '+bridgeDelta2
 			:'CPU: '+cs.cpuPct+'%  |  WAN: '+cs.wanMbps+' Mbps');
 
 	if (mode === 'router') {
-		setCard(divs[1], cs.eastAlarm?cs.errCount+' ERROR'+(cs.errCount>1?'S':''):'CLEAN',
+		setCard(divs[1], cs.eastAlarm?cs.errCount+' '+_('ERROR')+(cs.errCount>1?'S':''):_('CLEAN'),
 			cs.eastColor,
 			'RX errors: '+(wan.rx_errors||0)+'  TX errors: '+(wan.tx_errors||0));
 	} else {
 		var ws2 = cs.worstSignal;
 		var bnames2 = ['2.4G','5G','6G'];
 		setCard(divs[1],
-			cs.wbDelta.length === 0 ? 'NO CLIENTS'
-			: ws2 === 0             ? 'NO DATA'
-			: ws2 < -82             ? 'POOR'
-			: ws2 < -75             ? 'WEAK'
-			:                         'CLEAN',
+			cs.wbDelta.length === 0 ? _('NO CLIENTS')
+			: ws2 === 0             ? _('NO DATA')
+			: ws2 < -82             ? _('POOR')
+			: ws2 < -75             ? _('WEAK')
+			:                         _('CLEAN'),
 			cs.eastColor,
 			cs.wbDelta.length > 0
 				? 'Signal: '+cs.wbDelta.map(function(b){ return (bnames2[b.band]||('B'+b.band))+': '+b.signal+' dBm'; }).join('  |  ')
@@ -1392,20 +1407,27 @@ function updateCompassCards(cs, bypass, jitter, wan, wifi, bridge, mode) {
 
 	var hb = cs.hwBuf || {};
 	setCard(divs[3],
-		hb.activeDrop?'DROPPING':'HEALTHY',
+		hb.activeDrop?_('DROPPING'):_('HEALTHY'),
 		hb.color||'#00cc44',
 		'PSE Δ: '+hb.pseDelta+' CDM Δ: '+hb.cdmHwfDelta+' | PPE: '+hb.ppePct+'% BND ('+hb.ppeBound+'/'+hb.ppeTotal+')');
+
+	// Update card titles (translations may not be ready during initial render)
+	var titleEl;
+	titleEl = divs[0].querySelector('.compass-card-title');
+	if (titleEl) titleEl.textContent = _('NPU Path');
+	titleEl = divs[1].querySelector('.compass-card-title');
+	if (titleEl) titleEl.textContent = _('Integrity');
+	titleEl = divs[2].querySelector('.compass-card-title');
+	if (titleEl) titleEl.textContent = _('Latency');
+	titleEl = divs[3].querySelector('.compass-card-title');
+	if (titleEl) titleEl.textContent = _('HW Buffer');
 }
 
 /* ── Main View ── */
 return view.extend({
 	load: function() {
-		// Progressive rendering: fetch device mode early for initial banner
-		return Promise.all([
-			callGetDeviceMode()
-		]).then(function(dmResult) {
-			return [dmResult[0]];
-		});
+		// Progressive rendering: don't block on RPC calls, let the page render immediately
+		return Promise.resolve([]);
 	},
 
 	render: function(data) {
@@ -1479,7 +1501,7 @@ return view.extend({
 			]).then(L.bind(function(d) {
 				injectCSS();
 				var st=d[0]||{}, ppe=d[1]||{}, ti=d[2]||{}, fe=d[3]||{};
-				var vo=d[4]||{}, txs=d[5]||{}, dm=d[0]||{};
+				var vo=d[4]||{}, txs=d[5]||{}, dm=d[6]||{};
 				var bypass=d[7]||{}, wan=d[8]||{};
 				var jitter=d[9]||{}, alertData=d[10]||{};
 				var wifi=d[11]||{}, bridge=d[12]||{};
@@ -1510,6 +1532,30 @@ return view.extend({
 				if (alertWrap) {
 					var fresh = renderConflictAlerts(alertData);
 					alertWrap.innerHTML = fresh.innerHTML;
+				}
+
+				// Mode banner
+				var mb = document.getElementById('mode-banner');
+				if (mb && dm.mode) {
+					var badge = mb.querySelector('.mode-badge');
+					if (badge) {
+						badge.className = 'mode-badge ' + (dm.mode === 'ap' ? 'mode-ap' : 'mode-router');
+						badge.textContent = dm.mode === 'ap' ? _('AP MODE') : _('ROUTER MODE');
+					} else {
+						badge = document.createElement('span');
+						badge.className = 'mode-badge ' + (dm.mode === 'ap' ? 'mode-ap' : 'mode-router');
+						badge.textContent = dm.mode === 'ap' ? _('AP MODE') : _('ROUTER MODE');
+						mb.insertBefore(badge, mb.firstChild);
+					}
+					var sub = mb.querySelector('.soc-muted');
+					if (sub) {
+						var reasonMap = {};
+						reasonMap.dhcp_disabled = _('DHCP disabled in UCI');
+						reasonMap.no_wan = _('No WAN IP detected');
+						reasonMap.local_gateway = _('Local gateway detected');
+						var reasonText = reasonMap[dm.reason] || '';
+						sub.textContent = 'Auto-detected' + (reasonText ? ' \u2014 ' + reasonText : '');
+					}
 				}
 
 				// Offload status badges
