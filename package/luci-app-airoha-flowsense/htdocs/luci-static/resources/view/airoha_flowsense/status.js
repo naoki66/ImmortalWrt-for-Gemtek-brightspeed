@@ -582,7 +582,7 @@ function renderModeBanner(dm) {
 	var reason = dm.reason || '';
 	var reasonMap = { dhcp_disabled: 'DHCP disabled in UCI', no_wan: 'No WAN IP detected', local_gateway: 'Local gateway detected' };
 	var reasonText = reasonMap[reason] || '';
-	return E('div', { 'class': 'mode-banner', 'id': 'mode-banner' }, [
+	return E('div', { 'class': 'mode-banner' }, [
 		E('span', { 'class': 'mode-badge ' + (mode==='ap' ? 'mode-ap' : 'mode-router') },
 			mode === 'ap' ? 'AP MODE' : 'ROUTER MODE'),
 		E('span', { 'class': 'soc-muted', 'style': 'font-size:12px' }, 'Auto-detected' + (reasonText ? ' \u2014 '+reasonText : '')),
@@ -1506,13 +1506,6 @@ return view.extend({
 				if (alertWrap) {
 					var fresh = renderConflictAlerts(alertData);
 					alertWrap.innerHTML = fresh.innerHTML;
-				}
-
-				// Mode banner
-				var mb = document.getElementById('mode-banner');
-				if (mb) {
-					var newMb = renderModeBanner(dm);
-					mb.parentNode.replaceChild(newMb, mb);
 				}
 
 				// Offload status badges
