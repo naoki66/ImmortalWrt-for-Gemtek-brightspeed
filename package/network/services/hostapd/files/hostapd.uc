@@ -345,6 +345,11 @@ function iface_restart(phydev, config, old_config)
 	iface_remove(old_config);
 	iface_remove(config);
 
+	// Allow kernel time to complete interface teardown before creating new ones
+	// Prevents ENFILE race on multi-VAP devices (e.g. MT7996 with 12+ interfaces)
+	if (length(old_config?.bss ?? []) + length(config?.bss ?? []) > 6)
+		uloop.sleep(200);
+
 	if (!config.bss || !config.bss[0]) {
 		hostapd.printf(`No bss for phy ${phy}`);
 		return;
