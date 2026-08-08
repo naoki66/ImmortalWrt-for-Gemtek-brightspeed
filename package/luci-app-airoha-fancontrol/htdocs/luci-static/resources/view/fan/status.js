@@ -1,19 +1,27 @@
 'use strict';
-'require view';
+'require dom';
 'require poll';
 'require rpc';
 'require ui';
+'require view';
 
 var callFanStatus = rpc.declare({
 	object: 'luci.fan',
 	method: 'getStatus'
 });
 
+var HISTORY_WINDOW_MS = 2 * 60 * 1000;
+var TIME_GRID_INTERVAL_MS = 10 * 1000;
+var TIME_LABEL_INTERVAL_MS = 30 * 1000;
+var VALUE_GRID_DIVISIONS = 4;
+
+var history = [];
+
 function tempColor(temp) {
-	if (temp <= 40) return '#28a745';      // Green - cool
-	if (temp <= 55) return '#ffc107';      // Yellow - warm
-	if (temp <= 70) return '#fd7e14';      // Orange - hot
-	return '#dc3545';                       // Red - critical
+	if (temp <= 40) return '#28a745';
+	if (temp <= 55) return '#ffc107';
+	if (temp <= 70) return '#fd7e14';
+	return '#dc3545';
 }
 
 function createTempGauge(label, temp, id) {
@@ -23,35 +31,10 @@ function createTempGauge(label, temp, id) {
 		E('label', { 'class': 'cbi-value-title', 'style': 'width: 150px;' }, label),
 		E('div', { 'class': 'cbi-value-field' }, [
 			E('div', { 'style': 'display: flex; align-items: center; gap: 10px;' }, [
-				E('div', {
-					'style': 'width: 200px; height: 20px; background: #e9ecef; border-radius: 4px; overflow: hidden;'
-				}, [
-					E('div', {
-						'id': id + '-bar',
-						'style': 'width: ' + percentage + '%; height: 100%; background: linear-gradient(90deg, ' + color + ' 0%, ' + color + 'dd 100%); transition: width 0.3s, background 0.3s;'
-					})
+				E('div', { 'style': 'width: 200px; height: 20px; background: #e9ecef; border-radius: 4px; overflow: hidden;' }, [
+					E('div', { 'id': id + '-bar', 'style': 'width: ' + percentage + '%; height: 100%; background: linear-gradient(90deg, ' + color + ' 0%, ' + color + 'dd 100%); transition: width 0.3s, background 0.3s;' })
 				]),
 				E('span', { 'id': id + '-value', 'style': 'font-weight: bold; min-width: 50px;' }, temp + '\u00B0C')
-			])
-		])
-	]);
-}
-
-function createFanGauge(rpm, pwm, percentage) {
-	return E('div', { 'class': 'cbi-value', 'style': 'margin-bottom: 10px;' }, [
-		E('label', { 'class': 'cbi-value-title', 'style': 'width: 150px;' }, _('Fan Speed')),
-		E('div', { 'class': 'cbi-value-field' }, [
-			E('div', { 'style': 'display: flex; align-items: center; gap: 10px;' }, [
-				E('div', {
-					'style': 'width: 200px; height: 20px; background: #e9ecef; border-radius: 4px; overflow: hidden;'
-				}, [
-					E('div', {
-						'id': 'fan-bar',
-						'style': 'width: ' + percentage + '%; height: 100%; background: #17a2b8; transition: width 0.3s;'
-					})
-				]),
-				E('span', { 'id': 'fan-value', 'style': 'font-weight: bold;' },
-					rpm + ' RPM (' + percentage + '%)')
 			])
 		])
 	]);
@@ -69,18 +52,138 @@ function updateGauge(id, temp) {
 	}
 }
 
-function updateFanGauge(rpm, percentage) {
-	var bar = document.getElementById('fan-bar');
-	var value = document.getElementById('fan-value');
-	if (bar && value) {
-		bar.style.width = percentage + '%';
-		value.textContent = rpm + ' RPM (' + percentage + '%)';
+function appendHistory(status) {
+	var now = Date.now();
+	history.push({ time: now, temperature: status.temp_board || 0, pwm: status.fan_pwm || 0, rpm: status.fan_rpm || 0 });
+	while (history.length && history[0].time < now - HISTORY_WINDOW_MS)
+		history.shift();
+}
+
+function chartScale(hist, key, minMax, step) {
+	var maximum = minMax;
+	for (var i = 0; i < hist.length; i++)
+		if (hist[i][key] != null)
+			maximum = Math.max(maximum, hist[i][key]);
+	return Math.ceil(maximum / step) * step;
+}
+
+function drawChart(canvas, hist, key, options) {
+	if (!canvas || !hist.length) return;
+	var style = getComputedStyle(canvas);
+	var width = Math.max(canvas.clientWidth, 1);
+	var height = Math.max(canvas.clientHeight, 1);
+	var dpr = Math.min(window.devicePixelRatio || 1, 2);
+	var ctx = canvas.getContext('2d');
+	var pad = { left: 28, right: 5, top: 6, bottom: 14 };
+	var plotW = Math.max(width - pad.left - pad.right, 1);
+	var plotH = Math.max(height - pad.top - pad.bottom, 1);
+	var plotB = pad.top + plotH;
+	var now = hist[hist.length - 1].time;
+	var start = now - HISTORY_WINDOW_MS;
+	var maximum = chartScale(hist, key, options.minMax, options.step);
+	var lineColor = options.lineColor || '#1976d2';
+	var fillColor = options.fillColor || 'rgba(25,118,210,.15)';
+	var labelColor = style.color || '#666';
+	var gridColor = 'rgba(127,127,127,.2)';
+
+	canvas.width = Math.round(width * dpr);
+	canvas.height = Math.round(height * dpr);
+	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+	ctx.clearRect(0, 0, width, height);
+
+	ctx.strokeStyle = gridColor;
+	ctx.lineWidth = 1;
+	ctx.beginPath();
+	for (var e = 0; e <= HISTORY_WINDOW_MS; e += TIME_GRID_INTERVAL_MS) {
+		var gx = pad.left + plotW * e / HISTORY_WINDOW_MS;
+		ctx.moveTo(gx, pad.top); ctx.lineTo(gx, plotB);
 	}
+	for (var d = 0; d <= VALUE_GRID_DIVISIONS; d++) {
+		var gy = pad.top + plotH * d / VALUE_GRID_DIVISIONS;
+		ctx.moveTo(pad.left, gy); ctx.lineTo(pad.left + plotW, gy);
+	}
+	ctx.stroke();
+
+	ctx.fillStyle = labelColor;
+	ctx.font = '9px sans-serif';
+	ctx.textAlign = 'right';
+	ctx.textBaseline = 'top';
+	ctx.fillText(options.format(maximum), pad.left - 4, pad.top - 1);
+	ctx.textBaseline = 'bottom';
+	ctx.fillText(options.format(0), pad.left - 4, plotB + 1);
+	ctx.textBaseline = 'middle';
+	ctx.fillText(options.format(maximum / 2), pad.left - 4, pad.top + plotH / 2);
+
+	ctx.textBaseline = 'bottom';
+	for (var e = 0; e <= HISTORY_WINDOW_MS; e += TIME_LABEL_INTERVAL_MS) {
+		var lx = pad.left + plotW * e / HISTORY_WINDOW_MS;
+		var remaining = (HISTORY_WINDOW_MS - e) / 1000;
+		ctx.textAlign = e === 0 ? 'left' : e === HISTORY_WINDOW_MS ? 'right' : 'center';
+		ctx.fillText(remaining ? '-' + remaining + 's' : '0', lx, height);
+	}
+
+	function pt(s) {
+		return {
+			x: pad.left + (s.time - start) / HISTORY_WINDOW_MS * plotW,
+			y: plotB - (s[key] || 0) / maximum * plotH
+		};
+	}
+
+	ctx.beginPath();
+	ctx.moveTo(pt(hist[0]).x, plotB);
+	for (var i = 0; i < hist.length; i++)
+		ctx.lineTo(pt(hist[i]).x, pt(hist[i]).y);
+	ctx.lineTo(pt(hist[hist.length - 1]).x, plotB);
+	ctx.closePath();
+	ctx.fillStyle = fillColor;
+	ctx.fill();
+
+	ctx.beginPath();
+	for (var j = 0; j < hist.length; j++) {
+		var p = pt(hist[j]);
+		j === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+	}
+	ctx.strokeStyle = lineColor;
+	ctx.lineWidth = 1.5;
+	ctx.stroke();
+}
+
+function chartCard(label, valueText, canvasId) {
+	return E('div', { 'style': 'flex:1;min-width:0;padding:.55rem .7rem;' }, [
+		E('span', { 'style': 'display:block;color:var(--text-color-medium,#666);font-size:.72rem;' }, label),
+		E('div', { 'style': 'display:flex;align-items:baseline;gap:.3rem;margin-top:.12rem;' }, [
+			E('span', { 'id': canvasId + '-val', 'style': 'font-size:1.18rem;font-weight:600;line-height:1.3;' }, valueText)
+		]),
+		E('div', { 'style': 'height:72px;margin-top:.4rem;' }, [
+			E('canvas', {
+				'id': canvasId,
+				'style': 'display:block;width:100%;height:100%;color:var(--text-color-medium,#666);background:rgba(127,127,127,.025);border:1px solid rgba(127,127,127,.24);border-radius:3px;'
+			})
+		])
+	]);
+}
+
+function drawAllCharts() {
+	if (!history.length) return;
+	drawChart(document.getElementById('fc-temp'), history, 'temperature', {
+		minMax: 40, step: 20,
+		lineColor: '#c74b45', fillColor: 'rgba(199,75,69,.15)',
+		format: function(v) { return v + '\u00B0'; }
+	});
+	drawChart(document.getElementById('fc-pwm'), history, 'pwm', {
+		minMax: 100, step: 50,
+		lineColor: '#1976d2', fillColor: 'rgba(25,118,210,.15)',
+		format: function(v) { return String(v); }
+	});
+	drawChart(document.getElementById('fc-rpm'), history, 'rpm', {
+		minMax: 1000, step: 500,
+		lineColor: '#2f8a57', fillColor: 'rgba(47,138,87,.15)',
+		format: function(v) { return String(v); }
+	});
 }
 
 return view.extend({
 	load: function() {
-		// Progressive rendering: don't block on RPC call, let the page render immediately
 		return Promise.resolve([]);
 	},
 
@@ -93,9 +196,16 @@ return view.extend({
 
 		var viewEl = E('div', { 'class': 'cbi-map' }, [
 			E('div', { 'class': 'cbi-map-descr' }, _('View real-time fan speed and system temperatures.')),
+
 			E('div', { 'class': 'cbi-section' }, [
 				E('div', { 'class': 'cbi-section-node' }, [
-					createFanGauge(status.fan_rpm || 0, status.fan_pwm || 0, status.fan_percentage || 0),
+					E('div', { 'class': 'cbi-value' }, [
+						E('label', { 'class': 'cbi-value-title', 'style': 'width: 150px;' }, _('Fan Speed')),
+						E('div', { 'class': 'cbi-value-field' }, [
+							E('span', { 'id': 'fan-rpm-value', 'style': 'font-weight: bold;' },
+								(status.fan_rpm || 0) + ' RPM (' + (status.fan_percentage || 0) + '%)')
+						])
+					]),
 					E('div', { 'class': 'cbi-value' }, [
 						E('label', { 'class': 'cbi-value-title', 'style': 'width: 150px;' }, _('Control Mode')),
 						E('div', { 'class': 'cbi-value-field' }, [
@@ -110,6 +220,17 @@ return view.extend({
 					])
 				])
 			]),
+
+			E('div', { 'class': 'cbi-section' }, [
+				E('div', { 'style': 'display:flex;flex-wrap:nowrap;' }, [
+					chartCard('\u4E3B\u677F\u6E29\u5EA6', (status.temp_board || 0) + '\u00B0C', 'fc-temp'),
+					E('div', { 'style': 'width:1px;background:rgba(127,127,127,.2);flex-shrink:0;' }),
+					chartCard('\u98CE\u6247 PWM', (status.fan_pwm || 0) + ' / 255', 'fc-pwm'),
+					E('div', { 'style': 'width:1px;background:rgba(127,127,127,.2);flex-shrink:0;' }),
+					chartCard('\u98CE\u6247\u8F6C\u901F', (status.fan_rpm || 0) + ' RPM', 'fc-rpm')
+				])
+			]),
+
 			E('div', { 'class': 'cbi-section' }, [
 				E('div', { 'style': 'display: flex; flex-wrap: wrap; gap: 20px;' }, [
 					E('div', { 'style': 'flex: 1; min-width: 300px;' }, [
@@ -131,7 +252,6 @@ return view.extend({
 			])
 		]);
 
-		// Data fetch + DOM update function — called immediately and via poll
 		var fetchData = L.bind(function() {
 			return callFanStatus().then(L.bind(function(status) {
 				status = status || {};
@@ -142,22 +262,31 @@ return view.extend({
 				updateGauge('temp-wifi24g', status.wifi_24g || 0);
 				updateGauge('temp-wifi5g', status.wifi_5g || 0);
 				updateGauge('temp-wifi6g', status.wifi_6g || 0);
-				updateFanGauge(status.fan_rpm || 0, status.fan_percentage || 0);
+
+				var rpmEl = document.getElementById('fan-rpm-value');
+				if (rpmEl) rpmEl.textContent = (status.fan_rpm || 0) + ' RPM (' + (status.fan_percentage || 0) + '%)';
+
 				var modeEl = document.getElementById('fan-mode');
 				if (modeEl) {
 					modeEl.textContent = this.getModeText(status.uci_mode);
 					modeEl.className = status.fan_mode === 2 ? 'label-success' : 'label-warning';
 				}
 				var presetEl = document.getElementById('fan-preset');
-				if (presetEl) {
-					presetEl.textContent = this.getPresetText(status.uci_mode, status.uci_preset);
-				}
+				if (presetEl) presetEl.textContent = this.getPresetText(status.uci_mode, status.uci_preset);
+
+				var tVal = document.getElementById('fc-temp-val');
+				if (tVal) tVal.textContent = (status.temp_board || 0) + '\u00B0C';
+				var pVal = document.getElementById('fc-pwm-val');
+				if (pVal) pVal.textContent = (status.fan_pwm || 0) + ' / 255';
+				var rVal = document.getElementById('fc-rpm-val');
+				if (rVal) rVal.textContent = (status.fan_rpm || 0) + ' RPM';
+
+				appendHistory(status);
+				drawAllCharts();
 			}, this));
 		}, this);
 
-		// Fetch data immediately (page shows with defaults, then updates)
-		fetchData();
-		// Poll for periodic updates
+		requestAnimationFrame(function() { fetchData(); });
 		poll.add(fetchData, 3);
 
 		return viewEl;
