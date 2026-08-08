@@ -8,6 +8,7 @@
 *.init text eol=lf
 *.uc text eol=lf
 *.json text eol=lf
+package/base-files/files/bin/config_generate text eol=lf
 
 # lucky package: enforce LF for init/config/scripts
 package/lucky/** text eol=lf
