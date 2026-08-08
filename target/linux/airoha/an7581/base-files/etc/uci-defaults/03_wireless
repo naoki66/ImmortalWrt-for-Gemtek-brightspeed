@@ -6,8 +6,9 @@
 #   radio0: 2.4 GHz 2x2
 #   radio1: 5 GHz 4x4
 #   radio2: 6 GHz 4x4
-# US country code on all radios
-#
+#   encryption: psk2 (WPA2-PSK) for 2.4G/5G, sae (WPA3) for 6G
+#   key: 12345678 (default password for all bands)
+#   country: US on all radios
 
 [ ! -e /etc/config/wireless ] && exit 0
 
@@ -45,6 +46,17 @@ gemtek,w1700k-ubi)
 	uci set wireless.default_radio0.ssid='ImmortalWrt-2G'
 	uci set wireless.default_radio1.ssid='ImmortalWrt-5G'
 	uci set wireless.default_radio2.ssid='ImmortalWrt-6G'
+
+	# --- Encryption: WPA2-PSK for 2.4G & 5G (max compatibility) ---
+	# --- WPA3-SAE for 6 GHz (mandated by Wi-Fi 6E/7 spec)      ---
+	uci set wireless.default_radio0.encryption='psk2'
+	uci set wireless.default_radio0.key='12345678'
+
+	uci set wireless.default_radio1.encryption='psk2'
+	uci set wireless.default_radio1.key='12345678'
+
+	uci set wireless.default_radio2.encryption='sae'
+	uci set wireless.default_radio2.key='12345678'
 
 	uci commit wireless
 	;;
