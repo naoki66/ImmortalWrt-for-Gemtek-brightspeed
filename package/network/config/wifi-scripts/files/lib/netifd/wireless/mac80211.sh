@@ -518,10 +518,6 @@ mac80211_hostapd_setup_base() {
 	if [ "$enable_be" != "0" ]; then
 		append base_cfg "ieee80211be=1" "$N"
 
-		# force enable eBF for now
-		append base_cfg "eht_su_beamformer=1" "$N"
-		append base_cfg "eht_su_beamformee=1" "$N"
-		append base_cfg "eht_mu_beamformer=1" "$N"
 
 		[ "$hwmode" = "a" ] && {
 			append base_cfg "eht_oper_chwidth=$eht_oper_chwidth" "$N"
