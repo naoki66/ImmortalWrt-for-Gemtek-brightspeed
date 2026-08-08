@@ -1,7 +1,13 @@
 * -text
-*.patch whitespace=-indent-with-non-tab,-space-before-tab,-tab-in-indent,-trailing-space
+*.patch text eol=lf whitespace=-indent-with-non-tab,-space-before-tab,-tab-in-indent,-trailing-space
+*.sh text eol=lf
 *.dts text eol=lf
 *.dts[io] text eol=lf
+*.mk text eol=lf
+*.conf text eol=lf
+*.init text eol=lf
+*.uc text eol=lf
+*.json text eol=lf
 
 # lucky package: enforce LF for init/config/scripts
 package/lucky/** text eol=lf
