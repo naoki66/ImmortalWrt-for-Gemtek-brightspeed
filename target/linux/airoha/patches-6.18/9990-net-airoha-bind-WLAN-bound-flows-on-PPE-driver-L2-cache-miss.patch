@@ -1,0 +1,234 @@
+﻿From: Jihong Min <hurryman2212@gmail.com>
+Date: Mon, 25 May 2026 07:09:47 +0900
+Subject: [PATCH] net: airoha: bind bridge flows on PPE driver L2 cache miss
+
+The Linux bridge FDB can resolve a destination port even when the Airoha
+PPE driver's L2 offload cache has no entry for that MAC pair.
+The normal bind path only checks the PPE driver's L2 offload cache, so an
+unbound PPE hit can stay unbound even though the bridge already knows the
+right output path, unless a later offload event fills that PPE driver cache.
+
+This matters in both directions: wired-to-WLAN traffic needs the WDMA path,
+while WLAN-to-wired traffic needs the destination GDM path. Same-link or
+same-radio intra-BSS forwarding can stay inside the WLAN datapath and is
+not covered.
+
+Before touching the PPE table, resolve the destination MAC through the
+bridge device above the ingress netdev. If the PPE driver's L2 offload
+cache lookup misses, bind the hardware flow to the resolved WDMA or GDM
+egress path.
+
+Assisted-by: Codex:gpt-5.5
+Signed-off-by: Jihong Min <hurryman2212@gmail.com>
+Assisted-by: Codex:gpt-5.6-sol
+Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+---
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -708,65 +708,176 @@
+ }
+ 
+ static int
+-airoha_ppe_foe_commit_subflow_entry(struct airoha_ppe *ppe,
+-				    struct airoha_flow_table_entry *e,
+-				    u32 hash, bool rx_wlan)
++airoha_ppe_foe_commit_subflow(struct airoha_ppe *ppe,
++			      const struct airoha_foe_entry *bridge,
++			      u32 hash, bool rx_wlan)
+ {
+ 	u32 mask = AIROHA_FOE_IB1_BIND_PACKET_TYPE | AIROHA_FOE_IB1_BIND_UDP;
+ 	struct airoha_foe_entry *hwe_p, hwe;
+-	struct airoha_flow_table_entry *f;
+ 	int type;
+ 
+ 	hwe_p = airoha_ppe_foe_get_entry_locked(ppe, hash);
+ 	if (!hwe_p)
+ 		return -EINVAL;
+ 
+-	f = kzalloc(sizeof(*f), GFP_ATOMIC);
+-	if (!f)
+-		return -ENOMEM;
+-
+-	hlist_add_head(&f->l2_subflow_node, &e->l2_flows);
+-	f->type = FLOW_TYPE_L2_SUBFLOW;
+-	f->hash = hash;
+-
+ 	memcpy(&hwe, hwe_p, sizeof(*hwe_p));
+-	hwe.ib1 = (hwe.ib1 & mask) | (e->data.ib1 & ~mask);
++	hwe.ib1 = (hwe.ib1 & mask) | (bridge->ib1 & ~mask);
+ 
+ 	type = FIELD_GET(AIROHA_FOE_IB1_BIND_PACKET_TYPE, hwe.ib1);
+ 	if (type >= PPE_PKT_TYPE_IPV6_ROUTE_3T) {
+-		memcpy(&hwe.ipv6.l2, &e->data.bridge.l2, sizeof(hwe.ipv6.l2));
+-		hwe.ipv6.ib2 = e->data.bridge.ib2;
++		memcpy(&hwe.ipv6.l2, &bridge->bridge.l2,
++		       sizeof(hwe.ipv6.l2));
++		hwe.ipv6.ib2 = bridge->bridge.ib2;
+ 		/* setting smac_id to 0xf instruct the hw to keep original
+ 		 * source mac address
+ 		 */
+ 		hwe.ipv6.l2.src_mac_hi = FIELD_PREP(AIROHA_FOE_MAC_SMAC_ID,
+ 						    0xf);
+ 	} else {
+-		memcpy(&hwe.bridge.l2, &e->data.bridge.l2,
++		memcpy(&hwe.bridge.l2, &bridge->bridge.l2,
+ 		       sizeof(hwe.bridge.l2));
+-		hwe.bridge.ib2 = e->data.bridge.ib2;
++		hwe.bridge.ib2 = bridge->bridge.ib2;
+ 		if (type == PPE_PKT_TYPE_IPV4_HNAPT)
+ 			memcpy(&hwe.ipv4.new_tuple, &hwe.ipv4.orig_tuple,
+ 			       sizeof(hwe.ipv4.new_tuple));
+ 	}
+ 
+-	hwe.bridge.data = e->data.bridge.data;
+-	airoha_ppe_foe_commit_entry(ppe, &hwe, hash, rx_wlan);
++	hwe.bridge.data = bridge->bridge.data;
++	return airoha_ppe_foe_commit_entry(ppe, &hwe, hash, rx_wlan);
++}
++
++static int
++airoha_ppe_foe_commit_subflow_entry(struct airoha_ppe *ppe,
++				    struct airoha_flow_table_entry *e,
++				    u32 hash, bool rx_wlan)
++{
++	struct airoha_flow_table_entry *f;
++	int err;
++
++	f = kzalloc(sizeof(*f), GFP_ATOMIC);
++	if (!f)
++		return -ENOMEM;
++
++	err = airoha_ppe_foe_commit_subflow(ppe, &e->data, hash, rx_wlan);
++	if (err) {
++		kfree(f);
++		return err;
++	}
++
++	hlist_add_head(&f->l2_subflow_node, &e->l2_flows);
++	f->type = FLOW_TYPE_L2_SUBFLOW;
++	f->hash = hash;
+ 
+ 	return 0;
+ }
+ 
++static bool
++airoha_ppe_foe_prepare_bridge_subflow_dev(struct airoha_ppe *ppe,
++					  struct net_device *dev,
++					  struct airoha_flow_data *data,
++					  struct airoha_foe_entry *hwe)
++{
++	int err;
++
++	err = airoha_ppe_foe_entry_prepare(ppe->eth, hwe, dev,
++					   PPE_PKT_TYPE_BRIDGE, data, 0, 0);
++	if (err)
++		return false;
++
++	return true;
++}
++
++static struct net_device *
++airoha_ppe_foe_get_bridge_master(struct net_device *dev)
++{
++	struct net_device *master = NULL;
++
++	rcu_read_lock();
++	master = netdev_master_upper_dev_get_rcu(dev);
++	if (master && netif_is_bridge_master(master))
++		dev_hold(master);
++	else
++		master = NULL;
++	rcu_read_unlock();
++
++	return master;
++}
++
++static bool
++airoha_ppe_foe_prepare_bridge_subflow(struct airoha_ppe *ppe,
++				      struct sk_buff *skb,
++				      struct airoha_foe_entry *hwe)
++{
++	struct net_device_path_stack stack;
++	struct ethhdr *eh = eth_hdr(skb);
++	struct airoha_flow_data data = {};
++	struct net_device *master, *egress;
++	int err;
++
++	if (!is_valid_ether_addr(eh->h_source) ||
++	    !is_valid_ether_addr(eh->h_dest))
++		return false;
++
++	ether_addr_copy(data.eth.h_dest, eh->h_dest);
++	ether_addr_copy(data.eth.h_source, eh->h_source);
++
++	if (!skb->dev)
++		return false;
++
++	/* Unbound hits can arrive before flowtable creates the L2 master flow
++	 * normally used for subflow binding. Start at the bridge master so the
++	 * FDB selects the destination port instead of reusing the ingress AP.
++	 */
++	master = airoha_ppe_foe_get_bridge_master(skb->dev);
++	if (!master)
++		return false;
++
++	rcu_read_lock();
++	err = dev_fill_forward_path(master, eh->h_dest, &stack);
++	if (err || stack.num_paths < 2 ||
++	    stack.path[0].type != DEV_PATH_BRIDGE) {
++		rcu_read_unlock();
++		dev_put(master);
++		return false;
++	}
++
++	/* The path immediately below the bridge is the real egress port. It
++	 * can be an AP netdev (resolved to WDMA by entry_prepare), a direct
++	 * GDM netdev, or a DSA user port.
++	 */
++	egress = (struct net_device *)stack.path[1].dev;
++	if (!egress) {
++		rcu_read_unlock();
++		dev_put(master);
++		return false;
++	}
++	dev_hold(egress);
++	rcu_read_unlock();
++
++	dev_put(master);
++	err = airoha_ppe_foe_prepare_bridge_subflow_dev(ppe, egress, &data,
++							hwe);
++	dev_put(egress);
++
++	return err;
++}
++
+ static void airoha_ppe_foe_insert_entry(struct airoha_ppe *ppe,
+ 					struct sk_buff *skb,
+ 					u32 hash, bool rx_wlan)
+ {
++	struct airoha_foe_entry bridge_hwe = {};
+ 	struct airoha_flow_table_entry *e;
+ 	struct airoha_foe_bridge br = {};
+ 	struct airoha_foe_entry *hwe;
+ 	bool commit_done = false;
++	bool bridge_ready = false;
+ 	struct hlist_node *n;
+ 	u32 index, state;
+ 
++	bridge_ready = airoha_ppe_foe_prepare_bridge_subflow(ppe, skb,
++							     &bridge_hwe);
++
+ 	spin_lock_bh(&ppe_lock);
+ 
+ 	hwe = airoha_ppe_foe_get_entry_locked(ppe, hash);
+@@ -799,8 +910,10 @@
+ 	airoha_ppe_foe_set_bridge_addrs(&br, eth_hdr(skb));
+ 	e = rhashtable_lookup_fast(&ppe->l2_flows, &br,
+ 				   airoha_l2_flow_table_params);
+ 	if (e)
+ 		airoha_ppe_foe_commit_subflow_entry(ppe, e, hash, rx_wlan);
++	else if (bridge_ready)
++		airoha_ppe_foe_commit_subflow(ppe, &bridge_hwe, hash, rx_wlan);
+ unlock:
+ 	spin_unlock_bh(&ppe_lock);
+ }
