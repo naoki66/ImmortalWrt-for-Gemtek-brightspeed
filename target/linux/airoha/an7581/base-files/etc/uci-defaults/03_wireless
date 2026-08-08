@@ -37,12 +37,14 @@ gemtek,w1700k-ubi)
 	uci -q get wireless.radio2.country >/dev/null 2>&1 || \
 		uci set wireless.radio2.country='US'
 
-	# --- radio0: 2.4 GHz  EHT40, auto channel, txpower 30 dBm ---
+	# --- radio0: 2.4 GHz  EHT40, auto channel, txpower 28 dBm ---
 	uci -q get wireless.radio0.disabled >/dev/null 2>&1 || {
 		uci set wireless.radio0.channel='auto'
-		uci set wireless.radio0.htmode='EHT40'
-		uci set wireless.radio0.txpower='30'
+		uci set wireless.radio0.htmode='HE20'
+		uci set wireless.radio0.txpower='28'
 		uci set wireless.radio0.disabled='0'
+    	uci set wireless.radio0.he_mu_beamformer='0'
+    	uci set wireless.radio0.he_su_beamformer='1'
 	}
 
 	# --- radio1: 5 GHz  EHT160, ch 36, txpower 30 dBm ---
@@ -51,14 +53,26 @@ gemtek,w1700k-ubi)
 		uci set wireless.radio1.htmode='EHT160'
 		uci set wireless.radio1.txpower='30'
 		uci set wireless.radio1.disabled='0'
+		uci set wireless.radio1.he_su_beamformer='1'
+    	uci set wireless.radio1.he_mu_beamformer='1'
+    	uci set wireless.radio1.eht_su_beamformer='1'
+    	uci set wireless.radio1.eht_mu_beamformer='1'
+    	uci set wireless.radio1.he_bss_color='2'
+    	uci set wireless.radio1.radar_background='1'
 	}
 
 	# --- radio2: 6 GHz  EHT320, ch 37, txpower 30 dBm ---
 	uci -q get wireless.radio2.disabled >/dev/null 2>&1 || {
-		uci set wireless.radio2.channel='37'
+		uci set wireless.radio2.channel='auto'
 		uci set wireless.radio2.htmode='EHT320'
 		uci set wireless.radio2.txpower='30'
 		uci set wireless.radio2.disabled='0'
+		uci set wireless.radio2.eht_su_beamformer='1'
+    	uci set wireless.radio2.eht_mu_beamformer='1'
+    	uci set wireless.radio2.he_su_beamformer='1'
+    	uci set wireless.radio2.he_mu_beamformer='1'
+    	uci set wireless.radio2.he_bss_color='1'
+    	uci set wireless.radio2.he_twt_responder='1'
 	}
 
 	# --- SSID differentiation: ImmortalWrt-2G / ImmortalWrt-5G / ImmortalWrt-6G ---
@@ -90,6 +104,20 @@ gemtek,w1700k-ubi)
 	   ! uci -q get wireless.default_radio2.encryption >/dev/null 2>&1; then
 		uci set wireless.default_radio2.encryption='sae'
 		uci set wireless.default_radio2.key='12345678'
+	fi
+
+	# --- WMM: enable by default but preserve user setting ---
+	if uci -q get wireless.default_radio0 >/dev/null 2>&1 && \
+	   ! uci -q get wireless.default_radio0.wmm >/dev/null 2>&1; then
+		uci set wireless.default_radio0.wmm='1'
+	fi
+	if uci -q get wireless.default_radio1 >/dev/null 2>&1 && \
+	   ! uci -q get wireless.default_radio1.wmm >/dev/null 2>&1; then
+		uci set wireless.default_radio1.wmm='1'
+	fi
+	if uci -q get wireless.default_radio2 >/dev/null 2>&1 && \
+	   ! uci -q get wireless.default_radio2.wmm >/dev/null 2>&1; then
+		uci set wireless.default_radio2.wmm='1'
 	fi
 
 	uci commit wireless
