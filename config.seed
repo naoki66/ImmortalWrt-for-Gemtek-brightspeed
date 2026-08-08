@@ -7966,7 +7966,7 @@ CONFIG_PACKAGE_wpad-mbedtls=y
 CONFIG_PACKAGE_etherwake=y
 # CONFIG_PACKAGE_etherwake-nfqueue is not set
 # CONFIG_PACKAGE_ethtool is not set
-# CONFIG_PACKAGE_ethtool-full is not set
+CONFIG_PACKAGE_ethtool-full=y
 # CONFIG_PACKAGE_evilginx2 is not set
 # CONFIG_PACKAGE_external-protocol is not set
 # CONFIG_PACKAGE_fail2ban is not set
