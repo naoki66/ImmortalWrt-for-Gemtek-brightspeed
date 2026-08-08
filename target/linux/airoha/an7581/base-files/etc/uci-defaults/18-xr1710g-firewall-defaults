@@ -1,1 +1,23 @@
-#!/bin/sh. /lib/functions/system.sh[ "$(board_name)" = "gemtek,xr1710g-ubi" ] || exit 0uci -q set firewall.@defaults[0].flow_offloading='1'uci -q set firewall.@defaults[0].flow_offloading_hw='1'uci -q commit firewallfirewall_whiteout=/overlay/upper/etc/rc.d/S19firewall# Older images disabled firewall by leaving an OverlayFS whiteout over the# ROM startup link. Remove only that whiteout before enabling the service.if [ -c "$firewall_whiteout" ]; then	rm -f "$firewall_whiteout"fiif [ -x /etc/init.d/firewall ]; then	/etc/init.d/firewall enable	/etc/init.d/firewall restartfiexit 0
+#!/bin/sh
+
+. /lib/functions/system.sh
+
+[ "$(board_name)" = "gemtek,xr1710g-ubi" ] || exit 0
+
+uci -q set firewall.@defaults[0].flow_offloading='1'
+uci -q set firewall.@defaults[0].flow_offloading_hw='1'
+uci -q commit firewall
+
+# Older images disabled firewall by leaving an OverlayFS whiteout over the
+# ROM startup link. Remove only that whiteout before enabling the service.
+firewall_whiteout=/overlay/upper/etc/rc.d/S19firewall
+if [ -c "$firewall_whiteout" ]; then
+	rm -f "$firewall_whiteout"
+fi
+
+if [ -x /etc/init.d/firewall ]; then
+	/etc/init.d/firewall enable
+	/etc/init.d/firewall restart
+fi
+
+exit 0
