@@ -1,0 +1,5 @@
+# NPU 固件文件目录
+# 请将以下固件文件放至此目录：
+#   - en7581_MT7996_npu_rv32.bin  (RV32 NPU 固件)
+#   - en7581_MT7996_npu_data.bin  (NPU 数据固件)
+# 这些文件将通过 CONFIG_EXTRA_FIRMWARE 直接编译进内核映像
