@@ -250,7 +250,7 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
 +	phydev->priv = priv;
 +
 +	if (!priv->enable_pma_low_power)
-+		phydev_warn(phydev, "PMA low-power suspend disabled\n");
++		phydev_info(phydev, "PMA low-power suspend disabled\n");
 +
 +	/* Disable EEE due to link stability issues */
 +	phy_disable_eee_mode(phydev, ETHTOOL_LINK_MODE_100baseT_Full_BIT);
