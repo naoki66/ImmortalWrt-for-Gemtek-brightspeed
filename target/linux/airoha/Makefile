@@ -9,7 +9,7 @@ FEATURES:=dt squashfs nand ramdisk gpio
 KERNEL_PATCHVER:=6.18
 
 include $(INCLUDE_DIR)/target.mk
-# 将 NPU 固件目录 symlink 到内核源码树，供 CONFIG_EXTRA_FIRMWARE 使用
+# Symlink NPU firmware into kernel source tree for CONFIG_EXTRA_FIRMWARE
 define Kernel/Prepare
 	$(call Kernel/Prepare/Default)
 	mkdir -p $(LINUX_DIR)/firmware; rm -rf $(LINUX_DIR)/firmware/airoha; ln -s $(TOPDIR)/target/linux/airoha/an7581/firmware/airoha $(LINUX_DIR)/firmware/airoha
