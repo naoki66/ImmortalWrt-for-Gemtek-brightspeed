@@ -1,4 +1,4 @@
-﻿From: Jihong Min <hurryman2212@gmail.com>
+From: Jihong Min <hurryman2212@gmail.com>
 Date: Mon, 1 Jun 2026 13:30:00 +0900
 Subject: [PATCH] netfilter: flowtable: bind XFRM SOE flows
 

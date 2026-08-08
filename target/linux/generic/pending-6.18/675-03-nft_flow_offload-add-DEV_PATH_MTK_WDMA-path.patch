@@ -1,4 +1,4 @@
-﻿From: Ryan Chen <rchen14b@gmail.com>
+From: Ryan Chen <rchen14b@gmail.com>
 Date: Sun, 16 Mar 2026 13:00:00 -0500
 Subject: [PATCH 3/4] netfilter: nft_flow_offload: add DEV_PATH_MTK_WDMA path
 

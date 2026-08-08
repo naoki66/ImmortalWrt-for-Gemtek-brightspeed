@@ -1,4 +1,4 @@
-﻿From: Yanghan Ye <yyh94306@gmail.com>
+From: Yanghan Ye <yyh94306@gmail.com>
 Date: Tue, 14 Jul 2026 12:30:00 +1100
 Subject: [PATCH] wifi: mt76: mt7996: pass operating mode to rate control
 

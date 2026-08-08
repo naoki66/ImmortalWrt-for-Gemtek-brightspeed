@@ -1,4 +1,4 @@
-﻿From: Ryan Chen <rchen14b@gmail.com>
+From: Ryan Chen <rchen14b@gmail.com>
 Date: Sun, 16 Mar 2026 12:00:00 -0500
 Subject: [PATCH 2/4] netfilter: nft_flow_offload: add bridging support
 

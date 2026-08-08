@@ -1,4 +1,4 @@
-﻿From: Jihong Min <hurryman2212@gmail.com>
+From: Jihong Min <hurryman2212@gmail.com>
 Date: Mon, 25 May 2026 07:09:47 +0900
 Subject: [PATCH] net: airoha: bind bridge flows on PPE driver L2 cache miss
 
