@@ -72,7 +72,7 @@ function setup_phy(phy, config, data) {
 
 	if (config.country_code) {
 		log(`Setting country code to ${config.country_code}`);
-		system(`iw reg set ${config.country_code}`);
+		system(`iw reg set ${config.country_code} 2>/dev/null`);
 	}
 
 	set_default(config, 'rxantenna', 0xffffffff);
@@ -103,15 +103,15 @@ function setup_phy(phy, config, data) {
 	log(`Configuring '${phy}' distance: ${config.distance}`);
 	if (antenna_changed) {
 		log(`Setting antenna for '${phy}' txantenna: ${config.txantenna}, rxantenna: ${config.rxantenna}`);
-		system(`iw phy ${phy} set antenna ${config.txantenna} ${config.rxantenna}`);
+		system(`iw phy ${phy} set antenna ${config.txantenna} ${config.rxantenna} 2>/dev/null`);
 	}
-	system(`iw phy ${phy} set distance ${config.distance}`);
-	system(`iw phy ${phy} set txpower ${config.txpower}`);
+	system(`iw phy ${phy} set distance ${config.distance} 2>/dev/null`);
+	system(`iw phy ${phy} set txpower ${config.txpower} 2>/dev/null`);
 
 	if (config.frag)
-		system(`iw phy ${phy} set frag ${config.frag}`);
+		system(`iw phy ${phy} set frag ${config.frag} 2>/dev/null`);
 	if (config.rts)
-		system(`iw phy ${phy} set rts ${config.rts}`);
+		system(`iw phy ${phy} set rts ${config.rts} 2>/dev/null`);
 }
 
 function iw_htmode(config) {
