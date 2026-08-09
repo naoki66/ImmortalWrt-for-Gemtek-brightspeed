@@ -41,20 +41,24 @@ var themeCSS = '\
 .compass-card-title{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--soc-muted);margin-bottom:4px;font-family:monospace}\
 .compass-card-value{font-size:20px;font-weight:700;line-height:1.1;font-family:monospace}\
 .compass-card-sub{font-size:11px;color:var(--soc-muted);margin-top:3px}\
-.mode-offload-bar{display:flex;align-items:center;flex-wrap:nowrap;gap:12px;width:100%;box-sizing:border-box;margin-top:10px;padding:8px 12px;border:1px solid var(--soc-border);border-radius:6px;background:var(--soc-card-bg)}\
-.mode-banner{display:flex;align-items:center;gap:8px;min-width:0;flex:0 1 auto}\
-.mode-badge{font-size:11px;font-weight:700;letter-spacing:1px;padding:3px 9px;border-radius:3px;font-family:monospace;white-space:nowrap;flex-shrink:0}\
-.mode-router{background:rgba(0,200,255,0.15);color:#00c8ff;border:1px solid rgba(0,200,255,0.35)}\
-.mode-ap{background:rgba(255,160,0,0.15);color:#ffa000;border:1px solid rgba(255,160,0,0.35)}\
-.mode-reason{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+.mode-offload-bar{display:flex;align-items:center;flex-wrap:nowrap;gap:12px;width:100%;box-sizing:border-box;margin-top:10px;padding:8px 12px;border:1px solid var(--soc-border);border-radius:8px;background:var(--soc-card-bg);box-shadow:0 2px 8px rgba(0,0,0,0.06)}\
+.mode-banner{display:flex;align-items:center;gap:8px;min-width:0;flex:0 1 auto;flex-wrap:wrap}\
+.mode-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:1px;padding:4px 10px;border-radius:999px;font-family:monospace;white-space:nowrap;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08)}\
+.mode-badge::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}\
+.mode-router{background:var(--mode-router-bg);color:var(--mode-router-fg);border:1px solid var(--mode-router-border)}\
+.mode-ap{background:var(--mode-ap-bg);color:var(--mode-ap-fg);border:1px solid var(--mode-ap-border)}\
+.mode-reason{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}\
 .mode-offload-divider{width:1px;height:26px;background:var(--soc-border);flex:0 0 1px}\
 .mode-offload-items{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;flex:1 1 auto}\
 .mode-offload-item{display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap}\
 .mode-offload-label{font-size:12px;font-weight:600}\
+.mode-ap-offload{padding-left:10px;margin-left:2px;border-left:1px solid var(--mode-ap-border)}\
+.mode-ap-offload .mode-offload-label{color:var(--mode-ap-fg)}\
 .offload-badge{font-size:11px;font-weight:700;letter-spacing:1px;line-height:20px;padding:0 8px;border-radius:3px;font-family:monospace;display:inline-flex;align-items:center;white-space:nowrap;flex-shrink:0}\
-.offload-on{background:rgba(0,255,0,0.12);color:#00ff00;border:1px solid rgba(0,255,0,0.35)}\
-.offload-off{background:rgba(255,160,0,0.15);color:#ffa000;border:1px solid rgba(255,160,0,0.35)}\
-@media(max-width:760px){.mode-offload-bar{flex-wrap:wrap}.mode-banner{flex:1 1 100%}.mode-offload-divider{display:none}.mode-offload-items{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));flex:1 1 100%;gap:8px 12px}.mode-offload-item{justify-content:space-between}}\
+.offload-on{background:var(--offload-on-bg);color:var(--offload-on-fg);border:1px solid var(--offload-on-border);box-shadow:0 0 10px rgba(34,197,94,0.08)}\
+.mode-ap-offload .offload-on{background:var(--offload-ap-bg);color:var(--offload-ap-fg);border-color:var(--offload-ap-border);box-shadow:0 0 10px rgba(20,184,166,0.12)}\
+.offload-off{background:var(--offload-off-bg);color:var(--offload-off-fg);border:1px solid var(--offload-off-border)}\
+@media(max-width:760px){.mode-offload-bar{flex-wrap:wrap}.mode-banner{flex:1 1 100%;gap:8px 10px}.mode-ap-offload{padding-left:0;margin-left:0;border-left:0}.mode-offload-divider{display:none}.mode-offload-items{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));flex:1 1 100%;gap:8px 12px}.mode-offload-item{justify-content:space-between}}\
 .alert-wrap{margin-bottom:8px}\
 .alert-item{display:flex;align-items:flex-start;gap:10px;padding:8px 12px;border-radius:5px;margin-bottom:5px;font-size:13px}\
 .alert-warning{border-left:3px solid #f5a623;background:rgba(245,166,35,0.1)}\
@@ -98,8 +102,8 @@ function injectCSS() {
 	if (dark === _lastDarkMode) return;
 	_lastDarkMode = dark;
 	var vars = dark
-		? ':root{--soc-card-bg:#1e1e1e;--soc-border:#333;--soc-muted:#999;--soc-text:#e0e0e0;--soc-bar-track:#333}'
-		: ':root{--soc-card-bg:#fff;--soc-border:#d0d0d0;--soc-muted:#666;--soc-text:#222;--soc-bar-track:#e0e0e0}';
+		? ':root{--soc-card-bg:#1e1e1e;--soc-border:#333;--soc-muted:#999;--soc-text:#e0e0e0;--soc-bar-track:#333;--mode-router-bg:rgba(59,130,246,0.18);--mode-router-fg:#93c5fd;--mode-router-border:rgba(96,165,250,0.45);--mode-ap-bg:rgba(20,184,166,0.18);--mode-ap-fg:#5eead4;--mode-ap-border:rgba(45,212,191,0.45);--offload-on-bg:rgba(34,197,94,0.16);--offload-on-fg:#86efac;--offload-on-border:rgba(74,222,128,0.42);--offload-ap-bg:rgba(20,184,166,0.2);--offload-ap-fg:#5eead4;--offload-ap-border:rgba(45,212,191,0.48);--offload-off-bg:rgba(245,158,11,0.16);--offload-off-fg:#fbbf24;--offload-off-border:rgba(251,191,36,0.42)}'
+		: ':root{--soc-card-bg:#fff;--soc-border:#d0d0d0;--soc-muted:#666;--soc-text:#222;--soc-bar-track:#e0e0e0;--mode-router-bg:#eff6ff;--mode-router-fg:#1d4ed8;--mode-router-border:#bfdbfe;--mode-ap-bg:#ecfdf5;--mode-ap-fg:#0f766e;--mode-ap-border:#99f6e4;--offload-on-bg:#f0fdf4;--offload-on-fg:#15803d;--offload-on-border:#bbf7d0;--offload-ap-bg:#f0fdfa;--offload-ap-fg:#0f766e;--offload-ap-border:#99f6e4;--offload-off-bg:#fffbeb;--offload-off-fg:#b45309;--offload-off-border:#fde68a}';
 	el.textContent = themeCSS + vars;
 }
 
@@ -582,9 +586,10 @@ function getModeReasonText(reason) {
 	return reasonMap[reason] || '';
 }
 
-function renderModeBanner(dm) {
+function renderModeBanner(dm, apo) {
 	var mode = dm.mode || '';
 	var reasonText = getModeReasonText(dm.reason || '');
+	apo = apo || {};
 	var children = [];
 	if (mode) {
 		children.push(E('span', { 'class': 'mode-badge ' + (mode === 'ap' ? 'mode-ap' : 'mode-router') },
@@ -592,6 +597,10 @@ function renderModeBanner(dm) {
 	}
 	children.push(E('span', { 'class': 'mode-reason soc-muted', 'id': 'mode-reason' },
 		mode ? _('Auto-detected') + (reasonText ? ' \u2014 ' + reasonText : '') : _('MODE detecting...')));
+	children.push(E('div', { 'class': 'mode-offload-item mode-ap-offload' }, [
+		E('span', { 'class': 'mode-offload-label' }, _('AP Mode Acceleration')),
+		renderApModeOffloadStatus(apo.enabled)
+	]));
 	return E('div', { 'class': 'mode-banner', 'id': 'mode-banner' }, children);
 }
 
@@ -1470,25 +1479,21 @@ return view.extend({
 				// Ethernet port gauges row
 				buildEthGaugeRow((eth && Array.isArray(eth.ports)) ? eth.ports : [], ppe),
 				E('div', { 'class': 'mode-offload-bar' }, [
-					renderModeBanner(dm),
+					renderModeBanner(dm, apo),
 					E('span', { 'class': 'mode-offload-divider', 'aria-hidden': 'true' }),
 					E('div', { 'class': 'mode-offload-items' }, [
-					E('div', { 'class': 'mode-offload-item' }, [
-						E('span', { 'class': 'mode-offload-label soc-text' }, _('HW Flow Offload')),
-						renderFlowOffloadStatus(flo.enabled)
-					]),
-					E('div', { 'class': 'mode-offload-item' }, [
-						E('span', { 'class': 'mode-offload-label soc-text' }, _('VLAN Offload')),
-						renderVlanOffloadStatus(vo.enabled)
-					]),
-					E('div', { 'class': 'mode-offload-item' }, [
-						E('span', { 'class': 'mode-offload-label soc-text' }, _('PPPoE Offload')),
-						renderPppoeOffloadStatus(ppo.enabled)
-					]),
-					E('div', { 'class': 'mode-offload-item' }, [
-						E('span', { 'class': 'mode-offload-label soc-text' }, _('AP Mode Acceleration')),
-						renderApModeOffloadStatus(apo.enabled)
-					])
+						E('div', { 'class': 'mode-offload-item' }, [
+							E('span', { 'class': 'mode-offload-label soc-text' }, _('HW Flow Offload')),
+							renderFlowOffloadStatus(flo.enabled)
+						]),
+						E('div', { 'class': 'mode-offload-item' }, [
+							E('span', { 'class': 'mode-offload-label soc-text' }, _('VLAN Offload')),
+							renderVlanOffloadStatus(vo.enabled)
+						]),
+						E('div', { 'class': 'mode-offload-item' }, [
+							E('span', { 'class': 'mode-offload-label soc-text' }, _('PPPoE Offload')),
+							renderPppoeOffloadStatus(ppo.enabled)
+						])
 					])
 				]),
 				E('div',{'style':'margin-top:12px'}, renderPpeTerminal(ppe))
