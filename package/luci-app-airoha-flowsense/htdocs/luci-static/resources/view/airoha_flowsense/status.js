@@ -41,13 +41,20 @@ var themeCSS = '\
 .compass-card-title{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--soc-muted);margin-bottom:4px;font-family:monospace}\
 .compass-card-value{font-size:20px;font-weight:700;line-height:1.1;font-family:monospace}\
 .compass-card-sub{font-size:11px;color:var(--soc-muted);margin-top:3px}\
-.mode-banner{display:flex;align-items:center;gap:12px;padding:8px 14px;border-radius:6px;margin-bottom:8px;border:1px solid var(--soc-border);background:var(--soc-card-bg)}\
-.mode-badge{font-size:11px;font-weight:700;letter-spacing:1px;padding:3px 10px;border-radius:3px;font-family:monospace}\
+.mode-offload-bar{display:flex;align-items:center;flex-wrap:nowrap;gap:12px;width:100%;box-sizing:border-box;margin-top:10px;padding:8px 12px;border:1px solid var(--soc-border);border-radius:6px;background:var(--soc-card-bg)}\
+.mode-banner{display:flex;align-items:center;gap:8px;min-width:0;flex:0 1 auto}\
+.mode-badge{font-size:11px;font-weight:700;letter-spacing:1px;padding:3px 9px;border-radius:3px;font-family:monospace;white-space:nowrap;flex-shrink:0}\
 .mode-router{background:rgba(0,200,255,0.15);color:#00c8ff;border:1px solid rgba(0,200,255,0.35)}\
 .mode-ap{background:rgba(255,160,0,0.15);color:#ffa000;border:1px solid rgba(255,160,0,0.35)}\
-.offload-badge{font-size:13px;font-weight:700;letter-spacing:1px;padding:0 10px;border-radius:3px;font-family:monospace;display:inline-flex;align-items:center;align-self:stretch}\
+.mode-reason{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+.mode-offload-divider{width:1px;height:26px;background:var(--soc-border);flex:0 0 1px}\
+.mode-offload-items{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;flex:1 1 auto}\
+.mode-offload-item{display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap}\
+.mode-offload-label{font-size:12px;font-weight:600}\
+.offload-badge{font-size:11px;font-weight:700;letter-spacing:1px;line-height:20px;padding:0 8px;border-radius:3px;font-family:monospace;display:inline-flex;align-items:center;white-space:nowrap;flex-shrink:0}\
 .offload-on{background:rgba(0,255,0,0.12);color:#00ff00;border:1px solid rgba(0,255,0,0.35)}\
 .offload-off{background:rgba(255,160,0,0.15);color:#ffa000;border:1px solid rgba(255,160,0,0.35)}\
+@media(max-width:760px){.mode-offload-bar{flex-wrap:wrap}.mode-banner{flex:1 1 100%}.mode-offload-divider{display:none}.mode-offload-items{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));flex:1 1 100%;gap:8px 12px}.mode-offload-item{justify-content:space-between}}\
 .alert-wrap{margin-bottom:8px}\
 .alert-item{display:flex;align-items:flex-start;gap:10px;padding:8px 12px;border-radius:5px;margin-bottom:5px;font-size:13px}\
 .alert-warning{border-left:3px solid #f5a623;background:rgba(245,166,35,0.1)}\
@@ -250,6 +257,10 @@ function renderFlowOffloadStatus(enabled) {
 
 function renderPppoeOffloadStatus(enabled) {
 	return renderOffloadBadge(enabled, 'pppoe-offload-status');
+}
+
+function renderApModeOffloadStatus(enabled) {
+	return renderOffloadBadge(enabled, 'apmode-offload-status');
 }
 
 /* ── PPE Panels ── */
@@ -562,22 +573,26 @@ function latencyColor(ms) {
 }
 
 /* ── Mode Banner ── */
+function getModeReasonText(reason) {
+	var reasonMap = {
+		dhcp_disabled: _('DHCP disabled in UCI'),
+		no_wan: _('No WAN IP detected'),
+		local_gateway: _('Local gateway detected')
+	};
+	return reasonMap[reason] || '';
+}
+
 function renderModeBanner(dm) {
 	var mode = dm.mode || '';
-	var reason = dm.reason || '';
-	if (!mode) {
-		return E('div', { 'class': 'mode-banner', 'id': 'mode-banner' }, [
-			E('span', { 'class': 'soc-muted', 'style': 'font-size:12px' }, _('MODE detecting...'))
-		]);
+	var reasonText = getModeReasonText(dm.reason || '');
+	var children = [];
+	if (mode) {
+		children.push(E('span', { 'class': 'mode-badge ' + (mode === 'ap' ? 'mode-ap' : 'mode-router') },
+			mode === 'ap' ? _('AP MODE') : _('ROUTER MODE')));
 	}
-	var reasonMap = { dhcp_disabled: _('DHCP disabled in UCI'), no_wan: _('No WAN IP detected'), local_gateway: _('Local gateway detected') };
-	var reasonText = reasonMap[reason] || '';
-	return E('div', { 'class': 'mode-banner', 'id': 'mode-banner' }, [
-		E('span', { 'class': 'mode-badge ' + (mode==='ap' ? 'mode-ap' : 'mode-router') },
-			mode === 'ap' ? _('AP MODE') : _('ROUTER MODE')),
-		E('span', { 'class': 'soc-muted', 'style': 'font-size:12px' }, _('Auto-detected') + (reasonText ? ' \u2014 ' + reasonText : '')),
-		E('span', { 'id': 'mode-banner-status', 'style': 'margin-left:auto;font-size:12px;color:var(--soc-muted)' }, '')
-	]);
+	children.push(E('span', { 'class': 'mode-reason soc-muted', 'id': 'mode-reason' },
+		mode ? _('Auto-detected') + (reasonText ? ' \u2014 ' + reasonText : '') : _('MODE detecting...')));
+	return E('div', { 'class': 'mode-banner', 'id': 'mode-banner' }, children);
 }
 
 /* ── Conflict Alerts ── */
@@ -1423,8 +1438,8 @@ return view.extend({
 		var bypass=data[7]||{}, wan=data[8]||{};
 		var jitter=data[9]||{}, alertData=data[10]||{};
 		var wifi=data[11]||{}, bridge=data[12]||{};
-		var flo=data[13]||{}, ppo=data[14]||{};
-		var eth=data[15]||{};
+		var flo=data[13]||{}, ppo=data[14]||{}, apo=data[15]||{};
+		var eth=data[16]||{};
 		var memR = Array.isArray(st.memory_regions) ? st.memory_regions : [];
 		var mode = dm.mode || 'router';
 
@@ -1454,19 +1469,26 @@ return view.extend({
 				renderCompassCards(cs, bypass, jitter, wan, wifi, bridge, mode),
 				// Ethernet port gauges row
 				buildEthGaugeRow((eth && Array.isArray(eth.ports)) ? eth.ports : [], ppe),
-				renderModeBanner(dm),
-				E('div',{'style':'display:flex;align-items:center;justify-content:space-evenly;margin-top:10px;flex-wrap:wrap;width:100%'},[
-					E('label',{'style':'display:flex;align-items:center;gap:6px;font-size:13px'},[
-						E('span',{'class':'soc-text','style':'font-weight:600'},_('HW Flow Offload')),
+				E('div', { 'class': 'mode-offload-bar' }, [
+					renderModeBanner(dm),
+					E('span', { 'class': 'mode-offload-divider', 'aria-hidden': 'true' }),
+					E('div', { 'class': 'mode-offload-items' }, [
+					E('div', { 'class': 'mode-offload-item' }, [
+						E('span', { 'class': 'mode-offload-label soc-text' }, _('HW Flow Offload')),
 						renderFlowOffloadStatus(flo.enabled)
 					]),
-					E('label',{'style':'display:flex;align-items:center;gap:6px;font-size:13px'},[
-						E('span',{'class':'soc-text','style':'font-weight:600'},_('VLAN Offload')),
+					E('div', { 'class': 'mode-offload-item' }, [
+						E('span', { 'class': 'mode-offload-label soc-text' }, _('VLAN Offload')),
 						renderVlanOffloadStatus(vo.enabled)
 					]),
-					E('label',{'style':'display:flex;align-items:center;gap:6px;font-size:13px'},[
-						E('span',{'class':'soc-text','style':'font-weight:600'},_('PPPoE Offload')),
+					E('div', { 'class': 'mode-offload-item' }, [
+						E('span', { 'class': 'mode-offload-label soc-text' }, _('PPPoE Offload')),
 						renderPppoeOffloadStatus(ppo.enabled)
+					]),
+					E('div', { 'class': 'mode-offload-item' }, [
+						E('span', { 'class': 'mode-offload-label soc-text' }, _('AP Mode Acceleration')),
+						renderApModeOffloadStatus(apo.enabled)
+					])
 					])
 				]),
 				E('div',{'style':'margin-top:12px'}, renderPpeTerminal(ppe))
@@ -1481,7 +1503,8 @@ return view.extend({
 					overview.status, overview.ppe, overview.token, overview.frame,
 					overview.vlan, overview.tx, overview.mode, overview.bypass,
 					overview.wan, overview.jitter, overview.alerts, overview.wifi,
-					overview.bridge, overview.flow, overview.pppoe, overview.eth
+					overview.bridge, overview.flow, overview.pppoe, overview.apmode,
+					overview.eth
 				];
 				injectCSS();
 				var st=d[0]||{}, ppe=d[1]||{}, ti=d[2]||{}, fe=d[3]||{};
@@ -1489,8 +1512,8 @@ return view.extend({
 				var bypass=d[7]||{}, wan=d[8]||{};
 				var jitter=d[9]||{}, alertData=d[10]||{};
 				var wifi=d[11]||{}, bridge=d[12]||{};
-				var flo=d[13]||{}, ppo=d[14]||{};
-				var eth=d[15]||{};
+				var flo=d[13]||{}, ppo=d[14]||{}, apo=d[15]||{};
+				var eth=d[16]||{};
 				var mode = dm.mode || 'router';
 
 				// Compass update (tachometer embedded inside compass)
@@ -1520,25 +1543,21 @@ return view.extend({
 
 				// Mode banner
 				var mb = document.getElementById('mode-banner');
-				if (mb && dm.mode) {
+				if (mb) {
 					var badge = mb.querySelector('.mode-badge');
-					if (badge) {
+					var sub = document.getElementById('mode-reason');
+					if (dm.mode) {
+						if (!badge) {
+							badge = document.createElement('span');
+							mb.insertBefore(badge, mb.firstChild);
+						}
 						badge.className = 'mode-badge ' + (dm.mode === 'ap' ? 'mode-ap' : 'mode-router');
 						badge.textContent = dm.mode === 'ap' ? _('AP MODE') : _('ROUTER MODE');
+						var reasonText = getModeReasonText(dm.reason || '');
+						if (sub) sub.textContent = _('Auto-detected') + (reasonText ? ' \u2014 ' + reasonText : '');
 					} else {
-						badge = document.createElement('span');
-						badge.className = 'mode-badge ' + (dm.mode === 'ap' ? 'mode-ap' : 'mode-router');
-						badge.textContent = dm.mode === 'ap' ? _('AP MODE') : _('ROUTER MODE');
-						mb.insertBefore(badge, mb.firstChild);
-					}
-					var sub = mb.querySelector('.soc-muted');
-					if (sub) {
-						var reasonMap = {};
-						reasonMap.dhcp_disabled = _('DHCP disabled in UCI');
-						reasonMap.no_wan = _('No WAN IP detected');
-						reasonMap.local_gateway = _('Local gateway detected');
-						var reasonText = reasonMap[dm.reason] || '';
-						sub.textContent = 'Auto-detected' + (reasonText ? ' \u2014 ' + reasonText : '');
+						if (badge) badge.remove();
+						if (sub) sub.textContent = _('MODE detecting...');
 					}
 				}
 
@@ -1547,6 +1566,7 @@ return view.extend({
 				_setOffloadStatus('vlan-offload-status', vo.enabled);
 				_setOffloadStatus('flow-offload-status', flo.enabled);
 				_setOffloadStatus('pppoe-offload-status', ppo.enabled);
+				_setOffloadStatus('apmode-offload-status', apo.enabled);
 
 				// Ethernet port gauges — compute per-port Mbps deltas from cumulative byte counters
 				var ethPorts = (eth && Array.isArray(eth.ports)) ? eth.ports : [];

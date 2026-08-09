@@ -645,6 +645,37 @@ get_pppoe_offload() {
 	printf '{"enabled":%d}' "${val:-0}"
 }
 
+_apmode_has_vlan_filtering() {
+	local path value
+
+	for path in /sys/class/net/*/bridge/vlan_filtering; do
+		[ -r "$path" ] || continue
+		value=$(cat "$path" 2>/dev/null)
+		[ "$value" = "1" ] && { echo 1; return; }
+	done
+
+	echo 0
+}
+
+get_apmode_offload() {
+	local ipt ip6t arp vlan_filtering filter_vlan_tagged pass_vlan_indev
+
+	# Keep this status definition aligned with luci.airoha_npu.
+	ipt=$(cat /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null)
+	ip6t=$(cat /proc/sys/net/bridge/bridge-nf-call-ip6tables 2>/dev/null)
+	arp=$(cat /proc/sys/net/bridge/bridge-nf-call-arptables 2>/dev/null)
+	vlan_filtering=$(_apmode_has_vlan_filtering)
+	filter_vlan_tagged=$(cat /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null)
+	pass_vlan_indev=$(cat /proc/sys/net/bridge/bridge-nf-pass-vlan-input-dev 2>/dev/null)
+
+	if [ "$ipt" = "1" ] && [ "$ip6t" = "1" ] && [ "$arp" = "1" ] && \
+	   { [ "$vlan_filtering" = "0" ] || { [ "$filter_vlan_tagged" = "1" ] && [ "$pass_vlan_indev" = "1" ]; }; }; then
+		printf '{"enabled":1}'
+	else
+		printf '{"enabled":0}'
+	fi
+}
+
 get_device_mode() {
 	local mode="router"
 	local reason=""
@@ -1128,7 +1159,7 @@ set_ping_target() {
 }
 
 get_overview() {
-	local status ppe token frame vlan tx mode bypass wan jitter alerts wifi bridge flow pppoe eth
+	local status ppe token frame vlan tx mode bypass wan jitter alerts wifi bridge flow pppoe apmode eth
 	local ppe_bound ppe_unbound ppe_total
 	ppe=$(_cached_json ppe 10 get_ppe_entries)
 	ppe_bound=$(printf '%s' "$ppe" | jsonfilter -e '@.bnd.total' 2>/dev/null)
@@ -1150,16 +1181,17 @@ get_overview() {
 	bridge=$(get_bridge_stats)
 	flow=$(get_flow_offload)
 	pppoe=$(get_pppoe_offload)
+	apmode=$(get_apmode_offload)
 	eth=$(get_eth_stats)
 
-	printf '{"status":%s,"ppe":%s,"token":%s,"frame":%s,"vlan":%s,"tx":%s,"mode":%s,"bypass":%s,"wan":%s,"jitter":%s,"alerts":%s,"wifi":%s,"bridge":%s,"flow":%s,"pppoe":%s,"eth":%s}' \
+	printf '{"status":%s,"ppe":%s,"token":%s,"frame":%s,"vlan":%s,"tx":%s,"mode":%s,"bypass":%s,"wan":%s,"jitter":%s,"alerts":%s,"wifi":%s,"bridge":%s,"flow":%s,"pppoe":%s,"apmode":%s,"eth":%s}' \
 		"$status" "$ppe" "$token" "$frame" "$vlan" "$tx" "$mode" "$bypass" \
-		"$wan" "$jitter" "$alerts" "$wifi" "$bridge" "$flow" "$pppoe" "$eth"
+		"$wan" "$jitter" "$alerts" "$wifi" "$bridge" "$flow" "$pppoe" "$apmode" "$eth"
 }
 
 case "$1" in
 	list)
-		echo '{"getOverview":{},"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getTxStats":{},"getVlanOffload":{},"getFlowOffload":{},"getPppoeOffload":{},"getDeviceMode":{},"getWanHealth":{},"getJitterResult":{},"getWifiStats":{},"getBridgeStats":{},"getNpuBypass":{},"getConflictAlerts":{},"getEthStats":{},"getPingTarget":{},"setPingTarget":{"target":"str"}}'
+		echo '{"getOverview":{},"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getTxStats":{},"getVlanOffload":{},"getFlowOffload":{},"getPppoeOffload":{},"getApModeOffload":{},"getDeviceMode":{},"getWanHealth":{},"getJitterResult":{},"getWifiStats":{},"getBridgeStats":{},"getNpuBypass":{},"getConflictAlerts":{},"getEthStats":{},"getPingTarget":{},"setPingTarget":{"target":"str"}}'
 		;;
 	call)
 		case "$2" in
@@ -1189,6 +1221,9 @@ case "$1" in
 				;;
 			getPppoeOffload)
 				get_pppoe_offload
+				;;
+			getApModeOffload)
+				get_apmode_offload
 				;;
 			getDeviceMode)
 				get_device_mode

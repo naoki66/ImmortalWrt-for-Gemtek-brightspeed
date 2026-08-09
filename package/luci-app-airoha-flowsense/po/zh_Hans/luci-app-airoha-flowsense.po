@@ -6,6 +6,9 @@ msgstr ""
 msgid "Airoha FlowSense"
 msgstr "Airoha 流量传感器"
 
+msgid "AP Mode Acceleration"
+msgstr "AP模式加速"
+
 msgid "Disabled"
 msgstr "已禁用"
 

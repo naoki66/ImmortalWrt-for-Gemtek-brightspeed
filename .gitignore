@@ -2,6 +2,7 @@
 .DS_Store
 .*.swp
 /env
+/.remote-build.local.psd1
 /dl
 /.toolchain_build_ver
 /bin

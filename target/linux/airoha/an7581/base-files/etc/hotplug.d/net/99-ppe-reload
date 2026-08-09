@@ -9,12 +9,21 @@ dev_name="${DEVICE:-$INTERFACE}"
 
 case "$dev_name" in
     phy*|ap*)
-        (
-            lock /var/run/fw_reload.lock || exit 0
-            trap 'lock -u /var/run/fw_reload.lock' EXIT
+        lock_file=/var/run/fw_reload.lock
+        pending_file=/var/run/fw_reload.pending
+        token="$$:$dev_name"
 
+        # Netifd emits one event per VIF. Let only the newest event in a
+        # burst perform the reload after the interfaces have settled.
+        printf '%s\n' "$token" > "$pending_file"
+
+        (
             sleep 2
 
+            lock "$lock_file" || exit 0
+            trap 'lock -u "$lock_file"' EXIT
+
+            [ "$(cat "$pending_file" 2>/dev/null)" = "$token" ] || exit 0
             [ -x /etc/init.d/firewall ] || exit 0
 
             logger -t wifi-fix "Reload firewall for $dev_name"

@@ -4,14 +4,14 @@ include $(TOPDIR)/rules.mk
 
 LUCI_NAME:=luci-app-airoha-flowsense
 PKG_VERSION:=1.1.3
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=XR1710G Maintainer
 TITLE:=LuCI Airoha XR1710G FlowSense
 
 LUCI_TITLE:=LuCI Airoha XR1710G FlowSense
 LUCI_DESCRIPTION:=Provides real-time monitoring and control for Airoha PPE hardware offload. \
-	Displays NPU token usage, flow entry count, VLAN/PPPoE acceleration status, \
+	Displays NPU token usage, flow entry count, flow/VLAN/PPPoE and AP-mode acceleration status, \
 	and allows enabling/disabling hardware offload for specific interfaces.
 LUCI_DEPENDS:=+luci-base
 
