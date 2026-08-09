@@ -5,10 +5,10 @@
 
 mode="$1"
 
-steering_flows="$(uci -q get '"'"'network.@globals[0].steering_flows'"'"')"
+steering_flows="$(uci -q get 'network.@globals[0].steering_flows')"
 opts=""
 case "$steering_flows" in
-	'"'"''"'"'|*[!0-9]*) ;;
+	''|*[!0-9]*) ;;
 	*) [ "$steering_flows" -gt 0 ] && opts="-l $steering_flows" ;;
 esac
 

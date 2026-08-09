@@ -42,6 +42,14 @@ function reset_config(phy, radio) {
 	system(`ucode /usr/share/hostap/wdev.uc ${name} set_config '{}'`);
 }
 
+function supports_antenna_control(phy) {
+	// MediaTek MT7996 exposes antenna masks but does not implement the
+	// nl80211 set-antenna operation; avoid resetting AP state for a command
+	// that can only fail with EOPNOTSUPP.
+	let uevent = fs.readfile(`/sys/class/ieee80211/${phy}/device/uevent`) ?? '';
+	return index(uevent, 'DRIVER=mt7996e') < 0;
+}
+
 function get_channel_frequency(band, channel) {
 	if (channel < 1)
 		return null;
@@ -72,7 +80,7 @@ function setup_phy(phy, config, data) {
 
 	if (config.country_code) {
 		log(`Setting country code to ${config.country_code}`);
-		system(`iw reg set ${config.country_code} 2>/dev/null`);
+		system(`iw reg set ${config.country_code}`);
 	}
 
 	set_default(config, 'rxantenna', 0xffffffff);
@@ -85,7 +93,8 @@ function setup_phy(phy, config, data) {
 
 	let antenna_changed = (config.txantenna != data?.txantenna || config.rxantenna != data?.rxantenna);
 
-	if (antenna_changed)
+	let antenna_supported = supports_antenna_control(phy);
+	if (antenna_changed && antenna_supported)
 		reset_config(phy, config.radio);
 
 	netifd.set_data({
@@ -101,17 +110,17 @@ function setup_phy(phy, config, data) {
 		config.txpower = 'auto';
 
 	log(`Configuring '${phy}' distance: ${config.distance}`);
-	if (antenna_changed) {
+	if (antenna_changed && antenna_supported) {
 		log(`Setting antenna for '${phy}' txantenna: ${config.txantenna}, rxantenna: ${config.rxantenna}`);
-		system(`iw phy ${phy} set antenna ${config.txantenna} ${config.rxantenna} 2>/dev/null`);
+		system(`iw phy ${phy} set antenna ${config.txantenna} ${config.rxantenna}`);
 	}
-	system(`iw phy ${phy} set distance ${config.distance} 2>/dev/null`);
-	system(`iw phy ${phy} set txpower ${config.txpower} 2>/dev/null`);
+	system(`iw phy ${phy} set distance ${config.distance}`);
+	system(`iw phy ${phy} set txpower ${config.txpower}`);
 
 	if (config.frag)
-		system(`iw phy ${phy} set frag ${config.frag} 2>/dev/null`);
+		system(`iw phy ${phy} set frag ${config.frag}`);
 	if (config.rts)
-		system(`iw phy ${phy} set rts ${config.rts} 2>/dev/null`);
+		system(`iw phy ${phy} set rts ${config.rts}`);
 }
 
 function iw_htmode(config) {

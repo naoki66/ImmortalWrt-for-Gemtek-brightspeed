@@ -45,8 +45,8 @@ _run_with_deadline() {
 		kill "$timer" 2>/dev/null; wait "$timer" 2>/dev/null
 		wait "$worker" 2>/dev/null
 		read -r rc <"$done" 2>/dev/null
-		if [ "${rc:-1}" -eq 0 ] && [ -s "$output" ]; then
-			cat "$output"
+		if [ "${rc:-1}" -eq 0 ]; then
+			[ ! -s "$output" ] || cat "$output"
 			rm -f "$output" "$done" "$child_file"
 			return 0
 		fi
@@ -74,6 +74,67 @@ _devmem_read() {
 	[ -n "$val" ]
 }
 
+# Copy debugfs counters through the same deadline guard as MMIO reads.
+_debugfs_snapshot() {
+	local source="$1"
+	local destination="$2"
+	local tag="$3"
+
+	[ -r "$source" ] || return 1
+	rm -f "$destination"
+	_run_with_deadline 2 "$tag" cp "$source" "$destination" || {
+		rm -f "$destination"
+		return 1
+	}
+	return 0
+}
+
+# Cache expensive JSON producers across rpcd invocations and browser sessions.
+_cached_json() {
+	local key="$1"
+	local ttl="$2"
+	local generator="$3"
+	shift 3
+	local cache="/tmp/luci-airoha-flowsense.${key}.json"
+	local lock="${cache}.lock"
+	local tmp="${cache}.$$"
+	local now mtime
+
+	now=$(date +%s)
+	mtime=$(stat -c %Y "$cache" 2>/dev/null)
+	case "$mtime" in ''|*[!0-9]*) mtime=0 ;; esac
+	if [ -s "$cache" ] && [ $((now - mtime)) -lt "$ttl" ]; then
+		cat "$cache"
+		return
+	fi
+
+	if ! mkdir "$lock" 2>/dev/null; then
+		local lock_mtime
+		lock_mtime=$(stat -c %Y "$lock" 2>/dev/null)
+		case "$lock_mtime" in ''|*[!0-9]*) lock_mtime="$now" ;; esac
+		if [ $((now - lock_mtime)) -ge 30 ]; then
+			rmdir "$lock" 2>/dev/null
+			mkdir "$lock" 2>/dev/null || {
+				[ -s "$cache" ] && cat "$cache" || printf '{}'
+				return
+			}
+		else
+		# Another request is refreshing this value. Prefer the last complete
+		# snapshot instead of starting the same hardware probes again.
+			[ -s "$cache" ] && cat "$cache" || printf '{}'
+			return
+		fi
+	fi
+
+	if "$generator" "$@" >"$tmp" && [ -s "$tmp" ]; then
+		mv "$tmp" "$cache"
+	else
+		rm -f "$tmp"
+	fi
+	rmdir "$lock" 2>/dev/null
+	[ -s "$cache" ] && cat "$cache" || printf '{}'
+}
+
 get_status() {
 	# === NPU Status ===
 	local npu_fw="/lib/firmware/airoha/en7581_MT7996_npu_rv32.bin"
@@ -97,13 +158,36 @@ get_status() {
 
 	local npu_clock=0
 	if [ -f "/sys/kernel/debug/clk/npu/clk_rate" ]; then
-		npu_clock=$(cat /sys/kernel/debug/clk/npu/clk_rate 2>/dev/null || echo 0)
+		local clk_snapshot="/tmp/luci-airoha-flowsense.npu-clock.$$"
+		if _debugfs_snapshot /sys/kernel/debug/clk/npu/clk_rate "$clk_snapshot" npu-clock; then
+			npu_clock=$(cat "$clk_snapshot" 2>/dev/null || echo 0)
+		fi
+		rm -f "$clk_snapshot"
 	fi
 
 	local npu_cores=$(grep -c "airoha-npu-wdt" /proc/interrupts 2>/dev/null || echo 0)
 
-	local offload_bound=$(cat /sys/kernel/debug/ppe/bind 2>/dev/null | grep -c "^[0-9a-fA-F]")
-	local offload_total=$(cat /sys/kernel/debug/ppe/entries 2>/dev/null | grep -c "^[0-9a-fA-F]")
+	local status_bind="/tmp/luci-airoha-flowsense.status-bind.$$"
+	local status_entries="/tmp/luci-airoha-flowsense.status-entries.$$"
+	local offload_bound="${1:-}"
+	local offload_total="${2:-}"
+	case "$offload_bound" in
+		''|*[!0-9]*)
+			offload_bound=0
+			if _debugfs_snapshot /sys/kernel/debug/ppe/bind "$status_bind" ppe-bind; then
+				offload_bound=$(grep -c "^[0-9a-fA-F]" "$status_bind" 2>/dev/null)
+			fi
+			;;
+	esac
+	case "$offload_total" in
+		''|*[!0-9]*)
+			offload_total=0
+			if _debugfs_snapshot /sys/kernel/debug/ppe/entries "$status_entries" ppe-entries; then
+				offload_total=$(grep -c "^[0-9a-fA-F]" "$status_entries" 2>/dev/null)
+			fi
+			;;
+	esac
+	rm -f "$status_bind" "$status_entries"
 
 	# NPU memory regions don't change after boot — cache to avoid slow dmesg on every poll
 	local mem_cache="/tmp/npu-mem-regions.json"
@@ -183,8 +267,11 @@ get_status() {
 }
 
 get_ppe_entries() {
-	local bind_file="/sys/kernel/debug/ppe/bind"
-	local entries_file="/sys/kernel/debug/ppe/entries"
+	local bind_file="/tmp/luci-airoha-flowsense.ppe-bind.$$"
+	local entries_file="/tmp/luci-airoha-flowsense.ppe-entries.$$"
+
+	_debugfs_snapshot /sys/kernel/debug/ppe/bind "$bind_file" ppe-bind || rm -f "$bind_file"
+	_debugfs_snapshot /sys/kernel/debug/ppe/entries "$entries_file" ppe-entries || rm -f "$entries_file"
 
 	# Parse a PPE file into JSON entries array (awk function reused for both files)
 	parse_ppe() {
@@ -351,10 +438,12 @@ get_ppe_entries() {
 	bnd_json=$(printf '%s' "$bnd_json" | sed 's/}$/,"port_bnd":'"$port_bnd"'}/')
 
 	printf '{"bnd":%s,"unb":%s}' "$bnd_json" "$unb_json"
+	rm -f "$bind_file" "$entries_file"
 }
 
 get_token_info() {
-	local token_file="/sys/kernel/debug/ieee80211/phy0/mt76/token_info"
+	local token_file="/tmp/luci-airoha-flowsense.token-info.$$"
+	_debugfs_snapshot /sys/kernel/debug/ieee80211/phy0/mt76/token_info "$token_file" token-info || rm -f "$token_file"
 
 	# Gather per-band WiFi station stats (count, retries, failures)
 	local sta_json="" band
@@ -376,6 +465,7 @@ get_token_info() {
 
 	if [ ! -f "$token_file" ]; then
 		printf '{"token_count":0,"token_size":0,"npu_active":false,"tx_queues":[],"station_counts":[%s]}' "$sta_json"
+		rm -f "$token_file"
 		return
 	fi
 
@@ -413,25 +503,20 @@ get_token_info() {
 		printf "],\"station_counts\":[%s]}", stations
 	}
 	' "$token_file" 2>/dev/null || printf '{"token_count":0,"token_size":0,"npu_active":false,"tx_queues":[],"station_counts":[%s]}' "$sta_json"
+	rm -f "$token_file"
 }
 
 
 
 
-get_frame_engine() {
-	[ -e /sys/kernel/debug/ppe/entries ] || { echo '{"error":"frame engine not ready"}'; return; }
-	if ! command -v devmem > /dev/null 2>&1; then
-		echo '{"error":"devmem not available"}'
-		return
-	fi
-
+_probe_frame_engine() {
 	# PSE queue status (IQ=hi16, OQ=lo16) and drop counts for each port
 	local i reg_q reg_d pse_ports=""
 	for i in 0 1 2 3 4 5 6 7 8 9; do
 		reg_q=$(printf "0x%x" $((0x1fb50150 + i * 4)))
 		reg_d=$(printf "0x%x" $((0x1fb50120 + i * 4)))
-		local qval=$(($(_devmem_read "$reg_q")))
-		local dval=$(($(_devmem_read "$reg_d")))
+		local qval=$(($(devmem "$reg_q" 2>/dev/null)))
+		local dval=$(($(devmem "$reg_d" 2>/dev/null)))
 		local iq=$(( (qval >> 16) & 0xFFFF ))
 		local oq=$(( qval & 0xFFFF ))
 		[ -n "$pse_ports" ] && pse_ports="${pse_ports},"
@@ -439,39 +524,39 @@ get_frame_engine() {
 	done
 
 	# PSE shared buffer
-	local psb=$(($(_devmem_read 0x1fb50104)))
+	local psb=$(($(devmem 0x1fb50104 2>/dev/null)))
 	local pse_used=$(( (psb >> 16) & 0xFFFF ))
 	local pse_free=$(( psb & 0x7FFF ))
 
 	# GDM counters (TX_OK, TX_DROP, RX_OK, RX_FC_DROP, RX_OVER_DROP)
 	# Read as hex to handle large 32-bit counters
-	local gdm1_tx=$(($(_devmem_read 0x1fb50604)))
-	local gdm1_txd=$(($(_devmem_read 0x1fb50608)))
-	local gdm1_rx=$(($(_devmem_read 0x1fb50648)))
-	local gdm1_rxd=$(($(_devmem_read 0x1fb5064c)))
+	local gdm1_tx=$(($(devmem 0x1fb50604 2>/dev/null)))
+	local gdm1_txd=$(($(devmem 0x1fb50608 2>/dev/null)))
+	local gdm1_rx=$(($(devmem 0x1fb50648 2>/dev/null)))
+	local gdm1_rxd=$(($(devmem 0x1fb5064c 2>/dev/null)))
 
-	local gdm2_tx=$(($(_devmem_read 0x1fb51604)))
-	local gdm2_txd=$(($(_devmem_read 0x1fb51608)))
-	local gdm2_rx=$(($(_devmem_read 0x1fb51648)))
-	local gdm2_rxd=$(($(_devmem_read 0x1fb5164c)))
+	local gdm2_tx=$(($(devmem 0x1fb51604 2>/dev/null)))
+	local gdm2_txd=$(($(devmem 0x1fb51608 2>/dev/null)))
+	local gdm2_rx=$(($(devmem 0x1fb51648 2>/dev/null)))
+	local gdm2_rxd=$(($(devmem 0x1fb5164c 2>/dev/null)))
 
-	local gdm4_tx=$(($(_devmem_read 0x1fb52604)))
-	local gdm4_txd=$(($(_devmem_read 0x1fb52608)))
-	local gdm4_rx=$(($(_devmem_read 0x1fb52648)))
-	local gdm4_rxd=$(($(_devmem_read 0x1fb5264c)))
+	local gdm4_tx=$(($(devmem 0x1fb52604 2>/dev/null)))
+	local gdm4_txd=$(($(devmem 0x1fb52608 2>/dev/null)))
+	local gdm4_rx=$(($(devmem 0x1fb52648 2>/dev/null)))
+	local gdm4_rxd=$(($(devmem 0x1fb5264c 2>/dev/null)))
 
 	# CDM counters (TX_OK, RXCPU_OK, RXHWF_OK, RXCPU_DROP, RXHWF_DROP)
-	local cdm1_tx=$(($(_devmem_read 0x1fb50580)))
-	local cdm1_rxcpu=$(($(_devmem_read 0x1fb50590)))
-	local cdm1_rxhwf=$(($(_devmem_read 0x1fb50594)))
-	local cdm1_rxcpud=$(($(_devmem_read 0x1fb505a0)))
-	local cdm1_rxhwfd=$(($(_devmem_read 0x1fb505a4)))
+	local cdm1_tx=$(($(devmem 0x1fb50580 2>/dev/null)))
+	local cdm1_rxcpu=$(($(devmem 0x1fb50590 2>/dev/null)))
+	local cdm1_rxhwf=$(($(devmem 0x1fb50594 2>/dev/null)))
+	local cdm1_rxcpud=$(($(devmem 0x1fb505a0 2>/dev/null)))
+	local cdm1_rxhwfd=$(($(devmem 0x1fb505a4 2>/dev/null)))
 
-	local cdm2_tx=$(($(_devmem_read 0x1fb51580)))
-	local cdm2_rxcpu=$(($(_devmem_read 0x1fb51590)))
-	local cdm2_rxhwf=$(($(_devmem_read 0x1fb51594)))
-	local cdm2_rxcpud=$(($(_devmem_read 0x1fb515a0)))
-	local cdm2_rxhwfd=$(($(_devmem_read 0x1fb515a4)))
+	local cdm2_tx=$(($(devmem 0x1fb51580 2>/dev/null)))
+	local cdm2_rxcpu=$(($(devmem 0x1fb51590 2>/dev/null)))
+	local cdm2_rxhwf=$(($(devmem 0x1fb51594 2>/dev/null)))
+	local cdm2_rxcpud=$(($(devmem 0x1fb515a0 2>/dev/null)))
+	local cdm2_rxhwfd=$(($(devmem 0x1fb515a4 2>/dev/null)))
 
 	printf '{"pse_ports":[%s],"pse_used":%d,"pse_free":%d,' "$pse_ports" "$pse_used" "$pse_free"
 	printf '"gdm1":{"tx":%d,"tx_drop":%d,"rx":%d,"rx_drop":%d},' "$gdm1_tx" "$gdm1_txd" "$gdm1_rx" "$gdm1_rxd"
@@ -481,11 +566,23 @@ get_frame_engine() {
 	printf '"cdm2":{"tx":%d,"rx_cpu":%d,"rx_hwf":%d,"rx_cpu_drop":%d,"rx_hwf_drop":%d}}' "$cdm2_tx" "$cdm2_rxcpu" "$cdm2_rxhwf" "$cdm2_rxcpud" "$cdm2_rxhwfd"
 }
 
+get_frame_engine() {
+	[ -e /sys/kernel/debug/ppe/entries ] || { echo '{"error":"frame engine not ready"}'; return; }
+	if ! command -v devmem > /dev/null 2>&1; then
+		echo '{"error":"devmem not available"}'
+		return
+	fi
+
+	_run_with_deadline 3 frame-engine _probe_frame_engine || echo '{"error":"frame engine read timed out"}'
+}
+
 get_tx_stats() {
-	local stats_file="/sys/kernel/debug/ieee80211/phy0/mt76/tx_stats"
+	local stats_file="/tmp/luci-airoha-flowsense.tx-stats.$$"
+	_debugfs_snapshot /sys/kernel/debug/ieee80211/phy0/mt76/tx_stats "$stats_file" tx-stats || rm -f "$stats_file"
 
 	if [ ! -f "$stats_file" ]; then
 		echo '{"bands":[]}'
+		rm -f "$stats_file"
 		return
 	fi
 
@@ -522,6 +619,7 @@ get_tx_stats() {
 		printf "]}"
 	}
 	' "$stats_file" 2>/dev/null || echo '{"bands":[]}'
+	rm -f "$stats_file"
 }
 
 get_vlan_offload() {
@@ -851,9 +949,10 @@ get_npu_bypass() {
 	hw_offload=$(uci get firewall.@defaults[0].flow_offloading_hw 2>/dev/null)
 
 	# Read PPE bound entry count directly from debugfs
-	local offload_bound=0
-	local ppe_bind="/sys/kernel/debug/ppe/bind"
-	if [ -r "$ppe_bind" ]; then
+	local offload_bound="${1:-}"
+	local ppe_bind="/tmp/luci-airoha-flowsense.bypass-bind.$$"
+	case "$offload_bound" in ''|*[!0-9]*) offload_bound=0 ;; *) ppe_bind="" ;; esac
+	if [ -n "$ppe_bind" ] && _debugfs_snapshot /sys/kernel/debug/ppe/bind "$ppe_bind" ppe-bind; then
 		offload_bound=$(wc -l < "$ppe_bind" 2>/dev/null || echo 0)
 		# Subtract 1 if file has a header line (starts with non-numeric)
 		local first
@@ -861,6 +960,7 @@ get_npu_bypass() {
 		case "$first" in [0-9]*) ;; *) offload_bound=$(( offload_bound - 1 )) ;; esac
 		[ "$offload_bound" -lt 0 ] && offload_bound=0
 	fi
+	[ -z "$ppe_bind" ] || rm -f "$ppe_bind"
 
 	# Calculate CPU usage % using /proc/stat delta
 	local cpu_pct=0
@@ -1027,12 +1127,45 @@ set_ping_target() {
 	printf '{"success":true,"target":"%s"}' "$target"
 }
 
+get_overview() {
+	local status ppe token frame vlan tx mode bypass wan jitter alerts wifi bridge flow pppoe eth
+	local ppe_bound ppe_unbound ppe_total
+	ppe=$(_cached_json ppe 10 get_ppe_entries)
+	ppe_bound=$(printf '%s' "$ppe" | jsonfilter -e '@.bnd.total' 2>/dev/null)
+	ppe_unbound=$(printf '%s' "$ppe" | jsonfilter -e '@.unb.total' 2>/dev/null)
+	case "$ppe_bound" in ''|*[!0-9]*) ppe_bound=0 ;; esac
+	case "$ppe_unbound" in ''|*[!0-9]*) ppe_unbound=0 ;; esac
+	ppe_total=$((ppe_bound + ppe_unbound))
+	status=$(_cached_json status 10 get_status "$ppe_bound" "$ppe_total")
+	token=$(_cached_json token 10 get_token_info)
+	frame=$(_cached_json frame 10 get_frame_engine)
+	vlan=$(get_vlan_offload)
+	tx=$(_cached_json tx 10 get_tx_stats)
+	mode=$(get_device_mode)
+	bypass=$(get_npu_bypass "$ppe_bound")
+	wan=$(get_wan_health)
+	jitter=$(get_jitter_result)
+	alerts=$(get_conflict_alerts)
+	wifi=$(_cached_json wifi 10 get_wifi_stats)
+	bridge=$(get_bridge_stats)
+	flow=$(get_flow_offload)
+	pppoe=$(get_pppoe_offload)
+	eth=$(get_eth_stats)
+
+	printf '{"status":%s,"ppe":%s,"token":%s,"frame":%s,"vlan":%s,"tx":%s,"mode":%s,"bypass":%s,"wan":%s,"jitter":%s,"alerts":%s,"wifi":%s,"bridge":%s,"flow":%s,"pppoe":%s,"eth":%s}' \
+		"$status" "$ppe" "$token" "$frame" "$vlan" "$tx" "$mode" "$bypass" \
+		"$wan" "$jitter" "$alerts" "$wifi" "$bridge" "$flow" "$pppoe" "$eth"
+}
+
 case "$1" in
 	list)
-		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getTxStats":{},"getVlanOffload":{},"getFlowOffload":{},"getPppoeOffload":{},"getDeviceMode":{},"getWanHealth":{},"getJitterResult":{},"getWifiStats":{},"getBridgeStats":{},"getNpuBypass":{},"getConflictAlerts":{},"getEthStats":{},"getPingTarget":{},"setPingTarget":{"target":"str"}}'
+		echo '{"getOverview":{},"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getTxStats":{},"getVlanOffload":{},"getFlowOffload":{},"getPppoeOffload":{},"getDeviceMode":{},"getWanHealth":{},"getJitterResult":{},"getWifiStats":{},"getBridgeStats":{},"getNpuBypass":{},"getConflictAlerts":{},"getEthStats":{},"getPingTarget":{},"setPingTarget":{"target":"str"}}'
 		;;
 	call)
 		case "$2" in
+			getOverview)
+				get_overview
+				;;
 			getStatus)
 				get_status
 				;;

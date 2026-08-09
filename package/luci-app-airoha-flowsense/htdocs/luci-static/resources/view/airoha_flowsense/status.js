@@ -16,22 +16,7 @@ var _prevEthBytes    = {};    // iface -> {tx, rx, time}
 var _maxEthMbps      = {};    // iface -> peak Mbps seen; grows, never shrinks
 
 /* ── RPC Declarations ── */
-var callNpuStatus        = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getStatus' });
-var callPpeEntries       = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getPpeEntries' });
-var callTokenInfo        = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getTokenInfo' });
-var callFrameEngine      = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getFrameEngine' });
-var callTxStats          = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getTxStats' });
-var callGetVlanOffload   = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getVlanOffload' });
-var callGetFlowOffload   = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getFlowOffload' });
-var callGetPppoeOffload      = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getPppoeOffload' });
-var callGetDeviceMode    = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getDeviceMode' });
-var callGetNpuBypass     = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getNpuBypass' });
-var callGetWanHealth     = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getWanHealth' });
-var callGetJitterResult  = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getJitterResult' });
-var callGetConflictAlerts= rpc.declare({ object: 'luci.airoha_flowsense', method: 'getConflictAlerts' });
-var callGetWifiStats     = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getWifiStats' });
-var callGetBridgeStats   = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getBridgeStats' });
-var callGetEthStats      = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getEthStats' });
+var callGetOverview     = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getOverview' });
 var callGetPingTarget    = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getPingTarget' });
 var callSetPingTarget    = rpc.declare({ object: 'luci.airoha_flowsense', method: 'setPingTarget', params: ['target'] });
 
@@ -1490,15 +1475,14 @@ return view.extend({
 
 		// Data fetch + DOM update function — called immediately and via poll
 		var fetchData = L.bind(function() {
-			return Promise.all([
-				callNpuStatus(), callPpeEntries(), callTokenInfo(), callFrameEngine(),
-				callGetVlanOffload(), callTxStats(),
-				callGetDeviceMode(), callGetNpuBypass(),
-				callGetWanHealth(), callGetJitterResult(), callGetConflictAlerts(),
-				callGetWifiStats(), callGetBridgeStats(),
-				callGetFlowOffload(), callGetPppoeOffload(),
-				callGetEthStats()
-			]).then(L.bind(function(d) {
+			return callGetOverview().then(L.bind(function(overview) {
+				overview = overview || {};
+				var d = [
+					overview.status, overview.ppe, overview.token, overview.frame,
+					overview.vlan, overview.tx, overview.mode, overview.bypass,
+					overview.wan, overview.jitter, overview.alerts, overview.wifi,
+					overview.bridge, overview.flow, overview.pppoe, overview.eth
+				];
 				injectCSS();
 				var st=d[0]||{}, ppe=d[1]||{}, ti=d[2]||{}, fe=d[3]||{};
 				var vo=d[4]||{}, txs=d[5]||{}, dm=d[6]||{};

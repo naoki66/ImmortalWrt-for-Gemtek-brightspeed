@@ -3,7 +3,7 @@
 		"description": "Grant access to Airoha FlowSense offload & PPE monitor",
 		"read": {
 			"ubus": {
-				"luci.airoha_flowsense": [ "getStatus", "getPpeEntries", "getTokenInfo", "getFrameEngine", "getVlanOffload", "getFlowOffload", "getPppoeOffload", "getTxStats", "getDeviceMode", "getWanHealth", "getJitterResult", "getWifiStats", "getBridgeStats", "getNpuBypass", "getConflictAlerts", "getEthStats", "getPingTarget" ]
+				"luci.airoha_flowsense": [ "getOverview", "getStatus", "getPpeEntries", "getTokenInfo", "getFrameEngine", "getVlanOffload", "getFlowOffload", "getPppoeOffload", "getTxStats", "getDeviceMode", "getWanHealth", "getJitterResult", "getWifiStats", "getBridgeStats", "getNpuBypass", "getConflictAlerts", "getEthStats", "getPingTarget" ]
 			},
 			"file": {
 				"/sys/kernel/debug/ppe/entries": [ "read" ],
