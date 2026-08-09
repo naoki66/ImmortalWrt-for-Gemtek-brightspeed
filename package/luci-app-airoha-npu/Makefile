@@ -12,7 +12,7 @@ TITLE:=LuCI Airoha XR1710G NPU Status
 LUCI_TITLE:=LuCI Airoha XR1710G NPU Status
 LUCI_DESCRIPTION:=Displays real-time Airoha XR1710G NPU status including NPU utilization, \
 	CPU frequency and load, frame engine statistics, and supports CPU overclocking.
-LUCI_DEPENDS:=+luci-base
+LUCI_DEPENDS:=+luci-base +kmod-br-netfilter
 
 include $(TOPDIR)/feeds/luci/luci.mk
 

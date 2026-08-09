@@ -1,0 +1,54 @@
+From: XR1710G Maintainer <maintainer@example.com>
+Subject: [PATCH] netfilter: bridge: map VLAN-aware bridge PVID to VLAN device
+
+When bridge-nf-call-iptables or bridge-nf-call-ip6tables is enabled,
+br_netfilter passes bridged packets through the inet hooks.  For a
+VLAN-aware bridge, an untagged access port has no skb VLAN tag: its VLAN
+identity is the port PVID.  brnf_get_logical_dev() currently returns the
+bridge master for such packets even when bridge-nf-pass-vlan-input-dev is
+enabled.  Consequently firewall4 rules matching br-lan.<vid> do not match
+and the default forward policy drops WiFi access-port traffic.
+
+When VLAN input-device passing is requested and VLAN filtering is active,
+look up the ingress port PVID for untagged packets and resolve the matching
+VLAN upper device of the bridge.  Tagged ingress keeps the existing path.
+This preserves the per-VLAN netfilter ingress context while allowing
+nft_flow_offload to create a bridge/PPE flow.
+
+Signed-off-by: XR1710G Maintainer <maintainer@example.com>
+---
+ net/bridge/br_netfilter_hooks.c | 19 +++++++++++++++++--
+ 1 file changed, 16 insertions(+), 3 deletions(-)
+
+--- a/net/bridge/br_netfilter_hooks.c
++++ b/net/bridge/br_netfilter_hooks.c
+@@ -434,12 +434,26 @@ static struct net_device *brnf_get_logical_dev
+ 	struct net_device *vlan, *br;
+ 	struct brnf_net *brnet = net_generic(net, brnf_net_id);
++	struct net_bridge_port *port;
++	u16 vid;
+ 
+	br = bridge_parent(dev);
+ 
+-	if (brnet->pass_vlan_indev == 0 || !skb_vlan_tag_present(skb))
++	if (brnet->pass_vlan_indev == 0)
+ 		return br;
+ 
+-	vlan = __vlan_find_dev_deep_rcu(br, skb->vlan_proto,
+-				    skb_vlan_tag_get(skb) & VLAN_VID_MASK);
++	if (skb_vlan_tag_present(skb)) {
++		vid = skb_vlan_tag_get(skb) & VLAN_VID_MASK;
++	} else {
++		/* An access port carries its VLAN identity in the PVID, not skb. */
++		port = br_port_get_rcu(dev);
++		if (!port || !br_opt_get(port->br, BROPT_VLAN_ENABLED) ||
++		    br_vlan_get_pvid_rcu(dev, &vid) || !vid)
++			return br;
++	}
++
++	if (skb_vlan_tag_present(skb))
++		vlan = __vlan_find_dev_deep_rcu(br, skb->vlan_proto, vid);
++	else
++		vlan = __vlan_find_dev_deep_rcu(br, port->br->vlan_proto, vid);
+ 
+ 	return vlan ? vlan : br;

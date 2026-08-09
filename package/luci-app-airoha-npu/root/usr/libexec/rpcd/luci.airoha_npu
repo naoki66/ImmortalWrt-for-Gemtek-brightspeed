@@ -704,14 +704,30 @@ set_flow_offload() {
 	printf '{"result":"ok","enabled":%d}' "$enabled"
 }
 
+_apmode_has_vlan_filtering() {
+	local path value
+
+	for path in /sys/class/net/*/bridge/vlan_filtering; do
+		[ -r "$path" ] || continue
+		value=$(cat "$path" 2>/dev/null)
+		[ "$value" = "1" ] && { echo 1; return; }
+	done
+
+	echo 0
+}
+
 get_apmode_offload() {
-	# AP mode acceleration status: forward=ACCEPT AND bridge-nf-call all disabled
-	local fwd ipt ip6t arp
-	fwd=$(uci get firewall.@defaults[0].forward 2>/dev/null)
+	local ipt ip6t arp vlan_filtering filter_vlan_tagged pass_vlan_indev
+
 	ipt=$(cat /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null)
 	ip6t=$(cat /proc/sys/net/bridge/bridge-nf-call-ip6tables 2>/dev/null)
 	arp=$(cat /proc/sys/net/bridge/bridge-nf-call-arptables 2>/dev/null)
-	if [ "$fwd" = "ACCEPT" ] && [ "$ipt" = "0" ] && [ "$ip6t" = "0" ] && [ "$arp" = "0" ]; then
+	vlan_filtering=$(_apmode_has_vlan_filtering)
+	filter_vlan_tagged=$(cat /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null)
+	pass_vlan_indev=$(cat /proc/sys/net/bridge/bridge-nf-pass-vlan-input-dev 2>/dev/null)
+
+	if [ "$ipt" = "1" ] && [ "$ip6t" = "1" ] && [ "$arp" = "1" ] && \
+	   { [ "$vlan_filtering" = "0" ] || { [ "$filter_vlan_tagged" = "1" ] && [ "$pass_vlan_indev" = "1" ]; }; }; then
 		printf '{"enabled":1}'
 	else
 		printf '{"enabled":0}'
@@ -719,7 +735,8 @@ get_apmode_offload() {
 }
 
 set_apmode_offload() {
-	local enabled
+	local enabled vlan_filtering vlan_options
+
 	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
 	[ -z "$enabled" ] && enabled="0"
 	if [ "$enabled" != "0" ] && [ "$enabled" != "1" ]; then
@@ -727,27 +744,33 @@ set_apmode_offload() {
 		return
 	fi
 
-	# Always force bridge-nf-call-* to 0 (never write 1).
-	# These sysctls are incompatible with NPU/PPE hardware offload and break WiFi.
-	# Opening AP mode = re-assert they are disabled; closing = also keep them disabled.
-	echo 0 > /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null
-	echo 0 > /proc/sys/net/bridge/bridge-nf-call-ip6tables 2>/dev/null
-	echo 0 > /proc/sys/net/bridge/bridge-nf-call-arptables 2>/dev/null
+	modprobe br_netfilter 2>/dev/null
+	vlan_filtering=$(_apmode_has_vlan_filtering)
+	vlan_options=0
+	[ "$vlan_filtering" = "1" ] && vlan_options=$enabled
 
-	# Set firewall forward policy
-	if [ "$enabled" = "1" ]; then
-		uci set firewall.@defaults[0].forward="ACCEPT" 2>/dev/null
-	else
-		uci set firewall.@defaults[0].forward="DROP" 2>/dev/null
+	if ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null ||
+	   ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-call-ip6tables 2>/dev/null ||
+	   ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-call-arptables 2>/dev/null ||
+	   ! echo "$vlan_options" > /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null ||
+	   ! echo "$vlan_options" > /proc/sys/net/bridge/bridge-nf-pass-vlan-input-dev 2>/dev/null; then
+		echo '{"error":"failed to configure bridge netfilter"}'
+		return
 	fi
-	uci commit firewall 2>/dev/null
 
-	# Clean up any stale sysctl config from previous versions
-	rm -f /etc/sysctl.d/12-apmode-offload.conf 2>/dev/null
+	if [ "$enabled" = "1" ]; then
+		{
+			echo 'net.bridge.bridge-nf-call-iptables=1'
+			echo 'net.bridge.bridge-nf-call-ip6tables=1'
+			echo 'net.bridge.bridge-nf-call-arptables=1'
+			echo "net.bridge.bridge-nf-filter-vlan-tagged=$vlan_options"
+			echo "net.bridge.bridge-nf-pass-vlan-input-dev=$vlan_options"
+		} > /etc/sysctl.d/12-apmode-offload.conf
+	else
+		rm -f /etc/sysctl.d/12-apmode-offload.conf 2>/dev/null
+	fi
 
-	# Restart firewall to apply forward policy
-	/etc/init.d/firewall restart 2>/dev/null &
-	printf '{"result":"ok","enabled":%d}' "$enabled"
+	printf '{"result":"ok","enabled":%d,"vlan_filtering":%d}' "$enabled" "$vlan_filtering"
 }
 
 case "$1" in
