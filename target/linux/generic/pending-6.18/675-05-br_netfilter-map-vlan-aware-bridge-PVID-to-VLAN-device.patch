@@ -12,8 +12,8 @@ firewall4 zone egress matching to reject bridged DHCP and IP traffic.
 
 Signed-off-by: XR1710G Maintainer <maintainer@example.com>
 ---
- net/bridge/br_netfilter_hooks.c | 23 ++++++++++++++++++++---
- 1 file changed, 20 insertions(+), 3 deletions(-)
+ net/bridge/br_netfilter_hooks.c | 24 +++++++++++++++++++++---
+ 1 file changed, 21 insertions(+), 3 deletions(-)
 
 --- a/net/bridge/br_netfilter_hooks.c
 +++ b/net/bridge/br_netfilter_hooks.c
@@ -47,12 +47,11 @@ Signed-off-by: XR1710G Maintainer <maintainer@example.com>
 +		vlan = __vlan_find_dev_deep_rcu(br, port->br->vlan_proto, vid);
  
  	return vlan ? vlan : br;
-@@ -688,5 +702,8 @@ static unsigned int br_nf_forward_ip(struct sk_buff *skb,
- 	parent = bridge_parent(state->out);
- 	if (!parent)
- 		return NF_DROP_REASON(skb, SKB_DROP_REASON_DEV_READY, 0);
- 
-+	if (br_opt_get(netdev_priv(parent), BROPT_VLAN_ENABLED))
+@@ -692,3 +706,7 @@ static unsigned int br_nf_forward_ip(struct sk_buff *skb,
++	if (netif_is_bridge_master(parent) &&
++	    br_opt_get(netdev_priv(parent), BROPT_VLAN_ENABLED))
 +		parent = brnf_get_logical_dev(skb, state->in, state->net);
 +
  	nf_bridge_pull_encap_header(skb);
+ 
+ 	if (skb->pkt_type == PACKET_OTHERHOST) {
