@@ -1,0 +1,40 @@
+diff --git a/net/vlmcsd/files/vlmcsd.init b/net/vlmcsd/files/vlmcsd.init
+--- a/net/vlmcsd/files/vlmcsd.init
++++ b/net/vlmcsd/files/vlmcsd.init
+@@ -3,15 +3,21 @@
+ START=99
+ USE_PROCD=1
+ 
+-DNSMASQ_UCI_CONFIG="$(uci -q show "dhcp.@dnsmasq[0]" | awk 'NR==1 {split($0, conf, /[.=]/); print conf[2]}')"
+-if [ -f "/tmp/etc/dnsmasq.conf.$DNSMASQ_UCI_CONFIG" ];then
+-	DNSMASQ_VLMCSD="$(awk -F '=' '/^conf-dir=/ {print $2}' "/tmp/etc/dnsmasq.conf.$DNSMASQ_UCI_CONFIG")/dnsmasq-vlmcsd.conf"
+-else
+-	DNSMASQ_VLMCSD="/tmp/dnsmasq.d/dnsmasq-vlmcsd.conf"
+-fi
++get_dnsmasq_vlmcsd_path() {
++	local dnsmasq_uci_config
++
++	dnsmasq_uci_config="$(uci -q show "dhcp.@dnsmasq[0]" | awk 'NR==1 {split($0, conf, /[.=]/); print conf[2]}')"
++	if [ -f "/tmp/etc/dnsmasq.conf.$dnsmasq_uci_config" ];then
++		DNSMASQ_VLMCSD="$(awk -F '=' '/^conf-dir=/ {print $2}' "/tmp/etc/dnsmasq.conf.$dnsmasq_uci_config")/dnsmasq-vlmcsd.conf"
++	else
++		DNSMASQ_VLMCSD="/tmp/dnsmasq.d/dnsmasq-vlmcsd.conf"
++	fi
++}
+ 
+ start_service() {
+ 	local enabled auto_activate internet_access
+ 
++	get_dnsmasq_vlmcsd_path
++
+ 	config_load "vlmcsd"
+ 	config_get_bool enabled "config" "enabled" "0"
+@@ -61,6 +65,8 @@ start_service() {
+ }
+ 
+ stop_service() {
++	get_dnsmasq_vlmcsd_path
++
+ 	rm -f "$DNSMASQ_VLMCSD"
+ 	/etc/init.d/dnsmasq restart 2>"/dev/null"
+ }

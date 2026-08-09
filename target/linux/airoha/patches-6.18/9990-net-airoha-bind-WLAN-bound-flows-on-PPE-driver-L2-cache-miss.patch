@@ -25,7 +25,15 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 ---
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
-@@ -708,65 +708,176 @@
+@@ -3,6 +3,7 @@
+  * Author: Lorenzo Bianconi <lorenzo@kernel.org>
+  */
+ 
++#include <linux/if_vlan.h>
+ #include <linux/ip.h>
+ #include <linux/ipv6.h>
+ #include <linux/of_platform.h>
+@@ -708,65 +708,206 @@
  }
  
  static int
@@ -128,16 +136,44 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 +}
 +
 +static struct net_device *
-+airoha_ppe_foe_get_bridge_master(struct net_device *dev)
++airoha_ppe_foe_get_bridge_master_rcu(struct net_device *dev)
 +{
-+	struct net_device *master = NULL;
++	struct net_device *master;
++	struct net_device *real_dev;
 +
-+	rcu_read_lock();
++	if (netif_is_bridge_master(dev))
++		return dev;
++
 +	master = netdev_master_upper_dev_get_rcu(dev);
 +	if (master && netif_is_bridge_master(master))
++		return master;
++
++	if (!is_vlan_dev(dev))
++		return NULL;
++
++	real_dev = vlan_dev_real_dev(dev);
++	if (!real_dev)
++		return NULL;
++
++	if (netif_is_bridge_master(real_dev))
++		return real_dev;
++
++	master = netdev_master_upper_dev_get_rcu(real_dev);
++	if (master && netif_is_bridge_master(master))
++		return master;
++
++	return NULL;
++}
++
++static struct net_device *
++airoha_ppe_foe_get_bridge_master(struct net_device *dev)
++{
++	struct net_device *master;
++
++	rcu_read_lock();
++	master = airoha_ppe_foe_get_bridge_master_rcu(dev);
++	if (master)
 +		dev_hold(master);
-+	else
-+		master = NULL;
 +	rcu_read_unlock();
 +
 +	return master;
@@ -165,7 +201,9 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 +		return false;
 +
 +	/* Unbound hits can arrive before flowtable creates the L2 master flow
-+	 * normally used for subflow binding. Start at the bridge master so the
++	 * normally used for subflow binding. skb->dev can be either a bridge
++	 * slave or a bridge VLAN upper (e.g. br-lan.<vid> when br_netfilter
++	 * preserves VLAN device context). Start at the bridge master so the
 +	 * FDB selects the destination port instead of reusing the ingress AP.
 +	 */
 +	master = airoha_ppe_foe_get_bridge_master(skb->dev);
@@ -221,7 +259,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  	spin_lock_bh(&ppe_lock);
  
  	hwe = airoha_ppe_foe_get_entry_locked(ppe, hash);
-@@ -799,8 +910,10 @@
+@@ -799,8 +940,10 @@
  	airoha_ppe_foe_set_bridge_addrs(&br, eth_hdr(skb));
  	e = rhashtable_lookup_fast(&ppe->l2_flows, &br,
  				   airoha_l2_flow_table_params);

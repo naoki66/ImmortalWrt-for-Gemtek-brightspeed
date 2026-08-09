@@ -1,0 +1,30 @@
+diff --git a/net/msd_lite/files/msd_lite.init b/net/msd_lite/files/msd_lite.init
+--- a/net/msd_lite/files/msd_lite.init
++++ b/net/msd_lite/files/msd_lite.init
+@@ -1,8 +1,6 @@
+ #!/bin/sh /etc/rc.common
+ # Copyright (C) 2022 ImmortalWrt.org
+ 
+-. /lib/functions/network.sh
+-
+ START=99
+ USE_PROCD=1
+ 
+@@ -96,6 +94,8 @@ start_instance() {
+ }
+ 
+ start_service() {
++	. /lib/functions/network.sh
++
+ 	config_load "$NAME"
+ 
+ 	config_foreach validate_msd_lite_section "instance" start_instance
+@@ -111,6 +111,8 @@ reload_service() {
+ }
+ 
+ service_triggers() {
++	. /lib/functions/network.sh
++
+ 	procd_add_reload_trigger "$NAME"
+ 
+ 	config_load "$NAME"

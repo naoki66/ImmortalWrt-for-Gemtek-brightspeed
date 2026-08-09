@@ -52,13 +52,10 @@ var themeCSS = '\
 .mode-offload-items{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;flex:1 1 auto}\
 .mode-offload-item{display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap}\
 .mode-offload-label{font-size:12px;font-weight:600}\
-.mode-ap-offload{padding-left:10px;margin-left:2px;border-left:1px solid var(--mode-ap-border)}\
-.mode-ap-offload .mode-offload-label{color:var(--mode-ap-fg)}\
 .offload-badge{font-size:11px;font-weight:700;letter-spacing:1px;line-height:20px;padding:0 8px;border-radius:3px;font-family:monospace;display:inline-flex;align-items:center;white-space:nowrap;flex-shrink:0}\
 .offload-on{background:var(--offload-on-bg);color:var(--offload-on-fg);border:1px solid var(--offload-on-border);box-shadow:0 0 10px rgba(34,197,94,0.08)}\
-.mode-ap-offload .offload-on{background:var(--offload-ap-bg);color:var(--offload-ap-fg);border-color:var(--offload-ap-border);box-shadow:0 0 10px rgba(20,184,166,0.12)}\
 .offload-off{background:var(--offload-off-bg);color:var(--offload-off-fg);border:1px solid var(--offload-off-border)}\
-@media(max-width:760px){.mode-offload-bar{flex-wrap:wrap}.mode-banner{flex:1 1 100%;gap:8px 10px}.mode-ap-offload{padding-left:0;margin-left:0;border-left:0}.mode-offload-divider{display:none}.mode-offload-items{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));flex:1 1 100%;gap:8px 12px}.mode-offload-item{justify-content:space-between}}\
+@media(max-width:760px){.mode-offload-bar{flex-wrap:wrap}.mode-banner{flex:1 1 100%;gap:8px 10px}.mode-offload-divider{display:none}.mode-offload-items{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));flex:1 1 100%;gap:8px 12px}.mode-offload-item{justify-content:space-between}}\
 .alert-wrap{margin-bottom:8px}\
 .alert-item{display:flex;align-items:flex-start;gap:10px;padding:8px 12px;border-radius:5px;margin-bottom:5px;font-size:13px}\
 .alert-warning{border-left:3px solid #f5a623;background:rgba(245,166,35,0.1)}\
@@ -102,8 +99,8 @@ function injectCSS() {
 	if (dark === _lastDarkMode) return;
 	_lastDarkMode = dark;
 	var vars = dark
-		? ':root{--soc-card-bg:#1e1e1e;--soc-border:#333;--soc-muted:#999;--soc-text:#e0e0e0;--soc-bar-track:#333;--mode-router-bg:rgba(59,130,246,0.18);--mode-router-fg:#93c5fd;--mode-router-border:rgba(96,165,250,0.45);--mode-ap-bg:rgba(20,184,166,0.18);--mode-ap-fg:#5eead4;--mode-ap-border:rgba(45,212,191,0.45);--offload-on-bg:rgba(34,197,94,0.16);--offload-on-fg:#86efac;--offload-on-border:rgba(74,222,128,0.42);--offload-ap-bg:rgba(20,184,166,0.2);--offload-ap-fg:#5eead4;--offload-ap-border:rgba(45,212,191,0.48);--offload-off-bg:rgba(245,158,11,0.16);--offload-off-fg:#fbbf24;--offload-off-border:rgba(251,191,36,0.42)}'
-		: ':root{--soc-card-bg:#fff;--soc-border:#d0d0d0;--soc-muted:#666;--soc-text:#222;--soc-bar-track:#e0e0e0;--mode-router-bg:#eff6ff;--mode-router-fg:#1d4ed8;--mode-router-border:#bfdbfe;--mode-ap-bg:#ecfdf5;--mode-ap-fg:#0f766e;--mode-ap-border:#99f6e4;--offload-on-bg:#f0fdf4;--offload-on-fg:#15803d;--offload-on-border:#bbf7d0;--offload-ap-bg:#f0fdfa;--offload-ap-fg:#0f766e;--offload-ap-border:#99f6e4;--offload-off-bg:#fffbeb;--offload-off-fg:#b45309;--offload-off-border:#fde68a}';
+		? ':root{--soc-card-bg:#1e1e1e;--soc-border:#333;--soc-muted:#999;--soc-text:#e0e0e0;--soc-bar-track:#333;--mode-router-bg:rgba(59,130,246,0.18);--mode-router-fg:#93c5fd;--mode-router-border:rgba(96,165,250,0.45);--mode-ap-bg:rgba(20,184,166,0.18);--mode-ap-fg:#5eead4;--mode-ap-border:rgba(45,212,191,0.45);--offload-on-bg:rgba(34,197,94,0.16);--offload-on-fg:#86efac;--offload-on-border:rgba(74,222,128,0.42);--offload-off-bg:rgba(245,158,11,0.16);--offload-off-fg:#fbbf24;--offload-off-border:rgba(251,191,36,0.42)}'
+		: ':root{--soc-card-bg:#fff;--soc-border:#d0d0d0;--soc-muted:#666;--soc-text:#222;--soc-bar-track:#e0e0e0;--mode-router-bg:#eff6ff;--mode-router-fg:#1d4ed8;--mode-router-border:#bfdbfe;--mode-ap-bg:#ecfdf5;--mode-ap-fg:#0f766e;--mode-ap-border:#99f6e4;--offload-on-bg:#f0fdf4;--offload-on-fg:#15803d;--offload-on-border:#bbf7d0;--offload-off-bg:#fffbeb;--offload-off-fg:#b45309;--offload-off-border:#fde68a}';
 	el.textContent = themeCSS + vars;
 }
 
