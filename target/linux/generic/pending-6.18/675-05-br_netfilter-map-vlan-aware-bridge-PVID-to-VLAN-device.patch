@@ -1,24 +1,19 @@
 From: XR1710G Maintainer <maintainer@example.com>
-Subject: [PATCH] netfilter: bridge: map VLAN-aware bridge PVID to VLAN device
+Subject: [PATCH] netfilter: bridge: preserve VLAN device context for bridge NF
 
-When bridge-nf-call-iptables or bridge-nf-call-ip6tables is enabled,
-br_netfilter passes bridged packets through the inet hooks.  For a
-VLAN-aware bridge, an untagged access port has no skb VLAN tag: its VLAN
-identity is the port PVID.  brnf_get_logical_dev() currently returns the
-bridge master for such packets even when bridge-nf-pass-vlan-input-dev is
-enabled.  Consequently firewall4 rules matching br-lan.<vid> do not match
-and the default forward policy drops WiFi access-port traffic.
+On a VLAN-aware bridge, untagged access-port packets carry their VLAN
+identity in the ingress PVID, rather than in an skb VLAN tag. When
+bridge-nf-pass-vlan-input-dev is enabled, map that PVID to the bridge VLAN
+upper device so firewall4 can match br-lan.<vid>.
 
-When VLAN input-device passing is requested and VLAN filtering is active,
-look up the ingress port PVID for untagged packets and resolve the matching
-VLAN upper device of the bridge.  Tagged ingress keeps the existing path.
-This preserves the per-VLAN netfilter ingress context while allowing
-nft_flow_offload to create a bridge/PPE flow.
+The forward hook also needs this logical device as its output context.
+Otherwise bridge netfilter reports the bridge master as egress, causing
+firewall4 zone egress matching to reject bridged DHCP and IP traffic.
 
 Signed-off-by: XR1710G Maintainer <maintainer@example.com>
 ---
- net/bridge/br_netfilter_hooks.c | 19 +++++++++++++++++--
- 1 file changed, 16 insertions(+), 3 deletions(-)
+ net/bridge/br_netfilter_hooks.c | 21 +++++++++++++++++----
+ 1 file changed, 17 insertions(+), 4 deletions(-)
 
 --- a/net/bridge/br_netfilter_hooks.c
 +++ b/net/bridge/br_netfilter_hooks.c
@@ -28,7 +23,7 @@ Signed-off-by: XR1710G Maintainer <maintainer@example.com>
 +	struct net_bridge_port *port;
 +	u16 vid;
  
-	br = bridge_parent(dev);
+ 	br = bridge_parent(dev);
  
 -	if (brnet->pass_vlan_indev == 0 || !skb_vlan_tag_present(skb))
 +	if (brnet->pass_vlan_indev == 0)
@@ -52,3 +47,12 @@ Signed-off-by: XR1710G Maintainer <maintainer@example.com>
 +		vlan = __vlan_find_dev_deep_rcu(br, port->br->vlan_proto, vid);
  
  	return vlan ? vlan : br;
+@@ -688,7 +702,7 @@ static unsigned int br_nf_forward_ip(struct sk_buff *skb,
+-	parent = bridge_parent(state->out);
++	parent = brnf_get_logical_dev(skb, state->in, state->net);
+ 	if (!parent)
+ 		return NF_DROP_REASON(skb, SKB_DROP_REASON_DEV_READY, 0);
+ 
+ 	nf_bridge_pull_encap_header(skb);
+ 
+ 	if (skb->pkt_type == PACKET_OTHERHOST) {
