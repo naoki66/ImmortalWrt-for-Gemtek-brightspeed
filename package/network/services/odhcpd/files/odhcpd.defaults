@@ -133,6 +133,10 @@ set dhcp.lan.dhcpv4=$V4MODE
 set dhcp.lan.dhcpv6=disabled
 set dhcp.lan.ra=$V6MODE
 set dhcp.lan.ra_slaac=1
+set dhcp.lan.ndp=disabled
+set dhcp.lan.ra_dns=0
+set dhcp.lan.dns_service=0
+set dhcp.lan.ra_flags=none
 set dhcp.lan.max_preferred_lifetime=2700
 set dhcp.lan.max_valid_lifetime=5400
 commit dhcp
