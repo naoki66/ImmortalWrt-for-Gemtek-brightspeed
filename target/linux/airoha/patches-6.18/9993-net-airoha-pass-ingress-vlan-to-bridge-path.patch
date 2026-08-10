@@ -1,0 +1,92 @@
+From: Yanghan Ye <yyh94306@gmail.com>
+Date: Mon, 10 Aug 2026 09:10:00 +0800
+Subject: [PATCH] net: airoha: pass ingress VLAN to bridge cache-miss path
+
+The PPE cache-miss fallback currently starts bridge path resolution without
+an ingress VLAN context. The bridge therefore falls back to its own PVID.
+This is wrong for both tagged traffic received on a trunk and untagged
+traffic received on an access port whose PVID differs from the bridge PVID.
+
+On Airoha Ethernet ingress, an 802.1Q tag can remain inline in the Ethernet
+header instead of being exposed through skb VLAN metadata. Populate
+net_device_path_ctx from a logical VLAN device, an skb hardware VLAN tag,
+an inline VLAN header, or the ingress bridge-port PVID. Use
+__dev_fill_forward_path() so the bridge FDB lookup sees that context. In
+particular, do not replace a tagged trunk frame with the trunk port PVID.
+
+Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+---
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -4,6 +4,7 @@
+  * Author: Lorenzo Bianconi <lorenzo@kernel.org>
+  */
+ 
++#include <linux/if_bridge.h>
+ #include <linux/if_vlan.h>
+ #include <linux/ip.h>
+ #include <linux/ipv6.h>
+@@ -988,9 +988,12 @@ airoha_ppe_foe_prepare_bridge_subflow(struct airoha_ppe *ppe,
+ 				      struct airoha_foe_entry *hwe)
+ {
+ 	struct net_device_path_stack stack;
++	struct net_device_path_ctx ctx = {};
+ 	struct ethhdr *eh = eth_hdr(skb);
++	struct vlan_ethhdr *veh;
+ 	struct airoha_flow_data data = {};
+ 	struct net_device *master, *egress;
++	u16 vid;
+ 	int err, i;
+ 
+ 	if (!is_valid_ether_addr(eh->h_source) ||
+@@ -1003,18 +1006,43 @@ airoha_ppe_foe_prepare_bridge_subflow(struct airoha_ppe *ppe,
+ 	if (!skb->dev)
+ 		return false;
+ 
+-	/* Unbound hits can arrive before flowtable creates the L2 master flow
+-	 * normally used for subflow binding. skb->dev can be either a bridge
+-	 * slave or a bridge VLAN upper (e.g. br-lan.<vid> when br_netfilter
+-	 * preserves VLAN device context). Retain the bridge VLAN upper so the
+-	 * FDB uses its VID instead of the bridge PVID.
++	/* Resolve the FDB in the packet's VLAN. A trunk port PVID describes
++	 * untagged traffic only and must not replace an skb hardware VLAN tag.
+ 	 */
+ 	master = airoha_ppe_foe_get_bridge_master(skb->dev);
+ 	if (!master)
+ 		return false;
+ 
++	rcu_read_lock();
++	ctx.dev = master;
++	if (is_vlan_dev(skb->dev)) {
++		vid = vlan_dev_vlan_id(skb->dev);
++		if (vid) {
++			ctx.vlan[0].id = vid;
++			ctx.vlan[0].proto = vlan_dev_vlan_proto(skb->dev);
++			ctx.num_vlans = 1;
++		}
++	} else if (skb_vlan_tag_present(skb)) {
++		ctx.vlan[0].id = skb_vlan_tag_get_id(skb);
++		ctx.vlan[0].proto = skb->vlan_proto;
++		ctx.num_vlans = 1;
++	} else if (eth_type_vlan(eh->h_proto) &&
++		   (u8 *)eh + VLAN_ETH_HLEN <= skb_tail_pointer(skb)) {
++		veh = (struct vlan_ethhdr *)eh;
++		vid = ntohs(veh->h_vlan_TCI) & VLAN_VID_MASK;
++		if (vid) {
++			ctx.vlan[0].id = vid;
++			ctx.vlan[0].proto = veh->h_vlan_proto;
++			ctx.num_vlans = 1;
++		}
++	} else if (netif_is_bridge_port(skb->dev) &&
++		   !br_vlan_get_pvid_rcu(skb->dev, &vid) && vid) {
++		ctx.vlan[0].id = vid;
++		ctx.vlan[0].proto = htons(ETH_P_8021Q);
++		ctx.num_vlans = 1;
++	}
++
+-	rcu_read_lock();
+-	err = dev_fill_forward_path(master, eh->h_dest, &stack);
++	err = __dev_fill_forward_path(&ctx, eh->h_dest, &stack);
+ 	if (err || stack.num_paths < 2) {
+ 		rcu_read_unlock();
+ 		dev_put(master);
