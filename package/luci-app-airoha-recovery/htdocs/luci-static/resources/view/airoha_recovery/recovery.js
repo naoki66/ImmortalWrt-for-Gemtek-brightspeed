@@ -83,7 +83,7 @@ return view.extend({
 
 		body.appendChild(E('div', { 'class': 'rec-card' }, [
 			E('p', { 'class': 'rec-desc' },
-				_('Reboots the device into the U-Boot HTTP recovery environment and restores normal booting on the next boot.')),
+				_('Reboots the device into the U-Boot HTTP recovery environment using a one-shot trigger. The normal boot command is left unchanged.')),
 			E('div', { 'class': 'rec-status' }, [
 				E('span', { 'class': 'rec-status-label' }, _('U-Boot environment')),
 				E('span', { 'class': 'rec-status-value' + (supported ? '' : ' fail') },

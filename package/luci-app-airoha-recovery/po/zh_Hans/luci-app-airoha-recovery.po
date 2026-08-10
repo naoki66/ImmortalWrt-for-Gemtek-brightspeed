@@ -16,8 +16,8 @@ msgid "U-Boot Recovery"
 msgstr "U-Boot 恢复"
 
 #: htdocs/luci-static/resources/view/airoha_recovery/recovery.js
-msgid "Reboots the device into the U-Boot HTTP recovery environment and restores normal booting on the next boot."
-msgstr "重启进入 U-Boot HTTP 恢复环境，下次开机自动恢复正常启动。"
+msgid "Reboots the device into the U-Boot HTTP recovery environment using a one-shot trigger. The normal boot command is left unchanged."
+msgstr "通过一次性触发器重启进入 U-Boot HTTP 恢复环境，正常启动命令保持不变。"
 
 #: htdocs/luci-static/resources/view/airoha_recovery/recovery.js
 msgid "The device is configured to boot into the U-Boot HTTP recovery environment. Re-flash the firmware from the U-Boot interface."

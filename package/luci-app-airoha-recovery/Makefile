@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 LUCI_NAME:=luci-app-airoha-recovery
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
 PKG_MAINTAINER:=XR1710G Maintainer
 PKG_LICENSE:=GPL-2.0-or-later
@@ -10,9 +10,8 @@ TITLE:=LuCI Airoha XR1710G U-Boot Recovery
 
 LUCI_TITLE:=LuCI Airoha XR1710G U-Boot Recovery
 LUCI_DESCRIPTION:=Reboots the device into the U-Boot HTTP recovery environment. \
-	The current bootcmd is saved to the U-Boot environment and restored \
-	automatically on the next boot. Uses a one-shot trigger so the device \
-	returns to normal booting after the recovery flash or a power-cycle.
+	Uses the native one-shot recovery trigger and leaves the normal bootcmd \
+	unchanged.
 LUCI_DEPENDS:=+luci-base +uboot-envtools
 
 include $(TOPDIR)/feeds/luci/luci.mk

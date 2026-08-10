@@ -1,22 +1,12 @@
 #!/bin/sh
 
 # Airoha XR1710G U-Boot recovery RPC backend for LuCI.
-# Reboots the device into the U-Boot HTTP recovery environment and restores
-# the original bootcmd automatically on the next boot (see
-# /etc/init.d/airoha_bootcmd_restore).
+# Arms the native one-shot recovery trigger without changing bootcmd.  U-Boot
+# clears and saves the trigger before starting the HTTP recovery server.
 
 . /lib/functions.sh
 
-BACKUP_ENV="luci_airoha_bootcmd_backup"
-FLAG_ENV="airoha_recovery_once"
-
-# One-shot trigger: on the next boot airoha_recovery_once clears itself
-# (saveenv) and starts the HTTP recovery server.  Once the flag is gone the
-# device falls through to the normal U-Boot boot flow, so a power-cycle or a
-# recovery flash returns the device to normal booting instead of looping.
-BOOTCMD_TRIGGER="run airoha_recovery_once; run boot_ubi || http_recovery"
-FLAG_SCRIPT="setenv airoha_recovery_once; saveenv; http_recovery"
-BOOTCMD_DEFAULT="run boot_ubi || http_recovery"
+RECOVERY_TRIGGER="recovery_trigger"
 
 is_supported()
 {
@@ -27,26 +17,43 @@ is_supported()
 	return 0
 }
 
+boot_env_defaults()
+{
+	cat <<-'EOF'
+		loadaddr 0x81800000
+		bootconf config-1
+		bootargs console=ttyS0,115200 earlycon ubi.block=0,fit root=/dev/fit0 rootwait rdinit=/sbin/init
+		boot_ubi ubi part ubi && run boot_production
+		boot_production run ubi_read_production && bootm ${loadaddr}#${bootconf}
+		bootcmd run boot_ubi || http_recovery
+		ubi_read_production ubi read ${loadaddr} fit
+		recovery_addr 0x81800000
+		recovery_mtd fit
+		recovery_ubi_part ubi
+		recovery_dev_uboot spi-nand0
+		uboot_ofs 0x600000
+		recovery_size_uboot 0x100000
+	EOF
+}
+
 ensure_boot_env()
 {
-	local var value
+	local var value force="${1:-0}"
 
 	# Once a valid environment exists, U-Boot replaces its compiled-in
 	# defaults with it.  Make sure the boot-critical variables are present
 	# (e.g. after a fresh flash where the ubootenv volumes are empty) so a
 	# normal boot still works after the one-shot recovery trigger is gone.
-	while read -r var value; do
+	if [ "$force" = 1 ]; then
+		boot_env_defaults | /usr/sbin/fw_setenv -s -
+		return $?
+	fi
+
+	boot_env_defaults | while read -r var value; do
 		if ! /usr/sbin/fw_printenv -n "$var" >/dev/null 2>&1; then
-			/usr/sbin/fw_setenv "$var" "$value" || return 1
+			/usr/sbin/fw_setenv "$var" "$value" || exit 1
 		fi
-	done <<-EOF
-		loadaddr 0x81800000
-		bootconf config-1
-		bootargs console=ttyS0,115200 earlycon ubi.block=0,fit root=/dev/fit0 rootwait
-		boot_production run ubi_read_production && bootm \${loadaddr}#\${bootconf}
-		ubi_read_production ubi read \${loadaddr} fit
-	EOF
-	return 0
+	done
 }
 
 get_status()
@@ -65,9 +72,11 @@ get_status()
 		else
 			supported=1
 			reason=""
-			bootcmd=$(/usr/sbin/fw_printenv -n bootcmd 2>/dev/null)
-			/usr/sbin/fw_printenv -n recovery_trigger >/dev/null 2>&1 && \
+			/usr/sbin/fw_printenv -n "$RECOVERY_TRIGGER" >/dev/null 2>&1 && \
 				recovery_active=1
+
+			# Recognize state left by older package releases as active too.
+			bootcmd=$(/usr/sbin/fw_printenv -n bootcmd 2>/dev/null)
 			case "$bootcmd" in
 				*airoha_recovery_once*|http_recovery|run\ http_recovery)
 					recovery_active=1
@@ -82,51 +91,39 @@ get_status()
 
 reboot_to_uboot()
 {
-	local current_bootcmd
+	local bootcmd loadaddr env_bootstrapped=0
 
 	is_supported || {
 		printf '{"success":false,"error":"U-Boot environment is unavailable"}\n'
 		return 0
 	}
 
-	current_bootcmd=$(/usr/sbin/fw_printenv -n bootcmd 2>/dev/null) || {
-		current_bootcmd="$BOOTCMD_DEFAULT"
-	}
+	if /usr/sbin/fw_printenv -n "$RECOVERY_TRIGGER" >/dev/null 2>&1; then
+		printf '{"success":false,"error":"Device is already configured to boot into U-Boot recovery"}\n'
+		return 0
+	fi
 
-	case "$current_bootcmd" in
+	bootcmd=$(/usr/sbin/fw_printenv -n bootcmd 2>/dev/null)
+	case "$bootcmd" in
 		*airoha_recovery_once*|http_recovery|run\ http_recovery)
 			printf '{"success":false,"error":"Device is already configured to boot into U-Boot recovery"}\n'
 			return 0
 			;;
 	esac
 
-	if ! /usr/sbin/fw_printenv -n "$BACKUP_ENV" >/dev/null 2>&1; then
-		/usr/sbin/fw_setenv "$BACKUP_ENV" "$current_bootcmd" || {
-			printf '{"success":false,"error":"Cannot save current bootcmd"}\n'
-			return 0
-		}
+	loadaddr=$(/usr/sbin/fw_printenv -n loadaddr 2>/dev/null)
+	if ! /usr/sbin/fw_printenv -n boot_ubi >/dev/null 2>&1 || \
+	   [ "$bootcmd" = "run distro_bootcmd" ] || [ "$loadaddr" = "0x0" ]; then
+		env_bootstrapped=1
 	fi
 
-	ensure_boot_env || {
+	ensure_boot_env "$env_bootstrapped" || {
 		printf '{"success":false,"error":"Cannot ensure boot environment"}\n'
 		return 0
 	}
 
-	/usr/sbin/fw_setenv "$FLAG_ENV" "$FLAG_SCRIPT" || {
+	/usr/sbin/fw_setenv "$RECOVERY_TRIGGER" 1 || {
 		printf '{"success":false,"error":"Cannot set recovery trigger"}\n'
-		return 0
-	}
-
-	/usr/sbin/fw_setenv bootcmd "$BOOTCMD_TRIGGER" || {
-		printf '{"success":false,"error":"Cannot set U-Boot bootcmd"}\n'
-		return 0
-	}
-
-	# Native one-shot trigger on U-Boot builds that support it
-	# (board_late_init clears it and starts the HTTP recovery server).
-	# The bootcmd trigger above is kept as a fallback for older U-Boot.
-	/usr/sbin/fw_setenv recovery_trigger 1 || {
-		printf '{"success":false,"error":"Cannot set recovery_trigger"}\n'
 		return 0
 	}
 

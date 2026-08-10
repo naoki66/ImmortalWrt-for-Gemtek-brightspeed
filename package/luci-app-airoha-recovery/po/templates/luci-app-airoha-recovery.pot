@@ -11,7 +11,7 @@ msgid "U-Boot Recovery"
 msgstr ""
 
 #: htdocs/luci-static/resources/view/airoha_recovery/recovery.js
-msgid "Reboots the device into the U-Boot HTTP recovery environment and restores normal booting on the next boot."
+msgid "Reboots the device into the U-Boot HTTP recovery environment using a one-shot trigger. The normal boot command is left unchanged."
 msgstr ""
 
 #: htdocs/luci-static/resources/view/airoha_recovery/recovery.js
