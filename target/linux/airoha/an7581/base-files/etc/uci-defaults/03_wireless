@@ -48,8 +48,10 @@ gemtek,w1700k-ubi)
 	uci set wireless.radio1.he_bss_color='2'
 	uci set wireless.radio1.radar_background='1'
 
-	# --- radio2: 6 GHz  EHT320, auto channel, txpower 30 dBm ---
-	uci set wireless.radio2.channel='auto'
+	# --- radio2: 6 GHz  EHT320, ch 37, txpower 30 dBm ---
+	# (ch37 = 6135 MHz is above the 6G low-band EEPROM power step;
+	#  auto/ACS can land on ch1~29 where the EEPROM caps power at 28 dBm)
+	uci set wireless.radio2.channel='37'
 	uci set wireless.radio2.htmode='EHT320'
 	uci set wireless.radio2.txpower='30'
 	uci set wireless.radio2.disabled='0'
