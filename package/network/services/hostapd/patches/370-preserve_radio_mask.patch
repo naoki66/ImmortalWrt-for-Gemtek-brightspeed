@@ -98,9 +98,9 @@
  {
  	int ret;
  
-+	if (use_existing && if_nametoindex(ifname))
-+		return nl80211_use_existing_iface(drv, ifname, iftype, addr);
-+
+ 	if (use_existing && if_nametoindex(ifname))
+ 		return nl80211_use_existing_iface(drv, ifname, iftype, addr);
+ 
 -	ret = nl80211_create_iface_once(drv, ifname, iftype, addr, wds, handler,
 -					arg);
 +	ret = nl80211_create_iface_once(drv, ifname, iftype, addr, wds, radio_mask,
