@@ -24,32 +24,32 @@ return view.extend({
 		var supported = !!(status && status.supported);
 		var recoveryActive = !!(status && status.recovery_active);
 
-		var body = E([
-			E('h2', _('U-Boot Recovery')),
-			E('p', {}, _('Reboots the device into the U-Boot HTTP recovery environment. The current bootcmd is saved to the U-Boot environment and restored automatically on the next boot.'))
-		]);
+		var body = E([ E('h2', _('U-Boot Recovery')) ]);
 
 		if (recoveryActive) {
 			body.appendChild(E('p', { 'class': 'alert-message warning' },
-				_('The device is currently configured to boot into the U-Boot HTTP recovery environment. Re-flash the firmware from the U-Boot interface to restore normal booting.')));
+				_('The device is configured to boot into the U-Boot HTTP recovery environment. Re-flash the firmware from the U-Boot interface.')));
 		}
 
-		body.appendChild(E('hr'));
+		body.appendChild(E('style', { 'type': 'text/css' },
+			'.rec-status{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0}\n' +
+			'.rec-status-label{font-size:13px}\n' +
+			'.rec-btn{margin-top:12px}\n'));
 
-		body.appendChild(E('div', { 'class': 'cbi-value' }, [
-			E('label', { 'class': 'cbi-value-title' }, _('U-Boot environment')),
-			E('div', { 'class': 'cbi-value-field' }, [
+		body.appendChild(E('div', { 'class': 'cbi-section cbi-section-node' }, [
+			E('div', { 'class': 'rec-status' }, [
+				E('span', { 'class': 'rec-status-label' }, _('U-Boot environment')),
 				E('span', { 'class': supported ? 'status-ok' : 'status-fail' },
 					supported ? _('Available') : _('Unavailable'))
+			]),
+			E('div', { 'class': 'rec-btn' }, [
+				E('button', {
+					'class': 'cbi-button cbi-button-action important',
+					'disabled': !(supported && !recoveryActive),
+					'click': ui.createHandlerFn(this, 'handleRebootToUboot')
+				}, _('Reboot to U-Boot'))
 			])
 		]));
-
-		if (supported && !recoveryActive) {
-			body.appendChild(E('button', {
-				'class': 'cbi-button cbi-button-action important',
-				'click': ui.createHandlerFn(this, 'handleRebootToUboot')
-			}, _('Reboot to U-Boot')));
-		}
 
 		return body;
 	},
