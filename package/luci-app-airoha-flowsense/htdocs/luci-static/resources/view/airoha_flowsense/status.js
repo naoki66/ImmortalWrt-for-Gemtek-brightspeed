@@ -33,9 +33,11 @@ var themeCSS = '\
 .soc-band-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}\
 .soc-gdm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}\
 .soc-cdm-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:10px}\
-.compass-wrap{display:flex;flex-direction:row;align-items:flex-end;gap:2px;padding:4px 0;flex-wrap:wrap}\
+.compass-wrap{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;gap:8px;padding:4px 0}\
 .eth-gauge-wrap{display:flex;flex-direction:row;gap:8px;flex-wrap:wrap;margin-top:8px}\
-.compass-svg-wrap{flex-shrink:0;max-width:326px;width:100%}\
+.compass-gauge-wrap{width:100%;min-width:0;display:flex;justify-content:center;align-items:center}\
+.compass-gauge-wrap>svg{width:100%!important;max-width:none!important;display:block}\
+.compass-svg-wrap{width:100%;max-width:none}\
 .compass-cards{display:flex;flex-direction:row;gap:8px;flex-wrap:wrap;margin-top:12px;margin-bottom:4px}\
 .compass-card{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-left:3px solid var(--compass-card-accent,var(--soc-border));border-radius:8px;padding:10px 14px;flex:1;min-width:140px;transition:border-color .3s}\
 .compass-card-title{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--soc-muted);margin-bottom:4px;font-family:monospace}\
@@ -51,8 +53,8 @@ var themeCSS = '\
 .mode-status-card .compass-card-title{line-height:1.25}\
 .mode-status-card .compass-card-value{font-size:17px;line-height:1.25}\
 .mode-status-card .compass-card-sub{line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
-@media(max-width:1050px){.mode-status-grid{grid-template-columns:repeat(3,minmax(150px,1fr))}}\
-@media(max-width:640px){.mode-status-grid{grid-template-columns:repeat(2,minmax(140px,1fr))}.mode-status-card:first-child{grid-column:1/-1}}\
+@media(max-width:1050px){.compass-wrap{grid-template-columns:repeat(3,minmax(0,1fr))}.mode-status-grid{grid-template-columns:repeat(3,minmax(150px,1fr))}}\
+@media(max-width:640px){.compass-wrap{grid-template-columns:repeat(2,minmax(0,1fr))}.mode-status-grid{grid-template-columns:repeat(2,minmax(140px,1fr))}.mode-status-card:first-child{grid-column:1/-1}}\
 .alert-wrap{margin-bottom:8px}\
 .alert-item{display:flex;align-items:flex-start;gap:10px;padding:8px 12px;border-radius:5px;margin-bottom:5px;font-size:13px}\
 .alert-warning{border-left:3px solid #f5a623;background:rgba(245,166,35,0.1)}\
@@ -108,6 +110,18 @@ var bandInfo = [
 
 
 function fmtFreq(khz) { return (!khz || khz === 0) ? 'N/A' : (khz / 1000).toFixed(0) + ' MHz'; }
+function governorLabel(governor) {
+	var labels = {
+		conservative: '\u4fdd\u5b88\u6a21\u5f0f',
+		ondemand: '\u6309\u9700\u6a21\u5f0f',
+		performance: '\u6027\u80fd\u6a21\u5f0f',
+		powersave: '\u7701\u7535\u6a21\u5f0f',
+		schedutil: '\u8c03\u5ea6\u6a21\u5f0f',
+		userspace: '\u7528\u6237\u7a7a\u95f4'
+	};
+	return labels[governor] || _(governor);
+}
+
 function fmtK(n) {
 	if (!n || n === 0) return '0';
 	if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
@@ -126,9 +140,9 @@ function calcTotalMem(regions) {
 
 function pleHealth(free) {
 	if (typeof free !== 'number' || free < 0) return { text: 'N/A', color: '#888' };
-	if (free >= 1000000) return { text: 'OK',   color: '#4caf50' };
-	if (free >=  100000) return { text: 'WARN', color: '#ff9800' };
-	return { text: 'CRIT', color: '#f44336' };
+	if (free >= 1000000) return { text: '\u6b63\u5e38', color: '#4caf50' };
+	if (free >=  100000) return { text: '\u8b66\u544a', color: '#ff9800' };
+	return { text: '\u5371\u9669', color: '#f44336' };
 }
 
 function formatPleCount(free) {
@@ -346,8 +360,8 @@ function buildTachoInner(ppe, cs, mode) {
 	UNB_SCALE = Math.max(UNB_SCALE, 8);
 	var unbLit = Math.min(TICKS, Math.round((unbTot / UNB_SCALE) * TICKS));
 
-	var modeText   = mode === 'ap' ? 'AP MODE' : 'ROUTER';
-	var statusText = cs.npuActive ? _('HW ACCELERATED') : (cs.hwEnabled ? _('NPU IDLE') : _('CPU PATH'));
+	var modeText   = mode === 'ap' ? 'AP \u6a21\u5f0f' : '\u8def\u7531\u6a21\u5f0f';
+	var statusText = cs.npuActive ? '\u786c\u4ef6\u52a0\u901f' : (cs.hwEnabled ? 'NPU \u7a7a\u95f2' : 'CPU \u8def\u5f84');
 	var statusCol  = cs.npuActive ? '#00c8ff' : (cs.hwEnabled ? '#888' : '#ff6b35');
 	var bndColor   = bndTot > 0 ? '#00c8ff' : 'var(--soc-muted)';
 	var unbColor   = unbTot > 0 ? '#ff9800' : 'var(--soc-muted)';
@@ -362,8 +376,8 @@ function buildTachoInner(ppe, cs, mode) {
 	p.push('<circle cx="150" cy="150" r="69" fill="none" stroke="var(--soc-border)" stroke-width="0.5" opacity="0.35"/>');
 	p.push('<circle cx="150" cy="150" r="83" fill="none" stroke="var(--soc-border)" stroke-width="0.5" opacity="0.35"/>');
 	// Ring labels — at 9 and 3 o'clock inside the BND inner ring (r<56 from centre)
-	p.push('<text x="107" y="153" text-anchor="middle" fill="#00c8ff" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">◄BND</text>');
-	p.push('<text x="193" y="153" text-anchor="middle" fill="#ff9800" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">UNB►</text>');
+	p.push('<text x="107" y="153" text-anchor="middle" fill="#00c8ff" font-size="10" font-weight="700" font-family="monospace" opacity="0.9">◄BND</text>');
+	p.push('<text x="193" y="153" text-anchor="middle" fill="#ff9800" font-size="10" font-weight="700" font-family="monospace" opacity="0.9">UNB►</text>');
 
 	// Heartbeat pulse on BND ring when new flows arrive
 	if (pulsing) {
@@ -400,14 +414,14 @@ function buildTachoInner(ppe, cs, mode) {
 	}
 
 	// Centre readout — mode + status at top, BND count large, IPv4/IPv6 split, UNB below
-	p.push('<text x="150" y="113" text-anchor="middle" fill="var(--soc-text)" font-size="9" font-weight="700" font-family="monospace" letter-spacing="2">'+modeText+'</text>');
-	p.push('<text x="150" y="124" text-anchor="middle" fill="'+statusCol+'" font-size="9" font-weight="600" font-family="monospace" letter-spacing="0.5">'+statusText+'</text>');
-	p.push('<text x="150" y="144" text-anchor="middle" fill="'+bndColor+'" font-size="22" font-weight="700" font-family="monospace">'+bndTot+'</text>');
-	p.push('<text x="150" y="155" text-anchor="middle" fill="var(--soc-muted)" font-size="9" font-weight="600" font-family="monospace" letter-spacing="1">BND FLOWS</text>');
-	p.push('<text x="117" y="175" text-anchor="middle" fill="#00c8ff"  font-size="9" font-family="monospace">v4: '+n4+'</text>');
-	p.push('<text x="183" y="175" text-anchor="middle" fill="#9c27b0"  font-size="9" font-family="monospace">v6: '+n6+'</text>');
-	p.push('<text x="150" y="189" text-anchor="middle" fill="'+unbColor+'" font-size="13" font-weight="700" font-family="monospace">'+unbTot+'</text>');
-	p.push('<text x="150" y="200" text-anchor="middle" fill="var(--soc-muted)" font-size="9" font-weight="600" font-family="monospace" letter-spacing="1">UNB FLOWS</text>');
+	p.push('<text x="150" y="113" text-anchor="middle" fill="var(--soc-text)" font-size="11" font-weight="700" font-family="monospace" letter-spacing="1.5">'+modeText+'</text>');
+	p.push('<text x="150" y="125" text-anchor="middle" fill="'+statusCol+'" font-size="10" font-weight="700" font-family="monospace" letter-spacing="0.4">'+statusText+'</text>');
+	p.push('<text x="150" y="145" text-anchor="middle" fill="'+bndColor+'" font-size="24" font-weight="700" font-family="monospace">'+bndTot+'</text>');
+	p.push('<text x="150" y="157" text-anchor="middle" fill="var(--soc-muted)" font-size="10" font-weight="700" font-family="monospace" letter-spacing="0.8">\u5df2\u7ed1\u5b9a</text>');
+	p.push('<text x="117" y="176" text-anchor="middle" fill="#00c8ff"  font-size="10" font-weight="600" font-family="monospace">v4: '+n4+'</text>');
+	p.push('<text x="183" y="176" text-anchor="middle" fill="#9c27b0"  font-size="10" font-weight="600" font-family="monospace">v6: '+n6+'</text>');
+	p.push('<text x="150" y="190" text-anchor="middle" fill="'+unbColor+'" font-size="15" font-weight="700" font-family="monospace">'+unbTot+'</text>');
+	p.push('<text x="150" y="201" text-anchor="middle" fill="var(--soc-muted)" font-size="10" font-weight="700" font-family="monospace" letter-spacing="0.8">\u672a\u7ed1\u5b9a</text>');
 
 	return p.join('');
 }
@@ -734,10 +748,10 @@ function buildCompassSVG(cs, mode, ppe) {
 	// West: latency arc
 	'<path id="cp-arc-west" d="'+pWest+'" fill="none" stroke="'+cs.latColor+'" stroke-width="9" stroke-linecap="round" opacity="0.7"/>' +
 	// Quadrant labels — curved textPath following each arc
-	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="1.2" opacity="0.9" fill="#00c8ff"><textPath href="#tp-north" startOffset="50%" text-anchor="middle">' + _('NPU PATH') + '</textPath></text>' +
-	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="1.2" opacity="0.9" id="cp-lbl-south"><textPath href="#tp-south" startOffset="50%" text-anchor="middle">' + _('HW BUFFER') + '</textPath></text>' +
-	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="1.2" opacity="0.9" id="cp-lbl-east"><textPath href="#tp-east"  startOffset="50%" text-anchor="middle">' + _('INTEGRITY') + '</textPath></text>' +
-	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="1.2" opacity="0.9" id="cp-lbl-west"><textPath href="#tp-west"  startOffset="50%" text-anchor="middle">' + _('LATENCY') + '</textPath></text>' +
+	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="1.2" opacity="0.9" fill="#00c8ff"><textPath href="#tp-north" startOffset="50%" text-anchor="middle">NPU \u8def\u5f84</textPath></text>' +
+	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="1.2" opacity="0.9" id="cp-lbl-south"><textPath href="#tp-south" startOffset="50%" text-anchor="middle">\u786c\u4ef6\u7f13\u51b2</textPath></text>' +
+	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="1.2" opacity="0.9" id="cp-lbl-east"><textPath href="#tp-east"  startOffset="50%" text-anchor="middle">\u5b8c\u6574\u6027</textPath></text>' +
+	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="1.2" opacity="0.9" id="cp-lbl-west"><textPath href="#tp-west"  startOffset="50%" text-anchor="middle">\u5ef6\u8fdf</textPath></text>' +
 	// Latency needle
 	'<line id="cp-needle" x1="150" y1="150" x2="'+tip[0].toFixed(1)+'" y2="'+tip[1].toFixed(1)+'" stroke="'+cs.latColor+'" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>' +
 	'<circle id="cp-needle-pivot" cx="150" cy="150" r="4" fill="'+cs.latColor+'" opacity="0.9"/>' +
@@ -785,13 +799,13 @@ function updateCompassSVG(cs, mode, ppe) {
 
 	// Update compass label text (translations may not be ready during initial render)
 	var cpText = document.getElementById('cp-lbl-north');
-	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = _('NPU PATH'); }
+	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = 'NPU \u8def\u5f84'; }
 	cpText = document.getElementById('cp-lbl-south');
-	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = _('HW BUFFER'); }
+	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = '\u786c\u4ef6\u7f13\u51b2'; }
 	cpText = document.getElementById('cp-lbl-east');
-	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = _('INTEGRITY'); }
+	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = '\u5b8c\u6574\u6027'; }
 	cpText = document.getElementById('cp-lbl-west');
-	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = _('LATENCY'); }
+	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = '\u5ef6\u8fdf'; }
 	sa('cp-lbl-west',     'fill',  cs.latColor);
 	sa('cp-lbl-east',     'fill',  cs.eastColor);
 
@@ -821,11 +835,11 @@ function buildCpuNpuTacho(cs, ppe, st, ti) {
 	// CPU frequency — same source as the existing freq bar
 	var fs       = freqBarState(st.cpu_hw_freq, st.cpu_min_freq, st.cpu_max_freq, st.pll_freq_mhz, st.cpu_governor);
 	var freqMhz  = Math.round(fs.freq / 1000);
-	var governor = (st.cpu_governor && st.cpu_governor !== 'unknown') ? st.cpu_governor.toUpperCase() : '';
+	var governor = (st.cpu_governor && st.cpu_governor !== 'unknown') ? governorLabel(st.cpu_governor) : '';
 
 	// Colours
 	var npuStatusCol = cs.npuActive ? '#00c8ff' : (cs.hwEnabled ? '#888' : '#ff6b35');
-	var npuStatus    = cs.npuActive ? _('HW ACCELERATED') : (cs.hwEnabled ? _('NPU IDLE') : _('CPU PATH'));
+	var npuStatus    = cs.npuActive ? '\u786c\u4ef6\u52a0\u901f' : (cs.hwEnabled ? 'NPU \u7a7a\u95f2' : 'CPU \u8def\u5f84');
 	var npuColor     = offloadPct > 60 ? '#00c8ff' : offloadPct > 30 ? '#f5a623' : '#888';
 
 	var TICKS = 90;
@@ -846,8 +860,8 @@ function buildCpuNpuTacho(cs, ppe, st, ti) {
 	p.push('<circle cx="150" cy="150" r="83" fill="none" stroke="var(--soc-border)" stroke-width="0.5" opacity="0.35"/>');
 
 	// Ring labels at 9 and 3 o'clock
-	p.push('<text x="107" y="153" text-anchor="middle" fill="#ffe066" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">◄LOAD</text>');
-	p.push('<text x="193" y="153" text-anchor="middle" fill="#00cc44" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">FREQ►</text>');
+	p.push('<text x="107" y="153" text-anchor="middle" fill="#ffe066" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">◄\u8d1f\u8f7d</text>');
+	p.push('<text x="193" y="153" text-anchor="middle" fill="#00cc44" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">\u9891\u7387►</text>');
 
 	// Tachometer ticks
 	for (var i = 0; i < TICKS; i++) {
@@ -878,10 +892,10 @@ function buildCpuNpuTacho(cs, ppe, st, ti) {
 	if (governor) p.push('<text x="150" y="118" text-anchor="middle" fill="var(--soc-text)" font-size="7" font-family="monospace" letter-spacing="1">'+governor+'</text>');
 	if (freqMhz)  p.push('<text x="150" y="130" text-anchor="middle" fill="#00cc44" font-size="9" font-weight="700" font-family="monospace">'+freqMhz+' MHz</text>');
 	p.push('<text x="150" y="148" text-anchor="middle" fill="#ffe066" font-size="22" font-weight="700" font-family="monospace">'+cpuPct+'%</text>');
-	p.push('<text x="150" y="159" text-anchor="middle" fill="#ffe066" font-size="9" font-weight="600" font-family="monospace" letter-spacing="1.5">CPU LOAD</text>');
+	p.push('<text x="150" y="159" text-anchor="middle" fill="#ffe066" font-size="9" font-weight="600" font-family="monospace" letter-spacing="1.5">CPU</text>');
 	p.push('<text x="150" y="175" text-anchor="middle" fill="'+npuStatusCol+'" font-size="9" font-weight="600" font-family="monospace">'+npuStatus+'</text>');
 	p.push('<text x="150" y="190" text-anchor="middle" fill="'+npuColor+'" font-size="13" font-weight="700" font-family="monospace">'+offloadPct+'%</text>');
-	p.push('<text x="150" y="200" text-anchor="middle" fill="var(--soc-muted)" font-size="7" font-family="monospace" letter-spacing="1.5">OFFLOADED</text>');
+	p.push('<text x="150" y="200" text-anchor="middle" fill="var(--soc-muted)" font-size="8" font-family="monospace" letter-spacing="1">\u52a0\u901f\u5360\u6bd4</text>');
 
 	// PLE pool — curved textPath at r=91, south arc (CCW 160°→20°), outside the freq ring.
 	// Matches the "UNB/BND FLOWS" curved-text style used on the WiFi band gauges.
@@ -922,7 +936,7 @@ function _cnPpeRingStyle(ppe, ti) {
 function buildCpuNpuCompassSVG(cs, ppe, st, ti) {
 	// viewBox tightly wraps the tachometer (r=102 outer circle + glow headroom + silver ring)
 	var ring = _cnPpeRingStyle(ppe, ti);
-	return '<svg viewBox="30 30 240 240" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:213px;display:block;margin:0 auto">' +
+	return '<svg viewBox="35 35 230 230" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:326px;display:block;margin:0 auto">' +
 	'<defs>' +
 	'<filter id="f-cn-cpu" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
 	'<filter id="f-cn-npu" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
@@ -1002,8 +1016,8 @@ function buildWifiBandTacho(bandIdx, ws, qType, bndCount, unbCount) {
 	p.push('<circle cx="150" cy="150" r="83" fill="none" stroke="var(--soc-border)" stroke-width="0.5" opacity="0.35"/>');
 
 	// Ring labels at 9 / 3 o'clock
-	p.push('<text x="107" y="153" text-anchor="middle" fill="'+retryCol+'" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">◄RTY</text>');
-	p.push('<text x="193" y="153" text-anchor="middle" fill="'+accent+'" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">TX►</text>');
+	p.push('<text x="107" y="153" text-anchor="middle" fill="'+retryCol+'" font-size="11" font-weight="700" font-family="monospace" opacity="0.9">◄\u91cd\u4f20</text>');
+	p.push('<text x="193" y="153" text-anchor="middle" fill="'+accent+'" font-size="11" font-weight="700" font-family="monospace" opacity="0.9">\u53d1\u9001►</text>');
 
 	// Tachometer ticks
 	for (var i = 0; i < TICKS; i++) {
@@ -1040,7 +1054,7 @@ function buildWifiBandTacho(bandIdx, ws, qType, bndCount, unbCount) {
 	var uPid = 'wifi-u-arc-'+bandIdx;
 	var unbCol = unbCnt > 0 ? '#ff6b35' : '#555';
 	p.push('<defs><path id="'+uPid+'" d="M '+uSX+' '+uSY+' A '+uR+' '+uR+' 0 0 1 '+uEX+' '+uEY+'" fill="none"/></defs>');
-	p.push('<text font-size="9" font-weight="600" font-family="monospace" fill="'+unbCol+'" opacity="0.9"><textPath href="#'+uPid+'" startOffset="50%" text-anchor="middle">'+unbCnt+' UNB</textPath></text>');
+	p.push('<text font-size="10" font-weight="700" font-family="monospace" fill="'+unbCol+'" opacity="0.9"><textPath href="#'+uPid+'" startOffset="50%" text-anchor="middle">'+unbCnt+' UNB</textPath></text>');
 
 	// BND count arc at 6 o'clock (curved textPath, r=91, CCW 160°→20°) — opposite health arc
 	var bndCnt = bndCount || 0;
@@ -1052,27 +1066,27 @@ function buildWifiBandTacho(bandIdx, ws, qType, bndCount, unbCount) {
 	var bPid = 'wifi-b-arc-'+bandIdx;
 	var bndCol = bndCnt > 0 ? '#00c8ff' : '#555';
 	p.push('<defs><path id="'+bPid+'" d="M '+bSX+' '+bSY+' A '+bR+' '+bR+' 0 0 0 '+bEX+' '+bEY+'" fill="none"/></defs>');
-	p.push('<text font-size="9" font-weight="600" font-family="monospace" fill="'+bndCol+'" opacity="0.9"><textPath href="#'+bPid+'" startOffset="50%" text-anchor="middle">'+bndCnt+' BND</textPath></text>');
+	p.push('<text font-size="10" font-weight="700" font-family="monospace" fill="'+bndCol+'" opacity="0.9"><textPath href="#'+bPid+'" startOffset="50%" text-anchor="middle">'+bndCnt+' BND</textPath></text>');
 
 	// Centre readout — retry % above band name
 	if (retryVal > 0)
-		p.push('<text x="150" y="110" text-anchor="middle" fill="'+retryCol+'" font-size="8" font-weight="600" font-family="monospace">'+retryVal+'% RTY</text>');
-	p.push('<text x="150" y="120" text-anchor="middle" fill="'+accent+'" font-size="12" font-weight="700" font-family="monospace" letter-spacing="0.5">'+info.name.toUpperCase()+'</text>');
+		p.push('<text x="150" y="109" text-anchor="middle" fill="'+retryCol+'" font-size="10" font-weight="700" font-family="monospace">'+retryVal+'%</text>');
+	p.push('<text x="150" y="121" text-anchor="middle" fill="'+accent+'" font-size="15" font-weight="700" font-family="monospace" letter-spacing="0.5">'+info.name.toUpperCase()+'</text>');
 
 	// Main throughput value
 	var mbpsLabel = mbps > 0 ? Math.round(mbps).toString() : (stations > 0 ? '0' : '\u2014');
-	p.push('<text x="150" y="152" text-anchor="middle" fill="'+accent+'" font-size="17" font-weight="700" font-family="monospace">'+mbpsLabel+'</text>');
-	p.push('<text x="150" y="162" text-anchor="middle" fill="'+accent+'" font-size="9" font-weight="600" font-family="monospace" letter-spacing="1.5">MBPS</text>');
+	p.push('<text x="150" y="153" text-anchor="middle" fill="'+accent+'" font-size="21" font-weight="700" font-family="monospace">'+mbpsLabel+'</text>');
+	p.push('<text x="150" y="164" text-anchor="middle" fill="'+accent+'" font-size="10" font-weight="700" font-family="monospace" letter-spacing="1.2">MBPS</text>');
 
 	// Max scale hint
-	p.push('<text x="150" y="173" text-anchor="middle" fill="var(--soc-muted)" font-size="8" font-weight="600" font-family="monospace">max '+Math.round(maxScale)+'</text>');
+	p.push('<text x="150" y="175" text-anchor="middle" fill="var(--soc-muted)" font-size="9" font-weight="600" font-family="monospace">\u4e0a\u9650 '+Math.round(maxScale)+'</text>');
 
 	// Station count
-	p.push('<text x="150" y="185" text-anchor="middle" fill="var(--soc-muted)" font-size="9" font-weight="600" font-family="monospace">'+stations+(stations===1?' STA':' STA')+'</text>');
+	p.push('<text x="150" y="187" text-anchor="middle" fill="var(--soc-muted)" font-size="10" font-weight="600" font-family="monospace">'+stations+' \u5ba2\u6237\u7aef</text>');
 
 	// Signal + retry (only when relevant)
 	if (stations > 0 && signal !== 0)
-		p.push('<text x="150" y="197" text-anchor="middle" fill="var(--soc-muted)" font-size="8" font-family="monospace">'+signal+' dBm</text>');
+		p.push('<text x="150" y="200" text-anchor="middle" fill="var(--soc-muted)" font-size="9" font-family="monospace">'+signal+' dBm</text>');
 
 	return p.join('');
 }
@@ -1082,7 +1096,7 @@ function buildWifiBandSVG(bandIdx, ws, qType, ppe) {
 	var ring     = _wifiPpeRingStyle(ws, ppe, bandIdx);
 	var bndCount = (ppe && ppe.bnd && Array.isArray(ppe.bnd.band_bnd)) ? (ppe.bnd.band_bnd[bandIdx] || 0) : 0;
 	var unbCount = (ppe && ppe.unb && Array.isArray(ppe.unb.band_unb)) ? (ppe.unb.band_unb[bandIdx] || 0) : 0;
-	return '<svg viewBox="30 30 240 240" xmlns="http://www.w3.org/2000/svg" overflow="hidden" style="width:100%;max-width:207px;display:block;margin:0 auto">' +
+	return '<svg viewBox="35 35 230 230" xmlns="http://www.w3.org/2000/svg" overflow="hidden" style="width:100%;max-width:326px;display:block;margin:0 auto">' +
 	'<defs>' +
 	'<filter id="f-wifi-tx-'+idx+'" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
 	'<filter id="f-wifi-rty-'+idx+'" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
@@ -1117,7 +1131,7 @@ function buildWifiTachoElements(wifi, ti, st, ppe) {
 		var ws = null;
 		for (var j = 0; j < bands.length; j++) if (bands[j].band === b) { ws = bands[j]; break; }
 		var txQ = getTxQueue(ti, b) || { type: fallbackType };
-		var svgWrap = E('div', { 'id': 'wifi-svg-wrap-'+b });
+		var svgWrap = E('div', { 'id': 'wifi-svg-wrap-'+b, 'class': 'compass-gauge-wrap' });
 		svgWrap.innerHTML = buildWifiBandSVG(b, ws, txQ.type, ppe);
 		elems.push(svgWrap);
 	}
@@ -1461,10 +1475,10 @@ return view.extend({
 		var cs = compassState(bypass, hwBuf, jitter, wan, wifi, bridge, mode);
 
 		// Compass SVG container — tachometer is embedded inside (innerHTML so we can update by element ID)
-		var compassSvgWrap = E('div', { 'class': 'compass-svg-wrap', 'id': 'compass-svg-wrap' });
+		var compassSvgWrap = E('div', { 'class': 'compass-svg-wrap compass-gauge-wrap', 'id': 'compass-svg-wrap' });
 		compassSvgWrap.innerHTML = buildCompassSVG(cs, mode, ppe);
 
-		var cnWrap = E('div', { 'id': 'cpu-npu-svg-wrap', 'style': 'flex-shrink:0' });
+		var cnWrap = E('div', { 'id': 'cpu-npu-svg-wrap', 'class': 'compass-gauge-wrap' });
 		cnWrap.innerHTML = buildCpuNpuCompassSVG(cs, ppe, st, ti);
 
 		var view = E('div',{'class':'cbi-map'},[
