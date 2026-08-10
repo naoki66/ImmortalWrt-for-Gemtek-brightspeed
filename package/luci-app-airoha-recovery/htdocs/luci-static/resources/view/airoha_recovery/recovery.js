@@ -32,11 +32,14 @@ return view.extend({
 		}
 
 		body.appendChild(E('style', { 'type': 'text/css' },
+			'.rec-desc{font-size:13px;margin:0 0 12px}\n' +
 			'.rec-status{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0}\n' +
 			'.rec-status-label{font-size:13px}\n' +
 			'.rec-btn{margin-top:12px}\n'));
 
 		body.appendChild(E('div', { 'class': 'cbi-section cbi-section-node' }, [
+			E('p', { 'class': 'rec-desc' },
+				_('Reboots the device into the U-Boot HTTP recovery environment and restores normal booting on the next boot.')),
 			E('div', { 'class': 'rec-status' }, [
 				E('span', { 'class': 'rec-status-label' }, _('U-Boot environment')),
 				E('span', { 'class': supported ? 'status-ok' : 'status-fail' },
