@@ -16,6 +16,7 @@ FLAG_ENV="airoha_recovery_once"
 # recovery flash returns the device to normal booting instead of looping.
 BOOTCMD_TRIGGER="run airoha_recovery_once; run boot_ubi || http_recovery"
 FLAG_SCRIPT="setenv airoha_recovery_once; saveenv; http_recovery"
+BOOTCMD_DEFAULT="run boot_ubi || http_recovery"
 
 is_supported()
 {
@@ -23,7 +24,28 @@ is_supported()
 	[ -x /usr/sbin/fw_setenv ] || return 1
 	[ -x /usr/sbin/fw_printenv ] || return 1
 	[ -r /etc/fw_env.config ] || return 1
-	/usr/sbin/fw_printenv -n bootcmd >/dev/null 2>&1 || return 1
+	return 0
+}
+
+ensure_boot_env()
+{
+	local var value
+
+	# Once a valid environment exists, U-Boot replaces its compiled-in
+	# defaults with it.  Make sure the boot-critical variables are present
+	# (e.g. after a fresh flash where the ubootenv volumes are empty) so a
+	# normal boot still works after the one-shot recovery trigger is gone.
+	while read -r var value; do
+		if ! /usr/sbin/fw_printenv -n "$var" >/dev/null 2>&1; then
+			/usr/sbin/fw_setenv "$var" "$value" || return 1
+		fi
+	done <<-EOF
+		loadaddr 0x81800000
+		bootconf config-1
+		bootargs console=ttyS0,115200 earlycon ubi.block=0,fit root=/dev/fit0 rootwait
+		boot_production run ubi_read_production && bootm \${loadaddr}#\${bootconf}
+		ubi_read_production ubi read \${loadaddr} fit
+	EOF
 	return 0
 }
 
@@ -40,11 +62,10 @@ get_status()
 			reason="uboot-envtools-missing"
 		elif [ ! -r /etc/fw_env.config ]; then
 			reason="fw-env-config-missing"
-		elif ! bootcmd=$(/usr/sbin/fw_printenv -n bootcmd 2>/dev/null); then
-			reason="uboot-env-unreadable"
 		else
 			supported=1
 			reason=""
+			bootcmd=$(/usr/sbin/fw_printenv -n bootcmd 2>/dev/null)
 			case "$bootcmd" in
 				*airoha_recovery_once*|http_recovery|run\ http_recovery)
 					recovery_active=1
@@ -67,8 +88,7 @@ reboot_to_uboot()
 	}
 
 	current_bootcmd=$(/usr/sbin/fw_printenv -n bootcmd 2>/dev/null) || {
-		printf '{"success":false,"error":"Cannot read current bootcmd"}\n'
-		return 0
+		current_bootcmd="$BOOTCMD_DEFAULT"
 	}
 
 	case "$current_bootcmd" in
@@ -84,6 +104,11 @@ reboot_to_uboot()
 			return 0
 		}
 	fi
+
+	ensure_boot_env || {
+		printf '{"success":false,"error":"Cannot ensure boot environment"}\n'
+		return 0
+	}
 
 	/usr/sbin/fw_setenv "$FLAG_ENV" "$FLAG_SCRIPT" || {
 		printf '{"success":false,"error":"Cannot set recovery trigger"}\n'
