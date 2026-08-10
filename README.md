@@ -4,15 +4,17 @@
 
 [![Build Status](https://img.shields.io/github/actions/workflow/status/naoki66/ImmortalWrt-for-Gemtek-XR1710G/build-firmware.yml?branch=master&label=Build)](https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/actions/workflows/build-firmware.yml)
 [![Sync Status](https://img.shields.io/github/actions/workflow/status/naoki66/ImmortalWrt-for-Gemtek-XR1710G/sync-upstream.yml?branch=master&label=Sync)](https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/actions/workflows/sync-upstream.yml)
-[![Upstream](https://img.shields.io/badge/upstream-immortalwrt%40e5ca16047f-blue)](https://github.com/immortalwrt/immortalwrt)
-[![Synced](https://img.shields.io/badge/synced-2026--08--03%20merged-brightgreen)](#)
+[![Upstream](https://img.shields.io/badge/upstream-immortalwrt%409507037475-blue)](https://github.com/immortalwrt/immortalwrt)
+[![Synced](https://img.shields.io/badge/synced-2026--08--07%20merged-brightgreen)](#)
 [![Kernel](https://img.shields.io/badge/kernel-6.18.41-red)](https://www.kernel.org/)
 [![SoC](https://img.shields.io/badge/SoC-Airoha%20AN7581GT-orange)]()
 [![License](https://img.shields.io/badge/license-GPL--2.0-green)](https://spdx.org/licenses/GPL-2.0-only.html)
 
 基于 [ImmortalWrt](https://github.com/immortalwrt/immortalwrt) 为 Gemtek XR1710G（Brightspeed XR1710G）路由器定制的固件。
 
-默认登录地址：http://192.168.1.1 或 http://immortalwrt.lan，用户名：**root**，密码：*无*。
+默认管理地址：http://192.168.50.1 或 http://immortalwrt.lan，用户名：**root**，密码：*无*。
+
+首次启动的无线网络为 `ImmortalWrt-2G`、`ImmortalWrt-5G` 和 `ImmortalWrt-6G`，统一初始密码为 `12345678`。2.4GHz 使用 WPA2，5GHz 使用 WPA2/WPA3 混合模式，6GHz 使用 WPA3；首次登录后请及时修改管理密码和无线密码。
 
 ## 设备规格
 
@@ -22,7 +24,7 @@
 | **内存** | 2GB |
 | **闪存** | 512MB |
 | **网口** | 2×10G RTL8261BE + 2×1G AN7581 |
-| **PWM风扇** | 新通 NCT7802 |
+| **PWM风扇** | 新唐 NCT7802 |
 | **电源规格** | 12V 5A |
 
 ### 无线局域网 (MT7996AV BE19000)
@@ -38,63 +40,60 @@
 
 ### 核心定制
 
-- 独立设备树 [an7581-xr1710g-ubi.dts](target/linux/airoha/dts/an7581-xr1710g-ubi.dts)（不依赖公共 dtsi，含 PCIe 3.0 x2 模式配置）
-- 11 个定制内核补丁（[target/linux/airoha/patches-6.18/](target/linux/airoha/patches-6.18/)）：
-  - `303-01/02`: MediaTek PHY 校准修复
-  - `675-01~04`: nft_flow_offload 桥接/VLAN/WDMA 支持（适配内核 6.18.41）
-  - `910-02`: USB/PCIe 时钟修复
-  - `910-04`: NPU MBQ 超时修复（100s→1000s）
-  - `912`: PCIe 3.0 x2 链路支持（EN7581 Gen3 速度协商）
-  - `990-01`: 桥接 FDB 漫游失效修复
-- mt76 驱动补丁（[package/kernel/mt76/patches/](package/kernel/mt76/patches/)）：
-  - `001`: mt7996 PS sync TLV 修复（backport 上游 `06b69763f2`，修复 5GHz+6GHz MLO AP 硬锁 RX NAPI 路径问题）
-- base-files 定制：[01_leds](target/linux/airoha/an7581/base-files/etc/board.d/01_leds)、[02_network](target/linux/airoha/an7581/base-files/etc/board.d/02_network)、[03_wireless](target/linux/airoha/an7581/base-files/etc/uci-defaults/03_wireless)（SSID 分频段命名 + 30dBm 发射功率）、[airoha_fan](target/linux/airoha/an7581/base-files/etc/init.d/airoha_fan)、[99-ppe-reload](target/linux/airoha/an7581/base-files/etc/hotplug.d/net/99-ppe-reload)（无线接口创建时自动重载防火墙触发 PPE 绑定）、[platform.sh](target/linux/airoha/an7581/base-files/lib/upgrade/platform.sh)
+- 独立 XR1710G 设备树 [an7581-xr1710g-ubi.dts](target/linux/airoha/dts/an7581-xr1710g-ubi.dts)（基于公共 `an7581.dtsi` 与 `an7581-npu-mt7996.dtsi` 扩展，含 PCIe 3.0 x2 模式配置）。
+- 关键内核与网络补丁（完整列表见 [target/linux/airoha/patches-6.18/](target/linux/airoha/patches-6.18/) 和 [target/linux/generic/pending-6.18/](target/linux/generic/pending-6.18/)）：
+  - `303-01/02`：MediaTek PHY 寄存器与校准支持。
+  - `675-02~05`：nft_flow_offload 桥接、WDMA 与 VLAN-aware bridge/PVID 映射。
+  - `910-02`、`912`、`913`：USB/PCIe 时钟、PCIe 3.0 x2 链路与复位修复。
+  - `910-04`、`921`：NPU MBQ 超时与 NPU 固件加载修复。
+  - `915-01`、`916-02`、`9990`、`9993`、`9999-11`：PPE/flowtable 硬件卸载、WLAN 流绑定、VLAN ingress 与 XFRM 流支持。
+  - `920-*`、`920-cpufreq`、`990-01`：Airoha 网络、MTU、CPU 频率与桥接 FDB 漫游修复。
+- 无线栈补丁：
+  - [mt76 patches](package/kernel/mt76/patches/) 中的 `001`（mt7996 PS sync TLV/MLO 稳定性）与 `9993`（operating-mode rate control）。
+  - [mac80211 patch](package/kernel/mac80211/patches/subsys/411-mac80211-export-link-sta-capability-limits.patch) 与 [hostapd patches](package/network/services/hostapd/patches/)（6GHz、EHT、radio mask 及多 VAP 稳定性）。
+- 启动与设备定制：`03_wifi_defaults`（SSID、加密方式、US 区域码）、`03_wireless`（射频参数）、`18-xr1710g-firewall-defaults`（默认软件/硬件 flow offload）、`99-ppe-reload`（无线接口创建后重载防火墙）、`packet-steering.sh`（Wi-Fi worker/CPU 亲和性）、风扇服务、升级平台脚本，以及独立 [luci-app-airoha-recovery](package/luci-app-airoha-recovery/) U-Boot HTTP Recovery 页面。
 
-### 预装 LuCI 应用（26 个，全部含中文翻译）
+### 网络与无线默认行为
 
-#### 设备专属（来自仓库 [package/](package/)）
+- 默认 LAN 地址为 `192.168.50.1`；IPv6 使用 SLAAC/EUI-64，关闭 DHCPv6/NDP 与 RA DNS/附加标志，减少国内网络环境下的兼容性问题。
+- 默认开启 firewall4 软件 flow offload 与硬件 flow offload；VLAN-aware bridge、PPPoE 和 AP 模式的 NPU/PPE 加速可在 NPU 页面按需启用，并由 FlowSense 展示运行状态。
+- 三个无线射频默认启用：2.4GHz 为 HE20/自动信道/28dBm，5GHz 为 EHT160/信道 36/30dBm，6GHz 为 EHT320/信道 37/30dBm。
+- FlowSense 提供 Router/AP 模式、VLAN/PPPoE/AP 加速状态与自定义 Ping 延迟检测；NPU 页面提供 PPE/Frame Engine、CPU 频率与安全超频控制；风扇页面提供实时温度、RPM/PWM 曲线与自定义曲线。
+
+### 预装 LuCI 应用（25 个，含中文界面）
+
+#### 设备专属与仓库内置（来自 [package/](package/)）
 
 | 应用 | 来源 | 功能 |
 |------|------|------|
-| `luci-app-airoha-npu` | [rchen14b/luci-app-airoha-npu](https://github.com/rchen14b/luci-app-airoha-npu) | SoC 状态监控 + 超频 |
-| `luci-app-airoha-fancontrol` | [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) | 风扇速度/温度控制 |
-| `luci-app-airoha-flowsense` | [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) | PPE 硬件 offload 监控 + 延迟检测（支持自定义 Ping 目标） |
+| `luci-app-airoha-npu` | [rchen14b/luci-app-airoha-npu](https://github.com/rchen14b/luci-app-airoha-npu) | SoC/NPU 状态、加速开关与超频控制 |
+| `luci-app-airoha-fancontrol` | [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) | 风扇速度/温度控制与曲线 |
+| `luci-app-airoha-flowsense` | [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) | PPE 硬件 offload、VLAN/PPPoE/AP 状态与延迟检测 |
+| `luci-app-airoha-recovery` | 本仓库 | 一键重启进入 U-Boot HTTP Recovery（一次性触发） |
 | `luci-app-lucky` | [sirpdboy/luci-app-lucky](https://github.com/sirpdboy/luci-app-lucky) | Lucky（DDNS/反代/端口转发） |
 
-#### 网络代理
-
-| 应用 | 核心依赖 | 功能 |
-|------|---------|------|
-| `luci-app-openclash` | mihomo | Clash 图形化客户端 |
-| `luci-app-passwall` | sing-box / xray-core / shadowsocks-rust / haproxy | 多协议代理客户端（含 Xray/SingBox/SS-Rust/Haproxy/Simple-Obfs/V2ray-Plugin） |
-| `luci-app-zerotier` | zerotier | ZeroTier 虚拟局域网 |
-
-#### DNS 相关
-
-| 应用 | 核心依赖 | 功能 |
-|------|---------|------|
-| `luci-app-adguardhome` | adguardhome | AdGuard Home 广告过滤 |
-| `luci-app-smartdns` | smartdns, smartdns-ui | SmartDNS DNS 加速/分流 |
-| `luci-app-ddns-go` | ddns-go | DDNS-Go 动态域名（支持阿里云/Cloudflare/DNSPod） |
-| `luci-app-ddns` | ddns-scripts | 传统 DDNS 脚本 |
-
-#### 网络工具
+#### 网络与远程接入
 
 | 应用 | 功能 |
 |------|------|
+| `luci-app-zerotier` | ZeroTier 虚拟局域网 |
+| `luci-app-ddns-go` | DDNS-Go 动态域名（支持阿里云/Cloudflare/DNSPod） |
+| `luci-app-ddns` | 传统 DDNS 脚本 |
 | `luci-app-upnp` | UPnP 自动端口转发 |
 | `luci-app-firewall` | 防火墙（firewall4/nftables） |
 | `luci-app-arpbind` | IP/MAC 绑定 |
 | `luci-app-mlo` | MLO（Wi-Fi 7 多链路操作） |
-| `luci-app-package-manager` | APK 包管理器 |
-| `luci-app-ttyd` | Web 终端 |
-| `luci-app-msd_lite` | MSD Lite |
+| `luci-app-msd_lite` | MSD Lite 组播播放 |
 
-#### 系统工具
+#### 系统与自动化
 
 | 应用 | 功能 |
 |------|------|
+| `luci-app-package-manager` | APK 包管理器 |
+| `luci-app-ttyd` | Web 终端 |
 | `luci-app-autoreboot` | 定时重启 |
+| `luci-app-timewol` | 定时网络唤醒 |
+| `luci-app-wifischedule` | Wi-Fi 定时开关 |
 | `luci-app-watchcat` | 网络看门狗 |
 | `luci-app-wol` | 网络唤醒 |
 | `luci-app-vlmcsd` | KMS 激活服务 |
@@ -103,33 +102,40 @@
 | `luci-app-wechatpush` | 微信推送通知 |
 | `luci-app-wifihistory` | WiFi 历史记录 |
 
+> 为控制固件体积，当前不预装 `luci-app-openclash`、`luci-app-passwall`、`luci-app-adguardhome` 和 `luci-app-smartdns`；SmartDNS 核心及独立 UI 仍保留。
+
 ### 主要系统包
 
 **网络核心**
 - `dnsmasq-full`（完整版 DNS/DHCP）
-- `firewall4` + `nftables`（nftables 防火墙）
-- `wpad-mbedtls`（完整版，支持 802.11v/k/11ax）
+- `firewall4` + `nftables-json`（nftables 防火墙）
+- `wpad-mbedtls`（WPA2/WPA3、EHT/MLO 支持）
 - `odhcp6c` / `odhcpd-ipv6only`（IPv6）
 - `ppp` / `ppp-mod-pppoe`（PPPoE）
+- `smartdns` + `smartdns-ui`（DNS 加速/分流）
+- `wireguard-tools` + `luci-proto-wireguard` + `rpcd-mod-wireguard`（WireGuard）
 
 **内核模块（kmod）**
 - `kmod-mt7996-firmware` / `kmod-mt7996e`（MT7996 Wi-Fi 7 驱动）
+- `airoha-en7581-mt7996-npu-firmware`（Airoha NPU 固件）
 - `kmod-crypto-hw-eip93`（硬件加密加速）
 - `kmod-nft-offload`（硬件流量卸载）
 - `kmod-br-netfilter` / `kmod-tcp-bbr`（桥接 Netfilter / BBR 拥塞控制）
+- `kmod-wireguard`（WireGuard 内核支持）
 - `kmod-hwmon-nct7802`（NCT7802 温度传感器）
 - `kmod-i2c-an7581` / `kmod-leds-gpio` / `kmod-gpio-button-hotplug`
 - `kmod-phy-realtek` / `kmod-mt76-connac` / `kmod-mt76-core`
+- `rtl826x-firmware`（RTL8261BE PHY 固件）
 
 **系统工具**
 - `bash` / `coreutils` / `curl` / `ip-full`
-- `htop` / `tcpdump` / `iperf3` / `ethtool-full` / `pciutils`
+- `ethtool-full` / `pciutils` / `uboot-envtools`
 - `luci-theme-argon` + `luci-theme-bootstrap`
 - `default-settings-chn`（中文默认设置）
 
-**代理核心**
-- `sing-box` / `xray-core` / `shadowsocks-rust-sslocal` / `shadowsocks-rust-ssserver`
-- `haproxy` / `chinadns-ng` / `geoview` / `dns2socks` / `microsocks` / `v2ray-plugin` / `ipt2socks`
+**代理与网络核心**
+- `xray-core` / `simple-obfs-client`
+- `chinadns-ng` / `geoview` / `dns2socks` / `microsocks` / `ipt2socks`
 
 ## GitHub Actions 工作流
 
