@@ -20,8 +20,8 @@ var themeCSS = '\
 .rec-status-label{font-size:13px;color:var(--soc-text)}\
 .rec-status-value{font-size:14px;font-weight:700;color:#00cc44}\
 .rec-status-value.fail{color:#d0021b}\
-.rec-btn{margin-top:14px}\
-.rec-btn .cbi-button{width:100%;box-sizing:border-box;text-align:center}\
+.rec-btn{display:flex;margin-top:14px}\
+.rec-btn .cbi-button{flex:1;box-sizing:border-box;min-height:36px;text-align:center}\
 @media(max-width:640px){.rec-card{padding:12px}}\
 ';
 
