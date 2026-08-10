@@ -131,7 +131,7 @@ define Device/gemtek_xr1710g-ubi
   DEVICE_ALT0_VARIANT := UBI
   SUPPORTED_DEVICES := gemtek,xr1710g-ubi
   DEVICE_DTS := an7581-xr1710g-ubi
-  DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware fitblk kmod-i2c-an7581 \
+  DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware fitblk uboot-envtools kmod-i2c-an7581 \
 		    kmod-hwmon-nct7802 kmod-mt7996-firmware wpad-mbedtls \
 		    rtl826x-firmware
   UBINIZE_OPTS := -E 5

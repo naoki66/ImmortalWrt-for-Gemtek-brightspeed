@@ -1,0 +1,90 @@
+#!/bin/sh
+
+. /lib/functions.sh
+
+is_supported()
+{
+	[ "$(board_name 2>/dev/null)" = "gemtek,xr1710g-ubi" ] || return 1
+	[ -x /usr/sbin/fw_setenv ] || return 1
+	[ -x /usr/sbin/fw_printenv ] || return 1
+	[ -r /etc/fw_env.config ] || return 1
+	/usr/sbin/fw_printenv -n bootcmd >/dev/null 2>&1 || return 1
+	return 0
+}
+
+get_status()
+{
+	local board="$(board_name 2>/dev/null)"
+	local supported=0
+	local reason="unsupported-board"
+
+	if [ "$board" = "gemtek,xr1710g-ubi" ]; then
+		if [ ! -x /usr/sbin/fw_setenv ] || [ ! -x /usr/sbin/fw_printenv ]; then
+			reason="uboot-envtools-missing"
+		elif [ ! -r /etc/fw_env.config ]; then
+			reason="fw-env-config-missing"
+		elif ! /usr/sbin/fw_printenv -n bootcmd >/dev/null 2>&1; then
+			reason="uboot-env-unreadable"
+		else
+			supported=1
+			reason=""
+		fi
+	fi
+
+	printf '{"supported":%s,"reason":"%s"}\n' "$supported" "$reason"
+}
+
+reboot_to_uboot()
+{
+	local current_bootcmd
+	local recovery_cmd="http_recovery"
+
+	is_supported || {
+		printf '{"success":false,"error":"U-Boot environment is unavailable"}\n'
+		return 0
+	}
+
+	if ! /usr/sbin/fw_printenv -n luci_airoha_bootcmd_backup >/dev/null 2>&1; then
+		current_bootcmd=$(/usr/sbin/fw_printenv -n bootcmd 2>/dev/null) || {
+			printf '{"success":false,"error":"Cannot read current bootcmd"}\n'
+			return 0
+		}
+
+		/usr/sbin/fw_setenv luci_airoha_bootcmd_backup "$current_bootcmd" || {
+			printf '{"success":false,"error":"Cannot save current bootcmd"}\n'
+			return 0
+		}
+	fi
+
+	# If http_recovery is an environment script, invoke it with "run".
+	/usr/sbin/fw_printenv -n http_recovery >/dev/null 2>&1 && \
+		recovery_cmd="run http_recovery"
+
+	/usr/sbin/fw_setenv bootcmd "$recovery_cmd" || {
+		printf '{"success":false,"error":"Cannot set U-Boot bootcmd"}\n'
+		return 0
+	}
+
+	sync
+	( sleep 1; /sbin/reboot ) >/dev/null 2>&1 </dev/null &
+	printf '{"success":true}\n'
+}
+
+case "$1" in
+	list)
+		printf '{"getStatus":{},"rebootToUboot":{}}\n'
+		;;
+	call)
+		case "$2" in
+			getStatus)
+				get_status
+				;;
+			rebootToUboot)
+				reboot_to_uboot
+				;;
+			*)
+				printf '{"error":"Invalid method"}\n'
+				;;
+		esac
+		;;
+esac

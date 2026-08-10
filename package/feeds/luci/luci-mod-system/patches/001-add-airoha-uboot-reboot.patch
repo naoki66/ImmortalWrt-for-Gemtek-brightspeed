@@ -1,0 +1,125 @@
+--- a/modules/luci-mod-system/htdocs/luci-static/resources/view/system/reboot.js
++++ b/modules/luci-mod-system/htdocs/luci-static/resources/view/system/reboot.js
+@@ -10,12 +10,29 @@
+ 	expect: { result: 0 }
+ });
+ 
++var callAirohaRebootStatus = rpc.declare({
++	object: 'luci.airoha_reboot',
++	method: 'getStatus'
++});
++
++var callAirohaReboot = rpc.declare({
++	object: 'luci.airoha_reboot',
++	method: 'rebootToUboot'
++});
++
+ return view.extend({
+ 	load: function() {
+-		return uci.changes();
++		return Promise.all([
++			uci.changes(),
++			callAirohaRebootStatus().catch(function() {
++				return { supported: false };
++			})
++		]);
+ 	},
+ 
+-	render: function(changes) {
++	render: function(data) {
++		var changes = data[0];
++		var airohaReboot = data[1] || {};
+ 		var body = E([
+ 			E('h2', _('Reboot')),
+ 			E('p', {}, _('Reboots the operating system of your device'))
+@@ -33,6 +50,13 @@
+ 			'click': ui.createHandlerFn(this, 'handleReboot')
+ 		}, _('Perform reboot')));
+ 
++		if (airohaReboot.supported) {
++			body.appendChild(E('button', {
++				'class': 'cbi-button cbi-button-action',
++				'click': ui.createHandlerFn(this, 'handleRebootToUboot')
++			}, _('Reboot to U-Boot recovery')));
++		}
++
+ 		return body;
+ 	},
+ 
+@@ -43,22 +67,42 @@
+ 				L.raise('Error', 'Reboot failed');
+ 			}
+ 
+-			L.ui.showModal(_('Rebooting…'), [
+-				E('p', { 'class': 'spinning' }, _('Waiting for device...'))
+-			]);
++			this.showRebootWait();
++		}.bind(this))
++		.catch(function(e) { L.ui.addNotification(null, E('p', e.message)) });
++	},
+ 
+-			window.setTimeout(function() {
+-				L.ui.showModal(_('Rebooting…'), [
+-					E('p', { 'class': 'spinning alert-message warning' },
+-						_('Device unreachable! Still waiting for device...'))
+-				]);
+-			}, 150000);
++	handleRebootToUboot: function(ev) {
++		if (!confirm(_('This will save the current U-Boot bootcmd and replace it with http_recovery. Continue?')))
++			return;
+ 
+-			L.ui.awaitReconnect();
+-		})
++		return callAirohaReboot().then(function(res) {
++			if (!res || !res.success) {
++				L.ui.addNotification(null, E('p',
++					(res && res.error) || _('The U-Boot recovery reboot failed')));
++				return;
++			}
++
++			this.showRebootWait();
++		}.bind(this))
+ 		.catch(function(e) { L.ui.addNotification(null, E('p', e.message)) });
+ 	},
+ 
++	showRebootWait: function() {
++		L.ui.showModal(_('Rebooting…'), [
++			E('p', { 'class': 'spinning' }, _('Waiting for device...'))
++		]);
++
++		window.setTimeout(function() {
++			L.ui.showModal(_('Rebooting…'), [
++				E('p', { 'class': 'spinning alert-message warning' },
++					_('Device unreachable! Still waiting for device...'))
++			]);
++		}, 150000);
++
++		L.ui.awaitReconnect();
++	},
++
+ 	handleSaveApply: null,
+ 	handleSave: null,
+ 	handleReset: null
+--- a/modules/luci-mod-system/root/usr/share/rpcd/acl.d/luci-mod-system.json
++++ b/modules/luci-mod-system/root/usr/share/rpcd/acl.d/luci-mod-system.json
+@@ -213,13 +213,19 @@
+ 
+ 	"luci-mod-system-reboot": {
+ 		"description": "Allow rebooting the device",
++		"read": {
++			"ubus": {
++				"luci.airoha_reboot": [ "getStatus" ]
++			}
++		},
+ 		"write": {
+ 			"file": {
+ 				"/sbin/reboot": [ "exec" ]
+ 			},
+ 			"ubus": {
+ 				"file": [ "exec" ],
+-				"system": [ "reboot" ]
++				"system": [ "reboot" ],
++				"luci.airoha_reboot": [ "rebootToUboot" ]
+ 			}
+ 		}
+ 	},

@@ -1,0 +1,37 @@
+#!/bin/sh /etc/rc.common
+
+START=15
+
+. /lib/functions.sh
+
+restore_bootcmd()
+{
+	local backup current
+
+	[ "$(board_name 2>/dev/null)" = "gemtek,xr1710g-ubi" ] || return 0
+	[ -x /usr/sbin/fw_setenv ] || return 0
+	[ -x /usr/sbin/fw_printenv ] || return 0
+
+	backup=$(/usr/sbin/fw_printenv -n luci_airoha_bootcmd_backup 2>/dev/null) || return 0
+	current=$(/usr/sbin/fw_printenv -n bootcmd 2>/dev/null) || return 0
+
+	if [ "$current" != "$backup" ]; then
+		/usr/sbin/fw_setenv bootcmd "$backup" || {
+			logger -t airoha_bootcmd_restore "failed to restore bootcmd"
+			return 0
+		}
+	fi
+
+	/usr/sbin/fw_setenv luci_airoha_bootcmd_backup >/dev/null 2>&1
+	logger -t airoha_bootcmd_restore "restored bootcmd after temporary recovery reboot"
+}
+
+boot()
+{
+	restore_bootcmd
+}
+
+start()
+{
+	restore_bootcmd
+}
