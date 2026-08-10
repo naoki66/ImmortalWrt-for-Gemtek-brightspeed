@@ -26,7 +26,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  #include <linux/if_vlan.h>
  #include <linux/ip.h>
  #include <linux/ipv6.h>
-@@ -988,9 +988,12 @@ airoha_ppe_foe_prepare_bridge_subflow(struct airoha_ppe *ppe,
+@@ -983,9 +984,12 @@
  				      struct airoha_foe_entry *hwe)
  {
  	struct net_device_path_stack stack;
@@ -36,18 +36,18 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  	struct airoha_flow_data data = {};
  	struct net_device *master, *egress;
 +	u16 vid;
- 	int err, i;
+ 	int err;
  
  	if (!is_valid_ether_addr(eh->h_source) ||
-@@ -1003,18 +1006,43 @@ airoha_ppe_foe_prepare_bridge_subflow(struct airoha_ppe *ppe,
+@@ -998,18 +1002,43 @@
  	if (!skb->dev)
  		return false;
  
 -	/* Unbound hits can arrive before flowtable creates the L2 master flow
 -	 * normally used for subflow binding. skb->dev can be either a bridge
 -	 * slave or a bridge VLAN upper (e.g. br-lan.<vid> when br_netfilter
--	 * preserves VLAN device context). Retain the bridge VLAN upper so the
--	 * FDB uses its VID instead of the bridge PVID.
+-	 * preserves VLAN device context). Start at the bridge master so the
+-	 * FDB selects the destination port instead of reusing the ingress AP.
 +	/* Resolve the FDB in the packet's VLAN. A trunk port PVID describes
 +	 * untagged traffic only and must not replace an skb hardware VLAN tag.
  	 */
@@ -55,7 +55,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  	if (!master)
  		return false;
  
-+	rcu_read_lock();
+ 	rcu_read_lock();
 +	ctx.dev = master;
 +	if (is_vlan_dev(skb->dev)) {
 +		vid = vlan_dev_vlan_id(skb->dev);
@@ -84,9 +84,9 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 +		ctx.num_vlans = 1;
 +	}
 +
--	rcu_read_lock();
 -	err = dev_fill_forward_path(master, eh->h_dest, &stack);
 +	err = __dev_fill_forward_path(&ctx, eh->h_dest, &stack);
- 	if (err || stack.num_paths < 2) {
+ 	if (err || stack.num_paths < 2 ||
+ 	    stack.path[0].type != DEV_PATH_BRIDGE) {
  		rcu_read_unlock();
  		dev_put(master);
