@@ -13,6 +13,54 @@ var callRebootToUboot = rpc.declare({
 	method: 'rebootToUboot'
 });
 
+var themeCSS = '\
+.rec-card{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-left:3px solid #00cc44;border-radius:8px;padding:14px 16px;transition:border-color .3s}\
+.rec-desc{font-size:13px;color:var(--soc-muted);margin:0 0 12px;line-height:1.6}\
+.rec-status{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:2px 0}\
+.rec-status-label{font-size:13px;color:var(--soc-text)}\
+.rec-status-value{font-size:14px;font-weight:700;color:#00cc44}\
+.rec-status-value.fail{color:#d0021b}\
+.rec-btn{margin-top:14px}\
+.rec-btn .cbi-button{width:100%;box-sizing:border-box;text-align:center}\
+@media(max-width:640px){.rec-card{padding:12px}}\
+';
+
+function isDarkMode() {
+	var els = [document.body, document.querySelector('.main-content'), document.querySelector('#maincontent'), document.querySelector('.cbi-map')];
+	for (var i = 0; i < els.length; i++) {
+		if (!els[i]) continue;
+		var bg = window.getComputedStyle(els[i]).backgroundColor;
+		var m = bg.match(/\d+/g);
+		if (m && m.length >= 3) {
+			var a = m.length >= 4 ? parseFloat(m[3]) : 1;
+			if (a < 0.1) continue;
+			var lum = (parseInt(m[0]) * 299 + parseInt(m[1]) * 587 + parseInt(m[2]) * 114) / 1000;
+			return lum < 128;
+		}
+	}
+	var sheets = document.querySelectorAll('link[href*="dark"], link[href*="glass"]');
+	return sheets.length > 0;
+}
+
+var _lastDarkMode = null;
+
+function injectCSS() {
+	var el = document.getElementById('soc-theme-css');
+	if (!el) {
+		el = document.createElement('style');
+		el.id = 'soc-theme-css';
+		document.head.appendChild(el);
+	}
+	var dark = isDarkMode();
+	if (dark === _lastDarkMode)
+		return;
+	_lastDarkMode = dark;
+	var vars = dark
+		? ':root{--soc-card-bg:#1e1e1e;--soc-border:#333;--soc-muted:#999;--soc-text:#e0e0e0}'
+		: ':root{--soc-card-bg:#fff;--soc-border:#d0d0d0;--soc-muted:#666;--soc-text:#222}';
+	el.textContent = themeCSS + vars;
+}
+
 return view.extend({
 	load: function() {
 		return callGetStatus().catch(function() {
@@ -24,6 +72,8 @@ return view.extend({
 		var supported = !!(status && status.supported);
 		var recoveryActive = !!(status && status.recovery_active);
 
+		injectCSS();
+
 		var body = E([ E('h2', _('U-Boot Recovery')) ]);
 
 		if (recoveryActive) {
@@ -31,18 +81,12 @@ return view.extend({
 				_('The device is configured to boot into the U-Boot HTTP recovery environment. Re-flash the firmware from the U-Boot interface.')));
 		}
 
-		body.appendChild(E('style', { 'type': 'text/css' },
-			'.rec-desc{font-size:13px;margin:0 0 12px}\n' +
-			'.rec-status{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0}\n' +
-			'.rec-status-label{font-size:13px}\n' +
-			'.rec-btn{margin-top:12px}\n'));
-
-		body.appendChild(E('div', { 'class': 'cbi-section cbi-section-node' }, [
+		body.appendChild(E('div', { 'class': 'rec-card' }, [
 			E('p', { 'class': 'rec-desc' },
 				_('Reboots the device into the U-Boot HTTP recovery environment and restores normal booting on the next boot.')),
 			E('div', { 'class': 'rec-status' }, [
 				E('span', { 'class': 'rec-status-label' }, _('U-Boot environment')),
-				E('span', { 'class': supported ? 'status-ok' : 'status-fail' },
+				E('span', { 'class': 'rec-status-value' + (supported ? '' : ' fail') },
 					supported ? _('Available') : _('Unavailable'))
 			]),
 			E('div', { 'class': 'rec-btn' }, [
