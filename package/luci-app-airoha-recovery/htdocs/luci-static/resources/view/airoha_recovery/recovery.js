@@ -16,7 +16,7 @@ var callRebootToUboot = rpc.declare({
 var themeCSS = '\
 .rec-card{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-left:3px solid #00cc44;border-radius:8px;padding:14px 16px;transition:border-color .3s}\
 .rec-desc{font-size:13px;color:var(--soc-muted);margin:0 0 12px;line-height:1.6}\
-.rec-status{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:2px 0}\
+.rec-status{display:flex;align-items:center;gap:8px;padding:2px 0}\
 .rec-status-label{font-size:13px;color:var(--soc-text)}\
 .rec-status-value{font-size:14px;font-weight:700;color:#00cc44}\
 .rec-status-value.fail{color:#d0021b}\
