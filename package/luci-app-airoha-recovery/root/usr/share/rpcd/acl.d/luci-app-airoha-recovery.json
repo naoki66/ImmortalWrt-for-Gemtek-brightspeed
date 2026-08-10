@@ -1,0 +1,15 @@
+{
+	"luci-app-airoha-recovery": {
+		"description": "Grant access to reboot the device into the U-Boot HTTP recovery environment",
+		"read": {
+			"ubus": {
+				"luci.airoha_recovery": [ "getStatus" ]
+			}
+		},
+		"write": {
+			"ubus": {
+				"luci.airoha_recovery": [ "rebootToUboot" ]
+			}
+		}
+	}
+}

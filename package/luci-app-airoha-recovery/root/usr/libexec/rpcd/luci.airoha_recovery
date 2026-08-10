@@ -1,6 +1,13 @@
 #!/bin/sh
 
+# Airoha XR1710G U-Boot recovery RPC backend for LuCI.
+# Reboots the device into the U-Boot HTTP recovery environment and restores
+# the original bootcmd automatically on the next boot (see
+# /etc/init.d/airoha_bootcmd_restore).
+
 . /lib/functions.sh
+
+BACKUP_ENV="luci_airoha_bootcmd_backup"
 
 is_supported()
 {
@@ -17,21 +24,29 @@ get_status()
 	local board="$(board_name 2>/dev/null)"
 	local supported=0
 	local reason="unsupported-board"
+	local recovery_active=0
+	local bootcmd=""
 
 	if [ "$board" = "gemtek,xr1710g-ubi" ]; then
 		if [ ! -x /usr/sbin/fw_setenv ] || [ ! -x /usr/sbin/fw_printenv ]; then
 			reason="uboot-envtools-missing"
 		elif [ ! -r /etc/fw_env.config ]; then
 			reason="fw-env-config-missing"
-		elif ! /usr/sbin/fw_printenv -n bootcmd >/dev/null 2>&1; then
+		elif ! bootcmd=$(/usr/sbin/fw_printenv -n bootcmd 2>/dev/null); then
 			reason="uboot-env-unreadable"
 		else
 			supported=1
 			reason=""
+			case "$bootcmd" in
+				*http_recovery*)
+					recovery_active=1
+					;;
+			esac
 		fi
 	fi
 
-	printf '{"supported":%s,"reason":"%s"}\n' "$supported" "$reason"
+	printf '{"supported":%d,"reason":"%s","recovery_active":%d}\n' \
+		"$supported" "$reason" "$recovery_active"
 }
 
 reboot_to_uboot()
@@ -44,13 +59,20 @@ reboot_to_uboot()
 		return 0
 	}
 
-	if ! /usr/sbin/fw_printenv -n luci_airoha_bootcmd_backup >/dev/null 2>&1; then
-		current_bootcmd=$(/usr/sbin/fw_printenv -n bootcmd 2>/dev/null) || {
-			printf '{"success":false,"error":"Cannot read current bootcmd"}\n'
-			return 0
-		}
+	current_bootcmd=$(/usr/sbin/fw_printenv -n bootcmd 2>/dev/null) || {
+		printf '{"success":false,"error":"Cannot read current bootcmd"}\n'
+		return 0
+	}
 
-		/usr/sbin/fw_setenv luci_airoha_bootcmd_backup "$current_bootcmd" || {
+	case "$current_bootcmd" in
+		*http_recovery*)
+			printf '{"success":false,"error":"Device is already set to boot into U-Boot recovery"}\n'
+			return 0
+			;;
+	esac
+
+	if ! /usr/sbin/fw_printenv -n "$BACKUP_ENV" >/dev/null 2>&1; then
+		/usr/sbin/fw_setenv "$BACKUP_ENV" "$current_bootcmd" || {
 			printf '{"success":false,"error":"Cannot save current bootcmd"}\n'
 			return 0
 		}

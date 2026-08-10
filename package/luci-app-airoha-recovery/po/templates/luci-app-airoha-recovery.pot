@@ -1,0 +1,59 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"POT-Creation-Date: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: htdocs/luci-static/resources/view/airoha_recovery/recovery.js
+msgid "U-Boot Recovery"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/airoha_recovery/recovery.js
+msgid "Reboots the device into the U-Boot HTTP recovery environment. The current bootcmd is saved to the U-Boot environment and restored automatically on the next boot."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/airoha_recovery/recovery.js
+msgid "The device is currently configured to boot into the U-Boot HTTP recovery environment. Re-flash the firmware from the U-Boot interface to restore normal booting."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/airoha_recovery/recovery.js
+msgid "U-Boot environment"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/airoha_recovery/recovery.js
+msgid "Available"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/airoha_recovery/recovery.js
+msgid "Unavailable"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/airoha_recovery/recovery.js
+msgid "Reboot to U-Boot"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/airoha_recovery/recovery.js
+msgid "The device will reboot into the U-Boot HTTP recovery environment now. Continue?"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/airoha_recovery/recovery.js
+msgid "The U-Boot recovery reboot failed"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/airoha_recovery/recovery.js
+msgid "Rebooting…"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/airoha_recovery/recovery.js
+msgid "Waiting for device..."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/airoha_recovery/recovery.js
+msgid "Device unreachable! Still waiting for device..."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/airoha_recovery/recovery.js
+msgid "Cancel"
+msgstr ""

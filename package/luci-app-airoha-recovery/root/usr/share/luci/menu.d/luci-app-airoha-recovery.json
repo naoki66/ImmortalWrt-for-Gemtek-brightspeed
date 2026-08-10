@@ -1,0 +1,13 @@
+{
+	"admin/system/recovery": {
+		"title": "U-Boot Recovery",
+		"order": 90,
+		"action": {
+			"type": "view",
+			"path": "airoha_recovery/recovery"
+		},
+		"depends": {
+			"acl": [ "luci-app-airoha-recovery" ]
+		}
+	}
+}
