@@ -38,7 +38,7 @@ var themeCSS = '\
 .fan-temp-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px}\
 .fan-temp-label{font-size:12px;color:var(--fan-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
 .fan-temp-value{font-family:monospace;font-size:16px;font-weight:700;color:var(--fan-temp-accent);white-space:nowrap}\
-.fan-temp-track{height:6px;border-radius:999px;overflow:hidden;background:var(--fan-track)}\
+.fan-temp-track{height:18px!important;min-height:18px;border-radius:999px;overflow:hidden;background:var(--fan-track)}\
 .fan-temp-fill{height:100%;border-radius:inherit;background:var(--fan-temp-accent);transition:width .3s,background .3s}\
 @media(max-width:1050px){.fan-summary-grid{grid-template-columns:repeat(2,minmax(160px,1fr))}.fan-chart-grid{grid-template-columns:1fr}}\
 @media(max-width:640px){.fan-summary-grid,.fan-temp-grid{grid-template-columns:1fr}.fan-panel{padding:11px}.fan-summary-card{min-height:74px}.fan-chart-canvas{height:112px}}\

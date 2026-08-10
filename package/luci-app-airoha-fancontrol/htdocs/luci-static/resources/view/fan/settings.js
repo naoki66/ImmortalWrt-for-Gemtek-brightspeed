@@ -10,17 +10,38 @@ var callGetAllCurves = rpc.declare({
 });
 
 var settingsCSS = '\
-.fan-settings{--fan-blue:#00c8ff;--fan-green:#00cc44;--fan-amber:#f5a623;--fan-red:#d0021b}\
-.fan-settings .cbi-section{background:var(--fan-card-bg);border:1px solid var(--fan-border);border-radius:8px;padding:14px;margin:12px 0!important;box-sizing:border-box}\
-.fan-settings .cbi-section>h3{font-size:15px;margin:0 0 12px;padding:0 0 8px;border-bottom:1px solid var(--fan-border);color:var(--fan-text)}\
-.fan-settings .cbi-section-descr{color:var(--fan-muted);font-size:12px;line-height:1.5;margin:-4px 0 10px}\
-.fan-settings .cbi-value{border-bottom:1px solid var(--fan-border);padding:9px 0;margin:0}\
+.fan-settings{--fan-blue:#00c8ff;--fan-green:#00cc44;--fan-amber:#f5a623;--fan-red:#d0021b;max-width:1180px;margin:0 auto;padding-bottom:20px}\
+.fan-settings .cbi-map-descr{position:relative;margin:0 0 16px;padding:15px 18px 15px 20px;border:1px solid var(--fan-border);border-left:4px solid var(--fan-blue);border-radius:10px;background:linear-gradient(135deg,var(--fan-card-bg),var(--fan-input-bg));box-shadow:0 5px 18px var(--fan-shadow);color:var(--fan-muted);font-size:12px;line-height:1.6}\
+.fan-settings .cbi-section{position:relative;background:var(--fan-card-bg);border:1px solid var(--fan-border);border-radius:12px;padding:18px;margin:14px 0!important;box-sizing:border-box;box-shadow:0 5px 18px var(--fan-shadow);overflow:hidden}\
+.fan-settings .cbi-section>h3{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:700;letter-spacing:.2px;margin:0 0 14px;padding:0 0 12px;border-bottom:1px solid var(--fan-border);color:var(--fan-text)}\
+.fan-settings .cbi-section>h3:before{content:"";display:block;width:5px;height:20px;border-radius:99px;background:linear-gradient(180deg,var(--fan-blue),var(--fan-green));box-shadow:0 0 12px rgba(0,200,255,.25)}\
+.fan-settings .fan-curve-section>h3:before{background:linear-gradient(180deg,#a855f7,#f97316);box-shadow:0 0 12px rgba(168,85,247,.25)}\
+.fan-settings .cbi-section-descr{color:var(--fan-muted);font-size:12px;line-height:1.6;margin:-4px 0 12px}\
+.fan-settings .cbi-value{display:grid;grid-template-columns:minmax(180px,.72fr) minmax(260px,1.28fr);align-items:center;gap:16px;border-bottom:1px solid var(--fan-border);padding:12px 0;margin:0}\
 .fan-settings .cbi-value:last-child{border-bottom:0}\
-.fan-settings .cbi-value-title{color:var(--fan-text);font-size:13px}\
-.fan-settings .cbi-value-description{color:var(--fan-muted);font-size:11px;line-height:1.4;margin-top:4px}\
-.fan-curve-wrap{max-width:680px;border:1px solid var(--fan-border);border-left:3px solid var(--fan-blue);border-radius:8px;padding:10px;background:var(--fan-card-bg)}\
-.fan-curve-canvas{display:block;width:100%;height:300px;background:var(--fan-canvas-bg);border:1px solid var(--fan-border);border-radius:6px;box-sizing:border-box}\
-@media(max-width:640px){.fan-settings .cbi-section{padding:11px}.fan-settings .cbi-value-title{float:none!important;width:auto!important;margin-bottom:6px}.fan-settings .cbi-value-field{margin-left:0!important}.fan-curve-canvas{height:240px}}\
+.fan-settings .cbi-value-title{color:var(--fan-text);font-size:13px;font-weight:600;line-height:1.35}\
+.fan-settings .cbi-value-description{display:block;color:var(--fan-muted);font-size:11px;font-weight:400;line-height:1.45;margin-top:5px}\
+.fan-settings .cbi-value-field{min-width:0}\
+.fan-settings .cbi-value-field input,.fan-settings .cbi-value-field select{width:100%;box-sizing:border-box;min-height:38px;padding:8px 11px;border:1px solid var(--fan-border);border-radius:7px;background:var(--fan-input-bg);color:var(--fan-text);font-size:13px;transition:border-color .18s,box-shadow .18s,background .18s}\
+.fan-settings .cbi-value-field input:hover,.fan-settings .cbi-value-field select:hover{border-color:var(--fan-blue)}\
+.fan-settings .cbi-value-field input:focus,.fan-settings .cbi-value-field select:focus{border-color:var(--fan-blue);background:var(--fan-card-bg);box-shadow:0 0 0 3px rgba(0,200,255,.14);outline:0}\
+.fan-settings .cbi-value-field input[type=number]{font-family:monospace;font-weight:700}\
+.fan-settings .fan-control-section{background:linear-gradient(145deg,var(--fan-card-bg),var(--fan-input-bg))}\
+.fan-settings .fan-control-section [data-name="_curve_graph"]{display:block;padding:14px 0 0;margin-top:4px;border-top:1px solid var(--fan-border)}\
+.fan-settings .fan-control-section [data-name="_curve_graph"] .cbi-value-title{margin-bottom:8px}\
+.fan-settings .fan-control-section [data-name="_curve_graph"] .cbi-value-field{width:100%}\
+.fan-curve-wrap{max-width:none;border:1px solid var(--fan-border);border-left:4px solid var(--fan-blue);border-radius:10px;padding:12px;background:linear-gradient(145deg,var(--fan-input-bg),var(--fan-card-bg));box-shadow:inset 0 0 0 1px rgba(0,200,255,.06)}\
+.fan-curve-canvas{display:block;width:100%;height:320px;background:var(--fan-canvas-bg);border:1px solid var(--fan-border);border-radius:7px;box-sizing:border-box}\
+.fan-settings .fan-curve-section{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}\
+.fan-settings .fan-curve-section>h3,.fan-settings .fan-curve-section>.cbi-section-descr{grid-column:1/-1}\
+.fan-settings .fan-curve-section .cbi-value{display:flex!important;flex-direction:column!important;align-items:stretch;gap:8px;width:100%;box-sizing:border-box;padding:14px;border:1px solid var(--fan-border);border-left:3px solid var(--fan-amber);border-radius:9px;background:var(--fan-input-bg);box-shadow:0 2px 8px var(--fan-shadow)}\
+.fan-settings .fan-curve-section .cbi-value[data-name$="_pwm"]{border-left-color:var(--fan-blue)}\
+.fan-settings .fan-curve-section .cbi-value .cbi-value-title{display:block!important;flex:none!important;float:none!important;width:auto!important;position:static;clear:both;margin:0!important;line-height:1.4;white-space:normal}\
+.fan-settings .fan-curve-section .cbi-value .cbi-value-field{display:block!important;flex:none!important;width:100%;position:static;clear:both;margin:0!important}\
+.fan-settings .cbi-button{border-radius:7px;font-weight:600;transition:transform .18s,box-shadow .18s}\
+.fan-settings .cbi-button:hover{transform:translateY(-1px);box-shadow:0 4px 12px var(--fan-shadow)}\
+@media(max-width:760px){.fan-settings .fan-curve-section{grid-template-columns:1fr}.fan-settings .fan-curve-section>h3,.fan-settings .fan-curve-section>.cbi-section-descr{grid-column:auto}}\
+@media(max-width:640px){.fan-settings{padding-bottom:12px}.fan-settings .cbi-section{padding:13px;margin:11px 0!important}.fan-settings .cbi-value{display:block;padding:11px 0}.fan-settings .cbi-value-title{display:block;margin-bottom:7px}.fan-settings .cbi-value-field{margin-left:0!important}.fan-settings .fan-curve-section .cbi-value{padding:12px}.fan-curve-canvas{height:250px}}\
 ';
 
 var _settingsDarkMode = null;
@@ -47,8 +68,8 @@ function injectCSS() {
 	if (dark === _settingsDarkMode) return;
 	_settingsDarkMode = dark;
 	el.textContent = settingsCSS + (dark
-		? ':root{--fan-card-bg:#1e1e1e;--fan-canvas-bg:#191919;--fan-border:#333;--fan-muted:#a3a3a3;--fan-text:#ececec;--fan-grid:rgba(255,255,255,.14);--fan-axis:#b5b5b5}'
-		: ':root{--fan-card-bg:#fff;--fan-canvas-bg:#fbfcfd;--fan-border:#d0d0d0;--fan-muted:#666;--fan-text:#222;--fan-grid:rgba(80,90,100,.18);--fan-axis:#555}');
+		? ':root{--fan-card-bg:#1e1e1e;--fan-canvas-bg:#191919;--fan-input-bg:#252525;--fan-border:#333;--fan-muted:#a3a3a3;--fan-text:#ececec;--fan-shadow:rgba(0,0,0,.24);--fan-grid:rgba(255,255,255,.14);--fan-axis:#b5b5b5}'
+		: ':root{--fan-card-bg:#fff;--fan-canvas-bg:#fbfcfd;--fan-input-bg:#f7f9fb;--fan-border:#d0d0d0;--fan-muted:#666;--fan-text:#222;--fan-shadow:rgba(40,65,90,.08);--fan-grid:rgba(80,90,100,.18);--fan-axis:#555}');
 }
 
 function canvasColor(canvas, property, fallback) {
@@ -265,11 +286,17 @@ return view.extend({
 
 		return m.render().then(function(node) {
 			node.classList.add('fan-settings');
+			var intro = node.querySelector('.cbi-map-descr');
+			if (intro) intro.classList.add('fan-settings-intro');
+			var sections = node.querySelectorAll('.cbi-section');
+			if (sections[0]) sections[0].classList.add('fan-control-section');
+			if (sections[1]) sections[1].classList.add('fan-curve-section');
 			requestAnimationFrame(function() {
 				injectCSS();
 				var presetSelect = node.querySelector('[data-name="curve_preset"] select');
 				var modeSelect = node.querySelector('[data-name="mode"] select');
 				var point1Marker = node.querySelector('[data-name="point1_temp"]');
+				var manualMarker = node.querySelector('[data-name="manual_pwm"]');
 
 				function getCurrentPreset() {
 					return presetSelect ? presetSelect.value : uci.get('fan', 'settings', 'curve_preset') || 'balanced';
@@ -281,10 +308,12 @@ return view.extend({
 
 				function toggleCustomSection() {
 					var visible = getCurrentMode() === 'auto' && getCurrentPreset() === 'custom';
+					var manual = getCurrentMode() === 'manual';
 					if (point1Marker) {
 						var section = point1Marker.closest('.cbi-section');
 						if (section) section.style.display = visible ? '' : 'none';
 					}
+					if (manualMarker) manualMarker.style.display = manual ? '' : 'none';
 				}
 
 				function redrawCanvas() {
