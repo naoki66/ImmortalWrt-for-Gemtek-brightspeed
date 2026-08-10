@@ -66,6 +66,8 @@ get_status()
 			supported=1
 			reason=""
 			bootcmd=$(/usr/sbin/fw_printenv -n bootcmd 2>/dev/null)
+			/usr/sbin/fw_printenv -n recovery_trigger >/dev/null 2>&1 && \
+				recovery_active=1
 			case "$bootcmd" in
 				*airoha_recovery_once*|http_recovery|run\ http_recovery)
 					recovery_active=1
@@ -117,6 +119,14 @@ reboot_to_uboot()
 
 	/usr/sbin/fw_setenv bootcmd "$BOOTCMD_TRIGGER" || {
 		printf '{"success":false,"error":"Cannot set U-Boot bootcmd"}\n'
+		return 0
+	}
+
+	# Native one-shot trigger on U-Boot builds that support it
+	# (board_late_init clears it and starts the HTTP recovery server).
+	# The bootcmd trigger above is kept as a fallback for older U-Boot.
+	/usr/sbin/fw_setenv recovery_trigger 1 || {
+		printf '{"success":false,"error":"Cannot set recovery_trigger"}\n'
 		return 0
 	}
 

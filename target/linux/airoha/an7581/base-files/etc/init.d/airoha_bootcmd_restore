@@ -16,6 +16,7 @@ restore_bootcmd()
 	# normally consumed by U-Boot itself, but this keeps the device from
 	# re-entering recovery if U-Boot was unable to save the environment.
 	/usr/sbin/fw_setenv airoha_recovery_once >/dev/null 2>&1
+	/usr/sbin/fw_setenv recovery_trigger >/dev/null 2>&1
 
 	backup=$(/usr/sbin/fw_printenv -n luci_airoha_bootcmd_backup 2>/dev/null) || return 0
 	current=$(/usr/sbin/fw_printenv -n bootcmd 2>/dev/null) || return 0
