@@ -11,9 +11,25 @@ touch /etc/config/ubootenv
 
 board=$(board_name)
 
+ubootenv_add_ubi_xr1710g() {
+	. /lib/upgrade/nand.sh
+	local envubi="$(nand_find_ubi ubi)"
+	local dev="/dev/$(nand_find_volume "$envubi" ubootenv)"
+	local dev2="/dev/$(nand_find_volume "$envubi" ubootenv2)"
+
+	# The XR1710G chainloader U-Boot (YYH2913/http-uboot-xr1710g) uses
+	# CONFIG_ENV_SIZE=0x4000 for its redundant UBI environment.  Using the
+	# generic 0x1f000 layout makes fw_setenv write an environment whose CRC
+	# the U-Boot rejects, so bootcmd changes never take effect.
+	ubootenv_add_uci_config "$dev" "0x0" "0x4000" "0x1f000" "1"
+	ubootenv_add_uci_config "$dev2" "0x0" "0x4000" "0x1f000" "1"
+}
+
 case "$board" in
+gemtek,xr1710g-ubi)
+	ubootenv_add_ubi_xr1710g
+	;;
 gemtek,w1700k-ubi|\
-gemtek,xr1710g-ubi|\
 nokia,xg-040g-md-ubi)
 	ubootenv_add_ubi_default
 	;;

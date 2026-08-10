@@ -8,6 +8,14 @@
 . /lib/functions.sh
 
 BACKUP_ENV="luci_airoha_bootcmd_backup"
+FLAG_ENV="airoha_recovery_once"
+
+# One-shot trigger: on the next boot airoha_recovery_once clears itself
+# (saveenv) and starts the HTTP recovery server.  Once the flag is gone the
+# device falls through to the normal U-Boot boot flow, so a power-cycle or a
+# recovery flash returns the device to normal booting instead of looping.
+BOOTCMD_TRIGGER="run airoha_recovery_once; run boot_ubi || http_recovery"
+FLAG_SCRIPT="setenv airoha_recovery_once; saveenv; http_recovery"
 
 is_supported()
 {
@@ -38,7 +46,7 @@ get_status()
 			supported=1
 			reason=""
 			case "$bootcmd" in
-				*http_recovery*)
+				*airoha_recovery_once*|http_recovery|run\ http_recovery)
 					recovery_active=1
 					;;
 			esac
@@ -52,7 +60,6 @@ get_status()
 reboot_to_uboot()
 {
 	local current_bootcmd
-	local recovery_cmd="http_recovery"
 
 	is_supported || {
 		printf '{"success":false,"error":"U-Boot environment is unavailable"}\n'
@@ -65,8 +72,8 @@ reboot_to_uboot()
 	}
 
 	case "$current_bootcmd" in
-		*http_recovery*)
-			printf '{"success":false,"error":"Device is already set to boot into U-Boot recovery"}\n'
+		*airoha_recovery_once*|http_recovery|run\ http_recovery)
+			printf '{"success":false,"error":"Device is already configured to boot into U-Boot recovery"}\n'
 			return 0
 			;;
 	esac
@@ -78,11 +85,12 @@ reboot_to_uboot()
 		}
 	fi
 
-	# If http_recovery is an environment script, invoke it with "run".
-	/usr/sbin/fw_printenv -n http_recovery >/dev/null 2>&1 && \
-		recovery_cmd="run http_recovery"
+	/usr/sbin/fw_setenv "$FLAG_ENV" "$FLAG_SCRIPT" || {
+		printf '{"success":false,"error":"Cannot set recovery trigger"}\n'
+		return 0
+	}
 
-	/usr/sbin/fw_setenv bootcmd "$recovery_cmd" || {
+	/usr/sbin/fw_setenv bootcmd "$BOOTCMD_TRIGGER" || {
 		printf '{"success":false,"error":"Cannot set U-Boot bootcmd"}\n'
 		return 0
 	}
