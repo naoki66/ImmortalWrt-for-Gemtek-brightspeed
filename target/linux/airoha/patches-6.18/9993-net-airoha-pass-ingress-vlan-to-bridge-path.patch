@@ -10,9 +10,12 @@ traffic received on an access port whose PVID differs from the bridge PVID.
 On Airoha Ethernet ingress, an 802.1Q tag can remain inline in the Ethernet
 header instead of being exposed through skb VLAN metadata. Populate
 net_device_path_ctx from a logical VLAN device, an skb hardware VLAN tag,
-an inline VLAN header, or the ingress bridge-port PVID. Use
+an inline VLAN header, or the ingress bridge-port PVID when VLAN filtering is
+enabled, using the bridge's configured VLAN protocol. Use
 __dev_fill_forward_path() so the bridge FDB lookup sees that context. In
 particular, do not replace a tagged trunk frame with the trunk port PVID.
+Copy the resulting egress VLAN stack into the fallback flow template so PPE
+performs the same tag push or pop selected by the bridge path.
 
 Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 ---
@@ -26,7 +29,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  #include <linux/if_vlan.h>
  #include <linux/ip.h>
  #include <linux/ipv6.h>
-@@ -983,9 +984,12 @@
+@@ -983,10 +984,13 @@
  				      struct airoha_foe_entry *hwe)
  {
  	struct net_device_path_stack stack;
@@ -35,11 +38,13 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 +	struct vlan_ethhdr *veh;
  	struct airoha_flow_data data = {};
  	struct net_device *master, *egress;
-+	u16 vid;
- 	int err;
+-	int err;
++	u16 vid, proto;
++	int err, i;
  
  	if (!is_valid_ether_addr(eh->h_source) ||
-@@ -998,18 +1002,43 @@
+ 	    !is_valid_ether_addr(eh->h_dest))
+@@ -998,18 +1002,45 @@
  	if (!skb->dev)
  		return false;
  
@@ -56,6 +61,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  		return false;
  
  	rcu_read_lock();
+-	err = dev_fill_forward_path(master, eh->h_dest, &stack);
 +	ctx.dev = master;
 +	if (is_vlan_dev(skb->dev)) {
 +		vid = vlan_dev_vlan_id(skb->dev);
@@ -77,16 +83,29 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 +			ctx.vlan[0].proto = veh->h_vlan_proto;
 +			ctx.num_vlans = 1;
 +		}
-+	} else if (netif_is_bridge_port(skb->dev) &&
-+		   !br_vlan_get_pvid_rcu(skb->dev, &vid) && vid) {
++	} else if (br_vlan_enabled(master) &&
++		   netif_is_bridge_port(skb->dev) &&
++		   !br_vlan_get_pvid_rcu(skb->dev, &vid) && vid &&
++		   !br_vlan_get_proto(master, &proto)) {
 +		ctx.vlan[0].id = vid;
-+		ctx.vlan[0].proto = htons(ETH_P_8021Q);
++		ctx.vlan[0].proto = htons(proto);
 +		ctx.num_vlans = 1;
 +	}
 +
--	err = dev_fill_forward_path(master, eh->h_dest, &stack);
 +	err = __dev_fill_forward_path(&ctx, eh->h_dest, &stack);
  	if (err || stack.num_paths < 2 ||
  	    stack.path[0].type != DEV_PATH_BRIDGE) {
  		rcu_read_unlock();
- 		dev_put(master);
+@@ -1017,6 +1048,12 @@
+ 		return false;
+ 	}
+ 
++	data.vlan.num = ctx.num_vlans;
++	for (i = 0; i < ctx.num_vlans; i++) {
++		data.vlan.hdr[i].id = ctx.vlan[i].id;
++		data.vlan.hdr[i].proto = ctx.vlan[i].proto;
++	}
++
+ 	/* The path immediately below the bridge is the real egress port. It
+ 	 * can be an AP netdev (resolved to WDMA by entry_prepare), a direct
+ 	 * GDM netdev, or a DSA user port.
