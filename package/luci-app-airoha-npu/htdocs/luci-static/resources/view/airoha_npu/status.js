@@ -71,16 +71,27 @@ var themeCSS = '\
 .npu-flow-table tr.npu-bnd-row td,.npu-flow-table tr.npu-bnd-row .label-success{color:var(--npu-bnd-text)!important;font-weight:600}\
 .offload-row{display:flex;align-items:center;justify-content:space-evenly;flex-wrap:wrap;gap:12px;padding:10px 0}\
 .offload-row{display:grid;grid-template-columns:repeat(4,minmax(175px,1fr));gap:8px;padding:0;margin:12px 0}\
-.offload-item{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-left:3px solid var(--soc-border);border-radius:8px;padding:10px 12px;min-width:0;display:flex;flex-direction:column;gap:8px}\
+.offload-item{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-left:3px solid var(--soc-border);border-radius:12px;padding:11px 14px;min-width:0;min-height:58px;box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px}\
 .offload-item:has(.offload-on){border-left-color:var(--npu-green)}\
 .offload-item:has(.offload-off){border-left-color:#6b7280}\
-.offload-controls{display:flex;align-items:center;gap:8px}\
-.offload-controls .cbi-input-select{flex:1;min-width:0!important}\
-.offload-badge{font-size:11px;font-weight:700;letter-spacing:.7px;padding:3px 8px;border-radius:999px;font-family:monospace;display:inline-flex;align-items:center;white-space:nowrap}\
-.offload-on{background:rgba(0,204,68,.12);color:#15803d;border:1px solid rgba(0,204,68,.35)}\
-.offload-off{background:rgba(107,114,128,.12);color:#6b7280;border:1px solid rgba(107,114,128,.35)}\
+.offload-name{display:flex;align-items:center;gap:10px;min-width:0;font-size:14px}\
+.offload-name .soc-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
+.offload-dot{width:8px;height:8px;border-radius:50%;background:#9ca3af;flex:0 0 auto;transition:background .25s,box-shadow .25s}\
+.offload-item:has(.offload-on) .offload-dot{background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.12)}\
+.offload-controls{display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:128px}\
+.npu-toggle{position:relative;display:inline-flex;width:52px;height:30px;flex:0 0 auto;cursor:pointer}\
+.npu-toggle-input{position:absolute;width:1px;height:1px;opacity:0;margin:0}\
+.npu-toggle-track{position:absolute;inset:0;border:1px solid #cbd5e1;border-radius:999px;background:#d7dce2;transition:background .25s,border-color .25s,box-shadow .25s}\
+.npu-toggle-track:before{content:"";position:absolute;width:24px;height:24px;left:2px;top:2px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.24);transition:transform .25s}\
+.npu-toggle-input:checked+.npu-toggle-track{background:#22c55e;border-color:#16a34a}\
+.npu-toggle-input:checked+.npu-toggle-track:before{transform:translateX(22px)}\
+.npu-toggle-input:focus-visible+.npu-toggle-track{box-shadow:0 0 0 3px rgba(0,200,255,.25)}\
+.npu-toggle-input:disabled+.npu-toggle-track{opacity:.55;cursor:wait}\
+.offload-badge{font-size:13px;font-weight:700;letter-spacing:0;padding:0;border:0;background:transparent;font-family:inherit;display:inline-flex;align-items:center;white-space:nowrap}\
+.offload-on{color:#16a34a}\
+.offload-off{color:#6b7280}\
 @media(max-width:1050px){.npu-summary-grid{grid-template-columns:repeat(2,minmax(180px,1fr))}.offload-row{grid-template-columns:repeat(2,minmax(180px,1fr))}.cpu-panel-grid,.cpu-control-grid{grid-template-columns:1fr}}\
-@media(max-width:640px){.npu-summary-grid,.offload-row,.fe-cdm-grid,.fe-wifi-band-grid{grid-template-columns:1fr}.npu-section{padding:11px}.cpu-panel-card{padding:10px 12px}.cpu-freq-scale{gap:6px}.cpu-freq-edge{min-width:44px;font-size:10px}}\
+@media(max-width:640px){.npu-summary-grid,.offload-row,.fe-cdm-grid,.fe-wifi-band-grid{grid-template-columns:1fr}.npu-section{padding:11px}.cpu-panel-card{padding:10px 12px}.cpu-freq-scale{gap:6px}.cpu-freq-edge{min-width:44px;font-size:10px}.offload-item{min-height:62px;padding:12px 14px}.offload-controls{min-width:132px}}\
 ';
 
 function isDarkMode() {
@@ -450,13 +461,25 @@ function updateFreqBar(hw, min, max, pll, gov) {
 	if (ml) ml.textContent = fmtFreq(s.max);
 }
 
+function governorLabel(governor) {
+	var labels = {
+		conservative: '\u4fdd\u5b88\u6a21\u5f0f',
+		ondemand: '\u6309\u9700\u6a21\u5f0f',
+		performance: '\u6027\u80fd\u6a21\u5f0f',
+		powersave: '\u7701\u7535\u6a21\u5f0f',
+		schedutil: '\u8c03\u5ea6\u6a21\u5f0f',
+		userspace: '\u7528\u6237\u7a7a\u95f4'
+	};
+	return labels[governor] || _(governor);
+}
+
 function renderGovSelect(avail, active) {
 	var gs = (avail||'').trim().split(/\s+/).filter(Boolean);
 	if (!gs.length) return E('span',{},'N/A');
 	return E('select', { 'id':'cpu-governor-select','class':'cbi-input-select','style':'min-width:140px','change':function(ev){
 		var g=ev.target.value; ev.target.disabled=true;
 		callSetGovernor(g).then(function(r){ev.target.disabled=false;if(r&&r.error) ui.addNotification(null,E('p',{},_('Error: ')+r.error),'error');}).catch(function(){ev.target.disabled=false;});
-	}}, gs.map(function(g){return E('option',{'value':g,'selected':g===active?'':null},_(g));}));
+	}}, gs.map(function(g){return E('option',{'value':g,'selected':g===active?'':null},governorLabel(g));}));
 }
 
 function renderMaxFreqSelect(avail, cur) {
@@ -497,26 +520,41 @@ function renderOffloadBadge(enabled, id) {
 	return E('span', {
 		'id': id,
 		'class': 'offload-badge ' + (enabled ? 'offload-on' : 'offload-off')
-	}, enabled ? _('Enabled') : _('Disabled'));
+	}, enabled ? '\u5df2\u5f00\u542f' : '\u5df2\u7981\u7528');
 }
 
 function renderOffloadSelect(enabled, id, callFn, badgeId) {
 	enabled = isEnabled(enabled);
-	return E('div', { 'class': 'offload-controls' }, [
-		E('select', { 'id': id, 'class':'cbi-input-select', 'style':'min-width:100px', 'change':function(ev){
-			var val = ev.target.value === '1' ? 1 : 0;
+	var toggle = E('input', {
+		'id': id,
+		'type': 'checkbox',
+		'class': 'npu-toggle-input',
+		'change': function(ev) {
+			var val = ev.target.checked ? 1 : 0;
 			ev.target.disabled = true;
-			callFn(val).then(function(r){
+			callFn(val).then(function(r) {
 				ev.target.disabled = false;
-				if(r && r.error) ui.addNotification(null, E('p',{},_('Error: ')+r.error), 'error');
-				else {
+				if (r && r.error) {
+					ev.target.checked = !val;
+					ui.addNotification(null, E('p', {}, _('Error: ') + r.error), 'error');
+				} else {
 					var b = document.getElementById(badgeId);
-					if(b) { b.className = 'offload-badge '+(val?'offload-on':'offload-off'); b.textContent = val?_('Enabled'):_('Disabled'); }
+					if (b) {
+						b.className = 'offload-badge ' + (val ? 'offload-on' : 'offload-off');
+						b.textContent = val ? '\u5df2\u5f00\u542f' : '\u5df2\u7981\u7528';
+					}
 				}
-			}).catch(function(){ ev.target.disabled = false; });
-		}}, [
-			E('option', {'value':'1', 'selected': enabled ? '' : null}, _('Enabled')),
-			E('option', {'value':'0', 'selected': enabled ? null : ''}, _('Disabled'))
+			}).catch(function() {
+				ev.target.checked = !val;
+				ev.target.disabled = false;
+			});
+		}
+	});
+	toggle.checked = enabled;
+	return E('div', { 'class': 'offload-controls' }, [
+		E('label', { 'class': 'npu-toggle', 'title': enabled ? '\u70b9\u51fb\u7981\u7528' : '\u70b9\u51fb\u542f\u7528' }, [
+			toggle,
+			E('span', { 'class': 'npu-toggle-track' })
 		]),
 		renderOffloadBadge(enabled, badgeId)
 	]);
@@ -607,19 +645,31 @@ return view.extend({
 				renderNpuSummary(st),
 				E('div',{'class':'offload-row'},[
 				E('div',{'class':'offload-item'},[
-					E('span',{'class':'soc-text','style':'font-weight:600'},_('VLAN Offload')),
+					E('span',{'class':'offload-name'},[
+						E('span',{'class':'offload-dot'}),
+						E('span',{'class':'soc-text'},'VLAN \u52a0\u901f')
+					]),
 					renderOffloadSelect(vo.enabled, 'vlan-offload-select', function(v){return callSetVlanOffload(v);}, 'vlan-offload-badge')
 				]),
 				E('div',{'class':'offload-item'},[
-					E('span',{'class':'soc-text','style':'font-weight:600'},_('PPPoE Offload')),
+					E('span',{'class':'offload-name'},[
+						E('span',{'class':'offload-dot'}),
+						E('span',{'class':'soc-text'},'PPPoE \u52a0\u901f')
+					]),
 					renderOffloadSelect(ppo.enabled, 'pppoe-offload-select', function(v){return callSetPppoeOffload(v);}, 'pppoe-offload-badge')
 				]),
 				E('div',{'class':'offload-item'},[
-					E('span',{'class':'soc-text','style':'font-weight:600'},_('Flow Offload')),
+					E('span',{'class':'offload-name'},[
+						E('span',{'class':'offload-dot'}),
+						E('span',{'class':'soc-text'},'\u786c\u4ef6\u6d41\u91cf\u52a0\u901f')
+					]),
 					renderOffloadSelect(flo.enabled, 'flow-offload-select', function(v){return callSetFlowOffload(v);}, 'flow-offload-badge')
 				]),
 				E('div',{'class':'offload-item'},[
-					E('span',{'class':'soc-text','style':'font-weight:600'},_('AP Mode Acceleration')),
+					E('span',{'class':'offload-name'},[
+						E('span',{'class':'offload-dot'}),
+						E('span',{'class':'soc-text'},'AP \u6a21\u5f0f\u52a0\u901f')
+					]),
 					renderOffloadSelect(apo.enabled, 'apmode-offload-select', function(v){return callSetApModeOffload(v);}, 'apmode-offload-badge')
 				])
 			]),
@@ -692,9 +742,9 @@ return view.extend({
 				function _updateOffload(selectId, badgeId, on) {
 					on = isEnabled(on);
 					var sel = document.getElementById(selectId);
-					if(sel && !sel.matches(':focus')) sel.value = on ? '1' : '0';
+					if(sel && !sel.matches(':focus')) sel.checked = on;
 					var b = document.getElementById(badgeId);
-					if(b) { b.className = 'offload-badge '+(on?'offload-on':'offload-off'); b.textContent = on?_('Enabled'):_('Disabled'); }
+					if(b) { b.className = 'offload-badge '+(on?'offload-on':'offload-off'); b.textContent = on?'\u5df2\u5f00\u542f':'\u5df2\u7981\u7528'; }
 				}
 				_updateOffload('vlan-offload-select', 'vlan-offload-badge', vo.enabled);
 				_updateOffload('pppoe-offload-select', 'pppoe-offload-badge', ppo.enabled);
