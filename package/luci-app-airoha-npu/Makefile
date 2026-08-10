@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 LUCI_NAME:=luci-app-airoha-npu
 PKG_VERSION:=1.1.0
-PKG_RELEASE:=1
+PKG_RELEASE:=4
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=XR1710G Maintainer
 TITLE:=LuCI Airoha XR1710G NPU Status
@@ -32,6 +32,10 @@ define Package/$(LUCI_NAME)/install
 	# Install RPC ACL configuration
 	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
 	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/luci-app-airoha-npu.json $(1)/usr/share/rpcd/acl.d/
+
+	# Preserve runtime-created acceleration settings during sysupgrade.
+	$(INSTALL_DIR) $(1)/lib/upgrade/keep.d
+	$(INSTALL_DATA) ./root/lib/upgrade/keep.d/luci-app-airoha-npu $(1)/lib/upgrade/keep.d/
 endef
 
 define Package/$(LUCI_NAME)/postinst
@@ -40,6 +44,10 @@ define Package/$(LUCI_NAME)/postinst
 
 # Reload rpcd to register the new luci.airoha_npu backend
 /etc/init.d/rpcd reload 2>/dev/null
+
+# Bridge acceleration is opt-in through the NPU page. Remove defaults from
+# earlier builds so only firewall hardware flow offload is enabled by default.
+rm -f /etc/sysctl.d/10-bridge-offload.conf /etc/sysctl.d/99-bridge-offload.conf
 
 # Clear LuCI cache so the new menu entries are picked up
 rm -f /tmp/luci-indexcache.*

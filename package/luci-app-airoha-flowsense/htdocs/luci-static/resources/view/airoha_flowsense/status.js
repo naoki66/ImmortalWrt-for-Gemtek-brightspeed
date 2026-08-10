@@ -37,25 +37,22 @@ var themeCSS = '\
 .eth-gauge-wrap{display:flex;flex-direction:row;gap:8px;flex-wrap:wrap;margin-top:8px}\
 .compass-svg-wrap{flex-shrink:0;max-width:326px;width:100%}\
 .compass-cards{display:flex;flex-direction:row;gap:8px;flex-wrap:wrap;margin-top:12px;margin-bottom:4px}\
-.compass-card{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-radius:8px;padding:10px 14px;flex:1;min-width:140px}\
+.compass-card{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-left:3px solid var(--compass-card-accent,var(--soc-border));border-radius:8px;padding:10px 14px;flex:1;min-width:140px;transition:border-color .3s}\
 .compass-card-title{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--soc-muted);margin-bottom:4px;font-family:monospace}\
 .compass-card-value{font-size:20px;font-weight:700;line-height:1.1;font-family:monospace}\
 .compass-card-sub{font-size:11px;color:var(--soc-muted);margin-top:3px}\
-.mode-offload-bar{display:flex;align-items:center;flex-wrap:nowrap;gap:12px;width:100%;box-sizing:border-box;margin-top:10px;padding:8px 12px;border:1px solid var(--soc-border);border-radius:8px;background:var(--soc-card-bg);box-shadow:0 2px 8px rgba(0,0,0,0.06)}\
-.mode-banner{display:flex;align-items:center;gap:8px;min-width:0;flex:0 1 auto;flex-wrap:wrap}\
-.mode-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:1px;padding:4px 10px;border-radius:999px;font-family:monospace;white-space:nowrap;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08)}\
-.mode-badge::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}\
-.mode-router{background:var(--mode-router-bg);color:var(--mode-router-fg);border:1px solid var(--mode-router-border)}\
-.mode-ap{background:var(--mode-ap-bg);color:var(--mode-ap-fg);border:1px solid var(--mode-ap-border)}\
-.mode-reason{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}\
-.mode-offload-divider{width:1px;height:26px;background:var(--soc-border);flex:0 0 1px}\
-.mode-offload-items{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;flex:1 1 auto}\
-.mode-offload-item{display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap}\
-.mode-offload-label{font-size:12px;font-weight:600}\
-.offload-badge{font-size:11px;font-weight:700;letter-spacing:1px;line-height:20px;padding:0 8px;border-radius:3px;font-family:monospace;display:inline-flex;align-items:center;white-space:nowrap;flex-shrink:0}\
-.offload-on{background:var(--offload-on-bg);color:var(--offload-on-fg);border:1px solid var(--offload-on-border);box-shadow:0 0 10px rgba(34,197,94,0.08)}\
-.offload-off{background:var(--offload-off-bg);color:var(--offload-off-fg);border:1px solid var(--offload-off-border)}\
-@media(max-width:760px){.mode-offload-bar{flex-wrap:wrap}.mode-banner{flex:1 1 100%;gap:8px 10px}.mode-offload-divider{display:none}.mode-offload-items{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));flex:1 1 100%;gap:8px 12px}.mode-offload-item{justify-content:space-between}}\
+.mode-status-grid{display:grid;grid-template-columns:minmax(210px,1.45fr) repeat(4,minmax(125px,1fr));gap:8px;margin-top:10px}\
+.mode-status-card{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-left:3px solid var(--soc-border);border-radius:8px;padding:9px 14px;min-width:0;min-height:70px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;transition:border-color .3s}\
+.mode-status-card.mode-ap{border-left-color:#00c8ff}\
+.mode-status-card.mode-router{border-left-color:#00cc44}\
+.mode-status-card.mode-detecting{border-left-color:#b45309}\
+.mode-status-card.accel-on{border-left-color:#00cc44}\
+.mode-status-card.accel-off{border-left-color:#6b7280}\
+.mode-status-card .compass-card-title{line-height:1.25}\
+.mode-status-card .compass-card-value{font-size:17px;line-height:1.25}\
+.mode-status-card .compass-card-sub{line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+@media(max-width:1050px){.mode-status-grid{grid-template-columns:repeat(3,minmax(150px,1fr))}}\
+@media(max-width:640px){.mode-status-grid{grid-template-columns:repeat(2,minmax(140px,1fr))}.mode-status-card:first-child{grid-column:1/-1}}\
 .alert-wrap{margin-bottom:8px}\
 .alert-item{display:flex;align-items:flex-start;gap:10px;padding:8px 12px;border-radius:5px;margin-bottom:5px;font-size:13px}\
 .alert-warning{border-left:3px solid #f5a623;background:rgba(245,166,35,0.1)}\
@@ -64,13 +61,11 @@ var themeCSS = '\
 .alert-title{font-weight:600;margin-bottom:2px}\
 .alert-msg{font-size:12px;color:var(--soc-muted)}\
 @keyframes sqm-pulse{0%{opacity:0.2}50%{opacity:1}100%{opacity:0.2}}\
-@keyframes ppe-blink{0%,100%{opacity:1}50%{opacity:0}}\
-.ppe-terminal{background:#0c0c0c;border:1px solid #2a2a2a;border-radius:6px;overflow:hidden;display:flex;flex-direction:column;flex:1;min-width:220px}\
-.ppe-terminal-bar{background:#1a1a1a;padding:5px 10px;display:flex;align-items:center;gap:5px;border-bottom:1px solid #2a2a2a;flex-shrink:0}\
-.ppe-terminal-dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex-shrink:0}\
-.ppe-terminal-title{color:#555;font-size:10px;margin-left:6px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
-.ppe-terminal-body{padding:8px 10px;overflow-y:auto;flex:1;font-size:10px;line-height:1.55;color:#ccc;font-family:"Courier New",Courier,monospace;white-space:pre-wrap;word-break:break-all;min-height:200px}\
-.ppe-cursor{animation:ppe-blink 1s step-end infinite}\
+.ppe-terminal{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-left:3px solid #00c8ff;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;flex:1;min-width:220px}\
+.ppe-terminal-bar{background:color-mix(in srgb,var(--soc-card-bg) 88%,var(--soc-border));padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--soc-border);flex-shrink:0}\
+.ppe-terminal-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0;background:#00c8ff;box-shadow:0 0 6px rgba(0,200,255,.45)}\
+.ppe-terminal-title{color:var(--soc-text);font-size:11px;font-weight:700;letter-spacing:.7px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+.ppe-terminal-body{padding:10px 12px;overflow-y:auto;flex:1;font-size:11px;line-height:1.6;color:var(--soc-text);font-family:"Courier New",Courier,monospace;white-space:pre-wrap;word-break:break-all;min-height:200px}\
 ';
 
 function isDarkMode() {
@@ -99,16 +94,16 @@ function injectCSS() {
 	if (dark === _lastDarkMode) return;
 	_lastDarkMode = dark;
 	var vars = dark
-		? ':root{--soc-card-bg:#1e1e1e;--soc-border:#333;--soc-muted:#999;--soc-text:#e0e0e0;--soc-bar-track:#333;--mode-router-bg:rgba(59,130,246,0.18);--mode-router-fg:#93c5fd;--mode-router-border:rgba(96,165,250,0.45);--mode-ap-bg:rgba(20,184,166,0.18);--mode-ap-fg:#5eead4;--mode-ap-border:rgba(45,212,191,0.45);--offload-on-bg:rgba(34,197,94,0.16);--offload-on-fg:#86efac;--offload-on-border:rgba(74,222,128,0.42);--offload-off-bg:rgba(245,158,11,0.16);--offload-off-fg:#fbbf24;--offload-off-border:rgba(251,191,36,0.42)}'
-		: ':root{--soc-card-bg:#fff;--soc-border:#d0d0d0;--soc-muted:#666;--soc-text:#222;--soc-bar-track:#e0e0e0;--mode-router-bg:#eff6ff;--mode-router-fg:#1d4ed8;--mode-router-border:#bfdbfe;--mode-ap-bg:#ecfdf5;--mode-ap-fg:#0f766e;--mode-ap-border:#99f6e4;--offload-on-bg:#f0fdf4;--offload-on-fg:#15803d;--offload-on-border:#bbf7d0;--offload-off-bg:#fffbeb;--offload-off-fg:#b45309;--offload-off-border:#fde68a}';
+		? ':root{--soc-card-bg:#1e1e1e;--soc-border:#333;--soc-muted:#999;--soc-text:#e0e0e0;--soc-bar-track:#333}'
+		: ':root{--soc-card-bg:#fff;--soc-border:#d0d0d0;--soc-muted:#666;--soc-text:#222;--soc-bar-track:#e0e0e0}';
 	el.textContent = themeCSS + vars;
 }
 
 /* ── Existing Helpers ── */
 var bandInfo = [
-	{ name: '2.4 GHz', accent: '#FFFFFF', rtyCol: '#EFBF04', maxMbps: 688   },
-	{ name: '5 GHz',   accent: '#FFFFFF', rtyCol: '#305CDE', maxMbps: 5765  },
-	{ name: '6 GHz',   accent: '#FFFFFF', rtyCol: '#2CFF05', maxMbps: 11529 }
+	{ name: '2G', accent: '#b45309', rtyCol: '#dc2626', maxMbps: 688   },
+	{ name: '5G', accent: '#1d4ed8', rtyCol: '#7c3aed', maxMbps: 5765  },
+	{ name: '6G', accent: '#15803d', rtyCol: '#c2410c', maxMbps: 11529 }
 ];
 
 
@@ -241,29 +236,6 @@ function freqBarState(hw, min, max, pll, gov) {
 
 
 
-function renderOffloadBadge(enabled, id) {
-	return E('span', {
-		'id': id,
-		'class': 'offload-badge ' + (enabled ? 'offload-on' : 'offload-off')
-	}, enabled ? _('Enabled') : _('Disabled'));
-}
-
-function renderVlanOffloadStatus(enabled) {
-	return renderOffloadBadge(enabled, 'vlan-offload-status');
-}
-
-function renderFlowOffloadStatus(enabled) {
-	return renderOffloadBadge(enabled, 'flow-offload-status');
-}
-
-function renderPppoeOffloadStatus(enabled) {
-	return renderOffloadBadge(enabled, 'pppoe-offload-status');
-}
-
-function renderApModeOffloadStatus(enabled) {
-	return renderOffloadBadge(enabled, 'apmode-offload-status');
-}
-
 /* ── PPE Panels ── */
 function renderPpePanel(label, labelColor, stateLabel, stateClass, entries, total, showNew) {
 	var rows = [
@@ -390,8 +362,8 @@ function buildTachoInner(ppe, cs, mode) {
 	p.push('<circle cx="150" cy="150" r="69" fill="none" stroke="var(--soc-border)" stroke-width="0.5" opacity="0.35"/>');
 	p.push('<circle cx="150" cy="150" r="83" fill="none" stroke="var(--soc-border)" stroke-width="0.5" opacity="0.35"/>');
 	// Ring labels — at 9 and 3 o'clock inside the BND inner ring (r<56 from centre)
-	p.push('<text x="107" y="153" text-anchor="middle" fill="#00c8ff" font-size="7" font-family="monospace" opacity="0.75">◄BND</text>');
-	p.push('<text x="193" y="153" text-anchor="middle" fill="#ff9800" font-size="7" font-family="monospace" opacity="0.75">UNB►</text>');
+	p.push('<text x="107" y="153" text-anchor="middle" fill="#00c8ff" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">◄BND</text>');
+	p.push('<text x="193" y="153" text-anchor="middle" fill="#ff9800" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">UNB►</text>');
 
 	// Heartbeat pulse on BND ring when new flows arrive
 	if (pulsing) {
@@ -429,13 +401,13 @@ function buildTachoInner(ppe, cs, mode) {
 
 	// Centre readout — mode + status at top, BND count large, IPv4/IPv6 split, UNB below
 	p.push('<text x="150" y="113" text-anchor="middle" fill="var(--soc-text)" font-size="9" font-weight="700" font-family="monospace" letter-spacing="2">'+modeText+'</text>');
-	p.push('<text x="150" y="124" text-anchor="middle" fill="'+statusCol+'" font-size="7" font-family="monospace" letter-spacing="1">'+statusText+'</text>');
+	p.push('<text x="150" y="124" text-anchor="middle" fill="'+statusCol+'" font-size="9" font-weight="600" font-family="monospace" letter-spacing="0.5">'+statusText+'</text>');
 	p.push('<text x="150" y="144" text-anchor="middle" fill="'+bndColor+'" font-size="22" font-weight="700" font-family="monospace">'+bndTot+'</text>');
-	p.push('<text x="150" y="155" text-anchor="middle" fill="var(--soc-muted)" font-size="7" font-family="monospace" letter-spacing="2">BND FLOWS</text>');
-	p.push('<text x="117" y="175" text-anchor="middle" fill="#00c8ff"  font-size="8" font-family="monospace">v4: '+n4+'</text>');
-	p.push('<text x="183" y="175" text-anchor="middle" fill="#9c27b0"  font-size="8" font-family="monospace">v6: '+n6+'</text>');
+	p.push('<text x="150" y="155" text-anchor="middle" fill="var(--soc-muted)" font-size="9" font-weight="600" font-family="monospace" letter-spacing="1">BND FLOWS</text>');
+	p.push('<text x="117" y="175" text-anchor="middle" fill="#00c8ff"  font-size="9" font-family="monospace">v4: '+n4+'</text>');
+	p.push('<text x="183" y="175" text-anchor="middle" fill="#9c27b0"  font-size="9" font-family="monospace">v6: '+n6+'</text>');
 	p.push('<text x="150" y="189" text-anchor="middle" fill="'+unbColor+'" font-size="13" font-weight="700" font-family="monospace">'+unbTot+'</text>');
-	p.push('<text x="150" y="200" text-anchor="middle" fill="var(--soc-muted)" font-size="7" font-family="monospace" letter-spacing="1.5">UNB FLOWS</text>');
+	p.push('<text x="150" y="200" text-anchor="middle" fill="var(--soc-muted)" font-size="9" font-weight="600" font-family="monospace" letter-spacing="1">UNB FLOWS</text>');
 
 	return p.join('');
 }
@@ -494,8 +466,8 @@ function buildPpeTerminalBody(ppe) {
 
 	var s = '';
 
-	// Prompt + command
-	s += sp(grn,'root@OpenWrt') + sp(mute,':~# ') + sp(wht,'ppe status --watch') + '\n\n';
+	// Compact monitor heading; this is a dashboard panel, not an interactive shell.
+	s += sp(cyn,'PPE FLOW MONITOR') + sp(mute,'  ·  live refresh 5s') + '\n\n';
 
 	// BND section
 	s += sp(cyn,'■ BND') + '  ' + sp(wht, bndTot+' flows');
@@ -527,13 +499,14 @@ function buildPpeTerminalBody(ppe) {
 	}
 
 	s += '\n';
-	s += sp(grn,'root@OpenWrt') + sp(mute,':~# ') + '<span class="ppe-cursor" style="'+wht+'">▌</span>';
+	s += sp(mute,'Updated automatically every 5 seconds');
 	return s;
 }
 
 function renderPpeTerminal(ppe) {
 	var bar = E('div', { 'class': 'ppe-terminal-bar' }, [
-		E('span', { 'class': 'ppe-terminal-title' }, 'ppe_monitor  —  root@OpenWrt:~')
+		E('span', { 'class': 'ppe-terminal-dot' }),
+		E('span', { 'class': 'ppe-terminal-title' }, 'PPE 流量监控')
 	]);
 	var body = E('div', { 'class': 'ppe-terminal-body', 'id': 'ppe-terminal-body' });
 	body.innerHTML = buildPpeTerminalBody(ppe);
@@ -571,34 +544,6 @@ function latencyColor(ms) {
 	if (ms <= 60) return '#00cc44';
 	if (ms <= 100) return '#f5a623';
 	return '#d0021b';
-}
-
-/* ── Mode Banner ── */
-function getModeReasonText(reason) {
-	var reasonMap = {
-		dhcp_disabled: _('DHCP disabled in UCI'),
-		no_wan: _('No WAN IP detected'),
-		local_gateway: _('Local gateway detected')
-	};
-	return reasonMap[reason] || '';
-}
-
-function renderModeBanner(dm, apo) {
-	var mode = dm.mode || '';
-	var reasonText = getModeReasonText(dm.reason || '');
-	apo = apo || {};
-	var children = [];
-	if (mode) {
-		children.push(E('span', { 'class': 'mode-badge ' + (mode === 'ap' ? 'mode-ap' : 'mode-router') },
-			mode === 'ap' ? _('AP MODE') : _('ROUTER MODE')));
-	}
-	children.push(E('span', { 'class': 'mode-reason soc-muted', 'id': 'mode-reason' },
-		mode ? _('Auto-detected') + (reasonText ? ' \u2014 ' + reasonText : '') : _('MODE detecting...')));
-	children.push(E('div', { 'class': 'mode-offload-item mode-ap-offload' }, [
-		E('span', { 'class': 'mode-offload-label' }, _('AP Mode Acceleration')),
-		renderApModeOffloadStatus(apo.enabled)
-	]));
-	return E('div', { 'class': 'mode-banner', 'id': 'mode-banner' }, children);
 }
 
 /* ── Conflict Alerts ── */
@@ -789,10 +734,10 @@ function buildCompassSVG(cs, mode, ppe) {
 	// West: latency arc
 	'<path id="cp-arc-west" d="'+pWest+'" fill="none" stroke="'+cs.latColor+'" stroke-width="9" stroke-linecap="round" opacity="0.7"/>' +
 	// Quadrant labels — curved textPath following each arc
-	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" fill="#00c8ff"><textPath href="#tp-north" startOffset="50%" text-anchor="middle">' + _('NPU PATH') + '</textPath></text>' +
-	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" id="cp-lbl-south"><textPath href="#tp-south" startOffset="50%" text-anchor="middle">' + _('HW BUFFER') + '</textPath></text>' +
-	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" id="cp-lbl-east"><textPath href="#tp-east"  startOffset="50%" text-anchor="middle">' + _('INTEGRITY') + '</textPath></text>' +
-	'<text font-size="9" font-family="monospace" letter-spacing="1.5" opacity="0.75" id="cp-lbl-west"><textPath href="#tp-west"  startOffset="50%" text-anchor="middle">' + _('LATENCY') + '</textPath></text>' +
+	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="1.2" opacity="0.9" fill="#00c8ff"><textPath href="#tp-north" startOffset="50%" text-anchor="middle">' + _('NPU PATH') + '</textPath></text>' +
+	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="1.2" opacity="0.9" id="cp-lbl-south"><textPath href="#tp-south" startOffset="50%" text-anchor="middle">' + _('HW BUFFER') + '</textPath></text>' +
+	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="1.2" opacity="0.9" id="cp-lbl-east"><textPath href="#tp-east"  startOffset="50%" text-anchor="middle">' + _('INTEGRITY') + '</textPath></text>' +
+	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="1.2" opacity="0.9" id="cp-lbl-west"><textPath href="#tp-west"  startOffset="50%" text-anchor="middle">' + _('LATENCY') + '</textPath></text>' +
 	// Latency needle
 	'<line id="cp-needle" x1="150" y1="150" x2="'+tip[0].toFixed(1)+'" y2="'+tip[1].toFixed(1)+'" stroke="'+cs.latColor+'" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>' +
 	'<circle id="cp-needle-pivot" cx="150" cy="150" r="4" fill="'+cs.latColor+'" opacity="0.9"/>' +
@@ -901,8 +846,8 @@ function buildCpuNpuTacho(cs, ppe, st, ti) {
 	p.push('<circle cx="150" cy="150" r="83" fill="none" stroke="var(--soc-border)" stroke-width="0.5" opacity="0.35"/>');
 
 	// Ring labels at 9 and 3 o'clock
-	p.push('<text x="107" y="153" text-anchor="middle" fill="#ffe066" font-size="7" font-family="monospace" opacity="0.75">◄LOAD</text>');
-	p.push('<text x="193" y="153" text-anchor="middle" fill="#00cc44" font-size="7" font-family="monospace" opacity="0.75">FREQ►</text>');
+	p.push('<text x="107" y="153" text-anchor="middle" fill="#ffe066" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">◄LOAD</text>');
+	p.push('<text x="193" y="153" text-anchor="middle" fill="#00cc44" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">FREQ►</text>');
 
 	// Tachometer ticks
 	for (var i = 0; i < TICKS; i++) {
@@ -933,8 +878,8 @@ function buildCpuNpuTacho(cs, ppe, st, ti) {
 	if (governor) p.push('<text x="150" y="118" text-anchor="middle" fill="var(--soc-text)" font-size="7" font-family="monospace" letter-spacing="1">'+governor+'</text>');
 	if (freqMhz)  p.push('<text x="150" y="130" text-anchor="middle" fill="#00cc44" font-size="9" font-weight="700" font-family="monospace">'+freqMhz+' MHz</text>');
 	p.push('<text x="150" y="148" text-anchor="middle" fill="#ffe066" font-size="22" font-weight="700" font-family="monospace">'+cpuPct+'%</text>');
-	p.push('<text x="150" y="159" text-anchor="middle" fill="#ffe066" font-size="7" font-family="monospace" letter-spacing="2">CPU LOAD</text>');
-	p.push('<text x="150" y="175" text-anchor="middle" fill="'+npuStatusCol+'" font-size="8" font-family="monospace">'+npuStatus+'</text>');
+	p.push('<text x="150" y="159" text-anchor="middle" fill="#ffe066" font-size="9" font-weight="600" font-family="monospace" letter-spacing="1.5">CPU LOAD</text>');
+	p.push('<text x="150" y="175" text-anchor="middle" fill="'+npuStatusCol+'" font-size="9" font-weight="600" font-family="monospace">'+npuStatus+'</text>');
 	p.push('<text x="150" y="190" text-anchor="middle" fill="'+npuColor+'" font-size="13" font-weight="700" font-family="monospace">'+offloadPct+'%</text>');
 	p.push('<text x="150" y="200" text-anchor="middle" fill="var(--soc-muted)" font-size="7" font-family="monospace" letter-spacing="1.5">OFFLOADED</text>');
 
@@ -949,7 +894,7 @@ function buildCpuNpuTacho(cs, ppe, st, ti) {
 	var plEX = (150 + plR * Math.cos( 20 * Math.PI / 180)).toFixed(1);
 	var plEY = (150 + plR * Math.sin( 20 * Math.PI / 180)).toFixed(1);
 	p.push('<defs><path id="cn-ple-arc" d="M '+plSX+' '+plSY+' A '+plR+' '+plR+' 0 0 0 '+plEX+' '+plEY+'" fill="none"/></defs>');
-	p.push('<text font-size="8" font-family="monospace" fill="'+pleH.color+'" opacity="0.9" letter-spacing="1"><textPath href="#cn-ple-arc" startOffset="50%" text-anchor="middle">PLE '+pleStr+' ● '+pleH.text+'</textPath></text>');
+	p.push('<text font-size="9" font-weight="600" font-family="monospace" fill="'+pleH.color+'" opacity="0.9" letter-spacing="0.8"><textPath href="#cn-ple-arc" startOffset="50%" text-anchor="middle">PLE '+pleStr+' ● '+pleH.text+'</textPath></text>');
 
 	return p.join('');
 }
@@ -1040,8 +985,6 @@ function buildWifiBandTacho(bandIdx, ws, qType, bndCount, unbCount) {
 	var retryVal = ws.retry_pct || 0;
 	var stations = ws.stations || 0;
 	var signal   = ws.avg_signal || 0;
-	var isNpu    = qType === 'npu';
-
 	var maxScale = info.maxMbps || 1000;
 
 	var TICKS = 90;
@@ -1059,8 +1002,8 @@ function buildWifiBandTacho(bandIdx, ws, qType, bndCount, unbCount) {
 	p.push('<circle cx="150" cy="150" r="83" fill="none" stroke="var(--soc-border)" stroke-width="0.5" opacity="0.35"/>');
 
 	// Ring labels at 9 / 3 o'clock
-	p.push('<text x="107" y="153" text-anchor="middle" fill="'+retryCol+'" font-size="7" font-family="monospace" opacity="0.75">◄RTY</text>');
-	p.push('<text x="193" y="153" text-anchor="middle" fill="'+accent+'" font-size="7" font-family="monospace" opacity="0.75">TX►</text>');
+	p.push('<text x="107" y="153" text-anchor="middle" fill="'+retryCol+'" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">◄RTY</text>');
+	p.push('<text x="193" y="153" text-anchor="middle" fill="'+accent+'" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">TX►</text>');
 
 	// Tachometer ticks
 	for (var i = 0; i < TICKS; i++) {
@@ -1097,7 +1040,7 @@ function buildWifiBandTacho(bandIdx, ws, qType, bndCount, unbCount) {
 	var uPid = 'wifi-u-arc-'+bandIdx;
 	var unbCol = unbCnt > 0 ? '#ff6b35' : '#555';
 	p.push('<defs><path id="'+uPid+'" d="M '+uSX+' '+uSY+' A '+uR+' '+uR+' 0 0 1 '+uEX+' '+uEY+'" fill="none"/></defs>');
-	p.push('<text font-size="8" font-family="monospace" fill="'+unbCol+'" opacity="0.9"><textPath href="#'+uPid+'" startOffset="50%" text-anchor="middle">'+unbCnt+' UNB</textPath></text>');
+	p.push('<text font-size="9" font-weight="600" font-family="monospace" fill="'+unbCol+'" opacity="0.9"><textPath href="#'+uPid+'" startOffset="50%" text-anchor="middle">'+unbCnt+' UNB</textPath></text>');
 
 	// BND count arc at 6 o'clock (curved textPath, r=91, CCW 160°→20°) — opposite health arc
 	var bndCnt = bndCount || 0;
@@ -1109,32 +1052,27 @@ function buildWifiBandTacho(bandIdx, ws, qType, bndCount, unbCount) {
 	var bPid = 'wifi-b-arc-'+bandIdx;
 	var bndCol = bndCnt > 0 ? '#00c8ff' : '#555';
 	p.push('<defs><path id="'+bPid+'" d="M '+bSX+' '+bSY+' A '+bR+' '+bR+' 0 0 0 '+bEX+' '+bEY+'" fill="none"/></defs>');
-	p.push('<text font-size="8" font-family="monospace" fill="'+bndCol+'" opacity="0.9"><textPath href="#'+bPid+'" startOffset="50%" text-anchor="middle">'+bndCnt+' BND</textPath></text>');
+	p.push('<text font-size="9" font-weight="600" font-family="monospace" fill="'+bndCol+'" opacity="0.9"><textPath href="#'+bPid+'" startOffset="50%" text-anchor="middle">'+bndCnt+' BND</textPath></text>');
 
 	// Centre readout — retry % above band name
 	if (retryVal > 0)
-		p.push('<text x="150" y="110" text-anchor="middle" fill="'+retryCol+'" font-size="7" font-family="monospace">'+retryVal+'% RTY</text>');
-	p.push('<text x="150" y="120" text-anchor="middle" fill="'+accent+'" font-size="10" font-weight="700" font-family="monospace" letter-spacing="1">'+info.name.toUpperCase()+'</text>');
-
-	// NPU/DMA badge (rect + text)
-	var badgeCol = isNpu ? '#1565c0' : '#444';
-	p.push('<rect x="135" y="122" width="30" height="12" rx="2" fill="'+badgeCol+'"/>');
-	p.push('<text x="150" y="131" text-anchor="middle" fill="white" font-size="7" font-weight="600" font-family="monospace">'+(isNpu?'NPU':'DMA')+'</text>');
+		p.push('<text x="150" y="110" text-anchor="middle" fill="'+retryCol+'" font-size="8" font-weight="600" font-family="monospace">'+retryVal+'% RTY</text>');
+	p.push('<text x="150" y="120" text-anchor="middle" fill="'+accent+'" font-size="12" font-weight="700" font-family="monospace" letter-spacing="0.5">'+info.name.toUpperCase()+'</text>');
 
 	// Main throughput value
 	var mbpsLabel = mbps > 0 ? Math.round(mbps).toString() : (stations > 0 ? '0' : '\u2014');
 	p.push('<text x="150" y="152" text-anchor="middle" fill="'+accent+'" font-size="17" font-weight="700" font-family="monospace">'+mbpsLabel+'</text>');
-	p.push('<text x="150" y="162" text-anchor="middle" fill="'+accent+'" font-size="7" font-family="monospace" letter-spacing="2">MBPS</text>');
+	p.push('<text x="150" y="162" text-anchor="middle" fill="'+accent+'" font-size="9" font-weight="600" font-family="monospace" letter-spacing="1.5">MBPS</text>');
 
 	// Max scale hint
-	p.push('<text x="150" y="173" text-anchor="middle" fill="var(--soc-muted)" font-size="6" font-family="monospace">max '+Math.round(maxScale)+'</text>');
+	p.push('<text x="150" y="173" text-anchor="middle" fill="var(--soc-muted)" font-size="8" font-weight="600" font-family="monospace">max '+Math.round(maxScale)+'</text>');
 
 	// Station count
-	p.push('<text x="150" y="185" text-anchor="middle" fill="var(--soc-muted)" font-size="8" font-weight="600" font-family="monospace">'+stations+(stations===1?' STA':' STA')+'</text>');
+	p.push('<text x="150" y="185" text-anchor="middle" fill="var(--soc-muted)" font-size="9" font-weight="600" font-family="monospace">'+stations+(stations===1?' STA':' STA')+'</text>');
 
 	// Signal + retry (only when relevant)
 	if (stations > 0 && signal !== 0)
-		p.push('<text x="150" y="197" text-anchor="middle" fill="var(--soc-muted)" font-size="7" font-family="monospace">'+signal+' dBm</text>');
+		p.push('<text x="150" y="197" text-anchor="middle" fill="var(--soc-muted)" font-size="8" font-family="monospace">'+signal+' dBm</text>');
 
 	return p.join('');
 }
@@ -1169,13 +1107,13 @@ function updateWifiBandSVG(bandIdx, ws, qType, ppe) {
 	if (tg) tg.innerHTML = buildWifiBandTacho(bandIdx, ws, qType, bndCount, unbCount);
 }
 
-// Returns array of 3 elements (6 GHz, 5 GHz, 2.4 GHz) for direct inclusion in compass-wrap
+// Returns Wi-Fi gauges in 2G, 5G, 6G order for direct inclusion in compass-wrap.
 function buildWifiTachoElements(wifi, ti, st, ppe) {
 	var bands = (wifi && Array.isArray(wifi.bands)) ? wifi.bands : [];
 	var fallbackType = (st && st.npu_loaded) ? 'npu' : 'dma';
 	var elems = [];
-	// 6 GHz → 5 GHz → 2.4 GHz (band index 2 → 1 → 0)
-	for (var b = 2; b >= 0; b--) {
+	// 2G → 5G → 6G (band index 0 → 1 → 2)
+	for (var b = 0; b < 3; b++) {
 		var ws = null;
 		for (var j = 0; j < bands.length; j++) if (bands[j].band === b) { ws = bands[j]; break; }
 		var txQ = getTxQueue(ti, b) || { type: fallbackType };
@@ -1328,7 +1266,7 @@ function renderCompassCards(cs, bypass, jitter, wan, wifi, bridge, mode) {
 	var latSub   = 'Jitter: '+(jitter.jitter||0).toFixed(1)+'ms  |  '+(jitter.samples||0)+' samples  |  Ping: '+(jitter.target||'223.5.5.5')+' ✏';
 
 	function card(title, val, color, sub) {
-		return E('div', { 'class': 'compass-card' }, [
+		return E('div', { 'class': 'compass-card', 'style': '--compass-card-accent:'+color }, [
 			E('div', { 'class': 'compass-card-title' }, title),
 			E('div', { 'class': 'compass-card-value', 'style': 'color:'+color }, val),
 			E('div', { 'class': 'compass-card-sub' }, sub)
@@ -1354,6 +1292,7 @@ function updateCompassCards(cs, bypass, jitter, wan, wifi, bridge, mode) {
 	function setCard(div, val, color, sub) {
 		var v = div.querySelector('.compass-card-value');
 		var s = div.querySelector('.compass-card-sub');
+		div.style.setProperty('--compass-card-accent', color);
 		if (v) { v.textContent=val; v.style.color=color; }
 		if (s) s.textContent=sub;
 	}
@@ -1429,6 +1368,75 @@ function updateCompassCards(cs, bypass, jitter, wan, wifi, bridge, mode) {
 	if (titleEl) titleEl.textContent = _('HW Buffer');
 }
 
+/* ── Mode And Acceleration Status Cards ── */
+function getModeReasonText(reason) {
+	var reasonMap = {
+		dhcp_disabled: _('DHCP disabled in UCI'),
+		no_wan: _('No WAN IP detected'),
+		local_gateway: _('Local gateway detected')
+	};
+	return reasonMap[reason] || '';
+}
+
+function modeStatusData(dm, apo, flo, vo, ppo) {
+	dm = dm || {}; apo = apo || {}; flo = flo || {}; vo = vo || {}; ppo = ppo || {};
+	var mode = dm.mode || '';
+	var reason = getModeReasonText(dm.reason || '');
+	var detected = mode ? _('Auto-detected') + (reason ? ' — ' + reason : '') : _('MODE detecting...');
+	// rpcd returns 1/0 for these sysctl and UCI-backed switches.
+	function isEnabled(value) { return value === true || value === 1 || value === '1'; }
+
+	function accelerationCard(id, title, enabled) {
+		return {
+			id: id,
+			title: title,
+			value: enabled ? _('Enabled') : _('Disabled'),
+			sub: '',
+			color: enabled ? '#00cc44' : '#6b7280',
+			cls: 'acceleration-card ' + (enabled ? 'accel-on' : 'accel-off')
+		};
+	}
+
+	return [
+		{
+			id: 'mode-status-mode',
+			title: '工作模式',
+			value: mode === 'ap' ? _('AP MODE') : mode === 'router' ? _('ROUTER MODE') : _('DETECTING'),
+			sub: detected,
+			color: mode === 'ap' ? '#00c8ff' : mode === 'router' ? '#00cc44' : '#b45309',
+			cls: mode === 'ap' ? 'mode-ap' : mode === 'router' ? 'mode-router' : 'mode-detecting'
+		},
+		accelerationCard('mode-status-ap', 'AP模式加速', isEnabled(apo.enabled)),
+		accelerationCard('mode-status-flow', '硬件流量加速', isEnabled(flo.enabled)),
+		accelerationCard('mode-status-vlan', 'VLAN 加速', isEnabled(vo.enabled)),
+		accelerationCard('mode-status-pppoe', 'PPPoE 加速', isEnabled(ppo.enabled))
+	];
+}
+
+function renderModeStatusCards(dm, apo, flo, vo, ppo) {
+	var cards = modeStatusData(dm, apo, flo, vo, ppo).map(function(card) {
+		var children = [
+			E('div', { 'class': 'compass-card-title' }, card.title),
+			E('div', { 'class': 'compass-card-value', 'style': 'color:' + card.color }, card.value)
+		];
+		if (card.sub) children.push(E('div', { 'class': 'compass-card-sub' }, card.sub));
+		return E('div', { 'id': card.id, 'class': 'mode-status-card ' + card.cls }, children);
+	});
+	return E('div', { 'class': 'mode-status-grid', 'id': 'mode-status-grid' }, cards);
+}
+
+function updateModeStatusCards(dm, apo, flo, vo, ppo) {
+	modeStatusData(dm, apo, flo, vo, ppo).forEach(function(card) {
+		var el = document.getElementById(card.id);
+		if (!el) return;
+		el.className = 'mode-status-card ' + card.cls;
+		var value = el.querySelector('.compass-card-value');
+		var sub = el.querySelector('.compass-card-sub');
+		if (value) { value.textContent = card.value; value.style.color = card.color; }
+		if (sub) sub.textContent = card.sub;
+	});
+}
+
 /* ── Main View ── */
 return view.extend({
 	load: function() {
@@ -1475,24 +1483,7 @@ return view.extend({
 				renderCompassCards(cs, bypass, jitter, wan, wifi, bridge, mode),
 				// Ethernet port gauges row
 				buildEthGaugeRow((eth && Array.isArray(eth.ports)) ? eth.ports : [], ppe),
-				E('div', { 'class': 'mode-offload-bar' }, [
-					renderModeBanner(dm, apo),
-					E('span', { 'class': 'mode-offload-divider', 'aria-hidden': 'true' }),
-					E('div', { 'class': 'mode-offload-items' }, [
-						E('div', { 'class': 'mode-offload-item' }, [
-							E('span', { 'class': 'mode-offload-label soc-text' }, _('HW Flow Offload')),
-							renderFlowOffloadStatus(flo.enabled)
-						]),
-						E('div', { 'class': 'mode-offload-item' }, [
-							E('span', { 'class': 'mode-offload-label soc-text' }, _('VLAN Offload')),
-							renderVlanOffloadStatus(vo.enabled)
-						]),
-						E('div', { 'class': 'mode-offload-item' }, [
-							E('span', { 'class': 'mode-offload-label soc-text' }, _('PPPoE Offload')),
-							renderPppoeOffloadStatus(ppo.enabled)
-						])
-					])
-				]),
+				renderModeStatusCards(dm, apo, flo, vo, ppo),
 				E('div',{'style':'margin-top:12px'}, renderPpeTerminal(ppe))
 			]),
 		]);
@@ -1543,32 +1534,8 @@ return view.extend({
 					alertWrap.innerHTML = fresh.innerHTML;
 				}
 
-				// Mode banner
-				var mb = document.getElementById('mode-banner');
-				if (mb) {
-					var badge = mb.querySelector('.mode-badge');
-					var sub = document.getElementById('mode-reason');
-					if (dm.mode) {
-						if (!badge) {
-							badge = document.createElement('span');
-							mb.insertBefore(badge, mb.firstChild);
-						}
-						badge.className = 'mode-badge ' + (dm.mode === 'ap' ? 'mode-ap' : 'mode-router');
-						badge.textContent = dm.mode === 'ap' ? _('AP MODE') : _('ROUTER MODE');
-						var reasonText = getModeReasonText(dm.reason || '');
-						if (sub) sub.textContent = _('Auto-detected') + (reasonText ? ' \u2014 ' + reasonText : '');
-					} else {
-						if (badge) badge.remove();
-						if (sub) sub.textContent = _('MODE detecting...');
-					}
-				}
-
-				// Offload status badges
-				function _setOffloadStatus(id, on) { var b=document.getElementById(id); if(b) { b.className='offload-badge '+(on?'offload-on':'offload-off'); b.textContent=on?_('Enabled'):_('Disabled'); } }
-				_setOffloadStatus('vlan-offload-status', vo.enabled);
-				_setOffloadStatus('flow-offload-status', flo.enabled);
-				_setOffloadStatus('pppoe-offload-status', ppo.enabled);
-				_setOffloadStatus('apmode-offload-status', apo.enabled);
+				// Mode and acceleration cards
+				updateModeStatusCards(dm, apo, flo, vo, ppo);
 
 				// Ethernet port gauges — compute per-port Mbps deltas from cumulative byte counters
 				var ethPorts = (eth && Array.isArray(eth.ports)) ? eth.ports : [];

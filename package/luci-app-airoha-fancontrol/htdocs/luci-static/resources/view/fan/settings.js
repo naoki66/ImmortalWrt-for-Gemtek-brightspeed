@@ -9,6 +9,52 @@ var callGetAllCurves = rpc.declare({
 	method: 'getAllCurves'
 });
 
+var settingsCSS = '\
+.fan-settings{--fan-blue:#00c8ff;--fan-green:#00cc44;--fan-amber:#f5a623;--fan-red:#d0021b}\
+.fan-settings .cbi-section{background:var(--fan-card-bg);border:1px solid var(--fan-border);border-radius:8px;padding:14px;margin:12px 0!important;box-sizing:border-box}\
+.fan-settings .cbi-section>h3{font-size:15px;margin:0 0 12px;padding:0 0 8px;border-bottom:1px solid var(--fan-border);color:var(--fan-text)}\
+.fan-settings .cbi-section-descr{color:var(--fan-muted);font-size:12px;line-height:1.5;margin:-4px 0 10px}\
+.fan-settings .cbi-value{border-bottom:1px solid var(--fan-border);padding:9px 0;margin:0}\
+.fan-settings .cbi-value:last-child{border-bottom:0}\
+.fan-settings .cbi-value-title{color:var(--fan-text);font-size:13px}\
+.fan-settings .cbi-value-description{color:var(--fan-muted);font-size:11px;line-height:1.4;margin-top:4px}\
+.fan-curve-wrap{max-width:680px;border:1px solid var(--fan-border);border-left:3px solid var(--fan-blue);border-radius:8px;padding:10px;background:var(--fan-card-bg)}\
+.fan-curve-canvas{display:block;width:100%;height:300px;background:var(--fan-canvas-bg);border:1px solid var(--fan-border);border-radius:6px;box-sizing:border-box}\
+@media(max-width:640px){.fan-settings .cbi-section{padding:11px}.fan-settings .cbi-value-title{float:none!important;width:auto!important;margin-bottom:6px}.fan-settings .cbi-value-field{margin-left:0!important}.fan-curve-canvas{height:240px}}\
+';
+
+var _settingsDarkMode = null;
+
+function isDarkMode() {
+	var els = [document.body, document.querySelector('.main-content'), document.querySelector('#maincontent'), document.querySelector('.cbi-map')];
+	for (var i = 0; i < els.length; i++) {
+		if (!els[i]) continue;
+		var rgb = window.getComputedStyle(els[i]).backgroundColor.match(/\d+/g);
+		if (!rgb || rgb.length < 3) continue;
+		return (parseInt(rgb[0]) * 299 + parseInt(rgb[1]) * 587 + parseInt(rgb[2]) * 114) / 1000 < 128;
+	}
+	return document.querySelectorAll('link[href*="dark"],link[href*="glass"]').length > 0;
+}
+
+function injectCSS() {
+	var el = document.getElementById('fan-settings-theme-css');
+	if (!el) {
+		el = document.createElement('style');
+		el.id = 'fan-settings-theme-css';
+		document.head.appendChild(el);
+	}
+	var dark = isDarkMode();
+	if (dark === _settingsDarkMode) return;
+	_settingsDarkMode = dark;
+	el.textContent = settingsCSS + (dark
+		? ':root{--fan-card-bg:#1e1e1e;--fan-canvas-bg:#191919;--fan-border:#333;--fan-muted:#a3a3a3;--fan-text:#ececec;--fan-grid:rgba(255,255,255,.14);--fan-axis:#b5b5b5}'
+		: ':root{--fan-card-bg:#fff;--fan-canvas-bg:#fbfcfd;--fan-border:#d0d0d0;--fan-muted:#666;--fan-text:#222;--fan-grid:rgba(80,90,100,.18);--fan-axis:#555}');
+}
+
+function canvasColor(canvas, property, fallback) {
+	return window.getComputedStyle(canvas).getPropertyValue(property).trim() || fallback;
+}
+
 function drawCurveCanvas(canvasId, curves, activePreset, customPreview) {
 	var canvas = document.getElementById(canvasId);
 	if (!canvas) return;
@@ -22,11 +68,16 @@ function drawCurveCanvas(canvasId, curves, activePreset, customPreview) {
 	var width = cssW;
 	var height = cssH;
 	var padding = 40;
+	var background = canvasColor(canvas, '--fan-canvas-bg', '#fbfcfd');
+	var grid = canvasColor(canvas, '--fan-grid', 'rgba(80,90,100,.18)');
+	var axis = canvasColor(canvas, '--fan-axis', '#555');
+	var muted = canvasColor(canvas, '--fan-muted', '#666');
+	var text = canvasColor(canvas, '--fan-text', '#222');
 
-	ctx.fillStyle = '#fff';
+	ctx.fillStyle = background;
 	ctx.fillRect(0, 0, width, height);
 
-	ctx.strokeStyle = '#e8e8e8';
+	ctx.strokeStyle = grid;
 	ctx.lineWidth = 1;
 	for (var t = 0; t <= 100; t += 10) {
 		var x = padding + (t / 100) * (width - 2 * padding);
@@ -37,7 +88,7 @@ function drawCurveCanvas(canvasId, curves, activePreset, customPreview) {
 		ctx.beginPath(); ctx.moveTo(padding, y); ctx.lineTo(width - padding, y); ctx.stroke();
 	}
 
-	ctx.strokeStyle = '#555';
+	ctx.strokeStyle = axis;
 	ctx.lineWidth = 1.5;
 	ctx.beginPath();
 	ctx.moveTo(padding, padding);
@@ -45,17 +96,17 @@ function drawCurveCanvas(canvasId, curves, activePreset, customPreview) {
 	ctx.lineTo(width - padding, height - padding);
 	ctx.stroke();
 
-	ctx.fillStyle = '#444';
+	ctx.fillStyle = text;
 	ctx.font = '11px sans-serif';
 	ctx.textAlign = 'center';
-	ctx.fillText('Temperature (\u00B0C)', width / 2, height - 5);
+	ctx.fillText('温度 (\u00B0C)', width / 2, height - 5);
 	ctx.save();
 	ctx.translate(12, height / 2);
 	ctx.rotate(-Math.PI / 2);
 	ctx.fillText('PWM (0-255)', 0, 0);
 	ctx.restore();
 
-	ctx.fillStyle = '#666';
+	ctx.fillStyle = muted;
 	ctx.font = '9px sans-serif';
 	ctx.textAlign = 'center';
 	for (var t = 0; t <= 100; t += 20) {
@@ -111,17 +162,17 @@ function drawCurveCanvas(canvasId, curves, activePreset, customPreview) {
 		ctx.globalAlpha = preset === activePreset ? 1 : 0.5;
 		ctx.fillRect(width - 100, legendY, 12, 12);
 		ctx.globalAlpha = 1;
-		ctx.fillStyle = '#333';
+		ctx.fillStyle = text;
 		ctx.font = '10px sans-serif';
 		ctx.textAlign = 'left';
-		ctx.fillText(preset.charAt(0).toUpperCase() + preset.slice(1), width - 84, legendY + 10);
+		ctx.fillText({ quiet: '静音', balanced: '平衡', performance: '性能', custom: '自定义' }[preset] || preset, width - 84, legendY + 10);
 		legendY += 17;
 	});
 	if (customPreview) {
 		ctx.fillStyle = '#ff6600';
 		ctx.fillRect(width - 100, legendY, 12, 12);
-		ctx.fillStyle = '#333';
-		ctx.fillText('Preview', width - 84, legendY + 10);
+		ctx.fillStyle = text;
+		ctx.fillText('预览', width - 84, legendY + 10);
 	}
 }
 
@@ -150,6 +201,7 @@ return view.extend({
 	render: function(data) {
 		var curves = data[1] || {};
 		var m, s, o;
+		injectCSS();
 
 		m = new form.Map('fan', null,
 			_('Configure fan control mode and speed curves.'));
@@ -181,7 +233,7 @@ return view.extend({
 		o.depends('mode', 'auto');
 		o.rawhtml = true;
 		o.cfgvalue = function() {
-			return '<canvas id="curve-canvas" style="width:100%;max-width:600px;height:300px;border:1px solid #ccc;border-radius:4px;background:#fff;display:block;margin:8px 0;"></canvas>';
+			return '<div class="fan-curve-wrap"><canvas id="curve-canvas" class="fan-curve-canvas"></canvas></div>';
 		};
 
 		s = m.section(form.NamedSection, 'custom', 'curve', _('\u81EA\u5B9A\u4E49\u66F2\u7EBF\u7F16\u8F91\u5668'),
@@ -212,7 +264,9 @@ return view.extend({
 		}
 
 		return m.render().then(function(node) {
+			node.classList.add('fan-settings');
 			requestAnimationFrame(function() {
+				injectCSS();
 				var presetSelect = node.querySelector('[data-name="curve_preset"] select');
 				var modeSelect = node.querySelector('[data-name="mode"] select');
 				var point1Marker = node.querySelector('[data-name="point1_temp"]');

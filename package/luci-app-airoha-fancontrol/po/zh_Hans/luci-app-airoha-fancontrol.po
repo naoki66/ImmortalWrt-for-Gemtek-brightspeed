@@ -100,6 +100,54 @@ msgstr "手动"
 msgid "Automatic"
 msgstr "自动"
 
+msgid "Balanced"
+msgstr "平衡"
+
+msgid "Board Temperature"
+msgstr "主板温度"
+
+msgid "Cooling priority"
+msgstr "优先散热"
+
+msgid "Curve is paused"
+msgstr "当前不使用曲线"
+
+msgid "Custom"
+msgstr "自定义"
+
+msgid "Custom temperature curve"
+msgstr "自定义温度曲线"
+
+msgid "Fixed PWM output"
+msgstr "固定 PWM 输出"
+
+msgid "Fan PWM"
+msgstr "风扇 PWM"
+
+msgid "Following fan curve"
+msgstr "按风扇曲线自动调速"
+
+msgid "Low noise priority"
+msgstr "优先降低噪声"
+
+msgid "Noise and cooling balanced"
+msgstr "噪声与散热平衡"
+
+msgid "Performance"
+msgstr "性能"
+
+msgid "Preview"
+msgstr "预览"
+
+msgid "PWM output"
+msgstr "PWM 输出"
+
+msgid "Quiet"
+msgstr "静音"
+
+msgid "Real-time Trends"
+msgstr "实时趋势"
+
 msgid "Auto (Closed Loop)"
 msgstr "自动（闭环）"
 

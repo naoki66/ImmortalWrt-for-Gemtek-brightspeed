@@ -6,8 +6,7 @@
 
 HARDWARE_BLOCKED_FILE="/tmp/luci-airoha-flowsense.hardware-blocked"
 
-# Run a hardware probe behind a wall-clock deadline.
-# Prevents rpcd hang when devmem blocks in D-state.
+# Run a probe behind a wall-clock deadline.
 _run_with_deadline() {
 	local seconds="$1"
 	local tag="$2"
@@ -17,7 +16,6 @@ _run_with_deadline() {
 	local worker timer child rc
 	shift 2
 
-	[ -e "$HARDWARE_BLOCKED_FILE" ] && return 125
 	rm -f "$output" "$done" "$child_file"
 
 	(
@@ -58,9 +56,25 @@ _run_with_deadline() {
 	kill -9 "$worker" 2>/dev/null; wait "$worker" 2>/dev/null
 	kill "$timer" 2>/dev/null; wait "$timer" 2>/dev/null
 	rm -f "$output" "$done" "$child_file"
-	printf '%s\n' "$tag timed out" >"$HARDWARE_BLOCKED_FILE"
-	logger -t luci.airoha_flowsense "hardware probe '$tag' timed out after ${seconds}s; disabling hardware polling until reboot" 2>/dev/null
+	logger -t luci.airoha_flowsense "probe '$tag' timed out after ${seconds}s" 2>/dev/null
 	return 124
+}
+
+# MMIO reads may block in D-state. Only these dangerous probes share the
+# reboot-scoped circuit breaker; debugfs snapshots must remain recoverable.
+_run_hardware_with_deadline() {
+	local seconds="$1"
+	local tag="$2"
+	local rc
+
+	[ -e "$HARDWARE_BLOCKED_FILE" ] && return 125
+	_run_with_deadline "$@"
+	rc=$?
+	if [ "$rc" -eq 124 ]; then
+		printf '%s\n' "$tag timed out" >"$HARDWARE_BLOCKED_FILE"
+		logger -t luci.airoha_flowsense "hardware probe '$tag' timed out after ${seconds}s; disabling MMIO polling until reboot" 2>/dev/null
+	fi
+	return "$rc"
 }
 
 # Timeout-protected hardware register read via devmem.
@@ -68,10 +82,11 @@ _run_with_deadline() {
 _devmem_read() {
 	local addr="$1"
 	local to="${2:-2}"
-	[ -e "$HARDWARE_BLOCKED_FILE" ] && { echo "0"; return 1; }
-	local val=$(_run_with_deadline "$to" devmem devmem "$addr")
+	local val rc
+	val=$(_run_hardware_with_deadline "$to" devmem devmem "$addr")
+	rc=$?
 	echo "${val:-0}"
-	[ -n "$val" ]
+	[ "$rc" -eq 0 ] && [ -n "$val" ]
 }
 
 # Copy debugfs counters through the same deadline guard as MMIO reads.
@@ -573,7 +588,7 @@ get_frame_engine() {
 		return
 	fi
 
-	_run_with_deadline 3 frame-engine _probe_frame_engine || echo '{"error":"frame engine read timed out"}'
+	_run_hardware_with_deadline 3 frame-engine _probe_frame_engine || echo '{"error":"frame engine read timed out"}'
 }
 
 get_tx_stats() {
