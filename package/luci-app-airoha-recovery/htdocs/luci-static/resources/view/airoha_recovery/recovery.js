@@ -92,7 +92,7 @@ return view.extend({
 			E('div', { 'class': 'rec-btn' }, [
 				E('button', {
 					'class': 'cbi-button cbi-button-action important',
-					'disabled': !(supported && !recoveryActive),
+					'disabled': (supported && !recoveryActive) ? null : 'disabled',
 					'click': ui.createHandlerFn(this, 'handleRebootToUboot')
 				}, _('Reboot to U-Boot'))
 			])
