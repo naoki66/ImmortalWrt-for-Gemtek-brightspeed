@@ -4,6 +4,8 @@
 /env
 /.remote-build.local.psd1
 /dl
+/.config
+/.config.old
 /.toolchain_build_ver
 /bin
 /build_dir
