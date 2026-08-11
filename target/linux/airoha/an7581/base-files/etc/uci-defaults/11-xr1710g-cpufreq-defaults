@@ -1,0 +1,14 @@
+#!/bin/sh
+
+. /lib/functions/system.sh
+
+[ "$(board_name)" = "gemtek,xr1710g-ubi" ] || exit 0
+uci -q get cpufreq.cpufreq >/dev/null || exit 0
+
+# Keep an explicitly saved user policy, otherwise default to performance.
+[ "$(uci -q get cpufreq.global.set)" = "1" ] && exit 0
+
+uci -q set cpufreq.cpufreq.governor0='performance'
+uci -q commit cpufreq
+
+exit 0
