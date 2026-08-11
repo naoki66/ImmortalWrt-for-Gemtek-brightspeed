@@ -28,7 +28,13 @@ msgstr ""
 msgid "Original"
 msgstr ""
 
+msgid "Pause"
+msgstr ""
+
 msgid "PPPoE Offload"
+msgstr ""
+
+msgid "Resume"
 msgstr ""
 
 msgid "State"

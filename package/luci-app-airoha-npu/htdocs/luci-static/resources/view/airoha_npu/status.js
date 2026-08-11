@@ -41,6 +41,9 @@ var themeCSS = '\
 .npu-summary-sub{font-size:11px;line-height:1.3;color:var(--soc-muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
 .npu-section{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-radius:8px;padding:14px;margin:12px 0!important}\
 .npu-section>h3{font-size:15px;margin:0 0 12px;padding:0 0 8px;border-bottom:1px solid var(--soc-border);color:var(--soc-text)}\
+.npu-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:0 0 8px;border-bottom:1px solid var(--soc-border)}\
+.npu-section-heading>h3{font-size:15px;margin:0;padding:0;border:0;color:var(--soc-text)}\
+.npu-pause-button{min-width:72px;flex:0 0 auto}\
 .npu-section h4{margin-top:14px!important;padding-top:12px;border-top:1px solid var(--soc-border)}\
 .npu-details-table{margin:0}\
 .cpu-panel-grid{display:grid;grid-template-columns:minmax(250px,.85fr) minmax(360px,1.15fr);gap:8px}\
@@ -610,6 +613,35 @@ return view.extend({
 		var apo = data[7]||{enabled:0};
 		var entries = Array.isArray(ppe.entries) ? ppe.entries : [];
 		var memR = Array.isArray(st.memory_regions) ? st.memory_regions : [];
+		var ppeUpdatesPaused = false;
+		var latestPpeEntries = entries;
+		var ppeRequestSequence = 0;
+		var latestPpeRequest = 0;
+
+		function updatePpeTable(rows) {
+			var table = document.getElementById('ppe-entries-table');
+			if (!table) return;
+			while (table.rows.length > 1) table.deleteRow(1);
+			renderPpeRows(rows).forEach(function(row) { table.appendChild(row); });
+		}
+
+		var ppePauseButton = E('button', {
+			'type': 'button',
+			'class': 'cbi-button cbi-button-neutral npu-pause-button',
+			'title': _('Pause'),
+			'aria-pressed': 'false',
+			'click': function(ev) {
+				ppeUpdatesPaused = !ppeUpdatesPaused;
+				var label = ppeUpdatesPaused ? _('Resume') : _('Pause');
+				ev.currentTarget.textContent = label;
+				ev.currentTarget.title = label;
+				ev.currentTarget.setAttribute('aria-pressed', ppeUpdatesPaused ? 'true' : 'false');
+				ev.currentTarget.className = 'cbi-button ' +
+					(ppeUpdatesPaused ? 'cbi-button-action' : 'cbi-button-neutral') +
+					' npu-pause-button';
+				if (!ppeUpdatesPaused) updatePpeTable(latestPpeEntries);
+			}
+		}, _('Pause'));
 
 		var view = E('div',{'class':'cbi-map npu-dashboard'},[
 			E('h2',{},_('Airoha SoC Status')),
@@ -681,7 +713,10 @@ return view.extend({
 
 			// PPE Flow Table
 			E('div',{'class':'cbi-section npu-section'},[
-				E('h3',{},_('PPE Flow Offload Entries')),
+				E('div',{'class':'npu-section-heading'},[
+					E('h3',{},_('PPE Flow Offload Entries')),
+					ppePauseButton
+				]),
 				E('table',{'class':'table npu-flow-table','id':'ppe-entries-table'},[
 					E('tr',{'class':'tr cbi-section-table-titles'},[
 						E('th',{'class':'th'},_('Index')), E('th',{'class':'th'},_('State')), E('th',{'class':'th'},_('Type')),
@@ -698,6 +733,7 @@ return view.extend({
 		}
 
 		var fetchData = L.bind(function() {
+			var requestSequence = ++ppeRequestSequence;
 			return Promise.all([
 				_safeCall(callNpuStatus(), {}),
 				_safeCall(callPpeEntries(), {entries:[]}),
@@ -713,6 +749,11 @@ return view.extend({
 				var vo=d[4]||{enabled:0}, ppo=d[5]||{enabled:0}, flo=d[6]||{enabled:0};
 				var apo=d[7]||{enabled:0};
 				var entries = Array.isArray(ppe.entries)?ppe.entries:[];
+				if (requestSequence > latestPpeRequest) {
+					latestPpeRequest = requestSequence;
+					latestPpeEntries = entries;
+					if (!ppeUpdatesPaused) updatePpeTable(latestPpeEntries);
+				}
 				updateNpuSummary(st);
 
 				// CPU info — always re-render (just text spans, no user interaction)
@@ -753,8 +794,6 @@ return view.extend({
 
 				var fcEl=document.getElementById('fe-container'); if(fcEl){fcEl.innerHTML='';fcEl.appendChild(renderFeDiagram(fe, ti, st));}
 
-				var tb=document.getElementById('ppe-entries-table');
-				if(tb){while(tb.rows.length>1)tb.deleteRow(1);renderPpeRows(entries).forEach(function(r){tb.appendChild(r);});}
 			},this)).catch(function(err) {
 				console.error('[airoha_npu] fetchData error:', err);
 			});

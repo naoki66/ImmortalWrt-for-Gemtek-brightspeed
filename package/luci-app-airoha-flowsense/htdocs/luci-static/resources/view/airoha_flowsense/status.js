@@ -63,11 +63,26 @@ var themeCSS = '\
 .alert-title{font-weight:600;margin-bottom:2px}\
 .alert-msg{font-size:12px;color:var(--soc-muted)}\
 @keyframes sqm-pulse{0%{opacity:0.2}50%{opacity:1}100%{opacity:0.2}}\
-.ppe-terminal{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-left:3px solid #00c8ff;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;flex:1;min-width:220px}\
+.ppe-terminal{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-left:3px solid #00c8ff;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;flex:1;min-width:220px;max-width:100%;box-sizing:border-box}\
 .ppe-terminal-bar{background:color-mix(in srgb,var(--soc-card-bg) 88%,var(--soc-border));padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--soc-border);flex-shrink:0}\
 .ppe-terminal-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0;background:#00c8ff;box-shadow:0 0 6px rgba(0,200,255,.45)}\
-.ppe-terminal-title{color:var(--soc-text);font-size:11px;font-weight:700;letter-spacing:.7px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
-.ppe-terminal-body{padding:10px 12px;overflow-y:auto;flex:1;font-size:11px;line-height:1.6;color:var(--soc-text);font-family:"Courier New",Courier,monospace;white-space:pre-wrap;word-break:break-all;min-height:200px}\
+.ppe-terminal-title{color:var(--soc-text);font-size:11px;font-weight:700;letter-spacing:.7px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}\
+.ppe-pause-button{min-width:72px;flex:0 0 auto;font-size:11px!important;padding:3px 10px!important}\
+.ppe-terminal-body{padding:10px 12px;overflow:auto;flex:1;min-width:0;width:100%;max-width:100%;min-height:200px;box-sizing:border-box;color:var(--soc-text)}\
+.ppe-flow-content{width:100%;min-width:0;font:11px/1.45 "Courier New",Courier,monospace}\
+.ppe-flow-section+.ppe-flow-section{margin-top:14px}\
+.ppe-flow-summary{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px}\
+.ppe-flow-kind{font-weight:700}\
+.ppe-flow-total{color:var(--soc-text)}\
+.ppe-flow-meta,.ppe-flow-more,.ppe-flow-empty,.ppe-flow-footer{color:var(--soc-muted)}\
+.ppe-flow-table-wrap{width:100%;max-width:100%;overflow-x:auto}\
+.ppe-flow-table{width:100%;border-collapse:collapse;table-layout:fixed;font:inherit;color:var(--soc-text)}\
+.ppe-flow-table th,.ppe-flow-table td{box-sizing:border-box;text-align:left;vertical-align:top;padding:5px 6px;border-bottom:1px solid var(--soc-border)}\
+.ppe-flow-table th{color:var(--soc-muted);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+.ppe-flow-table td{white-space:normal;overflow-wrap:anywhere;word-break:break-word}\
+.ppe-flow-more,.ppe-flow-empty{padding:6px}\
+.ppe-flow-footer{margin-top:12px}\
+@media(max-width:700px){.ppe-flow-table colgroup,.ppe-flow-table thead{display:none}.ppe-flow-table,.ppe-flow-table tbody{display:block;width:100%}.ppe-flow-table tr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 10px;padding:8px 0;border-bottom:1px solid var(--soc-border)}.ppe-flow-table td{display:block;width:auto!important;min-width:0;padding:0;border:0}.ppe-flow-table td:before{content:attr(data-label);display:block;margin-bottom:2px;color:var(--soc-muted);font-size:9px;font-weight:600}.ppe-flow-table td.ppe-flow-wide{grid-column:1/-1}}\
 ';
 
 function isDarkMode() {
@@ -427,103 +442,81 @@ function buildTachoInner(ppe, cs, mode) {
 }
 
 /* ── PPE Terminal Panel ── */
-function buildPpeTerminalBody(ppe) {
-	var bnd = ppe.bnd || {}, unb = ppe.unb || {};
-	var bndTot = bnd.total || 0, unbTot = unb.total || 0;
-	var bndE = bnd.entries || [], unbE = unb.entries || [];
+function renderPpeFlowTable(entries, accent) {
+	var headers = ['Index', 'State', 'Type', 'Original Flow', 'New Flow', 'Ethernet'];
+	var rows = (entries || []).map(function(e) {
+		var type = ((e.type || '') + (e.proto ? ' ' + e.proto : '')).trim() || '-';
+		var typeColor = (e.type || '').indexOf('IPv6') >= 0 ? '#9c27b0' : '#999';
+		var stateColor = (e.state === 'BND' || e.state === 'BIND') ? '#00c8ff' : '#ff9800';
+		return E('tr', { 'class': 'ppe-flow-row' }, [
+			E('td', { 'data-label': headers[0], 'style': 'color:#777' }, e.index || '????'),
+			E('td', { 'data-label': headers[1], 'style': 'color:' + stateColor }, e.state || '-'),
+			E('td', { 'data-label': headers[2], 'style': 'color:' + typeColor }, type),
+			E('td', { 'class': 'ppe-flow-wide', 'data-label': headers[3], 'style': 'color:' + accent }, e.orig || '-'),
+			E('td', { 'class': 'ppe-flow-wide', 'data-label': headers[4], 'style': 'color:var(--soc-muted)' }, e.new_flow || '-'),
+			E('td', { 'class': 'ppe-flow-wide', 'data-label': headers[5], 'style': 'color:#999' }, e.eth || '-')
+		]);
+	});
 
-	var grn  = 'color:#55ff55';
-	var wht  = 'color:#e0e0e0';
-	var dim  = 'color:#555';
-	var sep  = 'color:#333';
-	var mute = 'color:#666';
-	var cyn  = 'color:#00c8ff';
-	var org  = 'color:#ff9800';
-	var pur  = 'color:#9c27b0';
-	var grey = 'color:#999';
-
-	function sp(style, text) { return '<span style="'+style+'">'+text+'</span>'; }
-	function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-	// pad: pads or truncates plain string to exactly n chars, then HTML-escapes
-	function pad(s, n) {
-		s = s || '';
-		if (s.length > n) return esc(s.substring(0, n-1)) + '\u2026';
-		var out = esc(s);
-		for (var i = s.length; i < n; i++) out += ' ';
-		return out;
-	}
-
-	// Column widths (chars)
-	var W = { idx: 6, state: 6, type: 9, orig: 45, flow: 45, eth: 37 };
-	var lineLen = W.idx+2+W.state+2+W.type+2+W.orig+2+W.flow+2+W.eth;
-	var divLine = '\u2500'.repeat(lineLen);
-
-	function hdrRow() {
-		return sp(mute,
-			pad('Index',W.idx)+'  '+pad('State',W.state)+'  '+pad('Type',W.type)+'  '+
-			pad('Original Flow',W.orig)+'  '+pad('New Flow',W.flow)+'  '+'Ethernet'
-		) + '\n';
-	}
-
-	function entryRow(e, origCol) {
-		var typeStr = (e.type||'') + (e.proto ? ' '+e.proto : '');
-		var isV6 = (e.type||'').indexOf('IPv6') >= 0;
-		var ipCol = isV6 ? pur : grey;
-		var stCol = (e.state === 'BND' || e.state === 'BIND') ? cyn : org;
-		return sp(dim,     pad(e.index||'????', W.idx))    + '  ' +
-		       sp(stCol,   pad(e.state||'',     W.state))  + '  ' +
-		       sp(ipCol,   pad(typeStr,          W.type))   + '  ' +
-		       sp(origCol, pad(e.orig||'',       W.orig))   + '  ' +
-		       sp(mute,    pad(e.new_flow||'-',  W.flow))   + '  ' +
-		       sp(grey,    esc(e.eth||'-')) + '\n';
-	}
-
-	var s = '';
-
-	// Compact monitor heading; this is a dashboard panel, not an interactive shell.
-	s += sp(cyn,'PPE FLOW MONITOR') + sp(mute,'  ·  live refresh 5s') + '\n\n';
-
-	// BND section
-	s += sp(cyn,'■ BND') + '  ' + sp(wht, bndTot+' flows');
-	s += '  ' + sp(mute,'(v4:'+(bnd.ipv4||0)+' v6:'+(bnd.ipv6||0)+')') + '\n';
-	s += sp(sep, divLine) + '\n';
-
-	if (bndTot === 0) {
-		s += sp(mute,'  no entries') + '\n';
-	} else {
-		s += hdrRow();
-		s += sp(sep, divLine) + '\n';
-		bndE.forEach(function(e) { s += entryRow(e, cyn); });
-		if (bndTot > bndE.length) s += sp(mute,'  +' + (bndTot - bndE.length) + ' more\n');
-	}
-
-	s += '\n';
-
-	// UNB section
-	s += sp(org,'■ UNB') + '  ' + sp(wht, unbTot+' flows') + '\n';
-	s += sp(sep, divLine) + '\n';
-
-	if (unbTot === 0) {
-		s += sp(mute,'  no entries') + '\n';
-	} else {
-		s += hdrRow();
-		s += sp(sep, divLine) + '\n';
-		unbE.forEach(function(e) { s += entryRow(e, org); });
-		if (unbTot > unbE.length) s += sp(mute,'  +' + (unbTot - unbE.length) + ' more\n');
-	}
-
-	s += '\n';
-	s += sp(mute,'Updated automatically every 5 seconds');
-	return s;
+	return E('div', { 'class': 'ppe-flow-table-wrap' }, [
+		E('table', { 'class': 'ppe-flow-table' }, [
+			E('colgroup', {}, [
+				E('col', { 'style': 'width:7%' }),
+				E('col', { 'style': 'width:7%' }),
+				E('col', { 'style': 'width:10%' }),
+				E('col', { 'style': 'width:28%' }),
+				E('col', { 'style': 'width:28%' }),
+				E('col', { 'style': 'width:20%' })
+			]),
+			E('thead', {}, [
+				E('tr', {}, headers.map(function(header) { return E('th', {}, header); }))
+			]),
+			E('tbody', {}, rows)
+		])
+	]);
 }
 
-function renderPpeTerminal(ppe) {
+function renderPpeFlowSection(name, accent, stats, showIpCounts) {
+	stats = stats || {};
+	var total = stats.total || 0;
+	var entries = Array.isArray(stats.entries) ? stats.entries : [];
+	var summary = [
+		E('span', { 'class': 'ppe-flow-kind', 'style': 'color:' + accent }, '\u25a0 ' + name),
+		E('span', { 'class': 'ppe-flow-total' }, total + ' flows')
+	];
+	if (showIpCounts) summary.push(E('span', { 'class': 'ppe-flow-meta' }, '(v4:' + (stats.ipv4 || 0) + ' v6:' + (stats.ipv6 || 0) + ')'));
+
+	var content = [E('div', { 'class': 'ppe-flow-summary' }, summary)];
+	if (entries.length) {
+		content.push(renderPpeFlowTable(entries, accent));
+		if (total > entries.length) content.push(E('div', { 'class': 'ppe-flow-more' }, '+' + (total - entries.length) + ' more'));
+	} else {
+		content.push(E('div', { 'class': 'ppe-flow-empty' }, 'no entries'));
+	}
+
+	return E('div', { 'class': 'ppe-flow-section' }, content);
+}
+
+function renderPpeTerminalBody(ppe) {
+	ppe = ppe || {};
+	return E('div', { 'class': 'ppe-flow-content' }, [
+		E('div', { 'class': 'ppe-flow-summary' }, [
+			E('span', { 'class': 'ppe-flow-kind', 'style': 'color:#00c8ff' }, 'PPE FLOW MONITOR'),
+			E('span', { 'class': 'ppe-flow-meta' }, '\u00b7 live refresh 5s')
+		]),
+		renderPpeFlowSection('BND', '#00c8ff', ppe.bnd, true),
+		renderPpeFlowSection('UNB', '#ff9800', ppe.unb, false),
+		E('div', { 'class': 'ppe-flow-footer' }, 'Updated automatically every 5 seconds')
+	]);
+}
+
+function renderPpeTerminal(ppe, pauseButton) {
 	var bar = E('div', { 'class': 'ppe-terminal-bar' }, [
 		E('span', { 'class': 'ppe-terminal-dot' }),
-		E('span', { 'class': 'ppe-terminal-title' }, 'PPE 流量监控')
+		E('span', { 'class': 'ppe-terminal-title' }, 'PPE 流量监控'),
+		pauseButton
 	]);
-	var body = E('div', { 'class': 'ppe-terminal-body', 'id': 'ppe-terminal-body' });
-	body.innerHTML = buildPpeTerminalBody(ppe);
+	var body = E('div', { 'class': 'ppe-terminal-body', 'id': 'ppe-terminal-body' }, renderPpeTerminalBody(ppe));
 	return E('div', { 'class': 'ppe-terminal' }, [ bar, body ]);
 }
 
@@ -1470,6 +1463,33 @@ return view.extend({
 		var eth=data[16]||{};
 		var memR = Array.isArray(st.memory_regions) ? st.memory_regions : [];
 		var mode = dm.mode || 'router';
+		var ppeTablePaused = false;
+		var latestPpe = ppe;
+
+		function updatePpeTerminal(ppeSnapshot) {
+			var body = document.getElementById('ppe-terminal-body');
+			if (!body) return;
+			body.innerHTML = '';
+			body.appendChild(renderPpeTerminalBody(ppeSnapshot));
+		}
+
+		var ppePauseButton = E('button', {
+			'type': 'button',
+			'class': 'cbi-button cbi-button-neutral ppe-pause-button',
+			'title': _('Pause'),
+			'aria-pressed': 'false',
+			'click': function(ev) {
+				ppeTablePaused = !ppeTablePaused;
+				var label = ppeTablePaused ? _('Resume') : _('Pause');
+				ev.currentTarget.textContent = label;
+				ev.currentTarget.title = label;
+				ev.currentTarget.setAttribute('aria-pressed', ppeTablePaused ? 'true' : 'false');
+				ev.currentTarget.className = 'cbi-button ' +
+					(ppeTablePaused ? 'cbi-button-action' : 'cbi-button-neutral') +
+					' ppe-pause-button';
+				if (!ppeTablePaused) updatePpeTerminal(latestPpe);
+			}
+		}, _('Pause'));
 
 		var hwBuf = hwBufferState(fe, ppe, mode);
 		var cs = compassState(bypass, hwBuf, jitter, wan, wifi, bridge, mode);
@@ -1498,7 +1518,7 @@ return view.extend({
 				// Ethernet port gauges row
 				buildEthGaugeRow((eth && Array.isArray(eth.ports)) ? eth.ports : [], ppe),
 				renderModeStatusCards(dm, apo, flo, vo, ppo),
-				E('div',{'style':'margin-top:12px'}, renderPpeTerminal(ppe))
+				E('div',{'style':'margin-top:12px'}, renderPpeTerminal(ppe, ppePauseButton))
 			]),
 		]);
 
@@ -1522,6 +1542,7 @@ return view.extend({
 				var flo=d[13]||{}, ppo=d[14]||{}, apo=d[15]||{};
 				var eth=d[16]||{};
 				var mode = dm.mode || 'router';
+				latestPpe = ppe;
 
 				// Compass update (tachometer embedded inside compass)
 				var hwBuf = hwBufferState(fe, ppe, mode);
@@ -1571,8 +1592,7 @@ return view.extend({
 				});
 
 				// PPE terminal
-				var tb = document.getElementById('ppe-terminal-body');
-				if (tb) tb.innerHTML = buildPpeTerminalBody(ppe);
+				if (!ppeTablePaused) updatePpeTerminal(latestPpe);
 			},this));
 		}, this);
 

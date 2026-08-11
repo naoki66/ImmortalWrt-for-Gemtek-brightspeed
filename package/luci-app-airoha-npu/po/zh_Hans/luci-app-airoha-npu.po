@@ -208,6 +208,16 @@ msgstr "超频失败："
 msgid "PPE Flow Offload Entries"
 msgstr "PPE 硬件加速表"
 
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:631
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:635
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:644
+msgid "Pause"
+msgstr "暂停"
+
+#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:635
+msgid "Resume"
+msgstr "继续"
+
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:361
 msgid "Packets"
 msgstr "数据包"

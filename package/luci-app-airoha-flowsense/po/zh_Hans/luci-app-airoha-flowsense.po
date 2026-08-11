@@ -30,8 +30,14 @@ msgstr "无条目"
 msgid "Original"
 msgstr "原始"
 
+msgid "Pause"
+msgstr "暂停"
+
 msgid "PPPoE Offload"
 msgstr "PPPoE 加速"
+
+msgid "Resume"
+msgstr "继续"
 
 msgid "State"
 msgstr "状态"
