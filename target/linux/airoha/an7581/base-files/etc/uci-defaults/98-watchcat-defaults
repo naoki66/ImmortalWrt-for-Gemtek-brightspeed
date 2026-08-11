@@ -1,0 +1,28 @@
+#!/bin/sh
+
+# Replace the upstream ping target and disable untouched stock configurations.
+mode="$(uci -q get watchcat.@watchcat[0].mode)"
+period="$(uci -q get watchcat.@watchcat[0].period)"
+pinghosts="$(uci -q get watchcat.@watchcat[0].pinghosts)"
+forcedelay="$(uci -q get watchcat.@watchcat[0].forcedelay)"
+
+stock_config=0
+if [ "$mode" = 'ping_reboot' ] && [ "$period" = '6h' ] && [ "$forcedelay" = '30' ]; then
+	case "$pinghosts" in
+		''|8.8.8.8)
+			stock_config=1
+			;;
+	esac
+fi
+
+case "$pinghosts" in
+	''|8.8.8.8)
+		uci set watchcat.@watchcat[0].pinghosts='223.5.5.5'
+		;;
+esac
+
+if [ "$stock_config" -eq 1 ]; then
+	/etc/init.d/watchcat disable
+fi
+
+exit 0
