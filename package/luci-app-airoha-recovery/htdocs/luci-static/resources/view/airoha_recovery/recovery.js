@@ -14,14 +14,17 @@ var callRebootToUboot = rpc.declare({
 });
 
 var themeCSS = '\
+.rec-dashboard{--airoha-font-ui:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;--airoha-font-mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;font-family:var(--airoha-font-ui);font-size:13px;line-height:1.5;letter-spacing:0;color:var(--soc-text);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}\
+.rec-dashboard h2{margin:0 0 14px;font-family:var(--airoha-font-ui);font-size:22px;line-height:1.3;font-weight:600;letter-spacing:0;color:var(--soc-text)}\
+.rec-dashboard .cbi-button{font-family:var(--airoha-font-ui);font-size:13px!important;line-height:1.4;letter-spacing:0}\
 .rec-card{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-left:3px solid #00cc44;border-radius:8px;padding:14px 16px;transition:border-color .3s}\
-.rec-desc{font-size:13px;color:var(--soc-muted);margin:0 0 12px;line-height:1.6}\
+.rec-desc{font-size:13px;color:var(--soc-muted);margin:0 0 12px;line-height:1.55}\
 .rec-status{display:flex;align-items:center;gap:8px;padding:2px 0}\
-.rec-status-label{font-size:13px;color:var(--soc-text)}\
-.rec-status-value{font-size:14px;font-weight:700;color:#00cc44}\
+.rec-status-label{font-size:13px;line-height:1.4;font-weight:500;color:var(--soc-text)}\
+.rec-status-value{font-size:13px;line-height:1.4;font-weight:700;color:#00cc44}\
 .rec-status-value.fail{color:#d0021b}\
 .rec-btn{display:flex;margin-top:14px}\
-.rec-btn .cbi-button{flex:1;box-sizing:border-box;min-height:36px;text-align:center}\
+.rec-btn .cbi-button{flex:1;box-sizing:border-box;min-height:38px;text-align:center}\
 @media(max-width:640px){.rec-card{padding:12px}}\
 ';
 
@@ -74,7 +77,7 @@ return view.extend({
 
 		injectCSS();
 
-		var body = E([ E('h2', _('U-Boot Recovery')) ]);
+		var body = E('div', { 'class': 'cbi-map rec-dashboard' }, [ E('h2', _('U-Boot Recovery')) ]);
 
 		if (recoveryActive) {
 			body.appendChild(E('p', { 'class': 'alert-message warning' },

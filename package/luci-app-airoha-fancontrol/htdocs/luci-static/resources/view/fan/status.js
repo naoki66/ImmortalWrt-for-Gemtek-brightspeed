@@ -17,27 +17,29 @@ var HISTORY_STORAGE_KEY = 'airoha-fancontrol-history-v1';
 var history = [];
 
 var themeCSS = '\
-.fan-dashboard{--fan-blue:#00c8ff;--fan-green:#00cc44;--fan-amber:#f5a623;--fan-red:#d0021b}\
+.fan-dashboard{--fan-blue:#00c8ff;--fan-green:#00cc44;--fan-amber:#f5a623;--fan-red:#d0021b;--airoha-font-ui:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;--airoha-font-mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;font-family:var(--airoha-font-ui);font-size:13px;line-height:1.5;letter-spacing:0;color:var(--fan-text);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}\
+.fan-dashboard h2{margin:0 0 14px;font-family:var(--airoha-font-ui);font-size:22px;line-height:1.3;font-weight:600;letter-spacing:0;color:var(--fan-text)}\
+.fan-dashboard .cbi-button,.fan-dashboard .cbi-input-select,.fan-dashboard input{font-family:var(--airoha-font-ui);font-size:13px!important;line-height:1.4;letter-spacing:0}\
 .fan-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:8px;margin:0 0 12px}\
 .fan-summary-card,.fan-panel,.fan-chart-card,.fan-temp-card{background:var(--fan-card-bg);border:1px solid var(--fan-border);border-radius:8px;box-sizing:border-box}\
 .fan-summary-card{border-left:3px solid var(--fan-accent,var(--fan-border));padding:10px 14px;min-height:82px;display:flex;flex-direction:column;justify-content:center}\
-.fan-card-title{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--fan-muted);font-family:monospace;margin-bottom:5px}\
-.fan-card-value{font-size:20px;line-height:1.15;font-family:monospace;font-weight:700;color:var(--fan-accent,var(--fan-text))}\
-.fan-card-sub{font-size:11px;line-height:1.3;color:var(--fan-muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+.fan-card-title{font-size:11px;line-height:1.35;text-transform:uppercase;letter-spacing:0;color:var(--fan-muted);font-family:var(--airoha-font-ui);font-weight:600;margin-bottom:5px}\
+.fan-card-value{font-size:20px;line-height:1.15;font-family:var(--airoha-font-mono);font-variant-numeric:tabular-nums;font-weight:700;color:var(--fan-accent,var(--fan-text))}\
+.fan-card-sub{font-size:12px;line-height:1.4;color:var(--fan-muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
 .fan-panel{padding:14px;margin:12px 0}\
-.fan-panel-title{font-size:15px;font-weight:600;color:var(--fan-text);padding:0 0 8px;margin:0 0 12px;border-bottom:1px solid var(--fan-border)}\
+.fan-panel-title{font-size:16px;line-height:1.4;font-weight:600;letter-spacing:0;color:var(--fan-text);padding:0 0 8px;margin:0 0 12px;border-bottom:1px solid var(--fan-border)}\
 .fan-chart-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}\
 .fan-chart-card{border-left:3px solid var(--fan-chart-accent,var(--fan-border));padding:10px 12px;min-width:0}\
-.fan-chart-value{font-size:20px;font-family:monospace;font-weight:700;line-height:1.15;color:var(--fan-text)}\
+.fan-chart-value{font-size:20px;font-family:var(--airoha-font-mono);font-variant-numeric:tabular-nums;font-weight:700;line-height:1.15;color:var(--fan-text)}\
 .fan-chart-canvas{display:block;width:100%;height:120px;margin-top:8px;color:var(--fan-muted);background:color-mix(in srgb,var(--fan-card-bg) 88%,var(--fan-border));border:1px solid var(--fan-border);border-radius:6px}\
 .fan-temp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}\
 .fan-temp-group{min-width:0}\
-.fan-temp-group-title{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--fan-muted);font-family:monospace;margin:0 0 8px}\
+.fan-temp-group-title{font-size:11px;line-height:1.35;text-transform:uppercase;letter-spacing:0;color:var(--fan-muted);font-family:var(--airoha-font-ui);font-weight:600;margin:0 0 8px}\
 .fan-temp-list{display:grid;gap:7px}\
 .fan-temp-card{border-left:3px solid var(--fan-temp-accent,var(--fan-border));padding:8px 10px;min-width:0}\
 .fan-temp-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px}\
-.fan-temp-label{font-size:12px;color:var(--fan-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
-.fan-temp-value{font-family:monospace;font-size:16px;font-weight:700;color:var(--fan-temp-accent);white-space:nowrap}\
+.fan-temp-label{font-size:13px;line-height:1.4;color:var(--fan-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
+.fan-temp-value{font-family:var(--airoha-font-mono);font-size:16px;font-variant-numeric:tabular-nums;font-weight:700;color:var(--fan-temp-accent);white-space:nowrap}\
 .fan-temp-track{height:18px!important;min-height:18px;border-radius:999px;overflow:hidden;background:var(--fan-track)}\
 .fan-temp-fill{height:100%;border-radius:inherit;background:var(--fan-temp-accent);transition:width .3s,background .3s}\
 @media(max-width:1050px){.fan-summary-grid{grid-template-columns:repeat(2,minmax(160px,1fr))}.fan-chart-grid{grid-template-columns:1fr}}\
@@ -222,7 +224,7 @@ function drawChart(canvas, hist, key, options) {
 	ctx.stroke();
 
 	ctx.fillStyle = labelColor;
-	ctx.font = '9px sans-serif';
+	ctx.font = '10px system-ui, sans-serif';
 	ctx.textAlign = 'right';
 	ctx.textBaseline = 'top';
 	ctx.fillText(options.format(maximum), pad.left - 4, pad.top - 1);

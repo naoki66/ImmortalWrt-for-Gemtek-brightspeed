@@ -26,25 +26,27 @@ var themeCSS = '\
 .soc-card-accent{border-left-width:3px;border-left-style:solid}\
 .soc-muted{color:var(--soc-muted)}\
 .soc-text{color:var(--soc-text)}\
-.soc-label{font-size:11px;color:var(--soc-muted)}\
+.soc-label{font-size:12px;line-height:1.4;color:var(--soc-muted)}\
 .soc-bar-track{background:var(--soc-bar-track);border-radius:4px;overflow:hidden}\
 .soc-pse-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px}\
-.soc-pse-cell{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-radius:5px;padding:6px 8px;font-size:12px}\
+.soc-pse-cell{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-radius:5px;padding:6px 8px;font-size:12px;line-height:1.4}\
 .soc-band-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}\
 .soc-gdm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}\
 .soc-cdm-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:10px}\
-.npu-dashboard{--npu-cyan:#00c8ff;--npu-green:#00cc44;--npu-amber:#f5a623;--npu-red:#d0021b}\
+.npu-dashboard{--npu-cyan:#00c8ff;--npu-green:#00cc44;--npu-amber:#f5a623;--npu-red:#d0021b;--airoha-font-ui:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;--airoha-font-mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;font-family:var(--airoha-font-ui);font-size:13px;line-height:1.5;letter-spacing:0;color:var(--soc-text);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}\
+.npu-dashboard h2{margin:0 0 14px;font-family:var(--airoha-font-ui);font-size:22px;line-height:1.3;font-weight:600;letter-spacing:0;color:var(--soc-text)}\
+.npu-dashboard .cbi-button,.npu-dashboard .cbi-input-select,.npu-dashboard input{font-family:var(--airoha-font-ui);font-size:13px!important;line-height:1.4;letter-spacing:0}\
 .npu-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:8px;margin:0 0 12px}\
 .npu-summary-card{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-left:3px solid var(--npu-summary-accent,var(--soc-border));border-radius:8px;padding:10px 14px;min-height:82px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;transition:border-color .3s}\
-.npu-summary-title{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--soc-muted);font-family:monospace;margin-bottom:5px}\
-.npu-summary-value{font-size:20px;line-height:1.15;font-family:monospace;font-weight:700}\
-.npu-summary-sub{font-size:11px;line-height:1.3;color:var(--soc-muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+.npu-summary-title{font-size:11px;line-height:1.35;text-transform:uppercase;letter-spacing:0;color:var(--soc-muted);font-family:var(--airoha-font-ui);font-weight:600;margin-bottom:5px}\
+.npu-summary-value{font-size:20px;line-height:1.15;font-family:var(--airoha-font-mono);font-variant-numeric:tabular-nums;font-weight:700}\
+.npu-summary-sub{font-size:12px;line-height:1.4;color:var(--soc-muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
 .npu-section{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-radius:8px;padding:14px;margin:12px 0!important}\
-.npu-section>h3{font-size:15px;margin:0 0 12px;padding:0 0 8px;border-bottom:1px solid var(--soc-border);color:var(--soc-text)}\
+.npu-section>h3{font-size:16px;line-height:1.4;font-weight:600;letter-spacing:0;margin:0 0 12px;padding:0 0 8px;border-bottom:1px solid var(--soc-border);color:var(--soc-text)}\
 .npu-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:0 0 8px;border-bottom:1px solid var(--soc-border)}\
-.npu-section-heading>h3{font-size:15px;margin:0;padding:0;border:0;color:var(--soc-text)}\
-.npu-pause-button{min-width:72px;flex:0 0 auto}\
-.npu-section h4{margin-top:14px!important;padding-top:12px;border-top:1px solid var(--soc-border)}\
+.npu-section-heading>h3{font-size:16px;line-height:1.4;font-weight:600;letter-spacing:0;margin:0;padding:0;border:0;color:var(--soc-text)}\
+.npu-pause-button{min-width:72px;flex:0 0 auto;padding:4px 12px!important}\
+.npu-section h4{font-size:14px;line-height:1.4;font-weight:600;letter-spacing:0;margin-top:14px!important;padding-top:12px;border-top:1px solid var(--soc-border)}\
 .npu-details-table{margin:0}\
 .cpu-panel-grid{display:grid;grid-template-columns:minmax(250px,.85fr) minmax(360px,1.15fr);gap:8px}\
 .cpu-control-grid{display:grid;grid-template-columns:minmax(300px,1.25fr) minmax(250px,.75fr);gap:8px;margin-top:8px}\
@@ -53,16 +55,16 @@ var themeCSS = '\
 .cpu-panel-card.cpu-frequency{--cpu-panel-accent:#00cc44}\
 .cpu-panel-card.cpu-controls{--cpu-panel-accent:#00c8ff}\
 .cpu-panel-card.cpu-overclock{--cpu-panel-accent:#f5a623}\
-.cpu-panel-title{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--soc-muted);font-family:monospace;margin-bottom:9px}\
-.cpu-panel-body{color:var(--soc-text);font-size:13px}\
+.cpu-panel-title{font-size:11px;line-height:1.35;text-transform:uppercase;letter-spacing:0;color:var(--soc-muted);font-family:var(--airoha-font-ui);font-weight:600;margin-bottom:9px}\
+.cpu-panel-body{color:var(--soc-text);font-size:13px;line-height:1.5}\
 .cpu-info-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;line-height:1.5}\
 .cpu-freq-scale{display:flex;align-items:center;gap:10px;width:100%}\
-.cpu-freq-edge{font-size:11px;min-width:54px;text-align:center}\
+.cpu-freq-edge{font-family:var(--airoha-font-mono);font-size:12px;font-variant-numeric:tabular-nums;min-width:54px;text-align:center}\
 .cpu-freq-track{flex:1;height:28px!important;min-width:180px;max-width:none!important;position:relative;border-radius:6px!important}\
-.cpu-freq-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:monospace;font-weight:700;font-size:14px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.65)}\
+.cpu-freq-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--airoha-font-mono);font-variant-numeric:tabular-nums;font-weight:700;font-size:14px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.65)}\
 .cpu-setting-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}\
 .cpu-setting{display:flex;align-items:center;gap:8px;min-width:190px;flex:1}\
-.cpu-setting-label{font-size:11px;color:var(--soc-muted);font-family:monospace;white-space:nowrap}\
+.cpu-setting-label{font-size:12px;line-height:1.4;font-weight:500;color:var(--soc-muted);font-family:var(--airoha-font-ui);white-space:nowrap}\
 .cpu-setting .cbi-input-select{flex:1;min-width:0!important}\
 .cpu-overclock-controls{display:grid;grid-template-columns:minmax(130px,1fr) auto;gap:8px;align-items:center;width:100%}\
 .cpu-oc-input{width:100%!important;min-width:0}\
@@ -70,14 +72,19 @@ var themeCSS = '\
 .fe-cdm-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:10px}\
 .fe-wifi-band-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}\
 .fe-cdm-grid>*,.fe-wifi-band-grid>*{min-width:0}\
-.npu-flow-table{margin:0;display:block;overflow-x:auto;white-space:nowrap}\
+.npu-frame-name{font-size:13px;line-height:1.35;font-weight:600}\
+.npu-frame-row{font-size:12px;line-height:1.45}\
+.npu-frame-status{font-size:10px;line-height:1.4;font-weight:600}\
+.npu-subsection-title{font-size:13px;line-height:1.4;font-weight:600}\
+.npu-flow-table{margin:0;display:block;overflow-x:auto;white-space:nowrap;font-family:var(--airoha-font-mono);font-size:12px;line-height:1.5;font-variant-numeric:tabular-nums}\
+.npu-flow-table th{font-family:var(--airoha-font-ui);font-size:12px;font-weight:600;letter-spacing:0}\
 .npu-flow-table tr.npu-bnd-row td,.npu-flow-table tr.npu-bnd-row .label-success{color:var(--npu-bnd-text)!important;font-weight:600}\
 .offload-row{display:flex;align-items:center;justify-content:space-evenly;flex-wrap:wrap;gap:12px;padding:10px 0}\
 .offload-row{display:grid;grid-template-columns:repeat(4,minmax(175px,1fr));gap:8px;padding:0;margin:12px 0}\
 .offload-item{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-left:3px solid var(--soc-border);border-radius:12px;padding:11px 14px;min-width:0;min-height:58px;box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px}\
 .offload-item:has(.offload-on){border-left-color:var(--npu-green)}\
 .offload-item:has(.offload-off){border-left-color:#6b7280}\
-.offload-name{display:flex;align-items:center;gap:10px;min-width:0;font-size:14px}\
+.offload-name{display:flex;align-items:center;gap:10px;min-width:0;font-size:13px;line-height:1.4;font-weight:500}\
 .offload-name .soc-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
 .offload-dot{width:8px;height:8px;border-radius:50%;background:#9ca3af;flex:0 0 auto;transition:background .25s,box-shadow .25s}\
 .offload-item:has(.offload-on) .offload-dot{background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.12)}\
@@ -90,7 +97,7 @@ var themeCSS = '\
 .npu-toggle-input:checked+.npu-toggle-track:before{transform:translateX(22px)}\
 .npu-toggle-input:focus-visible+.npu-toggle-track{box-shadow:0 0 0 3px rgba(0,200,255,.25)}\
 .npu-toggle-input:disabled+.npu-toggle-track{opacity:.55;cursor:wait}\
-.offload-badge{font-size:13px;font-weight:700;letter-spacing:0;padding:0;border:0;background:transparent;font-family:inherit;display:inline-flex;align-items:center;white-space:nowrap}\
+.offload-badge{font-size:12px;font-weight:600;line-height:1.4;letter-spacing:0;padding:0;border:0;background:transparent;font-family:var(--airoha-font-ui);display:inline-flex;align-items:center;white-space:nowrap}\
 .offload-on{color:#16a34a}\
 .offload-off{color:#6b7280}\
 @media(max-width:1050px){.npu-summary-grid{grid-template-columns:repeat(2,minmax(180px,1fr))}.offload-row{grid-template-columns:repeat(2,minmax(180px,1fr))}.cpu-panel-grid,.cpu-control-grid{grid-template-columns:1fr}}\
@@ -252,10 +259,10 @@ function renderBandChip(band, txQ, stats) {
 
 	return E('div', { 'id': id, 'style': 'background:var(--soc-card-bg);border:1px solid var(--soc-border);border-left:2px solid '+info.accent+';border-radius:6px;padding:10px 12px' }, [
 		E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:6px' }, [
-			E('span', { 'class': 'soc-text', 'style': 'font-size:13px;font-weight:bold' }, info.name),
-			E('span', { 'style': 'background:'+(type==='npu'?'#1565c0':'#666')+';color:#fff;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:600' }, type.toUpperCase())
+			E('span', { 'class': 'soc-text npu-frame-name' }, info.name),
+			E('span', { 'class': 'npu-frame-status', 'style': 'background:'+(type==='npu'?'#1565c0':'#666')+';color:#fff;padding:1px 6px;border-radius:3px' }, type.toUpperCase())
 		]),
-		E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;font-size:12px' }, [
+		E('div', { 'class': 'npu-frame-row', 'style': 'display:flex;justify-content:space-between;align-items:center' }, [
 			E('div', { 'id': id+'-health', 'style': 'display:flex;align-items:center;gap:4px' }, [
 				E('span', { 'style': 'width:7px;height:7px;border-radius:50%;background:'+h.color+';display:inline-block' }),
 				E('span', { 'style': 'color:'+h.color+';font-weight:500' }, h.text)
@@ -269,7 +276,7 @@ function renderBandChip(band, txQ, stats) {
 function updateBandChip(band, stats) {
 	var id = 'band-'+band, h = bandHealth(stats);
 	var el = document.getElementById(id+'-health');
-	if (el) { el.innerHTML = ''; el.appendChild(E('span',{'style':'width:6px;height:6px;border-radius:50%;background:'+h.color+';display:inline-block'})); el.appendChild(E('span',{'style':'color:'+h.color+';font-weight:500;font-size:11px'},h.text)); }
+	if (el) { el.innerHTML = ''; el.appendChild(E('span',{'style':'width:6px;height:6px;border-radius:50%;background:'+h.color+';display:inline-block'})); el.appendChild(E('span',{'style':'color:'+h.color+';font-weight:500'},h.text)); }
 	var cl = document.getElementById(id+'-clients');
 	if (cl) cl.textContent = stats.count+'sta';
 	var re = document.getElementById(id+'-retries');
@@ -289,11 +296,11 @@ function renderFeDiagram(fe, ti, st) {
 		var active = d.tx > 0 || d.rx > 0;
 		return E('div', { 'class': 'soc-card soc-card-accent', 'style': 'border-left-color:'+color + (active?';border-color:'+color:'') }, [
 			E('div', { 'style': 'display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px' }, [
-				E('span', { 'style': 'font-weight:bold;color:'+color+';font-size:14px' }, name),
+				E('span', { 'class': 'npu-frame-name', 'style': 'color:'+color }, name),
 				E('span', { 'class': 'soc-label' }, pse)
 			]),
 			E('div', { 'class': 'soc-label', 'style': 'margin-bottom:6px' }, label),
-			E('div', { 'style': 'display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12px' }, [
+			E('div', { 'class': 'npu-frame-row', 'style': 'display:grid;grid-template-columns:auto 1fr;gap:2px 10px' }, [
 				E('span', { 'class': 'soc-muted' }, 'TX'), E('span', { 'class': 'soc-text', 'style': 'text-align:right' }, fmtK(d.tx)),
 				E('span', { 'class': 'soc-muted' }, 'RX'), E('span', { 'class': 'soc-text', 'style': 'text-align:right' }, fmtK(d.rx))
 			].concat(d.tx_drop > 0 ? [
@@ -312,14 +319,14 @@ function renderFeDiagram(fe, ti, st) {
 		var barCol = total===0 ? 'var(--soc-border)' : parseFloat(pct)>80 ? '#4caf50' : parseFloat(pct)>50 ? '#ff9800' : '#f44336';
 		return E('div', { 'class': 'soc-card' }, [
 			E('div', { 'style': 'display:flex;justify-content:space-between;margin-bottom:4px' }, [
-				E('span', { 'style': 'font-weight:bold;color:#607d8b;font-size:13px' }, name+' '+pse),
+				E('span', { 'class': 'npu-frame-name', 'style': 'color:#607d8b' }, name+' '+pse),
 				E('span', { 'class': 'soc-label' }, label)
 			]),
-			E('div', { 'class': 'soc-text', 'style': 'font-size:12px;margin-bottom:4px' }, 'HW Offload: '+pct+'%'),
+			E('div', { 'class': 'soc-text npu-frame-row', 'style': 'margin-bottom:4px' }, 'HW Offload: '+pct+'%'),
 			E('div', { 'class': 'soc-bar-track', 'style': 'height:6px' }, [
 				E('div', { 'style': 'background:'+barCol+';height:100%;width:'+pct+'%;transition:width .5s;border-radius:4px' })
 			]),
-			E('div', { 'style': 'display:flex;justify-content:space-between;font-size:11px;margin-top:4px' }, [
+			E('div', { 'class': 'npu-frame-row', 'style': 'display:flex;justify-content:space-between;margin-top:4px' }, [
 				E('span', { 'class': 'soc-muted' }, 'CPU: '+fmtK(d.rx_cpu||0)),
 				E('span', { 'class': 'soc-muted' }, 'HWF: '+fmtK(d.rx_hwf||0)),
 				E('span', { 'class': 'soc-muted' }, 'TX: '+fmtK(d.tx||0))
@@ -335,10 +342,10 @@ function renderFeDiagram(fe, ti, st) {
 	var p7 = ports[7] || { iq: 0, oq: 0, drops: 0 };
 	var cdm4WiFi = E('div', { 'class': 'soc-card soc-card-accent', 'style': 'border-left-color:#9c27b0' }, [
 		E('div', { 'style': 'display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px' }, [
-			E('span', { 'style': 'font-weight:bold;color:#9c27b0;font-size:14px' }, 'CDM4 / WDMA'),
+			E('span', { 'class': 'npu-frame-name', 'style': 'color:#9c27b0' }, 'CDM4 / WDMA'),
 			E('span', { 'class': 'soc-label' }, 'P7 WiFi DMA')
 		]),
-		E('div', { 'style': 'display:flex;gap:12px;font-size:11px;margin-bottom:8px' }, [
+		E('div', { 'class': 'npu-frame-row', 'style': 'display:flex;gap:12px;margin-bottom:8px' }, [
 			E('span', { 'class': 'soc-muted' }, 'IQ '+p7.iq),
 			E('span', { 'class': 'soc-muted' }, 'OQ '+p7.oq),
 			p7.drops > 0 ? E('span', { 'style': 'color:#f44336' }, 'Drop '+fmtK(p7.drops)) : null
@@ -351,23 +358,23 @@ function renderFeDiagram(fe, ti, st) {
 	var npuActive = st.npu_loaded;
 	var npuCard = E('div', { 'class': 'soc-card', 'style': 'border-color:'+(npuActive?'#00bcd4':'var(--soc-border)') }, [
 		E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:4px' }, [
-			E('span', { 'style': 'font-weight:bold;color:#00bcd4;font-size:14px' }, 'NPU'),
-			E('span', { 'style': 'background:'+(npuActive?'#00695c':'#666')+';color:#fff;padding:1px 7px;border-radius:3px;font-size:10px;font-weight:600' }, npuActive ? 'ACTIVE' : 'OFF')
+			E('span', { 'class': 'npu-frame-name', 'style': 'color:#00bcd4' }, 'NPU'),
+			E('span', { 'class': 'npu-frame-status', 'style': 'background:'+(npuActive?'#00695c':'#666')+';color:#fff;padding:1px 7px;border-radius:3px' }, npuActive ? 'ACTIVE' : 'OFF')
 		]),
 		E('div', { 'class': 'soc-label', 'style': 'margin-bottom:4px' }, '8x RISC-V via PCIe RAM'),
-		E('div', { 'style': 'font-size:11px' }, [
+		E('div', { 'class': 'npu-frame-row' }, [
 			E('span', { 'class': 'soc-muted' }, 'Manages: '),
-			E('span', { 'class': 'soc-text', 'style': 'font-size:11px' }, 'PPE init, WDMA rings, flow stats')
+			E('span', { 'class': 'soc-text' }, 'PPE init, WDMA rings, flow stats')
 		])
 	]);
 
 	// PPE engines with flow count
 	var ppeCard = E('div', { 'class': 'soc-card', 'style': 'border-color:#2196f3' }, [
 		E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:4px' }, [
-			E('span', { 'style': 'font-weight:bold;color:#2196f3;font-size:14px' }, 'PPE Engines'),
+			E('span', { 'class': 'npu-frame-name', 'style': 'color:#2196f3' }, 'PPE Engines'),
 			E('span', { 'class': 'soc-label' }, 'P4 + P8')
 		]),
-		E('div', { 'style': 'display:flex;gap:16px;font-size:12px' }, [
+		E('div', { 'class': 'npu-frame-row', 'style': 'display:flex;gap:16px' }, [
 			E('span', {}, [
 				E('span', { 'class': 'soc-muted' }, 'Bound '),
 				E('span', { 'class': 'soc-text', 'style': 'font-weight:bold', 'id': 'fe-ppe-bound' }, (st.offload_bound||0).toString())
@@ -389,8 +396,8 @@ function renderFeDiagram(fe, ti, st) {
 		var info = psePortMap[p.port] || { name:'P'+p.port, label:'?', color:'#666' };
 		var drop = p.drops > 0;
 		return E('div', { 'class': 'soc-pse-cell', 'style': drop ? 'border-color:#f44336' : '' }, [
-			E('div', { 'style': 'font-weight:600;color:'+info.color+';font-size:11px' }, 'P'+p.port+' '+info.name),
-			E('div', { 'style': 'display:flex;gap:8px;font-size:11px;margin-top:2px' }, [
+			E('div', { 'class': 'npu-frame-row', 'style': 'font-weight:600;color:'+info.color }, 'P'+p.port+' '+info.name),
+			E('div', { 'class': 'npu-frame-row', 'style': 'display:flex;gap:8px;margin-top:2px' }, [
 				E('span', { 'class': 'soc-muted' }, 'IQ '+p.iq),
 				E('span', { 'class': 'soc-muted' }, 'OQ '+p.oq),
 				drop ? E('span', { 'style': 'color:#f44336' }, fmtK(p.drops)) : null
@@ -402,8 +409,8 @@ function renderFeDiagram(fe, ti, st) {
 		// PSE buffer bar
 		E('div', { 'class': 'soc-card', 'style': 'margin-bottom:10px' }, [
 			E('div', { 'style': 'display:flex;justify-content:space-between;margin-bottom:4px' }, [
-				E('span', { 'class': 'soc-text', 'style': 'font-weight:bold;font-size:13px' }, 'PSE Shared Buffer'),
-				E('span', { 'class': 'soc-muted', 'style': 'font-size:12px' }, (fe.pse_used||0)+' used / '+(fe.pse_free||0)+' free ('+pseP+'%)')
+				E('span', { 'class': 'soc-text npu-frame-name' }, 'PSE Shared Buffer'),
+				E('span', { 'class': 'soc-muted npu-frame-row' }, (fe.pse_used||0)+' used / '+(fe.pse_free||0)+' free ('+pseP+'%)')
 			]),
 			E('div', { 'class': 'soc-bar-track', 'style': 'height:8px' }, [
 				E('div', { 'style': 'background:'+pseCol+';height:100%;width:'+pseP+'%;border-radius:4px;transition:width .5s' })
@@ -427,7 +434,7 @@ function renderFeDiagram(fe, ti, st) {
 			npuCard
 		]),
 		// PSE port grid
-		E('div', { 'class': 'soc-text', 'style': 'font-size:12px;font-weight:600;margin-bottom:6px' }, 'PSE Port Queue Status'),
+		E('div', { 'class': 'soc-text npu-subsection-title', 'style': 'margin-bottom:6px' }, 'PSE Port Queue Status'),
 		E('div', { 'class': 'soc-pse-grid' }, portCells)
 	]);
 }
@@ -707,7 +714,7 @@ return view.extend({
 			]),
 
 				// Frame Engine diagram (includes WiFi bands, PPE flows, NPU indicator)
-				E('div',{'style':'margin-top:12px'},[ E('h4',{'class':'soc-text','style':'font-size:14px;margin-bottom:8px'},_('Frame Engine'))]),
+				E('div',{'style':'margin-top:12px'},[ E('h4',{'class':'soc-text','style':'margin-bottom:8px'},_('Frame Engine'))]),
 				E('div',{'id':'fe-container','class':'npu-frame-wrap'}, renderFeDiagram(fe, ti, st))
 			]),
 
