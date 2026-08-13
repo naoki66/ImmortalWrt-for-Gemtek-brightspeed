@@ -60,10 +60,12 @@ jobs:
         run: make download -j$(nproc)
 
       - name: Build Firmware
+        shell: bash
         run: |
           make -j2 world 2>&1 | tee build.log
 
       - name: Check build status
+        if: always()
         run: |
           if [ -f build.log ]; then
             tail -100 build.log
@@ -82,6 +84,7 @@ jobs:
         with:
           name: router-firmware
           path: |
+            build.log
             bin/targets/airoha/an7581/*.itb
             bin/targets/airoha/an7581/config.buildinfo
             bin/targets/airoha/an7581/feeds.buildinfo
