@@ -1,0 +1,39 @@
+From: naoki66 <naoki66@qq.com>
+Date: Sat, 15 Aug 2026 09:12:20 +0800
+Subject: [PATCH] wifi: mt76: mt7996: set skb device for NPU RX
+
+Unlike the WED RX path, the Airoha NPU RX path does not set skb->dev
+before passing a header-translated frame to mt76_npu_check_ppe().  On a
+PPE cache miss, the Airoha bridge fallback needs the ingress netdev to
+resolve the bridge and FDB path.  Without it, the fallback rejects the
+flow and IPv6 Wi-Fi uplink traffic remains unbound.
+
+Set skb->dev from the station VIF for NPU RX queues before invoking the
+NPU PPE callback.  Keep the existing WED PPE-valid handling unchanged;
+the NPU descriptor uses a different metadata layout.
+
+Signed-off-by: naoki66 <naoki66@qq.com>
+---
+ mt7996/mac.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/mt7996/mac.c b/mt7996/mac.c
+--- a/mt7996/mac.c
++++ b/mt7996/mac.c
+@@ -681,6 +681,14 @@ mt7996_mac_fill_rx(struct mt7996_dev *dev, enum mt76_rxq_id q,
+ 		status->flag |= RX_FLAG_8023;
+ 		mt7996_wed_check_ppe(dev, &dev->mt76.q_rx[q], msta, skb,
+ 				     *info);
++		if (msta && msta->vif &&
++		    mt76_queue_is_npu_rx(&dev->mt76.q_rx[q])) {
++			struct ieee80211_vif *vif;
++
++			vif = container_of((void *)msta->vif,
++					   struct ieee80211_vif, drv_priv);
++			skb->dev = ieee80211_vif_to_wdev(vif)->netdev;
++		}
+ 		mt76_npu_check_ppe(&dev->mt76, skb, *info);
+ 	}
+ 
+-- 
+2.51.0
