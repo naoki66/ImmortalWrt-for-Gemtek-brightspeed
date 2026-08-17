@@ -36,8 +36,8 @@ jobs:
         run: |
           LOCAL=$(git rev-parse HEAD)
           REMOTE=$(git rev-parse upstream/master)
-          if [ "$LOCAL" = "$REMOTE" ]; then
-            echo "No updates available (local: ${LOCAL:0:7}, remote: ${REMOTE:0:7})"
+          if git merge-base --is-ancestor upstream/master HEAD; then
+            echo "No updates available (upstream: ${REMOTE:0:7}, local: ${LOCAL:0:7})"
             echo "has_updates=false" >> "$GITHUB_OUTPUT"
           else
             echo "Updates available: ${LOCAL:0:7} -> ${REMOTE:0:7}"
