@@ -157,6 +157,13 @@
 - 固件文件：`immortalwrt-airoha-an7581-gemtek_xr1710g-ubi-squashfs-sysupgrade.itb`
 - 升级方法：LuCI → 系统 → 备份/升级 → 刷写固件
 
+### 升级注意事项
+
+> [!WARNING]
+> LuCI 中的“保留配置”不会保留额外安装的软件包。升级前请备份配置并记录已安装的软件包；升级后需要
+> 重新安装 OpenClash、PassWall、AdGuard Home 等非预装组件。请使用与新固件匹配的软件包，不要恢复
+> 旧固件的 `kmod-*` 内核模块。
+
 ## 本地构建（可选）
 
 ```bash
