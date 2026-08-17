@@ -28,18 +28,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          fetch-depth: 10
+          fetch-depth: 0
 
-      - name: Get current date
-        id: date
+      - name: Generate build version
+        id: version
         run: |
-          echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+          git remote add upstream https://github.com/immortalwrt/immortalwrt.git 2>/dev/null || true
+          git remote set-url upstream https://github.com/immortalwrt/immortalwrt.git
+          git fetch --no-tags upstream master
 
-      - name: Get commit hash
-        id: commit
-        run: |
-          echo "short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "full=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          build_time=$(TZ=Asia/Shanghai date +'%Y%m%d-%H%M%S')
+          repo_commit=$(git rev-parse --short=10 HEAD)
+          upstream_base=$(git merge-base HEAD upstream/master)
+          upstream_commit=$(git rev-parse --short=10 "$upstream_base")
+          version="naoki66-${build_time}-${repo_commit}-${upstream_commit}"
+
+          echo "date=${build_time%%-*}" >> $GITHUB_OUTPUT
+          echo "repo_commit=$repo_commit" >> $GITHUB_OUTPUT
+          echo "upstream_commit=$upstream_commit" >> $GITHUB_OUTPUT
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "Build version: $version"
 
       - name: Setup build environment
         run: |
@@ -54,6 +62,9 @@ jobs:
       - name: Configure
         run: |
           cp config.seed .config
+          sed -i -e '/^CONFIG_VERSION_NUMBER=/d' \
+                 -e '/^# CONFIG_VERSION_NUMBER is not set$/d' .config
+          echo 'CONFIG_VERSION_NUMBER="${{ steps.version.outputs.version }}"' >> .config
           make defconfig
 
       - name: Download sources
@@ -118,8 +129,8 @@ jobs:
         if: github.event.inputs.release_type != 'none'
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ format('{0}-{1}', steps.date.outputs.date, steps.commit.outputs.short) }}
-          name: ${{ format('{0} - XR1710G Build ({1})', steps.date.outputs.date, steps.commit.outputs.short) }}
+          tag_name: ${{ format('{0}-{1}', steps.version.outputs.date, steps.version.outputs.repo_commit) }}
+          name: ${{ format('{0} - XR1710G Build ({1})', steps.version.outputs.date, steps.version.outputs.repo_commit) }}
           body: ${{ steps.release_body.outputs.body }}
           draft: false
           prerelease: ${{ github.event.inputs.release_type == 'prerelease' }}
