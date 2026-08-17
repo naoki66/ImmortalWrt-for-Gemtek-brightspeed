@@ -14,7 +14,7 @@ define Package/luci-i18n-clientstatus-zh-cn
   CATEGORY:=LuCI
   SUBMENU:=Translations
   TITLE:=Chinese (Simplified) translation for luci-app-clientstatus
-  DEPENDS:=+luci-app-clientstatus +luci-i18n-base-zh-cn
+  DEPENDS:=luci-app-clientstatus +luci-i18n-base-zh-cn
   PKGARCH:=all
 endef
 
