@@ -196,19 +196,6 @@
 
 	reg = <0x0 0x1fc00000 0x0 0x1670>,
 	      <0x0 0x1fc20000 0x0 0x1670>;
-
-	reg-names = "pcie-mac", "sec-pcie-mac";
-
-	resets = <&scuclk EN7581_PCIE0_RST>,
-		 <&scuclk EN7581_PCIE1_RST>,
-		 <&scuclk EN7581_PCIC_PERSTOUT0_RST>,
-		 <&scuclk EN7581_PCIC_PERSTOUT1_RST>;
-
-	reset-names = "phy-lane0",
-		      "phy-lane1",
-		      "perstout",
-		      "sec-perstout";
-
 	num-lanes = <2>;
 
 	airoha,scu = <&scuclk>;
@@ -252,9 +239,7 @@
 		};
 	};
 };
-&pcie1 {
-	status = "disabled";
-};
+
 &pcie2 {
 	status = "okay";
 	pinctrl-names = "default";
@@ -274,9 +259,7 @@
 &eth {
 	status = "okay";
 };
-&pon_pcs {
-	status = "okay";
-};
+
 &gdm1 {
 	status = "okay";
 	nvmem-cells = <&lan_mac 0>;
@@ -300,7 +283,7 @@
 	managed = "in-band-status";
 	phy-handle = <&phy5>;
 	phy-mode = "usxgmii";
-	nvmem-cells = <&lan_mac 0>;
+	nvmem-cells = <&lan_mac 4>;
 	nvmem-cell-names = "mac-address";
 	openwrt,netdev-name = "lan2";
 };
@@ -317,7 +300,6 @@
 			reset-deassert-us = <200000>;
 			tx-polarity = <PHY_POL_INVERT>;
 			rx-polarity = <PHY_POL_INVERT>;
-			realtek,sds-mode = <0x88c6>;
 		};
 		phy8: ethernet-phy@8 {
 			compatible = "ethernet-phy-ieee802.3-c45";

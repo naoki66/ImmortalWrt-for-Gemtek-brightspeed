@@ -326,6 +326,9 @@ define KernelPackage/mt7996e
   	   +@KERNEL_RELAY +@DRIVER_11BE_SUPPORT
   FILES:= $(PKG_BUILD_DIR)/mt7996/mt7996e.ko
   AUTOLOAD:=$(call AutoProbe,mt7996e)
+ifneq ($(CONFIG_TARGET_airoha),)
+  MODPARAMS.mt7996e:=wed_enable=Y
+endif
 endef
 
 define KernelPackage/mt7990-firmware
