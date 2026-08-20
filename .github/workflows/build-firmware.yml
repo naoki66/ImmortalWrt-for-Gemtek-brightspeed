@@ -62,8 +62,11 @@ jobs:
       - name: Configure
         run: |
           cp config.seed .config
-          sed -i -e '/^CONFIG_VERSION_NUMBER=/d' \
+          sed -i -e '/^CONFIG_VERSION_DIST=/d' \
+                 -e '/^# CONFIG_VERSION_DIST is not set$/d' \
+                 -e '/^CONFIG_VERSION_NUMBER=/d' \
                  -e '/^# CONFIG_VERSION_NUMBER is not set$/d' .config
+          echo 'CONFIG_VERSION_DIST="ImmortalWrt naoki66"' >> .config
           echo 'CONFIG_VERSION_NUMBER="${{ steps.version.outputs.version }}"' >> .config
           make defconfig
 
