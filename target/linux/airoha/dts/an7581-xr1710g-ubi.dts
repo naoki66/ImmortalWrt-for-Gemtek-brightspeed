@@ -309,10 +309,12 @@
 			compatible = "ethernet-phy-ieee802.3-c45";
 			reg = <5>;
 			reset-gpios = <&en7581_pinctrl 46 GPIO_ACTIVE_LOW>;
+			reset-before-id-read;
 			reset-assert-us = <200000>;
 			reset-deassert-us = <200000>;
 			tx-polarity = <PHY_POL_INVERT>;
 			rx-polarity = <PHY_POL_INVERT>;
+			realtek,sds-mode = <0x88c6>;
 		};
 		phy8: ethernet-phy@8 {
 			compatible = "ethernet-phy-ieee802.3-c45";
