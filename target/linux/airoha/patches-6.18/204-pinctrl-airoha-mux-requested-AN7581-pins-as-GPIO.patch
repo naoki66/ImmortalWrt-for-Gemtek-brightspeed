@@ -1,0 +1,185 @@
+From: Yanghan Ye <yyh94306@gmail.com>
+Date: Sun, 30 Aug 2026 17:05:19 +0800
+Subject: [PATCH] pinctrl: airoha: mux requested AN7581 pins as GPIO
+
+AN7581 has two force-GPIO SCU banks at 0x228 and 0x22c. Unlike the
+ordinary positive-polarity mux registers, setting a bit in these banks
+forces the corresponding shared pin into GPIO mode. The Airoha SDK names
+the ranges GPIO6--31 and GPIO32 onward. The stock XR1710G gtk_boot.sh
+also sets 0x228 bit 31 and 0x22c bit 14 before using GPIO31 and GPIO46 as
+RTL8261 reset lines.
+
+The pinctrl driver currently resets only the first bank at probe and has
+no gpio_request_enable callback. A GPIO consumer can therefore update
+the GPIO direction and data registers while the physical shared pin is
+not muxed to GPIO. This is particularly harmful for PHY reset GPIOs,
+where a failed hardware reset changes the firmware and SerDes bring-up
+sequence.
+
+Describe the valid force-GPIO ranges per SoC, reset both AN7581 banks at
+probe, and set the matching force bit whenever gpiolib requests a pin.
+Do not clear the bit when the descriptor is released: the MT7530
+pre-scan reset sequence intentionally releases its temporary descriptor
+before PHY discovery, so the deasserted reset pad must remain in GPIO
+mode until phylib acquires it.
+
+The force bit overrides the ordinary mux registers. Clear it when
+pinctrl explicitly selects an alternate function for the pin, otherwise
+a released GPIO cannot subsequently become PWM, PHY LED, UART, or
+another mux function. The stock XR1710G gcontrol.sh follows the same
+rule when it clears temporary LED force bits while retaining the GPIO46
+PHY reset bit.
+
+Only AN7581 provides force-GPIO ranges. GPIO0--5 and GPIO47--49 retain
+their existing mux handling, while AN7583 and EN7523 remain unchanged.
+
+Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Assisted-by: Codex:GPT-5.6-sol
+--- a/drivers/pinctrl/airoha/airoha-common.h
++++ b/drivers/pinctrl/airoha/airoha-common.h
+@@ -134,6 +134,13 @@ struct airoha_pinctrl_hwinit_regs {
+ 	u32 val;
+ };
+ 
++struct airoha_pinctrl_force_gpio_range {
++	u32 offset;
++	u8 gpio_base;
++	u8 num_gpios;
++	u8 bit_base;
++};
++
+ struct airoha_pinctrl_match_data {
+ 	const char *chip_scu_compatible;
+ 	const char *pinctrl_name;
+@@ -147,6 +154,8 @@ struct airoha_pinctrl_match_data {
+ 	const struct airoha_pinctrl_confs_info confs_info[AIROHA_PINCTRL_CONFS_MAX];
+ 	const struct airoha_pinctrl_hwinit_regs *hwinit_regs;
+ 	const unsigned int num_hwinit_regs;
++	const struct airoha_pinctrl_force_gpio_range *force_gpio_ranges;
++	const unsigned int num_force_gpio_ranges;
+ };
+ 
+ int airoha_pinctrl_probe(struct platform_device *pdev);
+--- a/drivers/pinctrl/airoha/pinctrl-airoha.c
++++ b/drivers/pinctrl/airoha/pinctrl-airoha.c
+@@ -116,6 +116,53 @@ static int airoha_convert_pin_to_reg_off
+ 	return pin - range->pin_base;
+ }
+ 
++static int airoha_pinmux_force_gpio(struct pinctrl_dev *pctrl_dev,
++				    struct pinctrl_gpio_range *range,
++				    unsigned int pin, bool force)
++{
++	struct airoha_pinctrl *pinctrl = pinctrl_dev_get_drvdata(pctrl_dev);
++	const struct airoha_pinctrl_match_data *data;
++	unsigned int i;
++	int gpio;
++
++	data = device_get_match_data(pctrl_dev->dev);
++	if (!data->num_force_gpio_ranges)
++		return 0;
++
++	if (!range) {
++		range = pinctrl_find_gpio_range_from_pin_nolock(pctrl_dev, pin);
++		if (!range)
++			return 0;
++	}
++
++	gpio = airoha_convert_pin_to_reg_offset(pctrl_dev, range, pin);
++	if (gpio < 0)
++		return gpio;
++
++	for (i = 0; i < data->num_force_gpio_ranges; i++) {
++		const struct airoha_pinctrl_force_gpio_range *gpio_range;
++		u32 mask;
++
++		gpio_range = &data->force_gpio_ranges[i];
++		if (gpio < gpio_range->gpio_base ||
++		    gpio >= gpio_range->gpio_base + gpio_range->num_gpios)
++			continue;
++
++		mask = BIT(gpio_range->bit_base + gpio - gpio_range->gpio_base);
++		return regmap_update_bits(pinctrl->chip_scu, gpio_range->offset,
++					  mask, force ? mask : 0);
++	}
++
++	return 0;
++}
++
++static int airoha_pinmux_request_gpio(struct pinctrl_dev *pctrl_dev,
++				      struct pinctrl_gpio_range *range,
++				      unsigned int pin)
++{
++	return airoha_pinmux_force_gpio(pctrl_dev, range, pin, true);
++}
++
+ /* gpio callbacks */
+ static int airoha_gpio_set(struct gpio_chip *chip, unsigned int gpio,
+ 			   int value)
+@@ -426,6 +473,16 @@ static int airoha_pinmux_set_mux(struct
+ 				break;
+ 			}
+ 		}
++
++		for (j = 0; j < grp->grp.npins; j++) {
++			int err;
++
++			err = airoha_pinmux_force_gpio(pctrl_dev, NULL,
++						       grp->grp.pins[j], false);
++			if (err)
++				return err;
++		}
++
+ 		return 0;
+ 	}
+ 
+@@ -450,6 +507,7 @@ static const struct pinmux_ops airoha_pm
+ 	.get_functions_count = pinmux_generic_get_function_count,
+ 	.get_function_name = pinmux_generic_get_function_name,
+ 	.get_function_groups = pinmux_generic_get_function_groups,
++	.gpio_request_enable = airoha_pinmux_request_gpio,
+ 	.gpio_set_direction = airoha_pinmux_set_direction,
+ 	.set_mux = airoha_pinmux_set_mux,
+ 	.strict = true,
+--- a/drivers/pinctrl/airoha/pinctrl-an7581.c
++++ b/drivers/pinctrl/airoha/pinctrl-an7581.c
+@@ -66,6 +66,8 @@
+ #define REG_FORCE_GPIO_EN			0x0228
+ #define FORCE_GPIO_EN(n)			BIT(n)
+ 
++#define REG_FORCE_GPIO32_EN			0x022c
++
+ /* LED MAP */
+ #define REG_LAN_LED0_MAPPING			0x027c
+ #define REG_LAN_LED1_MAPPING			0x0280
+@@ -1473,6 +1475,21 @@ static const struct airoha_pinctrl_hwini
+ 	{ REG_GPIO_PON_MODE, 0 },
+ 	{ REG_NPU_UART_EN, 0 },
+ 	{ REG_FORCE_GPIO_EN, 0 },
++	{ REG_FORCE_GPIO32_EN, 0 },
++};
++
++static const struct airoha_pinctrl_force_gpio_range force_gpio_ranges[] = {
++	{
++		.offset = REG_FORCE_GPIO_EN,
++		.gpio_base = 6,
++		.num_gpios = 26,
++		.bit_base = 6,
++	}, {
++		.offset = REG_FORCE_GPIO32_EN,
++		.gpio_base = 32,
++		.num_gpios = 15,
++		.bit_base = 0,
++	},
+ };
+ 
+ static const struct airoha_pinctrl_match_data pinctrl_match_data = {
+@@ -1487,6 +1504,8 @@ static const struct airoha_pinctrl_match
+ 	.num_funcs = ARRAY_SIZE(pinctrl_funcs),
+ 	.hwinit_regs = hwinit_regs,
+ 	.num_hwinit_regs = ARRAY_SIZE(hwinit_regs),
++	.force_gpio_ranges = force_gpio_ranges,
++	.num_force_gpio_ranges = ARRAY_SIZE(force_gpio_ranges),
+ 	.confs_info = {
+ 		[AIROHA_PINCTRL_CONFS_PULLUP] = {
+ 			.confs = pinctrl_pullup_conf,
