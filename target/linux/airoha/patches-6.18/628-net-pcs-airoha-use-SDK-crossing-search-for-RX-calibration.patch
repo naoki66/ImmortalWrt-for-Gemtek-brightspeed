@@ -46,7 +46,7 @@ Assisted-by: Codex:GPT-5.6-sol
  		fl_out = an7581_pcs_apply_cdr_pr_idac(priv, index, cdr_pr_idac_tmp);
  
 -		/* Use absolute values to find the closest one to target */
--		fl_out_diff_new = abs_diff(fl_out, target_fl_out);
+-		fl_out_diff_new = abs(fl_out - target_fl_out);
 -		dev_dbg(priv->dev, "Tested CDR Pr Idac: %x Fl Out: %x Diff: %u\n",
 -			cdr_pr_idac_tmp, fl_out, fl_out_diff_new);
 -		if (fl_out_diff_new < fl_out_diff) {
@@ -70,7 +70,7 @@ Assisted-by: Codex:GPT-5.6-sol
  	int prcal_search_bit;
  
 -	fl_out = an7581_pcs_apply_cdr_pr_idac(priv, index, cdr_pr_idac);
--	fl_out_diff = abs_diff(fl_out, target_fl_out);
+-	fl_out_diff = abs(fl_out - target_fl_out);
 -
 -	/* Deadline search part.
 -	 * We start from top bits to bottom as we progressively decrease the
@@ -85,7 +85,7 @@ Assisted-by: Codex:GPT-5.6-sol
 -		fl_out = an7581_pcs_apply_cdr_pr_idac(priv, index, cdr_pr_idac_tmp);
 -
 -		/* Use absolute values to find the closest one to target */
--		fl_out_diff_new = abs_diff(fl_out, target_fl_out);
+-		fl_out_diff_new = abs(fl_out - target_fl_out);
 -		dev_dbg(priv->dev, "Tested CDR Pr Idac: %x Fl Out: %x Diff: %u\n",
 -			cdr_pr_idac_tmp, fl_out, fl_out_diff_new);
 -		if (fl_out_diff_new < fl_out_diff) {
@@ -116,7 +116,7 @@ Assisted-by: Codex:GPT-5.6-sol
  		fl_out = an7581_pcs_apply_cdr_pr_idac(priv, index, cdr_pr_idac_tmp);
  
 -		/* Use absolute values to find the closest one to target */
--		fl_out_diff_new = abs_diff(fl_out, target_fl_out);
+-		fl_out_diff_new = abs(fl_out - target_fl_out);
 -		/* Assume we found the deadline when the new absolue signal difference
 -		 * from target is greater than the previous and the difference is at
 -		 * least 10% greater between the old and new value.
@@ -126,8 +126,8 @@ Assisted-by: Codex:GPT-5.6-sol
 -		 */
 -		dev_dbg(priv->dev, "Tested CDR Pr Idac: %x Fl Out: %x Diff: %u\n",
 -			cdr_pr_idac_tmp, fl_out, fl_out_diff_new);
--		if (fl_out_diff_new > fl_out_diff && fl_out_diff &&
--		    (abs_diff(fl_out_diff_new, fl_out_diff) * 100) /
+-		if (fl_out_diff_new > fl_out_diff &&
+-		    (abs(fl_out_diff_new - fl_out_diff) * 100) /
 -		    fl_out_diff > 10) {
 -			/* Exit early if we are already at the deadline */
 -			if (prcal_search_bit == 0)
@@ -186,7 +186,7 @@ Assisted-by: Codex:GPT-5.6-sol
 @@ -1711,33 +1620,6 @@ static void an7581_pcs_rx_prcal(struct a
  
  	fl_out = an7581_pcs_apply_cdr_pr_idac(priv, index, cdr_pr_idac);
- 	fl_out_diff = abs_diff(fl_out, target_fl_out);
+ 	fl_out_diff = abs(fl_out - target_fl_out);
 -	if (fl_out_diff > 100) {
 -		u32 pr_idac_major = FIELD_GET(AIROHA_PCS_PMA_FORCE_CDR_PR_IDAC_MAJOR,
 -					      cdr_pr_idac_major);
@@ -206,7 +206,7 @@ Assisted-by: Codex:GPT-5.6-sol
 -
 -			fl_out_tmp = an7581_pcs_apply_cdr_pr_idac(priv, index,
 -								  cdr_pr_idac_tmp);
--			fl_out_diff_tmp = abs_diff(fl_out_tmp, target_fl_out);
+-			fl_out_diff_tmp = abs(fl_out_tmp - target_fl_out);
 -			if (fl_out_diff_tmp < fl_out_diff) {
 -				fl_out = fl_out_tmp;
 -				fl_out_diff = fl_out_diff_tmp;
