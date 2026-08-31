@@ -59,7 +59,7 @@ Assisted-by: Codex:GPT-5.6-sol
  	}
  
  	return cdr_pr_idac;
-@@ -1514,97 +1508,21 @@ static u32 an7581_pcs_rx_prcal_idac_majo
+@@ -1514,96 +1508,21 @@ static u32 an7581_pcs_rx_prcal_idac_majo
  static u32 an7581_pcs_rx_prcal_idac_minor(struct airoha_pcs_priv *priv, int index,
  					  u32 target_fl_out, u32 cdr_pr_idac_major)
  {
@@ -127,8 +127,7 @@ Assisted-by: Codex:GPT-5.6-sol
 -		dev_dbg(priv->dev, "Tested CDR Pr Idac: %x Fl Out: %x Diff: %u\n",
 -			cdr_pr_idac_tmp, fl_out, fl_out_diff_new);
 -		if (fl_out_diff_new > fl_out_diff &&
--		    (abs(fl_out_diff_new - fl_out_diff) * 100) /
--		    fl_out_diff > 10) {
+-		    (abs(fl_out_diff_new - fl_out_diff) * 100) / fl_out_diff > 10) {
 -			/* Exit early if we are already at the deadline */
 -			if (prcal_search_bit == 0)
 -				break;
