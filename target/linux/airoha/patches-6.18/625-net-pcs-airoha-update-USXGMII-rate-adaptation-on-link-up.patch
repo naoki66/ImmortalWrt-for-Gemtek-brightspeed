@@ -1,0 +1,66 @@
+From: Yanghan Ye <yyh94306@gmail.com>
+Date: Fri, 21 Aug 2026 15:10:00 +0800
+Subject: [PATCH] net: pcs: airoha: update USXGMII rate adaptation on link up
+
+Patch 622 restricted speed-specific PCS programming to forced links,
+which unintentionally undid the in-band USXGMII rate-adaptation fix in
+patch 620. USXGMII still requires the resolved speed to be applied to
+the mode and rate-adaptation registers after link-up.
+
+Run the USXGMII/10GBASE-R speed update for both in-band and out-of-band
+phylink modes. Keep forced SGMII and Base-X programming restricted to
+out-of-band mode.
+
+This restores the behavior introduced by Ryan Chen in patch 620 while
+retaining the later per-port PCS state handling.
+
+Assisted-by: Codex:GPT-5.6-sol
+Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+--- a/drivers/net/pcs/airoha/pcs-airoha-common.c
++++ b/drivers/net/pcs/airoha/pcs-airoha-common.c
+@@ -972,6 +972,7 @@
+ 	struct airoha_pcs_priv *priv = port->priv;
+ 	const struct airoha_pcs_match_data *data;
+ 	struct airoha_pcs_maps *maps;
++	int ret = 0;
+ 
+ 	maps = &priv->maps[port->index];
+ 	data = priv->data;
+@@ -993,14 +994,11 @@
+ 				   FIELD_PREP(AIROHA_PCS_HSGMII_RATE_ADAPT_RX_AFIFO_RD_THR, 0x5));
+ 	}
+ 
+-	if (neg_mode != PHYLINK_PCS_NEG_INBAND_ENABLED) {
+-		int ret = 0;
+-
++	if (interface == PHY_INTERFACE_MODE_USXGMII ||
++	    interface == PHY_INTERFACE_MODE_10GBASER) {
++		ret = airoha_pcs_set_usxgmii_speed(maps, speed);
++	} else if (neg_mode != PHYLINK_PCS_NEG_INBAND_ENABLED) {
+ 		switch (interface) {
+-		case PHY_INTERFACE_MODE_USXGMII:
+-		case PHY_INTERFACE_MODE_10GBASER:
+-			ret = airoha_pcs_set_usxgmii_speed(maps, speed);
+-			break;
+ 		case PHY_INTERFACE_MODE_SGMII:
+ 		case PHY_INTERFACE_MODE_1000BASEX:
+ 		case PHY_INTERFACE_MODE_2500BASEX:
+@@ -1009,13 +1007,13 @@
+ 		default:
+ 			break;
+ 		}
+-
+-		if (ret)
+-			dev_warn_ratelimited(priv->dev,
+-					     "unsupported %s speed %d\n",
+-					     phy_modes(interface), speed);
+ 	}
+ 
++	if (ret)
++		dev_warn_ratelimited(priv->dev,
++				     "unsupported %s speed %d\n",
++				     phy_modes(interface), speed);
++
+ 	if (data->link_up)
+ 		data->link_up(priv, port->index);
+ 

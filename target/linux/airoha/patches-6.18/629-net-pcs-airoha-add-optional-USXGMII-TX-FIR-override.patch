@@ -1,0 +1,123 @@
+From: Yanghan Ye <yyh94306@gmail.com>
+Date: Thu, 27 Aug 2026 17:30:00 +0800
+Subject: [PATCH] net: pcs: airoha: add optional USXGMII TX FIR override
+
+AN7581's USXGMII TX FIR defaults are tuned for a reference board.  The
+RTL8261 experiments on XR1710G show that different board-level channels
+can need a different FIR tuple, but no tuple has yet passed a repeatable
+cold-boot and high-load data-plane test.  Make the three FIR fields
+configurable from the AN7581 Ethernet PCS device tree while leaving the
+default path unchanged.
+
+The property is accepted only on the AN7581 Ethernet PCS node.  It is
+applied only to USXGMII and 10GBASER.  Values are range checked before
+the PCS is registered, so a malformed lab override fails explicitly
+instead of silently programming a truncated field.  This provides a
+reversible A/B hook without adding an unconditional TXPLL reset or
+selecting an unproven FIR tuple.
+
+Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Assisted-by: Codex:GPT-5.6-sol
+--- a/drivers/net/pcs/airoha/pcs-airoha.h
++++ b/drivers/net/pcs/airoha/pcs-airoha.h
+@@ -1639,6 +1639,12 @@
+ 	struct regmap *usxgmii_pcs;
+ };
+ 
++struct airoha_pcs_tx_fir {
++	u32 cn1;
++	u32 c0b;
++	u32 c1;
++};
++
+ struct airoha_pcs_priv {
+ 	struct device *dev;
+ 	const struct airoha_pcs_match_data *data;
+@@ -1659,6 +1665,8 @@
+ 	struct phy *phy;
+ 
+ 	bool manual_rx_calib;
++	bool tx_fir_override;
++	struct airoha_pcs_tx_fir tx_fir;
+ };
+ 
+ struct airoha_pcs_port {
+--- a/drivers/net/pcs/airoha/pcs-an7581.c
++++ b/drivers/net/pcs/airoha/pcs-an7581.c
+@@ -6,6 +6,7 @@
+ #include <linux/math.h>
+ #include <linux/phy/phy.h>
+ #include <linux/phylink.h>
++#include <linux/property.h>
+ #include <linux/regmap.h>
+ 
+ #include "pcs-airoha.h"
+@@ -965,6 +966,40 @@
+ 			AIROHA_PCS_PMA_FORCE_DA_TXPLL_CKOUT_EN);
+ }
+ 
++static int an7581_pcs_parse_tx_fir(struct airoha_pcs_priv *priv)
++{
++	u32 values[3];
++	int ret;
++
++	/* This is a board-level escape hatch for the AN7581 Ethernet PCS only.
++	 * The default path deliberately keeps the SDK/Linux values unchanged.
++	 */
++	if (priv->data->port_type != AIROHA_PCS_ETH ||
++	    !device_property_present(priv->dev, "airoha,tx-fir"))
++		return 0;
++
++	ret = device_property_read_u32_array(priv->dev, "airoha,tx-fir",
++					     values, ARRAY_SIZE(values));
++	if (ret)
++		return dev_err_probe(priv->dev, ret,
++				     "invalid airoha,tx-fir property\n");
++
++	if (values[0] > 0x1f || values[1] > 0x3f || values[2] > 0x1f)
++		return dev_err_probe(priv->dev, -EINVAL,
++				     "airoha,tx-fir value out of range\n");
++
++	priv->tx_fir.cn1 = values[0];
++	priv->tx_fir.c0b = values[1];
++	priv->tx_fir.c1 = values[2];
++	priv->tx_fir_override = true;
++
++	dev_info(priv->dev,
++		 "using optional USXGMII TX FIR override CN1=%u C0B=%u C1=%u\n",
++		 priv->tx_fir.cn1, priv->tx_fir.c0b, priv->tx_fir.c1);
++
++	return 0;
++}
++
+ static void an7581_pcs_tx_bringup(struct airoha_pcs_priv *priv,
+ 				  int index, phy_interface_t interface)
+ {
+@@ -1006,6 +1041,14 @@
+ 		return;
+ 	}
+ 
++	if (priv->tx_fir_override &&
++	    (interface == PHY_INTERFACE_MODE_USXGMII ||
++	     interface == PHY_INTERFACE_MODE_10GBASER)) {
++		fir_cn1 = priv->tx_fir.cn1;
++		fir_c0b = priv->tx_fir.c0b;
++		fir_c1 = priv->tx_fir.c1;
++	}
++
+ 	/* Set TX rate ctrl */
+ 	if (priv->data->port_type == AIROHA_PCS_PCIE) {
+ 		regmap_update_bits(pcs_pma, AIROHA_PCS_PMA_DIG_RESERVE_29,
+@@ -1901,6 +1944,12 @@
+ 
+ int an7581_pcs_alloc_regmap_fields(struct airoha_pcs_priv *priv)
+ {
++	int ret;
++
++	ret = an7581_pcs_parse_tx_fir(priv);
++	if (ret)
++		return ret;
++
+ 	return __an7581_pcs_alloc_regmap_fields(priv, 0, an7581_pcs_fields);
+ }
+ 

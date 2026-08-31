@@ -1,0 +1,219 @@
+From: Yanghan Ye <yyh94306@gmail.com>
+Date: Wed, 26 Aug 2026 10:37:13 +0800
+Subject: [PATCH] net: pcs: airoha: use SDK RX calibration crossing search
+
+The AN7581 PCS driver chooses the major CDR PR IDAC value whose FL_OUT
+is numerically closest to the target, then applies a heuristic minor-bit
+search. FL_OUT is not globally monotonic across all major ranges, so
+that can select the wrong interval and leave the FreqDet module
+unlocked.
+
+Airoha's SDK RX_PRCal() instead keeps the last major value above the
+target crossing and searches bits 7 through 0, retaining a bit only
+while FL_OUT remains at or above the target. Adapt that search order and
+remove the conflicting closest-value fallback.
+
+On an affected Gemtek XR1710G, the old search settled on IDAC 0x580 and
+failed to lock. A register scan following the SDK order selected 0x5a5,
+measured the exact 0x9edf target, and asserted FBCK_LOCK.
+
+The vendor SDK source tree does not retain VCS metadata identifying an
+individual author. The reference implementation is RX_PRCal() in:
+linux/arch/arm64/mach-econet/sgmii/air_eth_xsgmii.c
+
+Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Assisted-by: Codex:GPT-5.6-sol
+--- a/drivers/net/pcs/airoha/pcs-an7581.c
++++ b/drivers/net/pcs/airoha/pcs-an7581.c
+@@ -1484,28 +1484,22 @@ static unsigned int an7581_pcs_apply_cdr
+ static u32 an7581_pcs_rx_prcal_idac_major(struct airoha_pcs_priv *priv,
+ 					  int index, u32 target_fl_out)
+ {
+-	unsigned int fl_out_diff = UINT_MAX;
+ 	unsigned int prcal_search;
+ 	u32 cdr_pr_idac = 0;
+ 
+-	for (prcal_search = 0; prcal_search < 8 ; prcal_search++) {
+-		unsigned int fl_out_diff_new;
++	for (prcal_search = 1; prcal_search < 8; prcal_search++) {
+ 		unsigned int fl_out;
+ 		u32 cdr_pr_idac_tmp;
+ 
+-		/* try to find the upper value by setting the last 3 bit */
++		/* Keep the last major value above the target crossing. */
+ 		cdr_pr_idac_tmp = FIELD_PREP(AIROHA_PCS_PMA_FORCE_CDR_PR_IDAC_MAJOR,
+ 					     prcal_search);
+ 		fl_out = an7581_pcs_apply_cdr_pr_idac(priv, index, cdr_pr_idac_tmp);
+ 
+-		/* Use absolute values to find the closest one to target */
+-		fl_out_diff_new = abs_diff(fl_out, target_fl_out);
+-		dev_dbg(priv->dev, "Tested CDR Pr Idac: %x Fl Out: %x Diff: %u\n",
+-			cdr_pr_idac_tmp, fl_out, fl_out_diff_new);
+-		if (fl_out_diff_new < fl_out_diff) {
++		dev_dbg(priv->dev, "Tested CDR Pr Idac: %x Fl Out: %x\n",
++			cdr_pr_idac_tmp, fl_out);
++		if (fl_out > target_fl_out)
+ 			cdr_pr_idac = cdr_pr_idac_tmp;
+-			fl_out_diff = fl_out_diff_new;
+-		}
+ 	}
+ 
+ 	return cdr_pr_idac;
+@@ -1514,97 +1508,21 @@ static u32 an7581_pcs_rx_prcal_idac_majo
+ static u32 an7581_pcs_rx_prcal_idac_minor(struct airoha_pcs_priv *priv, int index,
+ 					  u32 target_fl_out, u32 cdr_pr_idac_major)
+ {
+-	unsigned int remaining_prcal_search_bits = 0;
+ 	u32 cdr_pr_idac = cdr_pr_idac_major;
+-	unsigned int fl_out, fl_out_diff;
+-	int best_prcal_search_bit = -1;
+ 	int prcal_search_bit;
+ 
+-	fl_out = an7581_pcs_apply_cdr_pr_idac(priv, index, cdr_pr_idac);
+-	fl_out_diff = abs_diff(fl_out, target_fl_out);
+-
+-	/* Deadline search part.
+-	 * We start from top bits to bottom as we progressively decrease the
+-	 * signal.
+-	 */
++	/* Find the crossing from the most significant minor bit down. */
+ 	for (prcal_search_bit = 7; prcal_search_bit >= 0; prcal_search_bit--) {
+-		unsigned int fl_out_diff_new;
+-		u32 cdr_pr_idac_tmp;
+-
+-		cdr_pr_idac_tmp = cdr_pr_idac | BIT(prcal_search_bit);
+-		fl_out = an7581_pcs_apply_cdr_pr_idac(priv, index, cdr_pr_idac_tmp);
+-
+-		/* Use absolute values to find the closest one to target */
+-		fl_out_diff_new = abs_diff(fl_out, target_fl_out);
+-		dev_dbg(priv->dev, "Tested CDR Pr Idac: %x Fl Out: %x Diff: %u\n",
+-			cdr_pr_idac_tmp, fl_out, fl_out_diff_new);
+-		if (fl_out_diff_new < fl_out_diff) {
+-			best_prcal_search_bit = prcal_search_bit;
+-			fl_out_diff = fl_out_diff_new;
+-		}
+-	}
+-
+-	/* Set the idac with the best value we found and
+-	 * reset the search bit to start from bottom to top.
+-	 */
+-	if (best_prcal_search_bit >= 0) {
+-		cdr_pr_idac |= BIT(best_prcal_search_bit);
+-		remaining_prcal_search_bits = best_prcal_search_bit;
+-		prcal_search_bit = 0;
+-	}
+-
+-	/* Fine tune part.
+-	 * Test remaining bits to find an even closer signal level to target
+-	 * by increasing the signal.
+-	 */
+-	while (remaining_prcal_search_bits) {
+-		unsigned int fl_out_diff_new;
++		unsigned int fl_out;
+ 		u32 cdr_pr_idac_tmp;
+ 
+ 		cdr_pr_idac_tmp = cdr_pr_idac | BIT(prcal_search_bit);
+ 		fl_out = an7581_pcs_apply_cdr_pr_idac(priv, index, cdr_pr_idac_tmp);
+ 
+-		/* Use absolute values to find the closest one to target */
+-		fl_out_diff_new = abs_diff(fl_out, target_fl_out);
+-		/* Assume we found the deadline when the new absolue signal difference
+-		 * from target is greater than the previous and the difference is at
+-		 * least 10% greater between the old and new value.
+-		 * This is to account for signal detection level tollerance making
+-		 * sure we are actually over a deadline (AKA we are getting farther
+-		 * from target)
+-		 */
+-		dev_dbg(priv->dev, "Tested CDR Pr Idac: %x Fl Out: %x Diff: %u\n",
+-			cdr_pr_idac_tmp, fl_out, fl_out_diff_new);
+-		if (fl_out_diff_new > fl_out_diff && fl_out_diff &&
+-		    (abs_diff(fl_out_diff_new, fl_out_diff) * 100) /
+-		    fl_out_diff > 10) {
+-			/* Exit early if we are already at the deadline */
+-			if (prcal_search_bit == 0)
+-				break;
+-
+-			/* We found the deadline, set the value to the previous
+-			 * bit, and reset the loop to fine tune with the
+-			 * remaining values.
+-			 */
+-			cdr_pr_idac |= BIT(prcal_search_bit - 1);
+-			remaining_prcal_search_bits = prcal_search_bit - 1;
+-			prcal_search_bit = 0;
+-		} else {
+-			/* Update the signal level diff and try the next bit */
+-			fl_out_diff = fl_out_diff_new;
+-
+-			/* If we didn't found the deadline, set the last bit
+-			 * and reset the loop to fine tune with the remainig
+-			 * values.
+-			 */
+-			if (prcal_search_bit == remaining_prcal_search_bits - 1) {
+-				cdr_pr_idac |= BIT(prcal_search_bit);
+-				remaining_prcal_search_bits = prcal_search_bit;
+-				prcal_search_bit = 0;
+-			} else {
+-				prcal_search_bit++;
+-			}
+-		}
++		dev_dbg(priv->dev, "Tested CDR Pr Idac: %x Fl Out: %x\n",
++			cdr_pr_idac_tmp, fl_out);
++		if (fl_out >= target_fl_out)
++			cdr_pr_idac = cdr_pr_idac_tmp;
+ 	}
+ 
+ 	return cdr_pr_idac;
+@@ -1692,17 +1610,8 @@ static void an7581_pcs_rx_prcal(struct a
+ 	regmap_set_bits(pcs_pma, AIROHA_PCS_PMA_PXP_CDR_PR_PIEYE_PWDB,
+ 			AIROHA_PCS_PMA_FORCE_DA_CDR_PR_PWDB);
+ 
+-	/* Calibration logic:
+-	 * First check the major value by looping with every
+-	 * value in the last 3 bit of CDR_PR_IDAC.
+-	 * Get the signal level and save the value that is closer to
+-	 * the target.
+-	 *
+-	 * Then check each remaining 7 bits in search of the deadline
+-	 * where the signal gets farther than signal target.
+-	 *
+-	 * Finally fine tune for the remaining bits to find the one that
+-	 * produce the closest signal level.
++	/* Find the major interval that crosses the target, then perform the
++	 * SDK's MSB-to-LSB crossing search over the remaining IDAC bits.
+ 	 */
+ 	cdr_pr_idac_major = an7581_pcs_rx_prcal_idac_major(priv, index, target_fl_out);
+ 
+@@ -1711,33 +1620,6 @@ static void an7581_pcs_rx_prcal(struct a
+ 
+ 	fl_out = an7581_pcs_apply_cdr_pr_idac(priv, index, cdr_pr_idac);
+ 	fl_out_diff = abs_diff(fl_out, target_fl_out);
+-	if (fl_out_diff > 100) {
+-		u32 pr_idac_major = FIELD_GET(AIROHA_PCS_PMA_FORCE_CDR_PR_IDAC_MAJOR,
+-					      cdr_pr_idac_major);
+-		unsigned int fl_out_tmp, fl_out_diff_tmp;
+-		u32 cdr_pr_idac_tmp;
+-
+-		if (pr_idac_major > 0) {
+-			cdr_pr_idac_tmp = FIELD_PREP(AIROHA_PCS_PMA_FORCE_CDR_PR_IDAC_MAJOR,
+-						     pr_idac_major - 1);
+-
+-			dev_dbg(priv->dev, "Fl Out is %d far from target %d with Pr Idac %x. Trying with Pr Idac %x.\n",
+-				fl_out_diff, target_fl_out, cdr_pr_idac_major, cdr_pr_idac_tmp);
+-
+-			cdr_pr_idac_tmp = an7581_pcs_rx_prcal_idac_minor(priv, index,
+-									 target_fl_out,
+-									 cdr_pr_idac_tmp);
+-
+-			fl_out_tmp = an7581_pcs_apply_cdr_pr_idac(priv, index,
+-								  cdr_pr_idac_tmp);
+-			fl_out_diff_tmp = abs_diff(fl_out_tmp, target_fl_out);
+-			if (fl_out_diff_tmp < fl_out_diff) {
+-				fl_out = fl_out_tmp;
+-				fl_out_diff = fl_out_diff_tmp;
+-				cdr_pr_idac = cdr_pr_idac_tmp;
+-			}
+-		}
+-	}
+ 	dev_dbg(priv->dev, "Selected CDR Pr Idac: %x Fl Out: %x\n", cdr_pr_idac, fl_out);
+ 	if (fl_out_diff > 100)
+ 		dev_dbg(priv->dev, "Fl Out is %d far from target %d on intermediate calibration.\n",
