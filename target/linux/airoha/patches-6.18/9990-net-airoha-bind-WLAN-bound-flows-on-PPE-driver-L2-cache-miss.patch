@@ -19,7 +19,10 @@ cache lookup misses, bind the hardware flow to the resolved WDMA or GDM
 egress path.
 
 Packets addressed to the ingress netdev itself are marked PACKET_HOST by
-eth_type_trans(). They must not use the bridge L2 cache or fallback path:
+eth_type_trans(). WiFi NPU/WED RX can call the PPE hook before
+eth_type_trans(), so classify local packets from the destination MAC when
+the ingress device and MAC header are available. They must not use the bridge
+L2 cache or fallback path:
 when a bridge and its port share a MAC address, the FDB can resolve that
 local address back to the ingress port and make PPE bind subsequent packets
 away from the CPU.
@@ -42,15 +45,16 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 ---
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
-@@ -3,6 +3,7 @@
+@@ -3,6 +3,8 @@
   * Author: Lorenzo Bianconi <lorenzo@kernel.org>
   */
  
 +#include <linux/if_vlan.h>
  #include <linux/ip.h>
++#include <linux/etherdevice.h>
  #include <linux/ipv6.h>
  #include <linux/of_platform.h>
-@@ -708,65 +708,208 @@
+@@ -708,65 +708,223 @@
  }
  
  static int
@@ -257,6 +261,21 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 +	return err;
 +}
 +
++static bool airoha_ppe_foe_skb_is_local(const struct sk_buff *skb)
++{
++	const struct ethhdr *eh;
++
++	/* NPU/WED RX may call PPE before eth_type_trans() has run. Keep
++	 * unknown contexts local so a missing MAC header never enables the
++	 * bridge fallback on an incompletely initialized skb.
++	 */
++	if (!skb->dev || !skb_mac_header_was_set(skb))
++		return true;
++
++	eh = eth_hdr(skb);
++	return ether_addr_equal_64bits(eh->h_dest, skb->dev->dev_addr);
++}
++
  static void airoha_ppe_foe_insert_entry(struct airoha_ppe *ppe,
  					struct sk_buff *skb,
  					u32 hash, bool rx_wlan)
@@ -267,7 +286,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  	struct airoha_foe_entry *hwe;
  	bool commit_done = false;
 +	bool bridge_ready = false;
-+	bool local = skb->pkt_type == PACKET_HOST;
++	bool local = airoha_ppe_foe_skb_is_local(skb);
  	struct hlist_node *n;
  	u32 index, state;
  
@@ -278,17 +297,17 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  	spin_lock_bh(&ppe_lock);
  
  	hwe = airoha_ppe_foe_get_entry_locked(ppe, hash);
-@@ -903,2 +1047,3 @@ static void airoha_ppe_foe_insert_entry(
+@@ -903,2 +1062,3 @@ static void airoha_ppe_foe_insert_entry(
 -		if (!airoha_ppe_foe_compare_entry(e, hwe))
 +		if ((local && e->type == FLOW_TYPE_L2) ||
 +		    !airoha_ppe_foe_compare_entry(e, hwe))
  			continue;
-@@ -911,2 +1056,4 @@ static void airoha_ppe_foe_insert_entry(
+@@ -911,2 +1071,4 @@ static void airoha_ppe_foe_insert_entry(
  	if (commit_done)
  		goto unlock;
 +	if (local)
 +		goto unlock;
-@@ -917,2 +1062,4 @@ static void airoha_ppe_foe_insert_entry(
+@@ -917,2 +1077,4 @@ static void airoha_ppe_foe_insert_entry(
  	if (e)
  		airoha_ppe_foe_commit_subflow_entry(ppe, e, hash, rx_wlan);
 +	else if (bridge_ready)
