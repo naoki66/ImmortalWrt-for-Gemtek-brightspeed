@@ -1,0 +1,158 @@
+#!/bin/sh
+
+. /lib/functions.sh
+. /lib/functions/system.sh
+
+[ "$(board_name)" = "gemtek,xr1710g-ubi" ] || exit 0
+
+migrated=0
+
+normalize_xr1710g_netdev() {
+	case "$1" in
+	ae_wan|wan|eth0)
+		printf 'eth1'
+		;;
+	ae_wan.*|wan.*)
+		printf 'eth1.%s' "${1#*.}"
+		;;
+	ae_wan:*|wan:*)
+		printf 'eth1:%s' "${1#*:}"
+		;;
+	lan1)
+		printf 'eth2'
+		;;
+	lan1.*)
+		printf 'eth2.%s' "${1#*.}"
+		;;
+	lan1:*)
+		printf 'eth2:%s' "${1#*:}"
+		;;
+	*)
+		printf '%s' "$1"
+		;;
+	esac
+}
+
+migrate_xr1710g_list() {
+	local config="$1"
+	local option="$2"
+	local value values normalized new_values="" changed=0
+
+	config_get values "$config" "$option"
+	[ -n "$values" ] || return 0
+
+	for value in $values; do
+		normalized="$(normalize_xr1710g_netdev "$value")"
+		[ "$normalized" = "$value" ] || changed=1
+		new_values="${new_values}${new_values:+ }$normalized"
+	done
+
+	[ "$changed" -eq 1 ] || return 0
+
+	uci -q delete "network.$config.$option"
+	for value in $new_values; do
+		uci add_list "network.$config.$option=$value"
+	done
+	migrated=1
+}
+
+migrate_xr1710g_words() {
+	local config="$1"
+	local option="$2"
+	local value values normalized new_values="" changed=0
+
+	config_get values "$config" "$option"
+	[ -n "$values" ] || return 0
+
+	for value in $values; do
+		normalized="$(normalize_xr1710g_netdev "$value")"
+		[ "$normalized" = "$value" ] || changed=1
+		new_values="${new_values}${new_values:+ }$normalized"
+	done
+
+	[ "$changed" -eq 1 ] || return 0
+
+	uci set "network.$config.$option=$new_values"
+	migrated=1
+}
+
+migrate_xr1710g_device() {
+	local config="$1"
+	local name type ports ifname normalized
+
+	config_get type "$config" type
+	config_get name "$config" name
+	config_get ports "$config" ports
+	config_get ifname "$config" ifname
+
+	if [ "$type" = "bridge" ] && [ "$name" = "br-lan" ]; then
+		case " $ports $ifname " in
+		*" eth0.8 "*|*" eth0.1 "*|*" eth0.2 "*)
+			uci -q delete "network.$config.ifname"
+			uci -q delete "network.$config.ports"
+			uci add_list "network.$config.ports=eth2"
+			uci add_list "network.$config.ports=lan2"
+			uci add_list "network.$config.ports=lan3"
+			migrated=1
+			return 0
+			;;
+		esac
+	fi
+
+	normalized="$(normalize_xr1710g_netdev "$name")"
+	if [ -n "$name" ] && [ "$normalized" != "$name" ]; then
+		uci set "network.$config.name=$normalized"
+		migrated=1
+	fi
+
+	migrate_xr1710g_list "$config" ports
+	migrate_xr1710g_words "$config" ifname
+}
+
+migrate_xr1710g_interface() {
+	local config="$1"
+	local device normalized
+
+	config_get device "$config" device
+	normalized="$(normalize_xr1710g_netdev "$device")"
+
+	if [ -n "$device" ] && [ "$normalized" != "$device" ]; then
+		uci set "network.$config.device=$normalized"
+		migrated=1
+	fi
+
+	migrate_xr1710g_words "$config" ifname
+}
+
+set_xr1710g_wan_clientid_default() {
+	local clientid proto sendclientid
+
+	config_get proto wan proto
+	[ "$proto" = "dhcp" ] || return 0
+
+	config_get clientid wan clientid
+	config_get sendclientid wan sendclientid
+	[ -z "$clientid" ] || return 0
+
+	case "$sendclientid" in
+	''|none)
+		# "none" suppresses option 61; "hardware" keeps the MAC-based ID.
+		uci set network.wan.sendclientid='hardware'
+		;;
+	*)
+		return 0
+		;;
+	esac
+	migrated=1
+}
+
+config_load network
+config_foreach migrate_xr1710g_device device
+config_foreach migrate_xr1710g_interface interface
+set_xr1710g_wan_clientid_default
+
+[ "$migrated" -eq 1 ] || exit 0
+
+uci commit network
+
+exit 0
