@@ -27,6 +27,7 @@ define KernelPackage/dsa-rtl837x
 	CONFIG_NET_DSA_TAG_RTL8_4=y \
 	CONFIG_NET_DSA_TAG_MXL_862XX_8021Q=y
   FILES:=$(PKG_BUILD_DIR)/src/rtl8372n_dsa.ko
+  DEPENDS:=@TARGET_mediatek_filogic
   AUTOLOAD:=$(call AutoLoad,42,rtl8372n_dsa,1)
 endef
 
