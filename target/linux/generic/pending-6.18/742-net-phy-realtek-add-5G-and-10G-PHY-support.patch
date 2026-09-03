@@ -58,7 +58,7 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  #include <linux/pm_wakeirq.h>
  #include <linux/netdevice.h>
  #include <linux/module.h>
-@@ -212,6 +213,9 @@
+@@ -224,6 +225,9 @@
  #define RTL_8251B				0x001cc862
  #define RTL_8261C				0x001cc890
  #define RTL_8261C_CG				0x001cc898
@@ -68,7 +68,7 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  
  #define RTL8261C_CE_MODEL		0x00
  #define RTL8261D_MODEL			0x81
-@@ -276,6 +280,20 @@ struct rtl8261x_fw_entry {
+@@ -288,6 +292,20 @@ struct rtl8261x_fw_entry {
  #define FW_HEADER_SIZE		sizeof(struct rtl8261x_fw_header)
  #define FW_ENTRY_SIZE		sizeof(struct rtl8261x_fw_entry)
  
@@ -89,7 +89,7 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  /* RTL8211E and RTL8211F support up to three LEDs */
  #define RTL8211x_LED_COUNT			3
  
-@@ -2392,6 +2410,125 @@ static int rtl8251b_c45_match_phy_device
+@@ -2549,6 +2567,125 @@ static int rtl8251b_c45_match_phy_device
  	return rtlgen_is_c45_match(phydev, RTL_8251B, true);
  }
  
@@ -215,7 +215,7 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  static int rtlgen_resume(struct phy_device *phydev)
  {
  	int ret = genphy_resume(phydev);
-@@ -2613,6 +2750,482 @@ static int rtlgen_sfp_config_aneg(struct
+@@ -2770,6 +2907,482 @@ static int rtlgen_sfp_config_aneg(struct
  	return 0;
  }
  
@@ -698,7 +698,7 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  static struct phy_driver realtek_drvs[] = {
  	{
  		PHY_ID_MATCH_EXACT(0x00008201),
-@@ -2932,6 +3545,108 @@ static struct phy_driver realtek_drvs[]
+@@ -3097,6 +3710,108 @@ static struct phy_driver realtek_drvs[]
  		.soft_reset		= genphy_c45_pma_soft_reset,
  		.suspend		= genphy_c45_pma_suspend,
  		.resume			= genphy_c45_pma_resume,

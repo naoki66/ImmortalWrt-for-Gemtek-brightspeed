@@ -209,6 +209,9 @@ mediatek_setup_interfaces()
 	netcraze,nc-1812)
 		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4 lan5" "wan"
 		;;
+	ltc,vl7m19k)
+		ucidef_set_interfaces_lan_wan "lan0 lan1 lan2 lan3 eth1" eth2
+		;;
 	mediatek,mt7986a-rfb)
 		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4 lan6" "eth1 wan"
 		;;
@@ -221,6 +224,10 @@ mediatek_setup_interfaces()
 	mercusys,mr90x-v1|\
 	mercusys,mr90x-v1-ubi)
 		ucidef_set_interfaces_lan_wan "lan0 lan1 lan2" eth1
+		;;
+	smartrg,sdg-8712|\
+	smartrg,sdg-8732)
+		ucidef_set_interfaces_lan_wan "lan1 lan2" wan
 		;;
 	tenda,be12-pro)
 		ucidef_set_interfaces_lan_wan "lan3 lan4 lan5 eth1" eth2
@@ -249,6 +256,7 @@ mediatek_setup_interfaces()
 	tplink,tl-7dr7230-v2)
 		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4" wan
 		;;
+
 	tplink,tl-7dr7299-v1)
 		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4 lan5 lan6 sfp" "eth1"
 		;;
