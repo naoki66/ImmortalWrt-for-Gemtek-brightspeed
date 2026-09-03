@@ -9,23 +9,23 @@ migrated=0
 
 normalize_xr1710g_netdev() {
 	case "$1" in
-	ae_wan|wan|eth0)
-		printf 'eth1'
+	ae_wan|eth0|eth1)
+		printf 'wan'
 		;;
-	ae_wan.*|wan.*)
-		printf 'eth1.%s' "${1#*.}"
+	ae_wan.*|eth0.*|eth1.*)
+		printf 'wan.%s' "${1#*.}"
 		;;
-	ae_wan:*|wan:*)
-		printf 'eth1:%s' "${1#*:}"
+	ae_wan:*|eth0:*|eth1:*)
+		printf 'wan:%s' "${1#*:}"
 		;;
-	lan1)
-		printf 'eth2'
+	lan1|eth2)
+		printf 'lan2'
 		;;
-	lan1.*)
-		printf 'eth2.%s' "${1#*.}"
+	lan1.*|eth2.*)
+		printf 'lan2.%s' "${1#*.}"
 		;;
-	lan1:*)
-		printf 'eth2:%s' "${1#*:}"
+	lan1:*|eth2:*)
+		printf 'lan2:%s' "${1#*:}"
 		;;
 	*)
 		printf '%s' "$1"
@@ -90,9 +90,9 @@ migrate_xr1710g_device() {
 		*" eth0.8 "*|*" eth0.1 "*|*" eth0.2 "*)
 			uci -q delete "network.$config.ifname"
 			uci -q delete "network.$config.ports"
-			uci add_list "network.$config.ports=eth2"
 			uci add_list "network.$config.ports=lan2"
 			uci add_list "network.$config.ports=lan3"
+			uci add_list "network.$config.ports=lan4"
 			migrated=1
 			return 0
 			;;
