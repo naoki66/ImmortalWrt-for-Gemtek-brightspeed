@@ -502,14 +502,14 @@ function renderMaxFreqSelect(avail, cur) {
 }
 
 function renderOcControls() {
-	var frequencies = [1200, 1250, 1300, 1350, 1400, 1450, 1500];
+	var frequencies = [1200, 1250, 1300, 1350, 1400];
 	var inp = E('select', {'id':'oc-freq-input','class':'cbi-input-select cpu-oc-input'}, frequencies.map(function(freq) {
 		return E('option', {'value':freq, 'selected':freq === 1200 ? '' : null}, freq + ' MHz');
 	}));
 	var btn = E('button',{'class':'cbi-button cbi-button-action','click':function(){
 		var f=parseInt(document.getElementById('oc-freq-input').value);
-		if(frequencies.indexOf(f) === -1){ui.addNotification(null,E('p',{},'请选择 1200-1500 MHz 的预设频率'),'error');return;}
-		if(f>1200&&!confirm(_('Frequencies above 1200 MHz bypass BL31 voltage control and may cause system crash or reboot. Continue?'))) return;
+		if(frequencies.indexOf(f) === -1){ui.addNotification(null,E('p',{},'请选择 1200-1400 MHz 的预设频率'),'error');return;}
+		if(f>1200&&!confirm(_('Frequencies above 1200 MHz use extended DTS OPP entries and may increase heat or reduce stability. Continue?'))) return;
 		btn.disabled=true;btn.textContent=_('Applying...');
 		callSetOverclock(f).then(function(r){btn.disabled=false;btn.textContent=_('Apply');
 			if(r&&r.error) ui.addNotification(null,E('p',{},_('Failed: ')+r.error),'error');
@@ -672,7 +672,7 @@ return view.extend({
 						E('div',{'id':'cpu-control-content','class':'cpu-panel-body'},buildControlSettingsContent(st))
 					]),
 					E('div',{'class':'cpu-panel-card cpu-overclock'},[
-						E('div',{'class':'cpu-panel-title'},'超频 · ≤1200 MHz 安全 · >1200 MHz 有风险'),
+						E('div',{'class':'cpu-panel-title'},'CPU OPP / 超频 · 上限 1400 MHz'),
 						E('div',{'class':'cpu-panel-body'},renderOcControls())
 					])
 				])

@@ -77,17 +77,17 @@ msgstr "当前频率"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:399
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:505
-msgid "<=1200 MHz uses kernel cpufreq (safe). >1200 MHz uses direct PLL without voltage adjustment (risky)."
-msgstr "<=1200 MHz 使用内核 cpufreq（安全）。>1200 MHz 使用直接 PLL，无电压调整（有风险）。"
+msgid "<=1400 MHz uses kernel cpufreq OPP. Higher frequencies are unavailable."
+msgstr "<=1400 MHz 使用内核 cpufreq OPP。更高频率不可用。"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:510
-msgid "<=1200 MHz: safe (kernel cpufreq). >1200 MHz: risky (direct PLL, no voltage adjustment)."
-msgstr "<=1200 MHz：安全（内核 cpufreq）。>1200 MHz：有风险（直接 PLL，无电压调整）。"
+msgid "<=1400 MHz: DTS OPP (kernel cpufreq)."
+msgstr "<=1400 MHz：DTS OPP（内核 cpufreq）。"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:390
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:498
-msgid "Frequencies above 1200 MHz bypass BL31 voltage control and may cause system crash or reboot. Continue?"
-msgstr "超过 1200 MHz 将绕过 BL31 电压控制，可能导致系统崩溃或重启。是否继续？"
+msgid "Frequencies above 1200 MHz use extended DTS OPP entries and may increase heat or reduce stability. Continue?"
+msgstr "超过 1200 MHz 将使用扩展的 DTS OPP 档位，可能增加发热或降低稳定性。是否继续？"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:360
 msgid "Ethernet"
@@ -102,8 +102,8 @@ msgid "Failed to set max frequency:"
 msgstr "设置最大频率失败："
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:212
-msgid "Frequency must be 500-1600 MHz"
-msgstr "频率必须介于 500–1600 MHz 之间"
+msgid "Frequency must be 500-1400 MHz"
+msgstr "频率必须介于 500–1400 MHz 之间"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:296
 msgid "Governor"
@@ -244,8 +244,8 @@ msgid "Failed: "
 msgstr "失败："
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:387
-msgid "Must be 500-1600 MHz"
-msgstr "必须在 500-1600 MHz 之间"
+msgid "Must be 500-1400 MHz"
+msgstr "必须在 500-1400 MHz 之间"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:356
 msgid "State"
