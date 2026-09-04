@@ -1,0 +1,86 @@
+From: Ryan Chen <rchen14b@gmail.com>
+Date: Fri, 07 Mar 2026 20:00:00 -0600
+Subject: [PATCH] wifi: mt76: notify NPU on station removal to flush stale
+ offload state
+
+When a WiFi station disconnects on Airoha AN7581 with NPU offloading
+enabled, the NPU is not notified about the removal. This leaves stale
+per-station routing state in the NPU, causing packets to be misrouted
+when the station reconnects (potentially with the same MAC address but
+a new WCID).
+
+The symptom is download speeds stuck at ~1 Mbps after reconnection,
+which is resolved by forgetting the WiFi network and connecting with a
+new private MAC address (avoiding the stale NPU state).
+
+Fix by calling WLAN_FUNC_SET_WAIT_DEL_STA via the NPU mailbox interface
+from mt7996_mac_sta_remove_link() when a station link is torn down.
+This notifies the NPU firmware to update its per-band station tracking
+and routing decisions.
+
+Signed-off-by: Ryan Chen <rchen14b@gmail.com>
+---
+ mt76.h        |  6 ++++++
+ mt7996/main.c |  2 ++
+ npu.c         | 16 ++++++++++++++++
+ 3 files changed, 24 insertions(+)
+
+--- a/npu.c
++++ b/npu.c
+@@ -141,6 +141,22 @@ out:
+ }
+ EXPORT_SYMBOL_GPL(mt76_npu_check_ppe);
+ 
++void mt76_npu_del_sta(struct mt76_dev *dev, int band_idx, u16 wcid_idx)
++{
++	struct airoha_npu *npu;
++
++	rcu_read_lock();
++
++	npu = rcu_dereference(dev->mmio.npu);
++	if (npu)
++		mt76_npu_send_msg(npu, band_idx,
++				  WLAN_FUNC_SET_WAIT_DEL_STA,
++				  wcid_idx, GFP_ATOMIC);
++
++	rcu_read_unlock();
++}
++EXPORT_SYMBOL_GPL(mt76_npu_del_sta);
++
+ static int mt76_npu_rx_poll(struct napi_struct *napi, int budget)
+ {
+ 	struct mt76_dev *dev = mt76_priv(napi->dev);
+--- a/mt76.h
++++ b/mt76.h
+@@ -1682,6 +1682,7 @@ int mt76_npu_net_setup_tc(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+ int mt76_npu_send_txrx_addr(struct mt76_dev *dev, int ifindex,
+ 			    u32 direction, u32 i_count_addr,
+ 			    u32 o_status_addr, u32 o_count_addr);
++void mt76_npu_del_sta(struct mt76_dev *dev, int band_idx, u16 wcid_idx);
+ #else
+ static inline void mt76_npu_check_ppe(struct mt76_dev *dev,
+ 				      struct sk_buff *skb, u32 info)
+@@ -1747,7 +1748,12 @@ static inline int mt76_npu_send_txrx_addr(struct mt76_dev *dev, int ifindex,
+ {
+ 	return -EOPNOTSUPP;
+ }
++
++static inline void mt76_npu_del_sta(struct mt76_dev *dev, int band_idx,
++				    u16 wcid_idx)
++{
++}
+ #endif /* CONFIG_MT76_NPU */
+ 
+ static inline bool mt76_npu_device_active(struct mt76_dev *dev)
+ {
+--- a/mt7996/main.c
++++ b/mt7996/main.c
+@@ -1203,6 +1203,8 @@ void mt7996_mac_sta_remove_link(struct mt7996_dev *dev,
+ 	if (msta_link->wcid.link_valid) {
+ 		mt7996_mac_wtbl_update(dev, msta_link->wcid.idx,
+ 				       MT_WTBL_UPDATE_ADM_COUNT_CLEAR);
++		mt76_npu_del_sta(&dev->mt76, msta_link->wcid.phy_idx,
++				 msta_link->wcid.idx);
+ 
+ 		if (msta->deflink_id == link_id) {
+ 			msta->deflink_id = IEEE80211_LINK_UNSPECIFIED;
