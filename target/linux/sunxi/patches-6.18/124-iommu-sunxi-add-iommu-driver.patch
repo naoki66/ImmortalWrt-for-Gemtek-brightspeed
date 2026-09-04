@@ -643,7 +643,7 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +#endif
 --- /dev/null
 +++ b/drivers/iommu/sun55i-iommu.c
-@@ -0,0 +1,1606 @@
+@@ -0,0 +1,1613 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +/* Copyright(c) 2020 - 2023 Allwinner Technology Co.,Ltd. All rights reserved. */
 +/*******************************************************************************
@@ -2084,14 +2084,15 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +
 +	sunxi_iommu->irq = irq;
 +
-+	sunxi_iommu->clk = of_clk_get_by_name(dev->of_node, "iommu");
++	sunxi_iommu->clk = devm_clk_get(dev, "iommu");
 +	if (IS_ERR(sunxi_iommu->clk)) {
-+		sunxi_iommu->clk = NULL;
-+		dev_dbg(dev, "Unable to find clock\n");
 +		ret = PTR_ERR(sunxi_iommu->clk);
-+		goto err_clk;
++		goto err_res;
 +	}
-+	clk_prepare_enable(sunxi_iommu->clk);
++
++	ret = clk_prepare_enable(sunxi_iommu->clk);
++	if (ret)
++		goto err_res;
 +
 +	platform_set_drvdata(pdev, sunxi_iommu);
 +	sunxi_iommu->dev = dev;
@@ -2103,8 +2104,7 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +			sunxi_iommu_read(sunxi_iommu, IOMMU_VERSION_REG)) {
 +		dev_err(dev, "iommu version mismatch, please check and reconfigure\n");
 +
-+		clk_disable_unprepare(sunxi_iommu->clk);
-+		ret = -EINVAL;
++		ret = -ENODEV;
 +		goto err_clk;
 +	}
 +
@@ -2113,7 +2113,6 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +				     dev_name(dev));
 +	if (ret) {
 +		dev_err(dev, "Failed to register iommu in sysfs\n");
-+		clk_disable_unprepare(sunxi_iommu->clk);
 +		goto err_clk;
 +	}
 +
@@ -2162,12 +2161,12 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +err_sysfs_remove:
 +	iommu_device_sysfs_remove(&sunxi_iommu->iommu);
 +err_clk:
++	global_iommu_dev = NULL;
 +	clk_disable_unprepare(sunxi_iommu->clk);
 +err_res:
 +	sunxi_pgtable_free_pte_cache(iopte_cache);
-+	dev_err(dev, "Failed to initialize\n");
 +
-+	return ret;
++	return dev_err_probe(dev, ret, "Failed to initialize\n");
 +}
 +
 +static void sun55i_iommu_remove(struct platform_device *pdev)
@@ -2186,6 +2185,7 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +	sun55i_iommu_sysfs_remove(pdev);
 +	iommu_device_sysfs_remove(&sunxi_iommu->iommu);
 +	iommu_device_unregister(&sunxi_iommu->iommu);
++	clk_disable_unprepare(sunxi_iommu->clk);
 +	global_iommu_dev = NULL;
 +
 +	return;
@@ -2201,10 +2201,17 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +static int sun55i_iommu_resume(struct device *dev)
 +{
 +	struct sunxi_iommu_dev *iommu = dev_get_drvdata(dev);
++	int ret;
 +
-+	clk_prepare_enable(iommu->clk);
++	ret = clk_prepare_enable(iommu->clk);
++	if (ret)
++		return ret;
 +
-+	return sun55i_iommu_hw_init(iommu, NULL);
++	ret = sun55i_iommu_hw_init(iommu, NULL);
++	if (ret)
++		clk_disable_unprepare(iommu->clk);
++
++	return ret;
 +}
 +
 +static const struct dev_pm_ops sunxi_iommu_pm_ops = {

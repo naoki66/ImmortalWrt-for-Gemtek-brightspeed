@@ -558,7 +558,7 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +#endif
 --- /dev/null
 +++ b/drivers/pci/pcie-sunxi/pcie-sunxi-plat.c
-@@ -0,0 +1,1233 @@
+@@ -0,0 +1,1236 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/* Copyright(c) 2020 - 2023 Allwinner Technology Co.,Ltd. All rights reserved. */
 +/*
@@ -978,7 +978,7 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +	struct device *dev = pci->dev;
 +	int ret = 0;
 +
-+	if (!IS_ERR(pci->pcie3v3)) {
++	if (pci->pcie3v3) {
 +		ret = regulator_enable(pci->pcie3v3);
 +		if (ret)
 +			dev_err(dev, "failed to enable pcie3v3 regulator\n");
@@ -989,7 +989,7 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +
 +static void sunxi_pcie_plat_power_off(struct sunxi_pcie *pci)
 +{
-+	if (!IS_ERR(pci->pcie3v3))
++	if (pci->pcie3v3)
 +		regulator_disable(pci->pcie3v3);
 +}
 +
@@ -1532,19 +1532,22 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +
 +	pci->rst_gpio = devm_gpiod_get(&pdev->dev, "reset", GPIOD_OUT_HIGH);
 +	if (IS_ERR(pci->rst_gpio))
-+		dev_warn(&pdev->dev, "Failed to get \"reset-gpios\"\n");
-+	else
-+		gpiod_direction_output(pci->rst_gpio, 1);
++		return dev_err_probe(&pdev->dev, PTR_ERR(pci->rst_gpio),
++				     "Failed to get reset GPIO\n");
 +
 +	pci->wake_gpio = devm_gpiod_get(&pdev->dev, "wake", GPIOD_OUT_HIGH);
 +	if (IS_ERR(pci->wake_gpio))
-+		dev_warn(&pdev->dev, "Failed to get \"wake-gpios\"\n");
-+	else
-+		gpiod_direction_output(pci->wake_gpio, 1);
++		return dev_err_probe(&pdev->dev, PTR_ERR(pci->wake_gpio),
++				     "Failed to get wake GPIO\n");
 +
 +	pci->pcie3v3 = devm_regulator_get_optional(&pdev->dev, "pcie3v3");
-+	if (IS_ERR(pci->pcie3v3))
-+		dev_warn(&pdev->dev, "no pcie3v3 regulator found\n");
++	if (IS_ERR(pci->pcie3v3)) {
++		ret = PTR_ERR(pci->pcie3v3);
++		if (ret != -ENODEV)
++			return dev_err_probe(&pdev->dev, ret,
++					     "Failed to get pcie3v3 regulator\n");
++		pci->pcie3v3 = NULL;
++	}
 +
 +	ret = of_property_read_u32(np, "num-lanes", &pci->lanes);
 +	if (ret) {
@@ -1794,7 +1797,7 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +MODULE_LICENSE("GPL v2");
 --- /dev/null
 +++ b/drivers/pci/pcie-sunxi/pcie-sunxi-rc.c
-@@ -0,0 +1,854 @@
+@@ -0,0 +1,868 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +/* Copyright(c) 2020 - 2023 Allwinner Technology Co.,Ltd. All rights reserved. */
 +// SPDX_License-Identifier: GPL-2.0
@@ -1969,6 +1972,7 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +#define SUNXI_PCIE_MSI_FLAGS_REQUIRED (MSI_FLAG_USE_DEF_DOM_OPS		| \
 +				   MSI_FLAG_USE_DEF_CHIP_OPS)
 +#define SUNXI_PCIE_MSI_FLAGS_SUPPORTED (MSI_FLAG_MULTI_PCI_MSI		| \
++				   MSI_FLAG_PCI_MSIX		| \
 +				   MSI_GENERIC_FLAGS_MASK)
 +
 +static const struct msi_parent_ops sunxi_pcie_msi_parent_ops = {
@@ -2309,8 +2313,15 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +			return ret;
 +	}
 +
-+	if (pp->ops->host_init)
-+		pp->ops->host_init(pp);
++	if (pp->ops->host_init) {
++		ret = pp->ops->host_init(pp);
++		if (ret) {
++			if (pci_msi_enabled() && !pp->has_its)
++				sunxi_pcie_free_msi(pp);
++			sunxi_free_irq_domains(pp);
++			return ret;
++		}
++	}
 +
 +	bridge->sysdata = pp;
 +	bridge->ops = &sunxi_pcie_ops;
@@ -2483,9 +2494,10 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +	return 0;
 +}
 +
-+static void __sunxi_pcie_host_init(struct sunxi_pcie_port *pp)
++static int __sunxi_pcie_host_init(struct sunxi_pcie_port *pp)
 +{
 +	struct sunxi_pcie *pci = to_sunxi_pcie_from_pp(pp);
++	int ret;
 +
 +	if (!sunxi_pcie_host_is_link_up(pp)) {
 +		sunxi_pcie_plat_ltssm_disable(pci);
@@ -2505,10 +2517,15 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +
 +		sunxi_pcie_host_read_speed(pci);
 +	} else {
-+		sunxi_pcie_host_establish_link(pci);
++		ret = sunxi_pcie_host_establish_link(pci);
++		if (ret)
++			return dev_err_probe(pci->dev, ret,
++					     "Failed to establish link\n");
 +
 +		sunxi_pcie_host_speed_change(pci, pci->link_gen);
 +	}
++
++	return 0;
 +}
 +
 +static bool sunxi_pcie_host_link_up_status(struct sunxi_pcie_port *pp)
@@ -2993,7 +3010,7 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +	int  (*rd_own_conf)(struct sunxi_pcie_port *pp, int where, int size, u32 *val);
 +	int  (*wr_own_conf)(struct sunxi_pcie_port *pp, int where, int size, u32 val);
 +	bool (*is_link_up)(struct sunxi_pcie_port *pp);
-+	void (*host_init)(struct sunxi_pcie_port *pp);
++	int  (*host_init)(struct sunxi_pcie_port *pp);
 +	void (*scan_bus)(struct sunxi_pcie_port *pp);
 +};
 +

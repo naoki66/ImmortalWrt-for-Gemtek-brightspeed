@@ -33,7 +33,7 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +obj-$(CONFIG_AW_INNO_COMBOPHY)		+= sunxi-inno-combophy.o
 --- /dev/null
 +++ b/drivers/phy/allwinner/sunxi-inno-combophy.c
-@@ -0,0 +1,1193 @@
+@@ -0,0 +1,1221 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/* Copyright(c) 2020 - 2023 Allwinner Technology Co.,Ltd. All rights reserved. */
 +/*
@@ -261,49 +261,52 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +    int ret;
 +    struct device *dev = combphy->dev;
 +
-+    if (!IS_ERR_OR_NULL(combphy->phyclk_ref)) {
-+        ret = clk_prepare_enable(combphy->phyclk_ref);
-+        if (ret) return ret;
-+    }
++    ret = clk_prepare_enable(combphy->phyclk_ref);
++    if (ret)
++        return ret;
 +
-+    if (combphy->drvdata->has_cfg_clk && !IS_ERR_OR_NULL(combphy->phyclk_cfg)) {
++    if (combphy->drvdata->has_cfg_clk) {
 +        ret = clk_prepare_enable(combphy->phyclk_cfg);
-+        if (ret) goto err_cfg;
++        if (ret)
++            goto err_ref;
 +    }
 +
-+    if (combphy->drvdata->has_phy_ahb_clk && !IS_ERR_OR_NULL(combphy->phy_hclk)) {
++    if (combphy->drvdata->has_phy_ahb_clk) {
 +        ret = clk_prepare_enable(combphy->phy_hclk);
 +        if (ret) {
 +            dev_err(dev, "cannot enable phy_hclk\n");
++            goto err_cfg;
++        }
++    }
++
++    if (combphy->drvdata->has_pcie_axi_clk) {
++        ret = clk_prepare_enable(combphy->phy_axi);
++        if (ret) {
++            dev_err(dev, "cannot enable phy_axi\n");
 +            goto err_hclk;
 +        }
 +    }
 +
-+    if (combphy->drvdata->has_pcie_axi_clk && !IS_ERR_OR_NULL(combphy->phy_axi)) {
-+        ret = clk_prepare_enable(combphy->phy_axi);
-+        if (ret) {
-+            dev_err(dev, "cannot enable phy_axi\n");
-+            goto err_axi;
-+        }
-+    }
-+
-+    if (combphy->drvdata->has_phy_mbus_clk && !IS_ERR_OR_NULL(combphy->phy_mclk)) {
++    if (combphy->drvdata->has_phy_mbus_clk) {
 +        ret = clk_prepare_enable(combphy->phy_mclk);
 +        if (ret) {
 +            dev_err(dev, "cannot enable phy_mclk\n");
-+            goto err_mclk;
++            goto err_axi;
 +        }
 +    }
 +
 +    return 0;
 +
-+err_mclk:
-+    clk_disable_unprepare(combphy->phy_axi);
 +err_axi:
-+    clk_disable_unprepare(combphy->phy_hclk);
++    if (combphy->drvdata->has_pcie_axi_clk)
++        clk_disable_unprepare(combphy->phy_axi);
 +err_hclk:
-+    clk_disable_unprepare(combphy->phyclk_cfg);
++    if (combphy->drvdata->has_phy_ahb_clk)
++        clk_disable_unprepare(combphy->phy_hclk);
 +err_cfg:
++    if (combphy->drvdata->has_cfg_clk)
++        clk_disable_unprepare(combphy->phyclk_cfg);
++err_ref:
 +    clk_disable_unprepare(combphy->phyclk_ref);
 +    return ret;
 +}
@@ -361,16 +364,24 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +        if (ret) goto err_regulator;
 +
 +
-+        if (!IS_ERR_OR_NULL(combphy->phyclk_ref))
-+            clk_set_rate(combphy->phyclk_ref, 100000000);
++        ret = clk_set_rate(combphy->phyclk_ref, 100000000);
++        if (ret)
++            goto err_reset;
 +        
-+        if (combphy->drvdata->has_cfg_clk && !IS_ERR_OR_NULL(combphy->phyclk_cfg))
-+            clk_set_rate(combphy->phyclk_cfg, 200000000);
++        if (combphy->drvdata->has_cfg_clk) {
++            ret = clk_set_rate(combphy->phyclk_cfg, 200000000);
++            if (ret)
++                goto err_reset;
++        }
 +    }
 +
 +
 +    ret = sunxi_combphy_enable_clocks(combphy);
-+    if (ret) goto err_regulator;
++    if (ret) {
++        if (!already_enabled)
++            goto err_reset;
++        goto err_regulator;
++    }
 +
 +
 +    if (!already_enabled)
@@ -379,6 +390,10 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +    combphy->initialized = true;
 +    return 0;
 +
++err_reset:
++    if (combphy->drvdata->need_noppu_rst)
++        reset_control_assert(combphy->noppu_reset);
++    reset_control_assert(combphy->reset);
 +err_regulator:
 +    if (!IS_ERR_OR_NULL(combphy->select3v3_supply))
 +        regulator_disable(combphy->select3v3_supply);
@@ -930,104 +945,90 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +	struct device *dev = &pdev->dev;
 +	struct device_node *np = dev->of_node;
 +	int ret = -1;
++	u32 val;
 +	struct resource *res_ctl;
 +	struct resource *res_clk;
 +
 +	/* combo phy use sel */
-+	ret = of_property_read_u32(np, KEY_PHY_USE_SEL, &combphy->user);
++	ret = of_property_read_u32(np, KEY_PHY_USE_SEL, &val);
 +	if (ret)
-+		dev_err(dev, "get phy_use_sel is fail, %d\n", ret);
++		return dev_err_probe(dev, ret, "failed to get phy_use_sel\n");
++	if (val > PHY_USE_BY_PCIE_USB3_U2)
++		return dev_err_probe(dev, -EINVAL, "invalid phy_use_sel\n");
++	combphy->user = val;
 +
 +	combphy->phyclk_ref = devm_clk_get(&pdev->dev, "phyclk_ref");
 +	if (IS_ERR(combphy->phyclk_ref))
-+		dev_dbg(dev, "failed to get phyclk_ref\n");
++		return dev_err_probe(dev, PTR_ERR(combphy->phyclk_ref),
++				     "failed to get phyclk_ref\n");
 +
 +	combphy->reset = devm_reset_control_get(dev, "phy_rst");
-+	if (IS_ERR(combphy->reset)) {
-+		dev_err(dev, "failed to get reset control\n");
-+		return PTR_ERR(combphy->reset);
-+	}
++	if (IS_ERR(combphy->reset))
++		return dev_err_probe(dev, PTR_ERR(combphy->reset),
++				     "failed to get reset control\n");
 +
 +	if (combphy->drvdata->need_noppu_rst) {
 +		combphy->noppu_reset = devm_reset_control_get(dev, "noppu_rst");
-+		if (IS_ERR(combphy->noppu_reset)) {
-+			dev_err(dev, "failed to get noppu_reset control\n");
-+			return PTR_ERR(combphy->noppu_reset);
-+		}
++		if (IS_ERR(combphy->noppu_reset))
++			return dev_err_probe(dev, PTR_ERR(combphy->noppu_reset),
++					     "failed to get noppu_reset control\n");
 +	}
 +	if (combphy->user == PHY_USE_BY_PCIE || combphy->user == PHY_USE_BY_PCIE_USB3_U2) {
 +
 +		combphy->refclk_par = devm_clk_get(&pdev->dev, "refclk_par");
 +		if (IS_ERR(combphy->refclk_par))
-+			dev_dbg(dev, "failed to get refclk_par\n");
-+
-+		if (IS_ERR(combphy->phyclk_ref) || IS_ERR(combphy->refclk_par)) {
-+			dev_err(dev, "failed to get required clocks for ref\n");
-+			return -EINVAL;
-+		}
++			return dev_err_probe(dev, PTR_ERR(combphy->refclk_par),
++					     "failed to get refclk_par\n");
 +
 +		ret = clk_set_parent(combphy->phyclk_ref, combphy->refclk_par);
-+		if (ret) {
-+			dev_err(dev, "failed to set refclk parent\n");
-+			return -EINVAL;
-+		}
++		if (ret)
++			return dev_err_probe(dev, ret, "failed to set refclk parent\n");
 +	}
 +
 +	if (combphy->drvdata->has_cfg_clk) {
 +		combphy->phyclk_cfg = devm_clk_get(&pdev->dev, "phyclk_cfg");
 +		if (IS_ERR(combphy->phyclk_cfg))
-+			dev_dbg(dev, "failed to get phyclk_cfg\n");
++			return dev_err_probe(dev, PTR_ERR(combphy->phyclk_cfg),
++					     "failed to get phyclk_cfg\n");
 +
 +		combphy->cfgclk_par = devm_clk_get(&pdev->dev, "cfgclk_par");
 +		if (IS_ERR(combphy->cfgclk_par))
-+			dev_dbg(dev, "failed to get cfgclk_par\n");
-+
-+		if (IS_ERR(combphy->phyclk_cfg) || IS_ERR(combphy->cfgclk_par)) {
-+			dev_err(dev, "failed to get required clocks for cfg\n");
-+			return -EINVAL;
-+		}
++			return dev_err_probe(dev, PTR_ERR(combphy->cfgclk_par),
++					     "failed to get cfgclk_par\n");
 +
 +		ret = clk_set_parent(combphy->phyclk_cfg, combphy->cfgclk_par);
-+		if (ret) {
-+			dev_err(dev, "failed to set cfgclk parent\n");
-+			return -EINVAL;
-+		}
++		if (ret)
++			return dev_err_probe(dev, ret, "failed to set cfgclk parent\n");
 +	}
 +
 +	if (combphy->drvdata->has_pcie_axi_clk) {
 +		combphy->phy_axi = devm_clk_get(&pdev->dev, "pclk_axi");
-+		if (IS_ERR(combphy->phy_axi)) {
-+			dev_err(dev, "failed to get pclk_axi\n");
-+			return PTR_ERR(combphy->phy_axi);
-+		}
++		if (IS_ERR(combphy->phy_axi))
++			return dev_err_probe(dev, PTR_ERR(combphy->phy_axi),
++					     "failed to get pclk_axi\n");
 +
 +		combphy->phy_axi_par = devm_clk_get(&pdev->dev, "pclk_axi_par");
-+		if (IS_ERR(combphy->phy_axi_par)) {
-+			dev_err(dev, "failed to get pcie_axi_par\n");
-+			return PTR_ERR(combphy->phy_axi_par);
-+		}
++		if (IS_ERR(combphy->phy_axi_par))
++			return dev_err_probe(dev, PTR_ERR(combphy->phy_axi_par),
++					     "failed to get pcie_axi_par\n");
 +
 +		ret = clk_set_parent(combphy->phy_axi, combphy->phy_axi_par);
-+		if (ret) {
-+			dev_err(dev, "failed to set parent\n");
-+			return -EINVAL;
-+		}
++		if (ret)
++			return dev_err_probe(dev, ret, "failed to set parent\n");
 +	}
 +
 +	if (combphy->drvdata->has_phy_mbus_clk) {
 +		combphy->phy_mclk = devm_clk_get(&pdev->dev, "phy_mclk");
-+		if (IS_ERR(combphy->phy_mclk)) {
-+			dev_err(dev, "fail to get phy_mclk\n");
-+			return PTR_ERR(combphy->phy_mclk);
-+		}
++		if (IS_ERR(combphy->phy_mclk))
++			return dev_err_probe(dev, PTR_ERR(combphy->phy_mclk),
++					     "failed to get phy_mclk\n");
 +	}
 +
 +	if (combphy->drvdata->has_phy_ahb_clk) {
 +		combphy->phy_hclk  = devm_clk_get(&pdev->dev, "phy_hclk");
-+		if (IS_ERR(combphy->phy_hclk)) {
-+			dev_err(dev, "fail to get phy_hclk\n");
-+			return PTR_ERR(combphy->phy_hclk);
-+		}
++		if (IS_ERR(combphy->phy_hclk))
++			return dev_err_probe(dev, PTR_ERR(combphy->phy_hclk),
++					     "failed to get phy_hclk\n");
 +	}
 +
 +	res_ctl = platform_get_resource_byname(pdev, IORESOURCE_MEM, "phy-ctl");
@@ -1055,15 +1056,20 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +	}
 +
 +	/* combo phy refclk sel */
-+	ret = of_property_read_u32(np, KEY_PHY_REFCLK_SEL, &combphy->ref);
++	ret = of_property_read_u32(np, KEY_PHY_REFCLK_SEL, &val);
 +	if (ret)
-+		dev_err(dev, "get phy_refclk_sel is fail, %d\n", ret);
++		return dev_err_probe(dev, ret, "failed to get phy_refclk_sel\n");
++	if (val > EXTER_DIF_REF_CLK)
++		return dev_err_probe(dev, -EINVAL, "invalid phy_refclk_sel\n");
++	combphy->ref = val;
 +
 +	/* select ic supply */
 +	combphy->select3v3_supply = devm_regulator_get_optional(&pdev->dev, "select3v3");
 +	if (IS_ERR(combphy->select3v3_supply)) {
-+		if (PTR_ERR(combphy->select3v3_supply) == -EPROBE_DEFER)
-+			return PTR_ERR(combphy->select3v3_supply);
++		ret = PTR_ERR(combphy->select3v3_supply);
++		if (ret != -ENODEV)
++			return dev_err_probe(dev, ret,
++					     "failed to get select3v3 supply\n");
 +		combphy->select3v3_supply = NULL;
 +	}
 +
@@ -1113,16 +1119,38 @@ Signed-off-by: Marvin Wewer <mwewer37@proton.me>
 +	phy_set_drvdata(combphy->phy, combphy);
 +
 +	phy_provider = devm_of_phy_provider_register(dev, sunxi_combphy_xlate);
++	if (IS_ERR(phy_provider)) {
++		ret = PTR_ERR(phy_provider);
++		goto err_subsystem;
++	}
 +
 +	combphy->pwr_nb.notifier_call = sunxi_inno_combophy_power_event;
 +	/* register inno power notifier */
-+	atomic_notifier_chain_register(&inno_subsys_notifier_list, &combphy->pwr_nb);
++	ret = atomic_notifier_chain_register(&inno_subsys_notifier_list,
++					     &combphy->pwr_nb);
++	if (ret)
++		goto err_subsystem;
 +
-+	pm_runtime_set_active(dev);
++	ret = pm_runtime_set_active(dev);
++	if (ret)
++		goto err_notifier;
 +	pm_runtime_enable(dev);
-+	pm_runtime_get_sync(dev);
++	ret = pm_runtime_resume_and_get(dev);
++	if (ret < 0)
++		goto err_pm;
 +
-+	return PTR_ERR_OR_ZERO(phy_provider);
++	return 0;
++
++err_pm:
++	pm_runtime_disable(dev);
++	pm_runtime_set_suspended(dev);
++err_notifier:
++	atomic_notifier_chain_unregister(&inno_subsys_notifier_list,
++					       &combphy->pwr_nb);
++err_subsystem:
++	pcie_usb3_sub_system_exit(pdev);
++
++	return dev_err_probe(dev, ret, "failed to register combo PHY\n");
 +}
 +
 +static void sunxi_combphy_remove(struct platform_device *pdev)
