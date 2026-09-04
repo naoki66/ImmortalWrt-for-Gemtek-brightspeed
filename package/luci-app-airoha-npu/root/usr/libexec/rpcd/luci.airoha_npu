@@ -394,9 +394,9 @@ set_overclock() {
 		return
 	fi
 
-	# Validate range (500-1600, crash likely above 1200 at stock voltage)
-	if [ "$target_mhz" -lt 500 ] || [ "$target_mhz" -gt 1600 ]; then
-		echo '{"error":"frequency must be 500-1600 MHz"}'
+	# XR1710G DTS exposes OPPs through 1400 MHz.
+	if [ "$target_mhz" -lt 500 ] || [ "$target_mhz" -gt 1400 ]; then
+		echo '{"error":"frequency must be 500-1400 MHz"}'
 		return
 	fi
 
@@ -419,13 +419,12 @@ set_overclock() {
 		fi
 	fi
 
-	# For frequencies within the OPP table (<=1200 MHz), try the kernel
-	# cpufreq interface first. This ensures BL31/SMC handles voltage adjustment
-	# and the PLL switch is atomic (local_irq_save/restore in kernel driver).
-	# However, if the PLL was directly modified (overclocked >1200), the cpufreq
-	# driver's state is out of sync and won't actually reprogram the PLL.
-	# In that case, fall through to direct PLL programming.
-	if [ "$target_mhz" -le 1200 ] && [ "$cur_pll_mhz" -le 1200 ]; then
+	# For frequencies exposed by the DTS OPP table (<=1400 MHz), try the kernel
+	# cpufreq interface first. This lets BL31/SMC handle voltage adjustment and
+	# keeps the PLL switch atomic in the kernel driver.
+	# If the PLL was directly modified above 1400 MHz, the cpufreq driver's state
+	# may be out of sync; in that case, fall through to direct PLL programming.
+	if [ "$target_mhz" -le 1400 ] && [ "$cur_pll_mhz" -le 1400 ]; then
 		local freq_khz=$((target_mhz * 1000))
 		local avail=$(cat "$cpufreq_path/scaling_available_frequencies" 2>/dev/null)
 		if echo "$avail" | grep -qw "$freq_khz"; then
@@ -440,9 +439,9 @@ set_overclock() {
 	fi
 
 	# --- Direct PLL programming ---
-	# Used for frequencies > 1200 MHz, or when restoring from an overclock
-	# (cpufreq driver state is out of sync with hardware PLL).
-	# WARNING: For >1200 MHz, this bypasses BL31, so NO voltage adjustment.
+	# Fallback for restoring from a PLL state above 1400 MHz, or when the
+	# selected DTS OPP is not exposed by cpufreq.
+	# WARNING: This bypasses BL31, so there is NO voltage adjustment.
 	# The kernel driver uses local_irq_save/restore for atomicity; we cannot
 	# do this from userspace, so interrupt races are also possible.
 	if ! command -v devmem > /dev/null 2>&1; then
@@ -535,11 +534,11 @@ set_overclock() {
 		warning="No voltage adjustment (bypasses BL31). System may crash or reboot."
 	fi
 
-	# If target is within OPP table, sync cpufreq driver state so the governor
+	# If target is within the OPP table, sync cpufreq driver state so the governor
 	# and scaling_max_freq are aware of the new frequency. This is essential
 	# when restoring from an overclock (e.g., 1400→1200) because the cpufreq
 	# driver's internal state was out of sync with the hardware PLL.
-	if [ "$target_mhz" -le 1200 ]; then
+	if [ "$target_mhz" -le 1400 ]; then
 		local freq_khz=$((target_mhz * 1000))
 		local avail=$(cat "$cpufreq_path/scaling_available_frequencies" 2>/dev/null)
 		if echo "$avail" | grep -qw "$freq_khz"; then

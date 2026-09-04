@@ -47,8 +47,8 @@ msgstr ""
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:244
 msgid ""
-"Direct PLL programming. Governor locked to performance. Stock max: 1200 MHz. "
-"Tested stable up to 1500 MHz."
+"Kernel cpufreq uses DTS OPP entries through 1400 MHz. Direct PLL fallback may "
+"bypass BL31 voltage control when restoring from a higher state."
 msgstr ""
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:360
@@ -64,7 +64,7 @@ msgid "Failed to set max frequency:"
 msgstr ""
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:212
-msgid "Frequency must be 500-1600 MHz"
+msgid "Frequency must be 500-1400 MHz"
 msgstr ""
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:296
