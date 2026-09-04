@@ -1503,7 +1503,7 @@ struct rtldsa_config {
 	void (*lag_fill_data)(u32 data[], struct rtldsa_93xx_lag_entry *e);
 	void (*lag_set_local_port2group)(int group, int port, bool valid);
 	void (*lag_set_port2group)(int group, int port, bool valid);
-	struct table_reg* (*lag_table)(void);
+	int (*lag_table)(void);
 	void (*lag_sync_tables)(void);
 };
 

@@ -394,16 +394,13 @@ static int rtldsa_93xx_lag_set_group2ports(struct rtl838x_switch_priv *priv, int
 	int i;
 
 	/* Read lag table using Table control register 2 */
-	struct table_reg *r = priv->r->lag_table();
+	int tbl = priv->r->lag_table();
 
-	rtl_table_read(r, group);
+	__otto_table_read(tbl, group, &data);
 
 	bitmap_clear(ports, 0, ARRAY_SIZE(priv->ports));
 	bitmap_from_arr64(ports, &priv->lags_port_members[group],
 			  ARRAY_SIZE(priv->ports));
-
-	for (i = 0; i < 3; i++)
-		data[i] = sw_r32(rtl_table_data(r, i));
 
 	priv->r->lag_fill_data(data, &e);
 
@@ -412,7 +409,7 @@ static int rtldsa_93xx_lag_set_group2ports(struct rtl838x_switch_priv *priv, int
 		pr_err("%s: Number of LAG ports too high: %u", __func__,
 		       num_of_lag_ports);
 
-		rtl_table_release(r);
+		otto_table_release(tbl);
 		return -ENOSPC;
 	}
 
@@ -460,17 +457,15 @@ static int rtldsa_93xx_lag_set_group2ports(struct rtl838x_switch_priv *priv, int
 			e.ip4_hash_mask_idx = RTL93XX_HASH_MASK_INDEX_L23;
 			e.ip6_hash_mask_idx = RTL93XX_HASH_MASK_INDEX_L23;
 		} else {
-			rtl_table_release(r);
+			otto_table_release(tbl);
 			return -EOPNOTSUPP;
 		}
 	}
 
 	priv->r->lag_write_data(data, &e);
 
-	for (i = 0; i < 3; i++)
-		sw_w32(data[i], rtl_table_data(r, i));
-	rtl_table_write(r, group);
-	rtl_table_release(r);
+	__otto_table_write(tbl, group, &data);
+	otto_table_release(tbl);
 
 	return 0;
 }
@@ -817,7 +812,7 @@ static int rtl83xx_sw_probe(struct platform_device *pdev)
 		return err;
 
 	/* Initialize access to RTL switch tables */
-	rtl_table_init();
+	otto_table_init();
 
 	r = device_get_match_data(&pdev->dev);
 	priv = devm_kzalloc(dev, struct_size(priv, msts, r->n_mst - 1), GFP_KERNEL);
