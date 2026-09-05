@@ -15,24 +15,10 @@ sequence currently leaves that board setting out.
 
 Signed-off-by: naoki66 <naoki66@qq.com>
 ---
- drivers/net/phy/realtek/phy_patch_rtl826x.c |  4 +--
  drivers/net/phy/realtek/phy_patch_rtl826x.h |  2 ++
  drivers/net/phy/realtek/realtek_main.c      | 39 +++++++++++++++++++++
- 3 files changed, 43 insertions(+), 2 deletions(-)
+ 2 files changed, 41 insertions(+)
 
---- a/drivers/net/phy/realtek/phy_patch_rtl826x.c
-+++ b/drivers/net/phy/realtek/phy_patch_rtl826x.c
-@@ -84,8 +84,8 @@ static int rtl826x_phy_patch_sds_get(stru
- 	return phy_read_mmd(phydev, MDIO_MMD_VEND1, 0x142);
- }
- 
--static int rtl826x_phy_patch_sds_set(struct phy_device *phydev, u32 sds_page, u32 sds_reg,
--				     u32 data)
-+int rtl826x_phy_patch_sds_set(struct phy_device *phydev, u32 sds_page,
-+			      u32 sds_reg, u32 data)
- {
- 	u32 sds_addr = 0x8800 + (sds_reg << 6) + sds_page;
- 
 --- a/drivers/net/phy/realtek/phy_patch_rtl826x.h
 +++ b/drivers/net/phy/realtek/phy_patch_rtl826x.h
 @@ -5,6 +5,8 @@
@@ -56,7 +42,7 @@ Signed-off-by: naoki66 <naoki66@qq.com>
  #define RTL826X_VND2_INER			0xA424
  #define   RTL826X_VND2_INER_LINK_STATUS		BIT(4)
  #define   RTL826X_VND2_INER_PME			BIT(7)
-@@ -2397,6 +2400,38 @@ static int rtl826x_probe(struct phy_devic
+@@ -2397,6 +2400,38 @@ static int rtl826x_probe(struct phy_device
  	return 0;
  }
  
@@ -105,4 +91,3 @@ Signed-off-by: naoki66 <naoki66@qq.com>
 +
  	return rtl826x_config_serdes_polarity(phydev);
  }
- 
