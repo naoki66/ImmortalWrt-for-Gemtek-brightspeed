@@ -8,12 +8,18 @@ LAN port via br-lan), the flow offload engine only knows how to
 handle L3 routed traffic.
 
 This patch adds:
-- Bridge detection via FDB lookup (nft_flow_offload_is_bridging)
+- Bridge detection via non-local FDB lookup
+  (nft_flow_offload_is_bridging)
 - Separate route path for bridged traffic that uses in/out ifindex
   directly instead of L3 route lookup
 - MAC address extraction from ethernet header for bridged flows
 - VLAN-aware bridge support via bridge port VLAN context
 - Fix for VLAN untag underflow in nft_dev_path_info
+
+FDB entries marked BR_FDB_LOCAL terminate on the bridge host instead
+of being forwarded through a bridge port. Ignore those entries when
+selecting the bridge route so locally routed or NAT traffic keeps the
+normal routing path.
 
 Based on MediaTek SDK patch by Bo-Cun Chen <bc-bocun.chen@mediatek.com>.
 Adapted for Airoha AN7581 PPE offload.
@@ -33,7 +39,7 @@ diff --git a/net/netfilter/nf_flow_table_path.c b/net/netfilter/nf_flow_table_pa
  
  static enum flow_offload_xmit_type nft_xmit_type(struct dst_entry *dst)
  {
-@@ -41,7 +42,46 @@
+@@ -41,7 +42,48 @@
  	return true;
  }
  
@@ -56,6 +62,7 @@ diff --git a/net/netfilter/nf_flow_table_path.c b/net/netfilter/nf_flow_table_pa
 +
 +static bool nft_flow_offload_is_bridging(struct sk_buff *skb)
 +{
++	struct net_bridge_fdb_entry *fdb;
 +	struct net_bridge_port *port;
 +	unsigned char *dmac = eth_hdr(skb)->h_dest;
 +	bool bridging = false;
@@ -68,7 +75,8 @@ diff --git a/net/netfilter/nf_flow_table_path.c b/net/netfilter/nf_flow_table_pa
 +	port = br_port_get_rcu(skb->dev);
 +	if (port) {
 +		vlan_id = nft_flow_offload_get_vlan_id(port, skb);
-+		if (br_fdb_find_rcu(port->br, dmac, vlan_id))
++		fdb = br_fdb_find_rcu(port->br, dmac, vlan_id);
++		if (fdb && !test_bit(BR_FDB_LOCAL, &fdb->flags))
 +			bridging = true;
 +	}
 +	rcu_read_unlock();
@@ -81,7 +89,7 @@ diff --git a/net/netfilter/nf_flow_table_path.c b/net/netfilter/nf_flow_table_pa
  				     const struct dst_entry *dst_cache,
  				     const struct nf_conn *ct,
  				     enum ip_conntrack_dir dir, u8 *ha,
-@@ -57,6 +97,9 @@
+@@ -57,6 +99,9 @@
  		goto out;
  	}
  
@@ -91,7 +99,7 @@ diff --git a/net/netfilter/nf_flow_table_path.c b/net/netfilter/nf_flow_table_pa
  	n = dst_neigh_lookup(dst_cache, daddr);
  	if (!n)
  		return -1;
-@@ -71,7 +114,26 @@
+@@ -71,7 +116,26 @@
  		return -1;
  
  out:
@@ -119,7 +127,7 @@ diff --git a/net/netfilter/nf_flow_table_path.c b/net/netfilter/nf_flow_table_pa
  }
  
  struct nft_forward_info {
-@@ -100,12 +162,12 @@
+@@ -100,12 +164,12 @@
  
  	for (i = 0; i < stack->num_paths; i++) {
  		path = &stack->path[i];
@@ -133,7 +141,7 @@ diff --git a/net/netfilter/nf_flow_table_path.c b/net/netfilter/nf_flow_table_pa
  			if (is_zero_ether_addr(info->h_source))
  				memcpy(info->h_source, path->dev->dev_addr, ETH_ALEN);
  
-@@ -147,10 +209,8 @@
+@@ -147,10 +211,8 @@
  				info->num_encaps++;
  				break;
  			case DEV_PATH_BR_VLAN_UNTAG:
@@ -146,7 +154,7 @@ diff --git a/net/netfilter/nf_flow_table_path.c b/net/netfilter/nf_flow_table_pa
  				break;
  			case DEV_PATH_BR_VLAN_KEEP:
  				break;
-@@ -158,7 +218,6 @@
+@@ -158,7 +220,6 @@
  			info->xmit_type = FLOW_OFFLOAD_XMIT_DIRECT;
  			break;
  		default:
@@ -154,7 +162,7 @@ diff --git a/net/netfilter/nf_flow_table_path.c b/net/netfilter/nf_flow_table_pa
  			break;
  		}
  	}
-@@ -189,22 +248,45 @@
+@@ -189,22 +250,45 @@
  	return found;
  }
  
@@ -206,7 +214,7 @@ diff --git a/net/netfilter/nf_flow_table_path.c b/net/netfilter/nf_flow_table_pa
  
  	route->tuple[!dir].in.ifindex = info.indev->ifindex;
  	for (i = 0; i < info.num_encaps; i++) {
-@@ -221,11 +303,15 @@
+@@ -221,11 +305,15 @@
  		route->tuple[dir].out.hw_ifindex = info.hw_outdev->ifindex;
  		route->tuple[dir].xmit_type = info.xmit_type;
  	}
@@ -225,7 +233,7 @@ diff --git a/net/netfilter/nf_flow_table_path.c b/net/netfilter/nf_flow_table_pa
  {
  	struct dst_entry *this_dst = skb_dst(pkt->skb);
  	struct dst_entry *other_dst = NULL;
-@@ -265,12 +351,93 @@
+@@ -265,12 +353,93 @@
  	nft_default_forward_path(route, this_dst, dir);
  	nft_default_forward_path(route, other_dst, !dir);
  

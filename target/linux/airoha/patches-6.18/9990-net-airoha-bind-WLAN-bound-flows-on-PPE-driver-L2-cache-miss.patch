@@ -18,14 +18,15 @@ bridge device above the ingress netdev. If the PPE driver's L2 offload
 cache lookup misses, bind the hardware flow to the resolved WDMA or GDM
 egress path.
 
-Packets addressed to the ingress netdev itself are marked PACKET_HOST by
-eth_type_trans(). WiFi NPU/WED RX can call the PPE hook before
-eth_type_trans(), so classify local packets from the destination MAC when
-the ingress device and MAC header are available. They must not use the bridge
-L2 cache or fallback path:
-when a bridge and its port share a MAC address, the FDB can resolve that
-local address back to the ingress port and make PPE bind subsequent packets
-away from the CPU.
+Packets addressed to the ingress netdev or its bridge master must stay on
+the CPU. eth_type_trans() marks the former PACKET_HOST, but WiFi NPU/WED RX
+can call the PPE hook before it has run, so classify local packets from the
+destination MAC when the ingress device and MAC header are available.
+When the bridge master and port use different MAC addresses, checking only
+the ingress netdev misses traffic for the bridge host and can bind it away
+from the CPU. Resolve the master through a VLAN upper when present and treat
+both device addresses as local. These packets must not use the bridge L2
+cache or fallback path.
 
 Keep looking for a real L4 flowtable entry first so routed and NAT traffic
 whose next-hop MAC is local can still be offloaded. If no such entry
@@ -37,6 +38,10 @@ the default ppe_bind_rate of 30, while GDM4 counted the complete 5,318
 packets and reported no drops or errors. Raising ppe_bind_rate to 65,535
 prevented binding and delivered 5,206 of 5,207 packets, confirming the bad
 PPE bind.
+
+This also covers XR1710G deployments where WAN is a br-lan slave but has a
+different MAC from br-lan; otherwise TCP destined for the router can be
+installed as a bound PPE 5-tuple.
 
 Assisted-by: Codex:gpt-5.5
 Signed-off-by: Jihong Min <hurryman2212@gmail.com>
@@ -54,7 +59,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 +#include <linux/etherdevice.h>
  #include <linux/ipv6.h>
  #include <linux/of_platform.h>
-@@ -708,65 +708,223 @@
+@@ -708,65 +708,234 @@
  }
  
  static int
@@ -263,7 +268,9 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 +
 +static bool airoha_ppe_foe_skb_is_local(const struct sk_buff *skb)
 +{
++	struct net_device *master;
 +	const struct ethhdr *eh;
++	bool local;
 +
 +	/* NPU/WED RX may call PPE before eth_type_trans() has run. Keep
 +	 * unknown contexts local so a missing MAC header never enables the
@@ -273,7 +280,16 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 +		return true;
 +
 +	eh = eth_hdr(skb);
-+	return ether_addr_equal_64bits(eh->h_dest, skb->dev->dev_addr);
++	if (ether_addr_equal_64bits(eh->h_dest, skb->dev->dev_addr))
++		return true;
++
++	rcu_read_lock();
++	master = airoha_ppe_foe_get_bridge_master_rcu(skb->dev);
++	local = master &&
++		ether_addr_equal_64bits(eh->h_dest, master->dev_addr);
++	rcu_read_unlock();
++
++	return local;
 +}
 +
  static void airoha_ppe_foe_insert_entry(struct airoha_ppe *ppe,
@@ -297,17 +313,17 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  	spin_lock_bh(&ppe_lock);
  
  	hwe = airoha_ppe_foe_get_entry_locked(ppe, hash);
-@@ -903,2 +1062,3 @@ static void airoha_ppe_foe_insert_entry(
+@@ -903,2 +1073,3 @@ static void airoha_ppe_foe_insert_entry(
 -		if (!airoha_ppe_foe_compare_entry(e, hwe))
 +		if ((local && e->type == FLOW_TYPE_L2) ||
 +		    !airoha_ppe_foe_compare_entry(e, hwe))
  			continue;
-@@ -911,2 +1071,4 @@ static void airoha_ppe_foe_insert_entry(
+@@ -911,2 +1082,4 @@ static void airoha_ppe_foe_insert_entry(
  	if (commit_done)
  		goto unlock;
 +	if (local)
 +		goto unlock;
-@@ -917,2 +1077,4 @@ static void airoha_ppe_foe_insert_entry(
+@@ -917,2 +1088,4 @@ static void airoha_ppe_foe_insert_entry(
  	if (e)
  		airoha_ppe_foe_commit_subflow_entry(ppe, e, hash, rx_wlan);
 +	else if (bridge_ready)
