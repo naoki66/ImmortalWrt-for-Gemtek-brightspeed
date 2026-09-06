@@ -203,7 +203,7 @@ return view.extend({
 		} else {
 			hintBody.innerHTML =
 				'<strong>适配提示：</strong>写入功能需要刷入新版 ' +
-				'<code>U-Boot</code> 与新版的固件。<br>' +
+				'<code>U-Boot</code> 与新版的固件<code>Firmware</code> 。<br>' +
 				'<span class="fac-step">①</span> ' +
 				'<span class="fac-hint-label">U-Boot 下载地址：</span>' +
 				'<a class="fac-link" target="_blank" rel="noopener external" ' +
@@ -216,7 +216,7 @@ return view.extend({
 				'href="https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/releases">' +
 				'https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/releases' +
 				'</a><br>' +
-				'<em>刷入新版 U-Boot 后，本页面才能修改原厂数据。读取功能不受限制。</em>';
+				'<em>刷入新版 U-Boot 和新版固件 Firmware 后，本页面才能正确修改设备序列号等数据。</em>';
 		}
 		statusCard.appendChild(E('div', { 'class': 'fac-callout' + (writable ? ' ok' : '') }, [
 			E('div', { 'class': 'fac-callout-icon' }, writable ? '✓' : '⚠'),
