@@ -1405,10 +1405,10 @@ static int rtl931x_pie_verify_template(struct rtl838x_switch_priv *priv,
 			return -1;
 	}
 
-	if (ether_addr_to_u64(pr->smac) && !rtl931x_pie_templ_has(t, TEMPLATE_FIELD_SMAC0))
+	if (ether_addr_to_u64(pr->smac_m) && !rtl931x_pie_templ_has(t, TEMPLATE_FIELD_SMAC0))
 		return -1;
 
-	if (ether_addr_to_u64(pr->dmac) && !rtl931x_pie_templ_has(t, TEMPLATE_FIELD_DMAC0))
+	if (ether_addr_to_u64(pr->dmac_m) && !rtl931x_pie_templ_has(t, TEMPLATE_FIELD_DMAC0))
 		return -1;
 
 	if (pr->itag_m && !rtl931x_pie_templ_has(t, TEMPLATE_FIELD_VLAN))
