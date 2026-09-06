@@ -98,6 +98,17 @@ bash scripts/fix-stale-golang-host.sh
 	fi
 }
 
+set +e
 run_build 2>&1 | tee "$log_file"
+build_status=${PIPESTATUS[0]}
+set -e
+
+if (( build_status != 0 )); then
+	bash scripts/summarize-build-errors.sh "$log_file" || true
+	echo "REMOTE_BUILD_STATUS=failed"
+	echo "REMOTE_BUILD_LOG=$log_file"
+	exit "$build_status"
+fi
+
 echo "REMOTE_BUILD_STATUS=success"
 echo "REMOTE_BUILD_LOG=$log_file"

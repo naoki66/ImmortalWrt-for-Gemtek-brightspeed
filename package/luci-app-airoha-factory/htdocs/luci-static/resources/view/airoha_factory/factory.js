@@ -67,6 +67,12 @@ var themeCSS = '\
 .fac-tag.ok{color:var(--fac-green);border-color:rgba(0,204,68,.4);background:rgba(0,204,68,.08)}\
 .fac-tag.derived{color:var(--fac-amber);border-color:rgba(245,166,35,.4);background:rgba(245,166,35,.08)}\
 .fac-note{font-size:12px;color:var(--fac-muted);line-height:1.5;margin:8px 0 0}\
+.fac-current{width:100%;border-collapse:collapse;font-size:12px;margin:2px 0 4px}\
+.fac-current th,.fac-current td{padding:5px 8px;text-align:left;vertical-align:middle;border-bottom:1px dotted var(--fac-border)}\
+.fac-current tr:last-child th,.fac-current tr:last-child td{border-bottom:none}\
+.fac-current th{color:var(--fac-muted);font-weight:600;width:170px;white-space:nowrap}\
+.fac-current .fac-current-value{font-family:var(--airoha-font-mono);color:var(--fac-text);word-break:break-all}\
+.fac-current .fac-current-tag{text-align:right;white-space:nowrap}\
 .fac-derive{font-size:12px;line-height:1.6;color:var(--fac-muted);background:var(--fac-input-bg);border:1px dashed var(--fac-border);border-radius:6px;padding:8px 10px;margin-top:12px;font-family:var(--airoha-font-mono)}\
 .fac-derive b{color:var(--fac-text)}\
 ';
@@ -132,6 +138,13 @@ function ouiValid(v) {
 	return /^([0-9a-fA-F]{2}:){2}[0-9a-fA-F]{2}$/i.test(v);
 }
 
+// first three octets, formatted 00:AA:BB
+function deriveOui(v) {
+	var hex = v.replace(/:/g, '').toUpperCase();
+	if (hex.length < 6) return '';
+	return hex.substr(0, 6).match(/.{1,2}/g).join(':');
+}
+
 // MAC + 1 with carry
 function macPlus1(v) {
 	var hex = v.replace(/:/g, '').toUpperCase();
@@ -145,14 +158,80 @@ function macPlus1(v) {
 	return b.map(function(x) { return ('0' + x.toString(16).toUpperCase()).slice(-2); }).join(':');
 }
 
-// first three octets, formatted 00:AA:BB
-function deriveOui(v) {
-	var hex = v.replace(/:/g, '').toUpperCase();
-	if (hex.length < 6) return '';
-	return hex.substr(0, 6).match(/.{1,2}/g).join(':');
+// Build the "Current device values" table. Wired rows (WAN/LAN/OUI/ethaddr)
+// are static from status. Wi-Fi rows will be repopulated by renderCurrentWifiRows
+// every time the user types in WAN/LAN.
+function buildCurrentTable(self) {
+	var status = self._status || {};
+	var env = status.env || {};
+	var wrap = E('table', { 'class': 'fac-current' });
+	var tbody = E('tbody');
+	wrap.appendChild(tbody);
+
+	function row(scope, label, value, tagText, tagCls) {
+		var tagSpan = tagText
+			? E('span', { 'class': 'fac-tag ' + (tagCls || '') }, tagText)
+			: null;
+		tbody.appendChild(E('tr', { 'data-scope': scope }, [
+			E('th', {}, label),
+			E('td', { 'class': 'fac-current-value' }, value || '-'),
+			E('td', { 'class': 'fac-current-tag' }, tagSpan || '')
+		]));
+		return wrap;
+	}
+
+	row('wan',  _('WAN (mtd0 text)'),     status.wan,  _('read-only'), '');
+	row('lan',  _('LAN (mtd0 text)'),     status.lan,  _('read-only'), '');
+	row('oui',  _('OUI'),                 env.oui,     env.oui_stored ? _('stored') : _('derived'), env.oui_stored ? 'ok' : 'derived');
+	row('eth',  _('U-Boot ethaddr'),      env.ethaddr, env.ethaddr ? _('stored') : '', env.ethaddr ? 'ok' : '');
+
+	// Wifi rows — values filled in by renderCurrentWifiRows once we know the LAN MAC
+	['24g', '5g', '6g'].forEach(function(band) {
+		row('wifi-' + band, _('Wi-Fi ' + band.toUpperCase() + ' BSSID'), '', _('derived from LAN'), 'derived');
+	});
+
+	return wrap;
 }
 
-// factory.js — build @ 2026-09-06 20:14 GMT+8 (cache buster)
+// Recompute only the wifi rows from a base WAN MAC. Convention observed on the
+// stock firmware (10.10.20.250): 2.4G primary BSSID = WAN+2, 5G = WAN+0x12,
+// 6G = WAN+0x22. Other VAPs on each radio then step the last octet by +2.
+function renderCurrentWifiRows(table, wanMac) {
+	if (!table) return;
+	var bands = [
+		{ key: '24g', off: 0x02, label: '2.4 GHz primary' },
+		{ key: '5g',  off: 0x12, label: '5 GHz primary'   },
+		{ key: '6g',  off: 0x22, label: '6 GHz primary'   }
+	];
+	bands.forEach(function(b) {
+		var row = table.querySelector('tr[data-scope="wifi-' + b.key + '"]');
+		if (!row) return;
+		var td = row.querySelector('.fac-current-value');
+		if (!td) return;
+		if (macValid(wanMac)) {
+			td.textContent = macPlusOffset(wanMac, b.off);
+		} else {
+			td.textContent = '-';
+		}
+	});
+}
+
+// MAC + offset added to the last octet with carry.
+function macPlusOffset(v, off) {
+	var hex = v.replace(/:/g, '').toUpperCase();
+	if (hex.length !== 12) return v;
+	var b = [];
+	for (var i = 0; i < 6; i++) b.push(parseInt(hex.substr(i * 2, 2), 16));
+	var carry = off;
+	for (var j = 5; j >= 0 && carry > 0; j--) {
+		var s = b[j] + carry;
+		b[j] = s & 0xff;
+		carry = s >>> 8;
+	}
+	return b.map(function(x) { return ('0' + x.toString(16).toUpperCase()).slice(-2); }).join(':');
+}
+
+// factory.js — build @ 2026-09-07 01:39 GMT+8 (cache buster)
 return view.extend({
 	load: function() {
 		return callGetStatus().catch(function() {
@@ -267,6 +346,13 @@ return view.extend({
 		this._deriveNote = E('div', { 'class': 'fac-derive' },
 			_('Editing WAN MAC auto-links: LAN = WAN+1, U-Boot ethaddr = WAN, OUI = first 3 octets.'));
 
+		var wifiBox = E('div', { 'class': 'fac-subsection' }, [
+			E('div', { 'class': 'fac-subsection-title' }, _('Current device values')),
+			buildCurrentTable(this)
+		]);
+		this._wifiBox = wifiBox;
+		this._currentTable = wifiBox.querySelector('.fac-current');
+
 		var saveBtn = E('button', {
 			'class': 'cbi-button cbi-button-apply',
 			'click': ui.createHandlerFn(self, 'handleSave')
@@ -302,6 +388,7 @@ return view.extend({
 				_('Only WAN MAC, LAN MAC and Serial Number are edited here. LAN defaults to WAN+1 (editable). The other factory fields are preserved untouched.')),
 			stack,
 			this._deriveNote,
+			wifiBox,
 			E('div', { 'class': 'fac-subsection' }, [
 				E('div', { 'class': 'fac-subsection-title' }, _('U-Boot Environment')),
 				envRow,
@@ -310,27 +397,39 @@ return view.extend({
 			E('div', { 'class': 'fac-row' }, [ saveBtn, reloadBtn ])
 		]));
 
-		// initialise the derived note from loaded values
-		this.onWanInput();
+		// initialise the derived note + current-values table from loaded values
+		this.refreshDerived();
 
 		this._body = body;
 		return body;
 	},
 
 	onWanInput: function() {
+		this.refreshDerived();
+		this.validate();
+	},
+
+	// rebuild the "current device values" table from the user's typed WAN
+	// (LAN still mirrors WAN unless the user touched it; wifi BSSIDs mirror LAN)
+	refreshDerived: function() {
 		var wan = this._wanInput.value.trim();
+		var lan = this._lanInput.value.trim();
 		if (macValid(wan)) {
 			var p1 = macPlus1(wan);
+			if (!this._lanTouched) {
+				lan = p1;
+				this._lanInput.value = p1;
+			}
 			var oui = deriveOui(wan);
 			this._deriveNote.innerHTML = _('Auto-linked → LAN = <b>%s</b> · U-Boot ethaddr = <b>%s</b> · OUI = <b>%s</b>')
 				.format(p1, wan.toUpperCase(), oui);
-			if (!this._lanTouched) {
-				this._lanInput.value = p1;
-			}
 		} else {
 			this._deriveNote.innerHTML = _('Editing WAN MAC auto-links: LAN = WAN+1, U-Boot ethaddr = WAN, OUI = first 3 octets.');
 		}
-		this.validate();
+		// update the wifi block only — the LAN/wired/Ethernet rows above stay
+		if (this._currentTable) {
+			renderCurrentWifiRows(this._currentTable, wan);
+		}
 	},
 
 	validate: function() {

@@ -16,6 +16,36 @@ msgstr ""
 msgid "Factory Data"
 msgstr ""
 
+msgid "Current device values"
+msgstr ""
+
+msgid "read-only"
+msgstr ""
+
+msgid "WAN (mtd0 text)"
+msgstr ""
+
+msgid "LAN (mtd0 text)"
+msgstr ""
+
+msgid "OUI"
+msgstr ""
+
+msgid "U-Boot ethaddr"
+msgstr ""
+
+msgid "Wi-Fi 24G BSSID"
+msgstr ""
+
+msgid "Wi-Fi 5G BSSID"
+msgstr ""
+
+msgid "Wi-Fi 6G BSSID"
+msgstr ""
+
+msgid "derived from LAN"
+msgstr ""
+
 msgid "Save Factory Block"
 msgstr ""
 

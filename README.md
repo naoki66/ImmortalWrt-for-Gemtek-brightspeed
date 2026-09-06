@@ -174,7 +174,8 @@ cd ImmortalWrt-for-Gemtek-XR1710G
 bash scripts/fix-stale-golang-host.sh
 cp config.seed .config
 make defconfig
-make -j$(nproc)
+make -j$(nproc) world 2>&1 | tee build.log
+bash scripts/summarize-build-errors.sh build.log
 ```
 
 构建环境要求：GNU/Linux 系统（Debian 11+ 推荐），AMD64 架构，至少 4GB RAM 和 25GB 可用磁盘空间。详细依赖请参考 [ImmortalWrt 官方文档](https://openwrt.org/docs/guide-developer/build-system/install-buildsystem)。

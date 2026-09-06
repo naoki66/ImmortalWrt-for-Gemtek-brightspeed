@@ -16,6 +16,36 @@ msgstr "设备序列号"
 msgid "Factory Data"
 msgstr "原厂数据"
 
+msgid "Current device values"
+msgstr "当前设备值"
+
+msgid "read-only"
+msgstr "只读"
+
+msgid "WAN (mtd0 text)"
+msgstr "WAN (mtd0 文本)"
+
+msgid "LAN (mtd0 text)"
+msgstr "LAN (mtd0 文本)"
+
+msgid "OUI"
+msgstr "OUI"
+
+msgid "U-Boot ethaddr"
+msgstr "U-Boot ethaddr"
+
+msgid "Wi-Fi 24G BSSID"
+msgstr "Wi-Fi 2.4G BSSID"
+
+msgid "Wi-Fi 5G BSSID"
+msgstr "Wi-Fi 5G BSSID"
+
+msgid "Wi-Fi 6G BSSID"
+msgstr "Wi-Fi 6G BSSID"
+
+msgid "derived from LAN"
+msgstr "由 LAN 派生"
+
 msgid "Save Factory Block"
 msgstr "保存原厂数据块"
 
