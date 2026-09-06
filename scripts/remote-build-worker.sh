@@ -73,6 +73,8 @@ apply_feed_patches() {
 
 apply_feed_patches
 
+bash scripts/fix-stale-golang-host.sh
+
 	cp config.seed .config
 	make defconfig
 

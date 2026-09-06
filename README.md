@@ -171,6 +171,7 @@ git clone https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G.git
 cd ImmortalWrt-for-Gemtek-XR1710G
 ./scripts/feeds update -a
 ./scripts/feeds install -a
+bash scripts/fix-stale-golang-host.sh
 cp config.seed .config
 make defconfig
 make -j$(nproc)
