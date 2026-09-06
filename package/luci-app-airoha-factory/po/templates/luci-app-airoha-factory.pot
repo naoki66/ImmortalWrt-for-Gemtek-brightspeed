@@ -1,0 +1,104 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: luci-app-airoha-factory\n"
+"POT-Creation-Date: 2026-09-06 18:00+0800\n"
+"PO-Revision-Date: 2026-09-06 18:00+0800\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Factory Partition"
+msgstr ""
+
+msgid "Factory Data"
+msgstr ""
+
+msgid "Save Factory Block"
+msgstr ""
+
+msgid "Reload"
+msgstr ""
+
+msgid "MTD device"
+msgstr ""
+
+msgid "Writable"
+msgstr ""
+
+msgid "Yes"
+msgstr ""
+
+msgid "No (read-only)"
+msgstr ""
+
+msgid "Admin Username"
+msgstr ""
+
+msgid "Admin Password (hash)"
+msgstr ""
+
+msgid "WAN MAC"
+msgstr ""
+
+msgid "LAN MAC"
+msgstr ""
+
+msgid "Serial Number"
+msgstr ""
+
+msgid "Manufacturer"
+msgstr ""
+
+msgid "Fan ID"
+msgstr ""
+
+msgid "Wi-Fi Guest Passphrase"
+msgstr ""
+
+msgid "Wi-Fi Passphrase"
+msgstr ""
+
+msgid "Wi-Fi SSID"
+msgstr ""
+
+msgid "Wi-Fi WPS PIN"
+msgstr ""
+
+msgid "⚠ Requires latest U-Boot"
+msgstr ""
+
+msgid "⚠ Requires latest U-Boot and Firmware"
+msgstr ""
+
+msgid "✓ Write ready"
+msgstr ""
+
+msgid "All write targets are accessible: mtd0 factory text, UBI factory volume, and U-Boot env."
+msgstr ""
+
+msgid "ethaddr"
+msgstr ""
+
+msgid "oui"
+msgstr ""
+
+msgid "stored"
+msgstr ""
+
+msgid "derived from ethaddr"
+msgstr ""
+
+msgid "U-Boot Environment  @  mtd0 0x200000"
+msgstr ""
+
+msgid "U-Boot Environment"
+msgstr ""
+
+msgid "Same LAN should not have multiple devices with the same MAC."
+msgstr ""
+
+msgid "On save, ethaddr is written as the WAN MAC and oui as its first three octets (00:AA:BB). On a stock device the `oui` variable does not exist yet — Save will create it."
+msgstr ""

@@ -1,0 +1,13 @@
+{
+	"admin/system/factory": {
+		"title": "设备序列号",
+		"order": 80,
+		"action": {
+			"type": "view",
+			"path": "airoha_factory/factory"
+		},
+		"depends": {
+			"acl": [ "luci-app-airoha-factory" ]
+		}
+	}
+}

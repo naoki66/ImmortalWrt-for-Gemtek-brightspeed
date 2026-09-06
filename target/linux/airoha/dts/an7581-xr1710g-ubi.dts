@@ -126,7 +126,14 @@
 		partition@0 {
 			label = "vendor";
 			reg = <0x00000000 0x00600000>;
-			read-only;
+			/*
+			 * Intentionally NOT marked read-only so the factory
+			 * provisioning data at offset 0x400000 (MAC addresses,
+			 * serial number, Wi-Fi defaults, admin credentials, ...)
+			 * can be rewritten from the luan-app-airoha-factory LuCI
+			 * page.  Re-add "read-only;" here if the partition should
+			 * be locked down again.
+			 */
 		};
 		partition@600000 {
 			label = "chainloader";

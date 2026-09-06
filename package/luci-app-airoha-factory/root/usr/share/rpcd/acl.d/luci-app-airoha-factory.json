@@ -1,0 +1,15 @@
+{
+	"luci-app-airoha-factory": {
+		"description": "Grant access to read and modify the Airoha XR1710G vendor (mtd0) factory partition",
+		"read": {
+			"ubus": {
+				"luci.airoha_factory": [ "getStatus" ]
+			}
+		},
+		"write": {
+			"ubus": {
+				"luci.airoha_factory": [ "setFactory" ]
+			}
+		}
+	}
+}

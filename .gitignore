@@ -36,3 +36,5 @@ git-src
 .cproject
 .ccache
 .vscode*
+.workbuddy
+.codex-run*

@@ -1,0 +1,351 @@
+#!/bin/sh
+# LuCI backend for the Airoha XR1710G factory (vendor) partition editor.
+#
+# The "vendor" MTD partition (mtd0) carries two regions we care about:
+#
+#   * Factory text block  @ offset 0x400000 (FACTORY_OFFSET)
+#       A simple key=value text area (admin credentials, MAC addresses,
+#       serial number, Wi-Fi defaults, ...) followed by 0xff padding and a
+#       few binary blobs.  We only ever edit three keys here:
+#         - wan_mac
+#         - lan_mac   (= wan_mac + 1 unless overridden)
+#         - serial_number
+#
+#   * U-Boot environment  @ offset 0x200000 (ENV_OFFSET)
+#       A standard U-Boot env (4-byte CRC32 + NUL separated name=value).
+#       We keep two variables in sync with the WAN MAC:
+#         - ethaddr  = wan_mac
+#         - oui      = first three octets of wan_mac, formatted 00:AA:BB
+#
+# Linkage rules (the "联动" the UI implements):
+#   editing WAN MAC  ->  LAN MAC = WAN+1, ethaddr = WAN, OUI = first3(WAN)
+#
+# NOTE: mtd0 is flagged read-only in the device tree.  Writing requires the
+# "read-only" property to be removed from the "vendor" fixed-partition in the
+# device DTS and the firmware to be reflashed.  Reads always work.
+
+set -f
+. /usr/share/libubox/jshn.sh
+
+MTD_LABEL="vendor"
+FACTORY_OFFSET=4194304          # 0x400000
+BLOCK_SIZE=131072               # 128 KiB erase block
+TEXT_LIMIT=4096                 # text region is kept within the first 0x1000
+UBI_FACTORY="/dev/ubi0_3"
+UBI_WAN_OFF=20480               # 0x5000
+UBI_LAN_OFF=24576               # 0x6000
+ENV_OFFSET=2097152              # 0x200000
+ENV_SIZE=16384                  # 0x4000
+ENV_SECTOR=131072               # 0x20000
+UBOOT_ENV_CONF="/etc/fw_env.config"
+# keys we are allowed to touch inside the factory text block
+MANAGED_KEYS="wan_mac lan_mac serial_number"
+
+NL='
+'
+
+find_mtd_dev()
+{
+	local i d n
+	for i in 0 1 2 3 4 5 6 7 8 9; do
+		d="/sys/class/mtd/mtd$i"
+		[ -f "$d/name" ] || continue
+		read -r n < "$d/name"
+		[ "$n" = "$MTD_LABEL" ] && { echo "/dev/mtd$i"; return 0; }
+	done
+	return 1
+}
+
+mtd_flags()
+{
+	local f="0"
+	[ -r "/sys/class/mtd/${1##*/}/flags" ] && read -r f < "/sys/class/mtd/${1##*/}/flags"
+	echo "$f"
+}
+
+mtd_writable()
+{
+	[ $(( $(mtd_flags "$1") & 0x400 )) -ne 0 ]
+}
+
+json_escape()
+{
+	local s="$1"
+	s="${s//\\/\\\\}"
+	s="${s//\"/\\\"}"
+	printf '%s' "$s"
+}
+
+hex_mac()
+{
+	# $1 = offset, $2 = device -> print xx:xx:xx:xx:xx:xx
+	dd if="$2" bs=1 skip="$1" count=6 2>/dev/null \
+		| hexdump -ve '1/1 "%02x:"' | sed 's/:$//'
+}
+
+mac_to_raw()
+{
+	# $1 = mac string -> 6 raw bytes on stdout
+	printf '%b' "$(echo "$1" | tr -d ':' | sed 's/../\\x&/g')"
+}
+
+valid_mac()
+{
+	echo "$1" | grep -qiE '^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$'
+}
+
+# strict MAC validation: unicast, non-zero/non-broadcast first octet
+valid_mac_strict()
+{
+	valid_mac "$1" || return 1
+	case "$1" in
+		00:00:00:*|FF:FF:FF:*) return 1 ;;
+	esac
+	local f
+	f=$(echo "$1" | cut -d: -f1)
+	[ $(( 0x$f & 1 )) -eq 0 ] || return 1
+	return 0
+}
+
+# OUI validation: three hex octets formatted 00:AA:BB
+valid_oui()
+{
+	echo "$1" | grep -qiE '^([0-9a-fA-F]{2}:){2}[0-9a-fA-F]{2}$'
+}
+
+# first three octets of a MAC, formatted 00:AA:BB
+derive_oui()
+{
+	local h
+	h="$(echo "$1" | tr -d ':')"
+	[ ${#h} -lt 6 ] && { echo ""; return; }
+	echo "$h" | cut -c1-6 | sed 's/../&:/g; s/:$//'
+}
+
+# MAC + 1 with carry (returns original on bad input)
+mac_plus1()
+{
+	local hex b0 b1 b2 b3 b4 b5
+	hex="$(echo "$1" | tr -d ':')"
+	[ ${#hex} -ne 12 ] && { echo "$1"; return; }
+	b0=$((0x${hex:0:2}));  b1=$((0x${hex:2:2}));  b2=$((0x${hex:4:2}))
+	b3=$((0x${hex:6:2}));  b4=$((0x${hex:8:2}));  b5=$((0x${hex:10:2}))
+	b5=$((b5 + 1))
+	[ "$b5" -gt 255 ] && { b5=0; b4=$((b4 + 1)); }
+	[ "$b4" -gt 255 ] && { b4=0; b3=$((b3 + 1)); }
+	[ "$b3" -gt 255 ] && { b3=0; b2=$((b2 + 1)); }
+	[ "$b2" -gt 255 ] && { b2=0; b1=$((b1 + 1)); }
+	[ "$b1" -gt 255 ] && { b1=0; b0=$((b0 + 1)); }
+	printf '%02x:%02x:%02x:%02x:%02x:%02x' "$b0" "$b1" "$b2" "$b3" "$b4" "$b5"
+}
+
+# make sure /etc/fw_env.config points at the embedded U-Boot env
+ensure_env_conf()
+{
+	[ -r "$UBOOT_ENV_CONF" ] && return 0
+	[ -w /etc ] || return 1
+	printf '/dev/mtd0 0x200000 0x4000 0x20000\n' > "$UBOOT_ENV_CONF" 2>/dev/null
+}
+
+uboot_env_var()
+{
+	local var="$1" val
+	ensure_env_conf || return 1
+	command -v fw_printenv >/dev/null 2>&1 || return 1
+	val="$(fw_printenv -n "$var" 2>/dev/null)"
+	[ -z "$val" ] && val="$(fw_printenv "$var" 2>/dev/null | sed "s/^${var}=//")"
+	[ -n "$val" ] && { printf '%s' "$val"; return 0; }
+	return 1
+}
+
+uboot_set_var()
+{
+	local var="$1" val="$2"
+	ensure_env_conf || return 1
+	command -v fw_setenv >/dev/null 2>&1 || return 1
+	fw_setenv -c "$UBOOT_ENV_CONF" "$var" "$val" >/dev/null 2>&1
+}
+
+get_status()
+{
+	local dev tmp text fields first k v
+	local writable=0 ubi_wan="" ubi_lan=""
+	local wan="" lan="" lan_derived="" oui_derived=""
+	local uboot_ethaddr="" uboot_oui="" env_ready=0
+
+	dev="$(find_mtd_dev)" || { printf '{"error":"vendor partition not found"}'; return; }
+	mtd_writable "$dev" && writable=1
+
+	tmp="$(mktemp)"
+	# read 128 KiB starting at 0x400000 (skip 64 * 64 KiB)
+	dd if="$dev" of="$tmp" bs=65536 skip=64 count=2 2>/dev/null
+
+	# text region: strip NUL and 0xff bytes; keep only the key=value lines
+	text="$(head -c "$TEXT_LIMIT" "$tmp" | tr -d '\000\377')"
+
+	fields="{"; first=1
+	oifs="$IFS"; IFS="$NL"; set -f
+	for line in $text; do
+		case "$line" in
+			*=*)
+				k="${line%%=*}"
+				v="${line#*=}"
+				[ -z "$k" ] && continue
+				[ "$first" = "1" ] || fields="$fields,"
+				fields="$fields\"$(json_escape "$k")\":\"$(json_escape "$v")\""
+				first=0
+				[ "$k" = "wan_mac" ] && wan="$v"
+				[ "$k" = "lan_mac" ] && lan="$v"
+				;;
+		esac
+	done
+	set +f; IFS="$oifs"
+	fields="$fields}"
+
+	if [ -c "$UBI_FACTORY" ]; then
+		ubi_wan="$(hex_mac "$UBI_WAN_OFF" "$UBI_FACTORY")"
+		ubi_lan="$(hex_mac "$UBI_LAN_OFF" "$UBI_FACTORY")"
+	fi
+
+	[ -n "$wan" ] && { lan_derived="$(mac_plus1 "$wan")"; oui_derived="$(derive_oui "$wan")"; }
+
+	uboot_ethaddr="$(uboot_env_var ethaddr 2>/dev/null)"
+	uboot_oui="$(uboot_env_var oui 2>/dev/null)"
+	# Fallback: if the device does not yet have `oui` defined in U-Boot env
+	# (factory default), derive it from ethaddr so the UI always has a
+	# meaningful value to display. Frontend reports the source via
+	# `uboot_oui_stored`.
+	uboot_oui_stored=0
+	if [ -n "$uboot_ethaddr" ]; then
+		if [ -n "$uboot_oui" ]; then
+			uboot_oui_stored=1
+		else
+			uboot_oui="$(derive_oui "$uboot_ethaddr")"
+		fi
+	fi
+
+	command -v fw_setenv >/dev/null 2>&1 && ensure_env_conf && env_ready=1
+
+	printf '{"mtd":"%s","writable":%s,"fields":%s,"ubi":{"wan":"%s","lan":"%s"},"wan":"%s","lan":"%s","lan_derived":"%s","oui_derived":"%s","env":{"ethaddr":"%s","oui":"%s","oui_stored":%s},"env_ready":%s}\n' \
+		"$dev" "$writable" "$fields" "$ubi_wan" "$ubi_lan" \
+		"$wan" "$lan" "$lan_derived" "$oui_derived" \
+		"$uboot_ethaddr" "$uboot_oui" "$uboot_oui_stored" "$env_ready"
+
+	rm -f "$tmp"
+}
+
+set_factory()
+{
+	local args="$1" dev tmp orig newblk lan_auto=0 wan lan serial
+	local k v n rem headf bodyf mtd_ok=0 env_msg="" ubi_msg=""
+
+	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
+	json_select fields
+	json_get_var wan wan_mac
+	json_get_var lan lan_mac
+	json_get_var serial serial_number
+	json_select ..
+
+	[ -z "$wan" ] && { printf '{"success":false,"error":"missing wan_mac"}'; return; }
+	valid_mac_strict "$wan" || { printf '{"success":false,"error":"invalid wan_mac: %s (must be unicast, non-00:00:00, non-FF:FF:FF)"}' "$wan"; return; }
+
+	# LAN defaults to WAN + 1 when left empty
+	[ -z "$lan" ] && { lan="$(mac_plus1 "$wan")"; lan_auto=1; }
+	valid_mac_strict "$lan" || { printf '{"success":false,"error":"invalid lan_mac: %s (must be unicast, non-00:00:00, non-FF:FF:FF)"}' "$lan"; return; }
+
+	dev="$(find_mtd_dev)" || { printf '{"success":false,"error":"vendor partition not found"}'; return; }
+
+	if ! mtd_writable "$dev"; then
+		printf '{"success":false,"error":"vendor partition is read-only: remove the read-only property from the vendor fixed-partition in the device tree and reflash"}'
+		return
+	fi
+
+	tmp="$(mktemp)"; orig="$(mktemp)"; headf="$(mktemp)"; bodyf="$(mktemp)"
+	dd if="$dev" of="$tmp" bs=65536 skip=64 count=2 2>/dev/null
+
+	# original text lines (strip NUL/0xff); we only replace managed keys
+	head -c "$TEXT_LIMIT" "$tmp" | tr -d '\000\377' > "$orig"
+
+	newblk=""
+	while IFS= read -r line; do
+		case "$line" in
+			wan_mac=*)       newblk="${newblk}wan_mac=${wan}${NL}"; continue ;;
+			lan_mac=*)       newblk="${newblk}lan_mac=${lan}${NL}"; continue ;;
+			serial_number=*) newblk="${newblk}serial_number=${serial}${NL}"; continue ;;
+			*)               [ -n "$line" ] && newblk="${newblk}${line}${NL}" ;;
+		esac
+	done < "$orig"
+	# append any managed key that was not present in the original block
+	grep -q '^wan_mac=' "$orig"       || newblk="${newblk}wan_mac=${wan}${NL}"
+	grep -q '^lan_mac=' "$orig"       || newblk="${newblk}lan_mac=${lan}${NL}"
+	grep -q '^serial_number=' "$orig" || newblk="${newblk}serial_number=${serial}${NL}"
+
+	n=${#newblk}
+	if [ "$n" -gt "$TEXT_LIMIT" ]; then
+		printf '{"success":false,"error":"text block too large (%d > %d bytes)"}' "$n" "$TEXT_LIMIT"
+		rm -f "$tmp" "$orig" "$headf" "$bodyf"; return
+	fi
+
+	# head = new text + 0xff padding up to TEXT_LIMIT
+	{
+		printf '%s' "$newblk"
+		rem=$(( TEXT_LIMIT - n ))
+		[ "$rem" -gt 0 ] && dd if=/dev/zero bs=1 count="$rem" 2>/dev/null | tr '\0' '\377'
+	} > "$headf"
+
+	# body = the rest of the block (preserve the binary blobs at 0x1000+)
+	dd if="$tmp" of="$bodyf" bs=1 skip="$TEXT_LIMIT" 2>/dev/null
+
+	cat "$headf" "$bodyf" > "$tmp"
+
+	if mtd -p "$FACTORY_OFFSET" write "$tmp" "$MTD_LABEL" >/tmp/airoha_factory_mtd.log 2>&1; then
+		mtd_ok=1
+	else
+		printf '{"success":false,"error":"mtd write failed","detail":"%s"}' \
+			"$(json_escape "$(cat /tmp/airoha_factory_mtd.log 2>/dev/null | tr '\n' ' ')")"
+		rm -f "$tmp" "$orig" "$headf" "$bodyf" /tmp/airoha_factory_mtd.log; return
+	fi
+
+	# ---- U-Boot env: ethaddr = wan, oui = first3(wan) ----
+	if command -v fw_setenv >/dev/null 2>&1 && ensure_env_conf; then
+		if fw_setenv -c "$UBOOT_ENV_CONF" ethaddr "$(echo "$wan" | tr 'A-F' 'a-f')" 2>/tmp/airoha_factory_env.log \
+		   && fw_setenv -c "$UBOOT_ENV_CONF" oui "$(derive_oui "$wan")" 2>>/tmp/airoha_factory_env.log; then
+			env_msg="U-Boot env updated (ethaddr, oui)"
+		else
+			env_msg="U-Boot env update failed: $(json_escape "$(cat /tmp/airoha_factory_env.log 2>/dev/null | tr '\n' ' ')")"
+		fi
+	else
+		env_msg="skipped (fw_setenv or fw_env.config unavailable)"
+	fi
+
+	# ---- UBI factory volume: the running kernel reads MACs from here ----
+	if [ -c "$UBI_FACTORY" ]; then
+		mac_to_raw "$wan" | dd of="$UBI_FACTORY" bs=1 seek="$UBI_WAN_OFF" count=6 2>/dev/null
+		mac_to_raw "$lan" | dd of="$UBI_FACTORY" bs=1 seek="$UBI_LAN_OFF" count=6 2>/dev/null
+		ubi_msg="UBI factory volume updated (WAN/LAN)"
+	else
+		ubi_msg="skipped (UBI factory volume $UBI_FACTORY not found)"
+	fi
+
+	printf '{"success":true,"wan":"%s","lan":"%s","lan_auto":%s,"env":"%s","ubi":"%s"}\n' \
+		"$wan" "$lan" "$lan_auto" "$env_msg" "$ubi_msg"
+
+	rm -f "$tmp" "$orig" "$headf" "$bodyf" /tmp/airoha_factory_mtd.log /tmp/airoha_factory_env.log
+
+	# reboot so the running system picks up the new addresses
+	( sleep 3; /sbin/reboot ) >/dev/null 2>&1 &
+}
+
+case "$1" in
+	list)
+		printf '{"getStatus":{},"setFactory":{"fields":"object"}}\n'
+		;;
+	call)
+		args="$(cat)"
+		case "$2" in
+			getStatus)  get_status ;;
+			setFactory) set_factory "$args" ;;
+			*)          printf '{"error":"unknown method"}' ;;
+		esac
+		;;
+esac
