@@ -35,7 +35,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 Assisted-by: Codex:GPT-5.6-sol
 --- a/drivers/net/phy/realtek/phy_patch_rtl826x.c
 +++ b/drivers/net/phy/realtek/phy_patch_rtl826x.c
-@@ -117,6 +117,36 @@ static int rtl826x_phy_patch_sds_modify(
+@@ -117,6 +117,36 @@
  	return rtl826x_phy_patch_sds_set(phydev, sds_page, sds_reg, (ret & ~mask) | data);
  }
  
@@ -74,8 +74,8 @@ Assisted-by: Codex:GPT-5.6-sol
  	u32 mask = GENMASK(patch->msb, patch->lsb);
 --- a/drivers/net/phy/realtek/phy_patch_rtl826x.h
 +++ b/drivers/net/phy/realtek/phy_patch_rtl826x.h
-@@ -7,5 +7,6 @@
- 
+@@ -13,5 +13,6 @@
+ 			      u32 sds_reg, u32 data);
  int rtl8261n_phy_patch_db_init(struct phy_device *phydev);
  int rtl8264b_phy_patch_db_init(struct phy_device *phydev);
 +int rtl826x_phy_patch_rtk_serdes(struct phy_device *phydev);
@@ -83,7 +83,7 @@ Assisted-by: Codex:GPT-5.6-sol
  #endif
 --- a/drivers/net/phy/realtek/realtek_main.c
 +++ b/drivers/net/phy/realtek/realtek_main.c
-@@ -23,6 +23,9 @@
+@@ -24,6 +24,9 @@
  
  #include "realtek.h"
  
@@ -93,16 +93,16 @@ Assisted-by: Codex:GPT-5.6-sol
  #define RTL8201F_IER				0x13
  
  #define RTL8201F_ISR				0x1e
-@@ -2380,6 +2383,8 @@ static int rtl826x_probe(struct phy_devi
+@@ -3235,6 +3238,8 @@
  	priv->enable_pma_low_power = device_property_read_bool(dev, "realtek,enable-pma-low-power");
  	priv->patch_rtk_serdes =
  		device_property_read_bool(dev, "realtek,patch-rtk-serdes");
 +	if (priv->patch_rtk_serdes)
 +		priv->rtk_serdes_state = RTL826X_RTK_SERDES_PULSE;
+ 	priv->phydev = phydev;
  	phydev->priv = priv;
  
- 	if (!priv->enable_pma_low_power)
-@@ -2528,11 +2533,17 @@ static int rtl825xb_get_features(struct
+@@ -3425,11 +3430,17 @@
  
  static int rtl826x_config_aneg(struct phy_device *phydev)
  {
@@ -120,7 +120,7 @@ Assisted-by: Codex:GPT-5.6-sol
  	if (phydev->autoneg == AUTONEG_DISABLE)
  		return genphy_c45_pma_setup_forced(phydev);
  
-@@ -2562,8 +2573,33 @@ static int rtl826x_config_aneg(struct ph
+@@ -3459,8 +3470,33 @@
  	return genphy_c45_check_and_restart_aneg(phydev, changed);
  }
  
@@ -154,7 +154,7 @@ Assisted-by: Codex:GPT-5.6-sol
  	int status;
  	int ret;
  
-@@ -2594,7 +2630,96 @@ static int rtl826x_read_status(struct ph
+@@ -3491,7 +3527,96 @@
  			return ret;
  	}
  
@@ -272,4 +272,4 @@ Assisted-by: Codex:GPT-5.6-sol
 +	u8 rtk_serdes_carrier_polls;
  	bool enable_pma_low_power:1;
  	bool patch_rtk_serdes:1;
- };
+ 	struct phy_device *phydev;

@@ -1,4 +1,4 @@
-name: Build Router Firmware
+name: Build XR1710G Firmware
 
 on:
   workflow_dispatch:
@@ -96,7 +96,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: router-firmware
+          name: xr1710g-firmware
           path: |
             build.log
             bin/targets/airoha/an7581/*.itb

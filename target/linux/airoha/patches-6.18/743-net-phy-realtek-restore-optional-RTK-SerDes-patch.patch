@@ -32,7 +32,7 @@ Assisted-by: Codex:GPT-5.6-sol
 Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 --- a/drivers/net/phy/realtek/phy_patch_rtl826x.c
 +++ b/drivers/net/phy/realtek/phy_patch_rtl826x.c
-@@ -230,7 +230,7 @@ static int rtl826x_phy_patch_db_init(str
+@@ -230,7 +230,7 @@
  	struct rtlgen_phy_patch_db *patch_db;
  	struct rtlgen_hwpatch *patches;
  	const struct firmware *fw;
@@ -41,7 +41,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  	int ret;
  
  	ret = request_firmware_direct(&fw, fw_name, dev);
-@@ -253,17 +253,43 @@ static int rtl826x_phy_patch_db_init(str
+@@ -253,17 +253,43 @@
  
  	patches = (struct rtlgen_hwpatch *)fw->data;
  	count = fw->size / sizeof(*patches);
@@ -94,17 +94,17 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  	struct rtlgen_phy_patch_db *patch;
  	bool enable_pma_low_power:1;
 +	bool patch_rtk_serdes:1;
- };
- 
- int rtl822x_hwmon_init(struct phy_device *phydev);
+ 	struct phy_device *phydev;
+ 	struct delayed_work sds_work;
+ 	bool sds_work_disabled;
 --- a/drivers/net/phy/realtek/realtek_main.c
 +++ b/drivers/net/phy/realtek/realtek_main.c
-@@ -2378,6 +2378,8 @@ static int rtl826x_probe(struct phy_devi
+@@ -3233,6 +3233,8 @@
  		return -ENOMEM;
  
  	priv->enable_pma_low_power = device_property_read_bool(dev, "realtek,enable-pma-low-power");
 +	priv->patch_rtk_serdes =
 +		device_property_read_bool(dev, "realtek,patch-rtk-serdes");
+ 	priv->phydev = phydev;
  	phydev->priv = priv;
  
- 	if (!priv->enable_pma_low_power)
