@@ -1277,7 +1277,7 @@ void rtl839x_pie_rule_dump(struct  pie_rule *pr)
 static int rtl839x_pie_rule_read(struct rtl838x_switch_priv *priv, int idx, struct  pie_rule *pr)
 {
 	/* Read IACL table (2) via register 0 */
-	struct table_reg *q = rtl_table_get(RTL8380_TBL_0, 2);
+	struct table_reg *q = rtl_table_get(RTL8390_TBL_0, 2);
 	u32 r[17];
 	int block = idx / PIE_BLOCK_SIZE;
 	u32 t_select = sw_r32(RTL839X_ACL_BLK_TMPLTE_CTRL(block));
