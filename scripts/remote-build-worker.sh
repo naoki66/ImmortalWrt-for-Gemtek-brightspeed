@@ -73,9 +73,10 @@ apply_feed_patches() {
 
 apply_feed_patches
 
-bash scripts/fix-stale-golang-host.sh
+	bash scripts/fix-stale-golang-host.sh
 
 	cp config.seed .config
+	bash scripts/set-build-version.sh .config
 	make defconfig
 
 	case "$mode" in

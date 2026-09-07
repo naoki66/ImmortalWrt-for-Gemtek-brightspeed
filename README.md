@@ -144,7 +144,8 @@
 | [build-firmware.yml](.github/workflows/build-firmware.yml) | 手动 (workflow_dispatch) | 构建固件并发布 Release |
 | [sync-upstream.yml](.github/workflows/sync-upstream.yml) | 每 3 天定时 + 手动 | 同步 ImmortalWrt 上游 |
 
-**构建配置**：仓库根目录的 [config.seed](config.seed) 是完整配置文件，Action 自动执行 `cp config.seed .config && make defconfig`。
+**构建配置**：仓库根目录的 [config.seed](config.seed) 是完整配置文件，Action 自动执行 `cp config.seed .config && bash scripts/set-build-version.sh .config && make defconfig`。
+构建时会通过 [scripts/set-build-version.sh](scripts/set-build-version.sh) 写入 LuCI 可见的构建日期和 commit hash。
 
 **Release 格式**：
 - Tag：`YYYYMMDD-<short-hash>`
@@ -154,7 +155,7 @@
 ## 下载
 
 - [Releases 页面](https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/releases)
-- 固件文件：`immortalwrt-airoha-an7581-gemtek_xr1710g-ubi-squashfs-sysupgrade.itb`
+- 固件文件：`immortalwrt-naoki66-YYYYMMDD-<repo-hash>-<upstream-hash>-airoha-an7581-gemtek_xr1710g-ubi-squashfs-sysupgrade.itb`
 - 升级方法：LuCI → 系统 → 备份/升级 → 刷写固件
 
 ### 升级注意事项
@@ -173,6 +174,7 @@ cd ImmortalWrt-for-Gemtek-XR1710G
 ./scripts/feeds install -a
 bash scripts/fix-stale-golang-host.sh
 cp config.seed .config
+bash scripts/set-build-version.sh .config
 make defconfig
 make -j$(nproc) world 2>&1 | tee build.log
 bash scripts/summarize-build-errors.sh build.log

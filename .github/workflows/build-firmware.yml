@@ -37,17 +37,21 @@ jobs:
           git remote set-url upstream https://github.com/immortalwrt/immortalwrt.git
           git fetch --no-tags upstream master
 
-          build_time=$(TZ=Asia/Shanghai date +'%Y%m%d-%H%M%S')
+          build_date=$(TZ=Asia/Shanghai date +'%Y%m%d')
           repo_commit=$(git rev-parse --short=10 HEAD)
           upstream_base=$(git merge-base HEAD upstream/master)
           upstream_commit=$(git rev-parse --short=10 "$upstream_base")
-          version="naoki66-${build_time}-${repo_commit}-${upstream_commit}"
+          build_id="${build_date}-${repo_commit}-${upstream_commit}"
+          version_number="$build_id"
+          version_code="${repo_commit}-${upstream_commit}"
 
-          echo "date=${build_time%%-*}" >> $GITHUB_OUTPUT
+          echo "date=$build_date" >> $GITHUB_OUTPUT
+          echo "build_id=$build_id" >> $GITHUB_OUTPUT
           echo "repo_commit=$repo_commit" >> $GITHUB_OUTPUT
           echo "upstream_commit=$upstream_commit" >> $GITHUB_OUTPUT
-          echo "version=$version" >> $GITHUB_OUTPUT
-          echo "Build version: $version"
+          echo "version_number=$version_number" >> $GITHUB_OUTPUT
+          echo "version_code=$version_code" >> $GITHUB_OUTPUT
+          echo "Build version: ImmortalWrt naoki66 $version_number"
 
       - name: Setup build environment
         run: |
@@ -63,13 +67,15 @@ jobs:
       - name: Configure
         run: |
           cp config.seed .config
-          sed -i -e '/^CONFIG_VERSION_DIST=/d' \
-                 -e '/^# CONFIG_VERSION_DIST is not set$/d' \
-                 -e '/^CONFIG_VERSION_NUMBER=/d' \
-                 -e '/^# CONFIG_VERSION_NUMBER is not set$/d' .config
-          echo 'CONFIG_VERSION_DIST="ImmortalWrt naoki66"' >> .config
-          echo 'CONFIG_VERSION_NUMBER="${{ steps.version.outputs.version }}"' >> .config
+          BUILD_DATE='${{ steps.version.outputs.date }}' \
+          BUILD_ID='${{ steps.version.outputs.build_id }}' \
+          REPO_COMMIT='${{ steps.version.outputs.repo_commit }}' \
+          UPSTREAM_COMMIT='${{ steps.version.outputs.upstream_commit }}' \
+          VERSION_NUMBER='${{ steps.version.outputs.version_number }}' \
+          VERSION_CODE='${{ steps.version.outputs.version_code }}' \
+          bash scripts/set-build-version.sh .config
           make defconfig
+          grep -E 'CONFIG_(IMAGEOPT|EXTRA_IMAGE_NAME|VERSIONOPT|VERSION_DIST|VERSION_NUMBER|VERSION_CODE)=' .config
 
       - name: Download sources
         run: make download -j$(nproc)
