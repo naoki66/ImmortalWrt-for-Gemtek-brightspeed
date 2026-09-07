@@ -546,7 +546,6 @@ static void rtldsa_930x_lag_set_port2group(int group, int port, bool valid)
 	struct table_reg *r = rtl_table_get(RTL9300_TBL_0, 8);
 	u32 mask = valid ? RTL930X_SRC_TRK_MAP_TRK_VALID : 0;
 
-	rtl_table_read(r, port);
 	mask |= FIELD_PREP(RTL930X_SRC_TRK_MAP_TRK_ID, group); // Update TRK Field.
 	sw_w32(mask, rtl_table_data(r, 0));
 	rtl_table_write(r, port);

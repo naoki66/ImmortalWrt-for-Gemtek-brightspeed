@@ -1774,8 +1774,6 @@ static void rtldsa_931x_lag_set_port2group(int group, int port, bool valid)
 	struct table_reg *r = rtl_table_get(RTL9310_TBL_0, 13);
 	u32 mask = 0;
 
-	rtl_table_read(r, port);
-
 	mask |= trk_id_valid;
 	/* Update TRK Field */
 	mask |= FIELD_PREP(RTL931X_SRC_TRK_MAP_TRK_ID, group);
