@@ -1419,8 +1419,8 @@ function modeStatusData(dm, apo, flo, vo, ppo) {
 		},
 		accelerationCard('mode-status-ap', 'AP模式加速', isEnabled(apo.enabled)),
 		accelerationCard('mode-status-flow', '硬件流量加速', isEnabled(flo.enabled)),
-		accelerationCard('mode-status-vlan', 'VLAN 加速', isEnabled(vo.enabled)),
-		accelerationCard('mode-status-pppoe', 'PPPoE 加速', isEnabled(ppo.enabled))
+		accelerationCard('mode-status-vlan', 'VLAN 标签卸载', isEnabled(vo.enabled)),
+		accelerationCard('mode-status-pppoe', 'PPPoE 透传卸载', isEnabled(ppo.enabled))
 	];
 }
 

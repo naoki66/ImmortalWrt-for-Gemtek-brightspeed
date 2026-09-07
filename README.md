@@ -56,9 +56,9 @@
 ### 网络与无线默认行为
 
 - 默认 LAN 地址为 `192.168.50.1`；IPv6 使用 SLAAC/EUI-64，关闭 DHCPv6/NDP 与 RA DNS/附加标志，减少国内网络环境下的兼容性问题。
-- 默认开启 firewall4 软件 flow offload 与硬件 flow offload；VLAN-aware bridge、PPPoE 和 AP 模式的 NPU/PPE 加速可在 NPU 页面按需启用，并由 FlowSense 展示运行状态。
+- 默认开启 firewall4 软件 flow offload 与硬件 flow offload；VLAN 标签卸载、PPPoE 透传卸载和 AP 模式加速可在 NPU 页面按需启用，并由 FlowSense 展示运行状态。
 - 三个无线射频默认启用：2.4GHz 为 HE20/自动信道/28dBm，5GHz 为 EHT160/信道 36/30dBm，6GHz 为 EHT320/信道 37/30dBm。
-- FlowSense 提供 Router/AP 模式、VLAN/PPPoE/AP 加速状态与自定义 Ping 延迟检测；NPU 页面提供 PPE/Frame Engine、CPU 频率与安全超频控制；风扇页面提供实时温度、RPM/PWM 曲线与自定义曲线。
+- FlowSense 提供 Router/AP 模式、VLAN 标签/PPPoE 透传/AP 模式卸载状态与自定义 Ping 延迟检测；NPU 页面提供 PPE/Frame Engine、CPU 频率与安全超频控制；风扇页面提供实时温度、RPM/PWM 曲线与自定义曲线。
 
 ### 预装 LuCI 应用（25 个，含中文界面）
 
@@ -68,7 +68,7 @@
 |------|------|------|
 | `luci-app-airoha-npu` | [rchen14b/luci-app-airoha-npu](https://github.com/rchen14b/luci-app-airoha-npu) | SoC/NPU 状态、加速开关与超频控制 |
 | `luci-app-airoha-fancontrol` | [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) | 风扇速度/温度控制与曲线 |
-| `luci-app-airoha-flowsense` | [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) | PPE 硬件 offload、VLAN/PPPoE/AP 状态与延迟检测 |
+| `luci-app-airoha-flowsense` | [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) | PPE 硬件 offload、VLAN 标签/PPPoE 透传/AP 模式卸载状态与延迟检测 |
 | `luci-app-airoha-recovery` | 本仓库 | 一键重启进入 U-Boot HTTP Recovery（一次性触发） |
 | `luci-app-lucky` | [sirpdboy/luci-app-lucky](https://github.com/sirpdboy/luci-app-lucky) | Lucky（DDNS/反代/端口转发） |
 

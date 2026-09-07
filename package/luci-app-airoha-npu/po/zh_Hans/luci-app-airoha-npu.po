@@ -151,10 +151,10 @@ msgid "Flow Offload"
 msgstr "硬件流量加速"
 
 msgid "PPPoE Offload"
-msgstr "PPPoE 加速"
+msgstr "PPPoE 透传卸载"
 
 msgid "VLAN Offload"
-msgstr "VLAN 加速"
+msgstr "VLAN 标签卸载"
 
 msgid "HW Offload"
 msgstr "硬件加速"

@@ -34,7 +34,7 @@ msgid "Pause"
 msgstr "暂停"
 
 msgid "PPPoE Offload"
-msgstr "PPPoE 加速"
+msgstr "PPPoE 透传卸载"
 
 msgid "Resume"
 msgstr "继续"
@@ -49,7 +49,7 @@ msgid "Type"
 msgstr "类型"
 
 msgid "VLAN Offload"
-msgstr "VLAN 加速"
+msgstr "VLAN 标签卸载"
 
 # Compass labels
 msgid "NPU PATH"
@@ -241,16 +241,16 @@ msgid "no entries"
 msgstr "无条目"
 
 msgid "VLAN offload not supported on this device"
-msgstr "此设备不支持 VLAN 加速"
+msgstr "此设备不支持 VLAN 标签卸载"
 
 msgid "PPPoE offload not supported on this device"
-msgstr "此设备不支持 PPPoE 加速"
+msgstr "此设备不支持 PPPoE 透传卸载"
 
 msgid "failed to set VLAN offload"
-msgstr "设置 VLAN 加速失败"
+msgstr "设置 VLAN 标签卸载失败"
 
 msgid "failed to set PPPoE offload"
-msgstr "设置 PPPoE 加速失败"
+msgstr "设置 PPPoE 透传卸载失败"
 
 msgid "MODE detecting..."
 msgstr "MODE 探测中..."

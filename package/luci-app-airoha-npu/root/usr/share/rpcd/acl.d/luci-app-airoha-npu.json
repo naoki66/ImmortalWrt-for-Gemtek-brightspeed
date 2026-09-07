@@ -3,7 +3,7 @@
 		"description": "Grant access to Airoha NPU status (NPU + CPU + Offload)",
 		"read": {
 			"ubus": {
-				"luci.airoha_npu": [ "getStatus", "getPpeEntries", "getTokenInfo", "getFrameEngine", "getVlanOffload", "getPppoeOffload", "getFlowOffload", "getApModeOffload" ]
+				"luci.airoha_npu": [ "getStatus", "getPpeEntries", "getTokenInfo", "getFrameEngine", "getVlanOffload", "getPppoeOffload", "getFlowOffload", "getApModeOffload", "getDeviceMode" ]
 			},
 			"file": {
 				"/sys/kernel/debug/ppe/entries": [ "read" ],

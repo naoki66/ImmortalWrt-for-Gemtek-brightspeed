@@ -74,6 +74,46 @@ _devmem_read() {
 	[ -n "$val" ]
 }
 
+_has_active_wan() {
+	local wan_status up l3_device ipv4 ipv6
+
+	wan_status=$(ubus call network.interface.wan status 2>/dev/null)
+	[ -n "$wan_status" ] || return 1
+
+	up=$(printf '%s' "$wan_status" | jsonfilter -e "@.up" 2>/dev/null)
+	[ "$up" = "true" ] || return 1
+
+	l3_device=$(printf '%s' "$wan_status" | jsonfilter -e "@.l3_device" 2>/dev/null)
+	ipv4=$(printf '%s' "$wan_status" | jsonfilter -e "@['ipv4-address'][0].address" 2>/dev/null)
+	ipv6=$(printf '%s' "$wan_status" | jsonfilter -e "@['ipv6-address'][0].address" 2>/dev/null)
+
+	[ -n "$l3_device$ipv4$ipv6" ]
+}
+
+_bridge_offload_blocked() {
+	_has_active_wan
+}
+
+_bridge_offload_block_error() {
+	echo '{"error":"Bridge VLAN-tag / PPPoE-passthrough / AP-mode offload is disabled while WAN is active; use Hardware Flow Offload in router mode"}'
+}
+
+get_device_mode() {
+	local dhcp_ignore
+
+	if _has_active_wan; then
+		printf '{"mode":"router","reason":"active_wan","bridge_offload_blocked":true}'
+		return
+	fi
+
+	dhcp_ignore=$(uci get dhcp.lan.ignore 2>/dev/null)
+	if [ "$dhcp_ignore" = "1" ]; then
+		printf '{"mode":"ap","reason":"dhcp_disabled","bridge_offload_blocked":false}'
+	else
+		printf '{"mode":"ap","reason":"no_active_wan","bridge_offload_blocked":false}'
+	fi
+}
+
 get_status() {
 	# === NPU Status ===
 	# Read the actually-loaded NPU firmware path from DTS (firmware-name property).
@@ -462,6 +502,10 @@ set_vlan_offload() {
 		echo '{"error":"enabled must be 0 or 1"}'
 		return
 	fi
+	if [ "$enabled" = "1" ] && _bridge_offload_blocked; then
+		_bridge_offload_block_error
+		return
+	fi
 	if ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null; then
 		echo '{"error":"failed - bridge module may not be loaded"}'
 		return
@@ -483,6 +527,10 @@ set_pppoe_offload() {
 	[ -z "$enabled" ] && enabled="0"
 	if [ "$enabled" != "0" ] && [ "$enabled" != "1" ]; then
 		echo '{"error":"enabled must be 0 or 1"}'
+		return
+	fi
+	if [ "$enabled" = "1" ] && _bridge_offload_blocked; then
+		_bridge_offload_block_error
 		return
 	fi
 	# Load bridge module if needed and set sysctl (consistent with flowsense)
@@ -570,6 +618,10 @@ set_apmode_offload() {
 		echo '{"error":"enabled must be 0 or 1"}'
 		return
 	fi
+	if [ "$enabled" = "1" ] && _bridge_offload_blocked; then
+		_bridge_offload_block_error
+		return
+	fi
 
 	modprobe br_netfilter 2>/dev/null
 	vlan_filtering=$(_apmode_has_vlan_filtering)
@@ -602,12 +654,15 @@ set_apmode_offload() {
 
 case "$1" in
 	list)
-		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"getApModeOffload":{},"setApModeOffload":{"enabled":"int"},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"}}'
+		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"getApModeOffload":{},"setApModeOffload":{"enabled":"int"},"getDeviceMode":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"}}'
 		;;
 	call)
 		case "$2" in
 			getStatus)
 				get_status
+				;;
+			getDeviceMode)
+				get_device_mode
 				;;
 			getPpeEntries)
 				get_ppe_entries
