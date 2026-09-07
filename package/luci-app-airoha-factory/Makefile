@@ -28,6 +28,10 @@ define Package/$(LUCI_NAME)/install
 	$(INSTALL_BIN) ./root/usr/libexec/rpcd/luci.airoha_factory \
 		$(1)/usr/libexec/rpcd/
 
+	# U-Boot env config used by fw_printenv/fw_setenv
+	$(INSTALL_DIR) $(1)/etc
+	$(INSTALL_DATA) ./root/etc/fw_env.config $(1)/etc/
+
 	# LuCI menu configuration
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
 	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-airoha-factory.json \
@@ -42,6 +46,10 @@ endef
 define Package/$(LUCI_NAME)/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
+
+# Ensure the rpcd backend is executable even if a packaging path lost the
+# +x bit; rpcd silently skips non-executable scripts in /usr/libexec/rpcd.
+chmod 755 /usr/libexec/rpcd/luci.airoha_factory 2>/dev/null
 
 # rpcd only rescan the backend directory on a full (re)start, so restart it
 # to register the new luci.airoha_factory backend.

@@ -346,7 +346,7 @@ set_factory()
 
 case "$1" in
 	list)
-		printf '{"getStatus":{},"setFactory":{"fields":"object","ethaddr":"string"}}\n'
+		printf '{"getStatus":{},"setFactory":{"fields":{},"ethaddr":"string"}}\n'
 		;;
 	call)
 		args="$(cat)"
