@@ -276,6 +276,12 @@
 #define PPE_RFDB_TBL(idx)		(PPE_L2_BASE + 0x1000 + (idx) * 0x8)
 
 #define PPE_APP_CTRL(idx)		(PPE_L2_BASE + 0x1400 + (idx) * 0x10)
+/* Fields in the third 32-bit word of APP_CTRL. */
+#define   PPE_APP_CTRL_PORT_BITMAP_EN	BIT(2)
+#define   PPE_APP_CTRL_PORT_BITMAP	GENMASK(10, 3)
+#define   PPE_APP_CTRL_STP_BYPASS		BIT(12)
+#define   PPE_APP_CTRL_CMD		GENMASK(16, 15)
+#define   PPE_APP_CTRL_REDIRECT_CPU	3
 
 #define PPE_VSI_TBL(vsi)		(PPE_L2_BASE + 0x1800 + (vsi) * 0x10)
 #define   PPE_VSI_TBL_MEMBER		GENMASK(7, 0)

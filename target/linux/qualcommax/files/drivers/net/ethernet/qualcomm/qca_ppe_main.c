@@ -1683,6 +1683,12 @@ static void ppe_mac_hw_init(struct qca_ppe_priv *priv)
 
 static void ppe_ctrlpkt_init(struct qca_ppe_priv *priv)
 {
+	u32 ports;
+
+	/* Trap external BPDUs, but let CPU-originated BPDUs reach the wire. */
+	ports = GENMASK(priv->data->num_ports - 1, 0) &
+		~(BIT(QCA_PPE_CPU_PORT) | BIT(priv->data->loopback_port));
+
 	/* RFDB_TBL[31]: STP multicast MAC 01:80:c2:00:00:00 */
 	regmap_write(priv->regmap, PPE_RFDB_TBL(31), 0xc2000000);
 	regmap_write(priv->regmap, PPE_RFDB_TBL(31) + 4, 0x00010180);
@@ -1690,7 +1696,11 @@ static void ppe_ctrlpkt_init(struct qca_ppe_priv *priv)
 	/* APP_CTRL[0]: match RFDB profile 31, bypass STP, redirect to CPU */
 	regmap_write(priv->regmap, PPE_APP_CTRL(0), 0x00000003);
 	regmap_write(priv->regmap, PPE_APP_CTRL(0) + 4, 0x00000002);
-	regmap_write(priv->regmap, PPE_APP_CTRL(0) + 8, 0x000093fc);
+	regmap_write(priv->regmap, PPE_APP_CTRL(0) + 8,
+		     PPE_APP_CTRL_PORT_BITMAP_EN |
+		     FIELD_PREP(PPE_APP_CTRL_PORT_BITMAP, ports) |
+		     PPE_APP_CTRL_STP_BYPASS |
+		     FIELD_PREP(PPE_APP_CTRL_CMD, PPE_APP_CTRL_REDIRECT_CPU));
 }
 
 static int ppe_ipq6018_mux_setup(struct qca_ppe_priv *priv)
