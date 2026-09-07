@@ -1,0 +1,3 @@
+# Compiled translation catalogs are generated from po/*/*.po at build time
+# (luci.mk runs po2lmo during packaging). Never commit them.
+*.lmo
