@@ -13,12 +13,13 @@
 #
 #   * U-Boot environment  @ offset 0x200000 (ENV_OFFSET)
 #       A standard U-Boot env (4-byte CRC32 + NUL separated name=value).
-#       We keep two variables in sync with the WAN MAC:
-#         - ethaddr  = wan_mac
-#         - oui      = first three octets of wan_mac, formatted 00:AA:BB
+#       We keep two variables in sync with the addresses:
+#         - ethaddr  = wan_mac by default (may be overridden per save)
+#         - oui      = first three octets of ethaddr, formatted 00:AA:BB
 #
 # Linkage rules (the "联动" the UI implements):
-#   editing WAN MAC  ->  LAN MAC = WAN+1, ethaddr = WAN, OUI = first3(WAN)
+#   editing WAN MAC  ->  LAN MAC = WAN+1, ethaddr = WAN (both overridable)
+#   ethaddr          ->  OUI = first3(ethaddr)
 #
 # NOTE: mtd0 is flagged read-only in the device tree.  Writing requires the
 # "read-only" property to be removed from the "vendor" fixed-partition in the
@@ -236,7 +237,7 @@ get_status()
 
 set_factory()
 {
-	local args="$1" dev tmp orig newblk lan_auto=0 wan lan serial
+	local args="$1" dev tmp orig newblk lan_auto=0 eth_auto=1 wan lan serial ethaddr
 	local k v n rem headf bodyf mtd_ok=0 env_msg="" ubi_msg=""
 
 	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
@@ -245,6 +246,7 @@ set_factory()
 	json_get_var lan lan_mac
 	json_get_var serial serial_number
 	json_select ..
+	json_get_var ethaddr ethaddr
 
 	[ -z "$wan" ] && { printf '{"success":false,"error":"missing wan_mac"}'; return; }
 	valid_mac_strict "$wan" || { printf '{"success":false,"error":"invalid wan_mac: %s (must be unicast, non-00:00:00, non-FF:FF:FF)"}' "$wan"; return; }
@@ -252,6 +254,12 @@ set_factory()
 	# LAN defaults to WAN + 1 when left empty
 	[ -z "$lan" ] && { lan="$(mac_plus1 "$wan")"; lan_auto=1; }
 	valid_mac_strict "$lan" || { printf '{"success":false,"error":"invalid lan_mac: %s (must be unicast, non-00:00:00, non-FF:FF:FF)"}' "$lan"; return; }
+
+	# U-Boot ethaddr defaults to WAN when left empty; can be forced to any
+	# valid unicast MAC. OUI always derives from the final ethaddr.
+	[ -z "$ethaddr" ] && ethaddr="$wan"
+	[ "$ethaddr" != "$wan" ] && eth_auto=0
+	valid_mac_strict "$ethaddr" || { printf '{"success":false,"error":"invalid ethaddr: %s (must be unicast, non-00:00:00, non-FF:FF:FF)"}' "$ethaddr"; return; }
 
 	dev="$(find_mtd_dev)" || { printf '{"success":false,"error":"vendor partition not found"}'; return; }
 
@@ -306,10 +314,10 @@ set_factory()
 		rm -f "$tmp" "$orig" "$headf" "$bodyf" /tmp/airoha_factory_mtd.log; return
 	fi
 
-	# ---- U-Boot env: ethaddr = wan, oui = first3(wan) ----
+	# ---- U-Boot env: ethaddr (WAN by default, overridable), oui = first3(ethaddr) ----
 	if command -v fw_setenv >/dev/null 2>&1 && ensure_env_conf; then
-		if fw_setenv -c "$UBOOT_ENV_CONF" ethaddr "$(echo "$wan" | tr 'A-F' 'a-f')" 2>/tmp/airoha_factory_env.log \
-		   && fw_setenv -c "$UBOOT_ENV_CONF" oui "$(derive_oui "$wan")" 2>>/tmp/airoha_factory_env.log; then
+		if fw_setenv -c "$UBOOT_ENV_CONF" ethaddr "$(echo "$ethaddr" | tr 'A-F' 'a-f')" 2>/tmp/airoha_factory_env.log \
+		   && fw_setenv -c "$UBOOT_ENV_CONF" oui "$(derive_oui "$ethaddr")" 2>>/tmp/airoha_factory_env.log; then
 			env_msg="U-Boot env updated (ethaddr, oui)"
 		else
 			env_msg="U-Boot env update failed: $(json_escape "$(cat /tmp/airoha_factory_env.log 2>/dev/null | tr '\n' ' ')")"
@@ -327,8 +335,8 @@ set_factory()
 		ubi_msg="skipped (UBI factory volume $UBI_FACTORY not found)"
 	fi
 
-	printf '{"success":true,"wan":"%s","lan":"%s","lan_auto":%s,"env":"%s","ubi":"%s"}\n' \
-		"$wan" "$lan" "$lan_auto" "$env_msg" "$ubi_msg"
+	printf '{"success":true,"wan":"%s","lan":"%s","lan_auto":%s,"ethaddr":"%s","eth_auto":%s,"env":"%s","ubi":"%s"}\n' \
+		"$wan" "$lan" "$lan_auto" "$ethaddr" "$eth_auto" "$env_msg" "$ubi_msg"
 
 	rm -f "$tmp" "$orig" "$headf" "$bodyf" /tmp/airoha_factory_mtd.log /tmp/airoha_factory_env.log
 
@@ -338,7 +346,7 @@ set_factory()
 
 case "$1" in
 	list)
-		printf '{"getStatus":{},"setFactory":{"fields":"object"}}\n'
+		printf '{"getStatus":{},"setFactory":{"fields":"object","ethaddr":"string"}}\n'
 		;;
 	call)
 		args="$(cat)"

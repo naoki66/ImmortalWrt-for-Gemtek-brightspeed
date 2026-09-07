@@ -102,13 +102,14 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		key->tcp.flags = 0;
 --- a/net/netfilter/nft_flow_offload.c
 +++ b/net/netfilter/nft_flow_offload.c
-@@ -8,5 +8,6 @@
+@@ -8,6 +8,7 @@
  #include <linux/spinlock.h>
  #include <linux/netfilter/nf_conntrack_common.h>
  #include <linux/netfilter/nf_tables.h>
 +#include <net/dsfield.h>
  #include <net/ip.h>
  #include <net/flow.h>
+ #include <net/netfilter/nf_tables.h>
 @@ -20,6 +21,27 @@ struct nft_flow_offload {
  	struct nft_flowtable	*flowtable;
  };

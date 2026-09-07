@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: luci-app-airoha-factory\n"
 "POT-Creation-Date: 2026-09-06 18:00+0800\n"
-"PO-Revision-Date: 2026-09-06 18:00+0800\n"
+"PO-Revision-Date: 2026-09-07 03:12+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_Hans\n"
@@ -19,22 +19,19 @@ msgstr "原厂数据"
 msgid "Current device values"
 msgstr "当前设备值"
 
-msgid "read-only"
-msgstr "只读"
+msgid "WAN MAC"
+msgstr "WAN MAC"
 
-msgid "WAN (mtd0 text)"
-msgstr "WAN (mtd0 文本)"
-
-msgid "LAN (mtd0 text)"
-msgstr "LAN (mtd0 文本)"
-
-msgid "OUI"
-msgstr "OUI"
+msgid "LAN MAC"
+msgstr "LAN MAC"
 
 msgid "U-Boot ethaddr"
 msgstr "U-Boot ethaddr"
 
-msgid "Wi-Fi 24G BSSID"
+msgid "OUI"
+msgstr "OUI"
+
+msgid "Wi-Fi 2.4G BSSID"
 msgstr "Wi-Fi 2.4G BSSID"
 
 msgid "Wi-Fi 5G BSSID"
@@ -43,17 +40,17 @@ msgstr "Wi-Fi 5G BSSID"
 msgid "Wi-Fi 6G BSSID"
 msgstr "Wi-Fi 6G BSSID"
 
-msgid "derived from LAN"
-msgstr "由 LAN 派生"
+msgid "derived from WAN"
+msgstr "由 WAN 派生"
+
+msgid "derived from ethaddr"
+msgstr "由 ethaddr 派生"
 
 msgid "Save Factory Block"
 msgstr "保存原厂数据块"
 
 msgid "Reload"
 msgstr "重新读取"
-
-msgid "MTD device"
-msgstr "MTD 设备"
 
 msgid "Writable"
 msgstr "可写"
@@ -64,86 +61,17 @@ msgstr "是"
 msgid "No (read-only)"
 msgstr "否（只读）"
 
-msgid "Admin Username"
-msgstr "管理员用户名"
-
-msgid "Admin Password (hash)"
-msgstr "管理员密码（哈希）"
-
 msgid "WAN MAC"
 msgstr "WAN MAC"
-
-msgid "LAN MAC"
-msgstr "LAN MAC"
 
 msgid "Serial Number"
 msgstr "序列号"
 
-msgid "Manufacturer"
-msgstr "制造商"
-
-msgid "Fan ID"
-msgstr "风扇 ID"
-
-msgid "Wi-Fi Guest Passphrase"
-msgstr "Wi-Fi 访客密码"
-
-msgid "Wi-Fi Passphrase"
-msgstr "Wi-Fi 密码"
-
-msgid "Wi-Fi SSID"
-msgstr "Wi-Fi 名称"
-
-msgid "Wi-Fi WPS PIN"
-msgstr "Wi-Fi WPS PIN"
-
-msgid "U-Boot Environment (mtd0 @ 0x200000)"
-msgstr ""
-
-msgid "ethaddr"
-msgstr "ethaddr"
-
-msgid "oui"
-msgstr "oui"
-
-msgid "stored"
-msgstr "已存储"
-
-msgid "derived from ethaddr"
-msgstr "由 ethaddr 派生"
-
-msgid "U-Boot Environment  @  mtd0 0x200000"
-msgstr ""
-
-msgid "U-Boot Environment"
-msgstr "U-Boot 环境"
-
 msgid "Same LAN should not have multiple devices with the same MAC."
 msgstr "同一局域网内不应该有相同 MAC 的多台设备。"
 
-msgid "ethaddr (stored)"
-msgstr ""
-
-msgid "oui (stored)"
-msgstr ""
-
-msgid "Only WAN MAC, LAN MAC and Serial Number are edited here. LAN defaults to WAN+1 (editable). The other factory fields are preserved untouched."
-msgstr "这里只编辑 WAN MAC、LAN MAC 和序列号。LAN 默认为 WAN+1（可手动修改），其余原厂字段保持不变。"
-
-msgid "On save, ethaddr is written as the WAN MAC and oui as its first three octets (00:AA:BB). On a stock device the `oui` variable does not exist yet — Save will create it."
-msgstr "保存时会写入：ethaddr = WAN MAC，oui = WAN 前三个字节（00:AA:BB）。原厂设备通常尚未定义 oui 变量，Save 时会自动创建。"
-
-msgid "On save, ethaddr is written as the WAN MAC and oui as its first three octets (00:AA:BB). The values below are the current stored values on disk."
-msgstr ""
-
-msgid "On save, ethaddr is written as the WAN MAC and oui as its first three octets (00:AA:BB). These are read-only here and updated together with the factory block."
-msgstr ""
-
-msgid "Editing WAN MAC auto-links: LAN = WAN+1, U-Boot ethaddr = WAN, OUI = first 3 octets."
-msgstr "编辑 WAN MAC 会自动联动：LAN = WAN+1、U-Boot ethaddr = WAN、OUI = 前三个字节。"
-
-msgid "⚠ Requires latest U-Boot"
-msgstr ""
+msgid "Only WAN MAC, LAN MAC, U-Boot ethaddr and Serial Number are edited here. LAN defaults to WAN+1 and U-Boot ethaddr defaults to WAN (both editable). OUI derives from the U-Boot ethaddr."
+msgstr "这里编辑 WAN MAC、LAN MAC、U-Boot ethaddr 和序列号。LAN 默认为 WAN+1、U-Boot ethaddr 默认为 WAN（均可手动修改），OUI 由 U-Boot ethaddr 自动派生。"
 
 msgid "⚠ Requires latest U-Boot and Firmware"
 msgstr "⚠ 需要刷入新版 U-Boot 和固件"
@@ -151,11 +79,47 @@ msgstr "⚠ 需要刷入新版 U-Boot 和固件"
 msgid "✓ Write ready"
 msgstr "✓ 可写"
 
-msgid "All write targets are accessible: mtd0 factory text, UBI factory volume, and U-Boot env."
-msgstr "所有写入目标均已就绪：mtd0 原厂文本、UBI factory 卷、U-Boot env。"
+msgid "All write targets are ready. You can save changes directly."
+msgstr "所有写入目标均已就绪，可直接保存修改。"
 
-msgid "Write"
-msgstr "写入"
+msgid "Write factory data + reboot"
+msgstr "写入原厂数据并重启"
+
+msgid "Write successful"
+msgstr "写入成功"
+
+msgid "(unchanged)"
+msgstr "（未修改）"
+
+msgid "Write & Reboot"
+msgstr "写入并重启"
+
+msgid "Factory data written successfully. The device will reboot automatically in a few seconds to apply the new configuration."
+msgstr "原厂数据写入成功。设备将在几秒后自动重启以应用新配置。"
+
+msgid "OK"
+msgstr "确定"
 
 msgid "Cancel"
 msgstr "取消"
+
+msgid "Could not read the factory partition: %s"
+msgstr "无法读取原厂分区：%s"
+
+msgid "One or more MAC fields are invalid (expected AA:BB:CC:DD:EE:FF)."
+msgstr "一个或多个 MAC 格式无效（应为 AA:BB:CC:DD:EE:FF）。"
+
+msgid "Failed to write factory block"
+msgstr "写入原厂数据块失败"
+
+msgid "Write failed"
+msgstr "写入失败"
+
+msgid "Reload failed: %s"
+msgstr "重新读取失败：%s"
+
+msgid "Reload failed"
+msgstr "重新读取失败"
+
+msgid "Reload render failed"
+msgstr "重新渲染失败"
