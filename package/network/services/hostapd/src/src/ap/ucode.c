@@ -1225,6 +1225,7 @@ int hostapd_ucode_init(struct hapd_interfaces *ifaces)
 	static const uc_function_list_t global_fns[] = {
 		{ "printf",	uc_wpa_printf },
 		{ "getpid", uc_wpa_getpid },
+		{ "msleep", uc_wpa_msleep },
 		{ "sha1", uc_wpa_sha1 },
 		{ "rkh_derive_key", uc_wpa_rkh_derive_key },
 		{ "freq_info", uc_wpa_freq_info },

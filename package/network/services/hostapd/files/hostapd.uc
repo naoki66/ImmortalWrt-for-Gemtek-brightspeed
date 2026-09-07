@@ -161,7 +161,7 @@ function iface_add(phy, config, phy_status)
 		let bss_added = hostapd.data.bss_add_count ?? 0;
 		hostapd.data.bss_add_count = bss_added + 1;
 		if (bss_added % 3 === 0)
-			uloop.sleep(200);
+			hostapd.msleep(200);
 	}
 
 	let iface = hostapd.interfaces[phy];
@@ -401,7 +401,7 @@ function iface_restart(phydev, config, old_config)
 	// Allow kernel time to complete interface teardown before creating new ones
 	// Prevents ENFILE race on multi-VAP devices (e.g. MT7996 with 12+ interfaces)
 	if (length(old_config?.bss ?? []) + length(config?.bss ?? []) > 6)
-		uloop.sleep(400);
+		hostapd.msleep(400);
 
 	if (!config.bss || !config.bss[0]) {
 		hostapd.printf(`No bss for phy ${phy}`);

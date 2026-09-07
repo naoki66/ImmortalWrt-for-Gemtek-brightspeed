@@ -202,6 +202,29 @@ uc_value_t *uc_wpa_getpid(uc_vm_t *vm, size_t nargs)
 	return ucv_int64_new(getpid());
 }
 
+uc_value_t *uc_wpa_msleep(uc_vm_t *vm, size_t nargs)
+{
+	uc_value_t *msecs = uc_fn_arg(0);
+	int64_t delay;
+
+	if (ucv_type(msecs) != UC_INTEGER)
+		return NULL;
+
+	errno = 0;
+	delay = ucv_int64_get(msecs);
+	if (errno || delay < 0)
+		return NULL;
+
+	while (delay > 0) {
+		int64_t chunk = delay > 1000 ? 1000 : delay;
+
+		usleep(chunk * 1000);
+		delay -= chunk;
+	}
+
+	return NULL;
+}
+
 uc_value_t *uc_wpa_sha1(uc_vm_t *vm, size_t nargs)
 {
 	u8 hash[SHA1_MAC_LEN];
