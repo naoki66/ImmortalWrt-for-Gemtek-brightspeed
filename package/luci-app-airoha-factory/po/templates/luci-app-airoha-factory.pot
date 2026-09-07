@@ -1,7 +1,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: luci-app-airoha-factory\n"
-"POT-Creation-Date: 2026-09-07 03:12+0800\n"
+"POT-Creation-Date: 2026-09-07 04:00+0800\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -21,6 +21,9 @@ msgstr ""
 msgid "LAN MAC"
 msgstr ""
 
+msgid "U-Boot ethaddr"
+msgstr ""
+
 msgid "OUI"
 msgstr ""
 
@@ -34,6 +37,9 @@ msgid "Wi-Fi 6G BSSID"
 msgstr ""
 
 msgid "derived from WAN"
+msgstr ""
+
+msgid "derived from ethaddr"
 msgstr ""
 
 msgid "Save Factory Block"
@@ -60,13 +66,34 @@ msgstr ""
 msgid "Only WAN MAC, LAN MAC, U-Boot ethaddr and Serial Number are edited here. LAN defaults to WAN+1 and U-Boot ethaddr defaults to WAN (both editable). OUI derives from the U-Boot ethaddr."
 msgstr ""
 
-msgid "⚠ Requires latest U-Boot and Firmware"
+msgid "Compatibility note:"
 msgstr ""
 
-msgid "✓ Write ready"
+msgid "Writing requires the latest U-Boot and firmware."
+msgstr ""
+
+msgid "U-Boot download:"
+msgstr ""
+
+msgid "Firmware download:"
+msgstr ""
+
+msgid "After upgrading U-Boot and firmware, this page can modify the serial number and factory data correctly."
+msgstr ""
+
+msgid "Requires latest U-Boot and Firmware"
+msgstr ""
+
+msgid "Write ready"
 msgstr ""
 
 msgid "All write targets are ready. You can save changes directly."
+msgstr ""
+
+msgid "Vendor partition is read-only."
+msgstr ""
+
+msgid "Vendor partition is read-only. Upgrade U-Boot and firmware before writing."
 msgstr ""
 
 msgid "Write factory data + reboot"

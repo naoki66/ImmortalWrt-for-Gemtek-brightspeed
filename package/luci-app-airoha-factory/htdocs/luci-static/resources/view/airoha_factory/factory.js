@@ -82,11 +82,18 @@ var themeCSS = '\
 // only these three keys are edited in the factory text block
 var EDIT_KEYS = ['wan_mac', 'lan_mac', 'serial_number'];
 
-var LABELS = {
-	wan_mac:        'WAN MAC',
-	lan_mac:        'LAN MAC',
-	serial_number:  'Serial Number'
-};
+function labelForKey(k) {
+	switch (k) {
+	case 'wan_mac':
+		return _('WAN MAC');
+	case 'lan_mac':
+		return _('LAN MAC');
+	case 'serial_number':
+		return _('Serial Number');
+	}
+
+	return k;
+}
 
 function isDarkMode() {
 	var els = [document.body, document.querySelector('.main-content'), document.querySelector('#maincontent')];
@@ -129,7 +136,8 @@ function macValid(v) {
 // strict MAC validation: unicast, non-zero, non-broadcast
 function macValidStrict(v) {
 	if (!macValid(v)) return false;
-	if (/^00:00:00:/i.test(v) || /^FF:FF:FF:/i.test(v)) return false;
+	var hex = v.replace(/:/g, '').toUpperCase();
+	if (hex === '000000000000' || hex === 'FFFFFFFFFFFF') return false;
 	var first = parseInt(v.substr(0, 2), 16);
 	if (first & 1) return false;
 	return true;
@@ -149,15 +157,40 @@ function deriveOui(v) {
 
 // MAC + 1 with carry
 function macPlus1(v) {
-	var hex = v.replace(/:/g, '').toUpperCase();
-	if (hex.length !== 12) return '';
-	var b = [];
-	for (var i = 0; i < 6; i++) b.push(parseInt(hex.substr(i * 2, 2), 16));
-	b[5]++;
-	for (var j = 5; j > 0; j--) {
-		if (b[j] > 255) { b[j] = 0; b[j - 1]++; }
-	}
-	return b.map(function(x) { return ('0' + x.toString(16).toUpperCase()).slice(-2); }).join(':');
+	return macPlusOffset(v, 1);
+}
+
+function buildRequirementHint() {
+	var ubootUrl = 'https://github.com/naoki66/XR1710G-http-uboot/releases';
+	var firmwareUrl = 'https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/releases';
+
+	return E('div', { 'class': 'fac-callout-text' }, [
+		E('strong', {}, _('Compatibility note:')),
+		' ',
+		_('Writing requires the latest U-Boot and firmware.'),
+		E('br'),
+		E('span', { 'class': 'fac-step' }, '1'),
+		' ',
+		E('span', { 'class': 'fac-hint-label' }, _('U-Boot download:')),
+		E('a', {
+			'class': 'fac-link',
+			'target': '_blank',
+			'rel': 'noopener external',
+			'href': ubootUrl
+		}, ubootUrl),
+		E('br'),
+		E('span', { 'class': 'fac-step' }, '2'),
+		' ',
+		E('span', { 'class': 'fac-hint-label' }, _('Firmware download:')),
+		E('a', {
+			'class': 'fac-link',
+			'target': '_blank',
+			'rel': 'noopener external',
+			'href': firmwareUrl
+		}, firmwareUrl),
+		E('br'),
+		E('em', {}, _('After upgrading U-Boot and firmware, this page can modify the serial number and factory data correctly.'))
+	]);
 }
 
 // Build the "Current device values" table. All rows are live-updated by
@@ -248,7 +281,7 @@ return view.extend({
 		this._lanTouched = false;
 
 		var body = E('div', { 'class': 'cbi-map fac-dashboard' }, [
-			E('h2', '设备序列号')
+			E('h2', _('Factory Partition'))
 		]);
 
 		if (status.error) {
@@ -258,6 +291,7 @@ return view.extend({
 		}
 
 		var writable = !!(status.writable);
+		this._writable = writable;
 
 		// ---- status card (compact info + prominent hint) ----
 		var statusCard = E('div', { 'class': 'fac-card' }, [
@@ -270,30 +304,12 @@ return view.extend({
 
 		// key hint callout — the most important message
 		var hintTitle = writable
-			? _('✓ Write ready')
-			: _('⚠ Requires latest U-Boot and Firmware');
-		var hintBody = E('div', { 'class': 'fac-callout-text' });
-		if (writable) {
-			hintBody.appendChild(document.createTextNode(
-				_('All write targets are ready. You can save changes directly.')));
-		} else {
-			hintBody.innerHTML =
-				'<strong>适配提示：</strong>写入功能需要刷入新版 ' +
-				'<code>U-Boot</code> 与新版的固件<code>Firmware</code> 。<br>' +
-				'<span class="fac-step">①</span> ' +
-				'<span class="fac-hint-label">U-Boot 下载地址：</span>' +
-				'<a class="fac-link" target="_blank" rel="noopener external" ' +
-				'href="https://github.com/naoki66/XR1710G-http-uboot/releases">' +
-				'https://github.com/naoki66/XR1710G-http-uboot/releases' +
-				'</a><br>' +
-				'<span class="fac-step">②</span> ' +
-				'<span class="fac-hint-label">新版固件下载地址：</span>' +
-				'<a class="fac-link" target="_blank" rel="noopener external" ' +
-				'href="https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/releases">' +
-				'https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/releases' +
-				'</a><br>' +
-				'<em>刷入新版 U-Boot 和新版固件 Firmware 后，本页面才能正确修改设备序列号等数据。</em>';
-		}
+			? _('Write ready')
+			: _('Requires latest U-Boot and Firmware');
+		var hintBody = writable
+			? E('div', { 'class': 'fac-callout-text' },
+				_('All write targets are ready. You can save changes directly.'))
+			: buildRequirementHint();
 		statusCard.appendChild(E('div', { 'class': 'fac-callout' + (writable ? ' ok' : '') }, [
 			E('div', { 'class': 'fac-callout-icon' }, writable ? '✓' : '⚠'),
 			E('div', { 'class': 'fac-callout-body' }, [
@@ -310,6 +326,7 @@ return view.extend({
 		EDIT_KEYS.forEach(function(k) {
 			var val = self._fields[k] || '';
 			var inp = E('input', {
+				'id': 'fac-' + k,
 				'class': (k === 'wan_mac' || k === 'lan_mac') ? 'mac' : '',
 				'type': 'text',
 				'value': val,
@@ -328,7 +345,7 @@ return view.extend({
 			}
 			self._inputs[k] = inp;
 			stack.appendChild(E('div', { 'class': 'fac-field' }, [
-				E('label', { 'for': 'fac-' + k }, LABELS[k] || k),
+				E('label', { 'for': 'fac-' + k }, labelForKey(k)),
 				inp
 			]));
 		});
@@ -342,6 +359,7 @@ return view.extend({
 	this._ethTouched = !!(macValid(ethInitial) && macValid(wanInitial) &&
 		ethInitial.replace(/:/g, '').toUpperCase() !== wanInitial.replace(/:/g, '').toUpperCase());
 	var ethInp = E('input', {
+		'id': 'fac-ethaddr',
 		'class': 'mac',
 		'type': 'text',
 		'value': ethInitial,
@@ -370,6 +388,8 @@ return view.extend({
 
 		var saveBtn = E('button', {
 			'class': 'cbi-button cbi-button-apply',
+			'disabled': writable ? null : 'disabled',
+			'title': writable ? null : _('Vendor partition is read-only.'),
 			'click': ui.createHandlerFn(self, 'handleSave')
 		}, _('Save Factory Block'));
 
@@ -449,7 +469,7 @@ return view.extend({
 		var self = this;
 		return callGetStatus().then(function(newStatus) {
 			if (newStatus && newStatus.error) {
-				L.ui.addNotification(null, E('p', _('Reload failed: %s').format(newStatus.error)));
+				ui.addNotification(null, E('p', _('Reload failed: %s').format(newStatus.error)));
 				return;
 			}
 			var oldBody = self._body;
@@ -457,7 +477,7 @@ return view.extend({
 			try {
 				newBody = self.render(newStatus);
 			} catch (e) {
-				L.ui.addNotification(null, E('p', e.message || _('Reload render failed')));
+				ui.addNotification(null, E('p', e.message || _('Reload render failed')));
 				return;
 			}
 			if (oldBody && oldBody.parentNode) {
@@ -465,14 +485,18 @@ return view.extend({
 			}
 			self._body = newBody;
 		}).catch(function(e) {
-			L.ui.addNotification(null, E('p', e.message || _('Reload failed')));
+			ui.addNotification(null, E('p', e.message || _('Reload failed')));
 		});
 	},
 
 	handleSave: function() {
 		var self = this;
+		if (!this._writable) {
+			ui.addNotification(null, E('p', _('Vendor partition is read-only. Upgrade U-Boot and firmware before writing.')));
+			return;
+		}
 		if (!this.validate()) {
-			L.ui.addNotification(null, E('p', _('One or more MAC fields are invalid (expected AA:BB:CC:DD:EE:FF).')));
+			ui.addNotification(null, E('p', _('One or more MAC fields are invalid (expected AA:BB:CC:DD:EE:FF).')));
 			return;
 		}
 		var fields = this.collect();
@@ -484,7 +508,7 @@ return view.extend({
 				String(value)
 			]);
 		}
-		return L.ui.showModal(_('Write factory data + reboot'), [
+		return ui.showModal(_('Write factory data + reboot'), [
 			E('ul', { 'class': 'fac-modal-list' }, [
 				modalRow(_('WAN MAC'), wan),
 				modalRow(_('LAN MAC'), lan),
@@ -495,31 +519,31 @@ return view.extend({
 				E('button', {
 					'class': 'cbi-button cbi-button-apply',
 					'click': function() {
-						L.ui.hideModal();
-						callSetFactory({ fields: fields, ethaddr: eth }).then(function(res) {
+						ui.hideModal();
+						callSetFactory(fields, eth).then(function(res) {
 							if (!res || !res.success) {
-								L.ui.addNotification(null, E('p',
+								ui.addNotification(null, E('p',
 									(res && res.error) || _('Failed to write factory block')));
 								return;
 							}
-							L.ui.showModal(_('Write successful'), [
+							ui.showModal(_('Write successful'), [
 								E('p', {}, _('Factory data written successfully. The device will reboot automatically in a few seconds to apply the new configuration.')),
 								E('div', { 'class': 'right' }, [
 									E('button', {
 										'class': 'cbi-button cbi-button-apply',
-										'click': function() { L.ui.hideModal(); }
+										'click': function() { ui.hideModal(); }
 									}, _('OK'))
 								])
 							]);
 						}).catch(function(e) {
-							L.ui.addNotification(null, E('p', e.message || _('Write failed')));
+							ui.addNotification(null, E('p', e.message || _('Write failed')));
 						});
 					}
 				}, _('Write & Reboot')),
 				' ',
 				E('button', {
 					'class': 'cbi-button cbi-button-neutral',
-					'click': function() { L.ui.hideModal(); }
+					'click': function() { ui.hideModal(); }
 				}, _('Cancel'))
 			])
 		]);

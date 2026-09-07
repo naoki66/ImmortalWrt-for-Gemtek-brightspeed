@@ -1,6 +1,6 @@
 {
 	"admin/system/factory": {
-		"title": "设备序列号",
+		"title": "Factory Partition",
 		"order": 80,
 		"action": {
 			"type": "view",

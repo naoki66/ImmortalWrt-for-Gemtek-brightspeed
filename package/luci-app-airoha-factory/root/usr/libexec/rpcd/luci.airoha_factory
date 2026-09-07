@@ -39,20 +39,21 @@ ENV_OFFSET=2097152              # 0x200000
 ENV_SIZE=16384                  # 0x4000
 ENV_SECTOR=131072               # 0x20000
 UBOOT_ENV_CONF="/etc/fw_env.config"
-# keys we are allowed to touch inside the factory text block
-MANAGED_KEYS="wan_mac lan_mac serial_number"
-
 NL='
 '
 
 find_mtd_dev()
 {
-	local i d n
-	for i in 0 1 2 3 4 5 6 7 8 9; do
-		d="/sys/class/mtd/mtd$i"
+	local d i n
+	for d in /sys/class/mtd/mtd*; do
+		[ -d "$d" ] || continue
+		i="${d##*/mtd}"
+		case "$i" in
+			''|*[!0-9]*) continue ;;
+		esac
 		[ -f "$d/name" ] || continue
 		read -r n < "$d/name"
-		[ "$n" = "$MTD_LABEL" ] && { echo "/dev/mtd$i"; return 0; }
+		[ "$n" = "$MTD_LABEL" ] && { printf '/dev/mtd%s\n' "$i"; return 0; }
 	done
 	return 1
 }
@@ -71,10 +72,7 @@ mtd_writable()
 
 json_escape()
 {
-	local s="$1"
-	s="${s//\\/\\\\}"
-	s="${s//\"/\\\"}"
-	printf '%s' "$s"
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
 hex_mac()
@@ -95,23 +93,22 @@ valid_mac()
 	echo "$1" | grep -qiE '^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$'
 }
 
-# strict MAC validation: unicast, non-zero/non-broadcast first octet
+# strict MAC validation: unicast, not all-zero and not broadcast
 valid_mac_strict()
 {
+	local h f
 	valid_mac "$1" || return 1
-	case "$1" in
-		00:00:00:*|FF:FF:FF:*) return 1 ;;
-	esac
-	local f
+	h="$(echo "$1" | tr -d ':' | tr 'a-f' 'A-F')"
+	[ "$h" = "000000000000" ] && return 1
+	[ "$h" = "FFFFFFFFFFFF" ] && return 1
 	f=$(echo "$1" | cut -d: -f1)
 	[ $(( 0x$f & 1 )) -eq 0 ] || return 1
 	return 0
 }
 
-# OUI validation: three hex octets formatted 00:AA:BB
-valid_oui()
+mac_lc()
 {
-	echo "$1" | grep -qiE '^([0-9a-fA-F]{2}:){2}[0-9a-fA-F]{2}$'
+	echo "$1" | tr 'A-F' 'a-f'
 }
 
 # first three octets of a MAC, formatted 00:AA:BB
@@ -129,8 +126,9 @@ mac_plus1()
 	local hex b0 b1 b2 b3 b4 b5
 	hex="$(echo "$1" | tr -d ':')"
 	[ ${#hex} -ne 12 ] && { echo "$1"; return; }
-	b0=$((0x${hex:0:2}));  b1=$((0x${hex:2:2}));  b2=$((0x${hex:4:2}))
-	b3=$((0x${hex:6:2}));  b4=$((0x${hex:8:2}));  b5=$((0x${hex:10:2}))
+	set -- $(printf '%s' "$hex" | sed 's/../0x& /g')
+	b0=$(($1)); b1=$(($2)); b2=$(($3))
+	b3=$(($4)); b4=$(($5)); b5=$(($6))
 	b5=$((b5 + 1))
 	[ "$b5" -gt 255 ] && { b5=0; b4=$((b4 + 1)); }
 	[ "$b4" -gt 255 ] && { b4=0; b3=$((b3 + 1)); }
@@ -143,9 +141,22 @@ mac_plus1()
 # make sure /etc/fw_env.config points at the embedded U-Boot env
 ensure_env_conf()
 {
-	[ -r "$UBOOT_ENV_CONF" ] && return 0
+	local dev
+	dev="$(find_mtd_dev)" || dev="/dev/mtd0"
+	[ -r "$UBOOT_ENV_CONF" ] && awk -v dev="$dev" '
+		/^[[:space:]]*(#|$)/ { next }
+		$1 == dev && tolower($2) == "0x200000" &&
+			tolower($3) == "0x4000" && tolower($4) == "0x20000" {
+			found = 1
+			exit
+		}
+		END { exit found ? 0 : 1 }
+	' "$UBOOT_ENV_CONF" && return 0
 	[ -w /etc ] || return 1
-	printf '/dev/mtd0 0x200000 0x4000 0x20000\n' > "$UBOOT_ENV_CONF" 2>/dev/null
+	{
+		printf '# Airoha XR1710G U-Boot environment\n'
+		printf '%s 0x200000 0x4000 0x20000\n' "$dev"
+	} > "$UBOOT_ENV_CONF" 2>/dev/null
 }
 
 uboot_env_var()
@@ -153,18 +164,10 @@ uboot_env_var()
 	local var="$1" val
 	ensure_env_conf || return 1
 	command -v fw_printenv >/dev/null 2>&1 || return 1
-	val="$(fw_printenv -n "$var" 2>/dev/null)"
-	[ -z "$val" ] && val="$(fw_printenv "$var" 2>/dev/null | sed "s/^${var}=//")"
+	val="$(fw_printenv -c "$UBOOT_ENV_CONF" -n "$var" 2>/dev/null)"
+	[ -z "$val" ] && val="$(fw_printenv -c "$UBOOT_ENV_CONF" "$var" 2>/dev/null | sed "s/^${var}=//")"
 	[ -n "$val" ] && { printf '%s' "$val"; return 0; }
 	return 1
-}
-
-uboot_set_var()
-{
-	local var="$1" val="$2"
-	ensure_env_conf || return 1
-	command -v fw_setenv >/dev/null 2>&1 || return 1
-	fw_setenv -c "$UBOOT_ENV_CONF" "$var" "$val" >/dev/null 2>&1
 }
 
 get_status()
@@ -179,7 +182,11 @@ get_status()
 
 	tmp="$(mktemp)"
 	# read 128 KiB starting at 0x400000 (skip 64 * 64 KiB)
-	dd if="$dev" of="$tmp" bs=65536 skip=64 count=2 2>/dev/null
+	if ! dd if="$dev" of="$tmp" bs=65536 skip=64 count=2 2>/dev/null; then
+		rm -f "$tmp"
+		printf '{"error":"failed to read vendor factory block"}'
+		return
+	fi
 
 	# text region: strip NUL and 0xff bytes; keep only the key=value lines
 	text="$(head -c "$TEXT_LIMIT" "$tmp" | tr -d '\000\377')"
@@ -238,7 +245,7 @@ get_status()
 set_factory()
 {
 	local args="$1" dev tmp orig newblk lan_auto=0 eth_auto=1 wan lan serial ethaddr
-	local k v n rem headf bodyf mtd_ok=0 env_msg="" ubi_msg=""
+	local n rem headf bodyf cr env_msg="" ubi_msg=""
 
 	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
 	json_select fields
@@ -247,19 +254,30 @@ set_factory()
 	json_get_var serial serial_number
 	json_select ..
 	json_get_var ethaddr ethaddr
+	cr="$(printf '\r')"
 
 	[ -z "$wan" ] && { printf '{"success":false,"error":"missing wan_mac"}'; return; }
-	valid_mac_strict "$wan" || { printf '{"success":false,"error":"invalid wan_mac: %s (must be unicast, non-00:00:00, non-FF:FF:FF)"}' "$wan"; return; }
+	valid_mac_strict "$wan" || { printf '{"success":false,"error":"invalid wan_mac: %s (must be unicast, non-zero, non-broadcast)"}' "$wan"; return; }
+	wan="$(mac_lc "$wan")"
 
 	# LAN defaults to WAN + 1 when left empty
 	[ -z "$lan" ] && { lan="$(mac_plus1 "$wan")"; lan_auto=1; }
-	valid_mac_strict "$lan" || { printf '{"success":false,"error":"invalid lan_mac: %s (must be unicast, non-00:00:00, non-FF:FF:FF)"}' "$lan"; return; }
+	valid_mac_strict "$lan" || { printf '{"success":false,"error":"invalid lan_mac: %s (must be unicast, non-zero, non-broadcast)"}' "$lan"; return; }
+	lan="$(mac_lc "$lan")"
 
 	# U-Boot ethaddr defaults to WAN when left empty; can be forced to any
 	# valid unicast MAC. OUI always derives from the final ethaddr.
 	[ -z "$ethaddr" ] && ethaddr="$wan"
+	valid_mac_strict "$ethaddr" || { printf '{"success":false,"error":"invalid ethaddr: %s (must be unicast, non-zero, non-broadcast)"}' "$ethaddr"; return; }
+	ethaddr="$(mac_lc "$ethaddr")"
 	[ "$ethaddr" != "$wan" ] && eth_auto=0
-	valid_mac_strict "$ethaddr" || { printf '{"success":false,"error":"invalid ethaddr: %s (must be unicast, non-00:00:00, non-FF:FF:FF)"}' "$ethaddr"; return; }
+
+	case "$serial" in
+		*"$NL"*|*"$cr"*)
+			printf '{"success":false,"error":"invalid serial_number: line breaks are not allowed"}'
+			return
+			;;
+	esac
 
 	dev="$(find_mtd_dev)" || { printf '{"success":false,"error":"vendor partition not found"}'; return; }
 
@@ -269,7 +287,11 @@ set_factory()
 	fi
 
 	tmp="$(mktemp)"; orig="$(mktemp)"; headf="$(mktemp)"; bodyf="$(mktemp)"
-	dd if="$dev" of="$tmp" bs=65536 skip=64 count=2 2>/dev/null
+	if ! dd if="$dev" of="$tmp" bs=65536 skip=64 count=2 2>/dev/null; then
+		rm -f "$tmp" "$orig" "$headf" "$bodyf"
+		printf '{"success":false,"error":"failed to read vendor factory block"}'
+		return
+	fi
 
 	# original text lines (strip NUL/0xff); we only replace managed keys
 	head -c "$TEXT_LIMIT" "$tmp" | tr -d '\000\377' > "$orig"
@@ -306,9 +328,7 @@ set_factory()
 
 	cat "$headf" "$bodyf" > "$tmp"
 
-	if mtd -p "$FACTORY_OFFSET" write "$tmp" "$MTD_LABEL" >/tmp/airoha_factory_mtd.log 2>&1; then
-		mtd_ok=1
-	else
+	if ! mtd -p "$FACTORY_OFFSET" write "$tmp" "$MTD_LABEL" >/tmp/airoha_factory_mtd.log 2>&1; then
 		printf '{"success":false,"error":"mtd write failed","detail":"%s"}' \
 			"$(json_escape "$(cat /tmp/airoha_factory_mtd.log 2>/dev/null | tr '\n' ' ')")"
 		rm -f "$tmp" "$orig" "$headf" "$bodyf" /tmp/airoha_factory_mtd.log; return
@@ -316,7 +336,7 @@ set_factory()
 
 	# ---- U-Boot env: ethaddr (WAN by default, overridable), oui = first3(ethaddr) ----
 	if command -v fw_setenv >/dev/null 2>&1 && ensure_env_conf; then
-		if fw_setenv -c "$UBOOT_ENV_CONF" ethaddr "$(echo "$ethaddr" | tr 'A-F' 'a-f')" 2>/tmp/airoha_factory_env.log \
+		if fw_setenv -c "$UBOOT_ENV_CONF" ethaddr "$ethaddr" 2>/tmp/airoha_factory_env.log \
 		   && fw_setenv -c "$UBOOT_ENV_CONF" oui "$(derive_oui "$ethaddr")" 2>>/tmp/airoha_factory_env.log; then
 			env_msg="U-Boot env updated (ethaddr, oui)"
 		else
