@@ -44,8 +44,24 @@ NL='
 
 find_mtd_dev()
 {
-	local d i n
-	for d in /sys/class/mtd/mtd*; do
+	local id size erase name d i n found=""
+
+	# Pathname expansion is disabled globally with `set -f`, so parse the
+	# kernel's MTD table first instead of relying on an unexpanded sysfs glob.
+	if [ -r /proc/mtd ]; then
+		while read -r id size erase name; do
+			[ "$name" = "\"$MTD_LABEL\"" ] || continue
+			id="${id%:}"
+			[ -c "/dev/$id" ] || continue
+			printf '/dev/%s\n' "$id"
+			return 0
+		done < /proc/mtd
+	fi
+
+	# Fall back to sysfs for systems without /proc/mtd. Re-enable pathname
+	# expansion only while collecting MTD class devices.
+	set +f
+	for d in /sys/class/mtd/mtd[0-9]*; do
 		[ -d "$d" ] || continue
 		i="${d##*/mtd}"
 		case "$i" in
@@ -53,9 +69,12 @@ find_mtd_dev()
 		esac
 		[ -f "$d/name" ] || continue
 		read -r n < "$d/name"
-		[ "$n" = "$MTD_LABEL" ] && { printf '/dev/mtd%s\n' "$i"; return 0; }
+		[ "$n" = "$MTD_LABEL" ] && { found="/dev/mtd$i"; break; }
 	done
-	return 1
+	set -f
+
+	[ -n "$found" ] && [ -c "$found" ] || return 1
+	printf '%s\n' "$found"
 }
 
 mtd_flags()
