@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Airoha NPU Status RPC backend for LuCI (NPU + CPU + Overclock)
+# Airoha NPU Status RPC backend for LuCI (NPU + CPU + Offload)
 
 . /lib/functions.sh
 
@@ -160,7 +160,7 @@ get_status() {
 		cpu_avail_freqs=$(cat "$cpufreq_path/scaling_available_frequencies" 2>/dev/null || echo "")
 	fi
 
-	# Read actual PLL frequency from hardware (detects overclock)
+	# Read the actual PLL frequency to cross-check cpufreq reporting.
 	local pll_freq=0
 	if command -v devmem > /dev/null 2>&1; then
 		local pcw_raw=$(_devmem_read 0x1fa202b4 2>/dev/null)
@@ -385,178 +385,6 @@ set_max_freq() {
 	fi
 }
 
-set_overclock() {
-	local target_mhz
-	target_mhz=$(echo "$1" | jsonfilter -e "@.freq_mhz" 2>/dev/null)
-
-	if [ -z "$target_mhz" ]; then
-		echo '{"error":"missing freq_mhz parameter"}'
-		return
-	fi
-
-	# XR1710G DTS exposes OPPs through 1400 MHz.
-	if [ "$target_mhz" -lt 500 ] || [ "$target_mhz" -gt 1400 ]; then
-		echo '{"error":"frequency must be 500-1400 MHz"}'
-		return
-	fi
-
-	# Round to nearest 50 MHz step (PLL granularity)
-	target_mhz=$(( (target_mhz + 25) / 50 * 50 ))
-
-	local cpufreq_path="/sys/devices/system/cpu/cpufreq/policy0"
-
-	# Read current PLL frequency from hardware to detect if we're already overclocked
-	local cur_pll_mhz=0
-	if command -v devmem > /dev/null 2>&1; then
-		local _pcw=$(($(_devmem_read 0x1fa202b4 2>/dev/null)))
-		local _chg=$(($(_devmem_read 0x1fa202b8 2>/dev/null)))
-		local _pcw_int=$(( (_pcw >> 24) & 0x7F ))
-		local _posdiv=$(( (_chg >> 4) & 7 ))
-		if [ "$_posdiv" -eq 0 ]; then
-			cur_pll_mhz=$((_pcw_int * 50))
-		else
-			cur_pll_mhz=$((_pcw_int * 50 / (1 << _posdiv)))
-		fi
-	fi
-
-	# For frequencies exposed by the DTS OPP table (<=1400 MHz), try the kernel
-	# cpufreq interface first. This lets BL31/SMC handle voltage adjustment and
-	# keeps the PLL switch atomic in the kernel driver.
-	# If the PLL was directly modified above 1400 MHz, the cpufreq driver's state
-	# may be out of sync; in that case, fall through to direct PLL programming.
-	if [ "$target_mhz" -le 1400 ] && [ "$cur_pll_mhz" -le 1400 ]; then
-		local freq_khz=$((target_mhz * 1000))
-		local avail=$(cat "$cpufreq_path/scaling_available_frequencies" 2>/dev/null)
-		if echo "$avail" | grep -qw "$freq_khz"; then
-			echo performance > "$cpufreq_path/scaling_governor" 2>/dev/null
-			echo "$freq_khz" > "$cpufreq_path/scaling_max_freq" 2>/dev/null
-			if [ $? -eq 0 ]; then
-				printf '{"result":"ok","target_mhz":%d,"actual_mhz":%d,"method":"cpufreq","warning":""}' \
-					"$target_mhz" "$target_mhz"
-				return
-			fi
-		fi
-	fi
-
-	# --- Direct PLL programming ---
-	# Fallback for restoring from a PLL state above 1400 MHz, or when the
-	# selected DTS OPP is not exposed by cpufreq.
-	# WARNING: This bypasses BL31, so there is NO voltage adjustment.
-	# The kernel driver uses local_irq_save/restore for atomicity; we cannot
-	# do this from userspace, so interrupt races are also possible.
-	if ! command -v devmem > /dev/null 2>&1; then
-		echo '{"error":"devmem not available"}'
-		return
-	fi
-
-	# Calculate PCW and posdiv
-	local posdiv pcw_int
-	if [ "$target_mhz" -lt 1000 ]; then
-		posdiv=1
-		pcw_int=$((target_mhz / 25))
-	else
-		posdiv=0
-		pcw_int=$((target_mhz / 50))
-	fi
-
-	# Lock governor to performance to prevent cpufreq from fighting
-	echo performance > "$cpufreq_path/scaling_governor" 2>/dev/null
-
-	# Read current register values
-	local cur_clkmux=$(($(_devmem_read 0x1fa201e0)))
-	local cur_pcw=$(($(_devmem_read 0x1fa202b4)))
-	local cur_chg=$(($(_devmem_read 0x1fa202b8)))
-
-	# Step 1: Enable PLL2 path in CLK_MUX (set bit 2)
-	devmem 0x1fa201e0 32 $(printf "0x%08X" $((cur_clkmux | 0x4)))
-
-	# Step 2: MCUCFG switch to PLL2 (sel=3 in bits[10:9])
-	local cur_u=$(($(_devmem_read 0x1efbe640)))
-	devmem 0x1efbe640 32 $(printf "0x%08X" $(((cur_u & 0xFFFFFFE0) | 0x12)))
-	local cur_s=$(($(_devmem_read 0x1efbe7c0)))
-	devmem 0x1efbe7c0 32 $(printf "0x%08X" $(((cur_s & 0xFFFFF9FF) | (3 << 9))))
-
-	# Step 3: Unlock PLL registers
-	local cur_p=$(($(_devmem_read 0x1fa20268)))
-	devmem 0x1fa20268 32 $(printf "0x%08X" $(((cur_p & 0xFFFFFF00) | 0x12)))
-
-	# Step 4: Write new PCW integer
-	devmem 0x1fa202b4 32 $(printf "0x%08X" $(((cur_pcw & 0x00FFFFFF) | (pcw_int << 24))))
-
-	# Step 5: Write posdiv and toggle CHG bit
-	local chg_bit=$((cur_chg & 1))
-	local cleared=$((cur_chg & 0xFFFFFF8E))
-	if [ "$chg_bit" -eq 1 ]; then
-		devmem 0x1fa202b8 32 $(printf "0x%08X" $((cleared | (posdiv << 4))))
-	else
-		devmem 0x1fa202b8 32 $(printf "0x%08X" $((cleared | (posdiv << 4) | 1)))
-	fi
-
-	# Step 6: Wait for PLL lock (kernel uses udelay(20) = 20us)
-	# busybox sleep does not support fractional seconds, so use a busy-wait loop.
-	# The natural delay between devmem process invocations is already >1ms,
-	# which is far more than the ~20us the kernel waits, but add this as safety.
-	local _i=0; while [ "$_i" -lt 2000 ]; do _i=$((_i+1)); done
-
-	# Step 7: Enable ARMPLL path in CLK_MUX (set bit 0)
-	local cur_clkmux2=$(($(_devmem_read 0x1fa201e0)))
-	devmem 0x1fa201e0 32 $(printf "0x%08X" $((cur_clkmux2 | 0x1)))
-
-	# Step 8: MCUCFG switch back to ARMPLL
-	local cur_u2=$(($(_devmem_read 0x1efbe640)))
-	devmem 0x1efbe640 32 $(printf "0x%08X" $(((cur_u2 & 0xFFFFFFE0) | 0x12)))
-	local cur_s2=$(($(_devmem_read 0x1efbe7c0)))
-	devmem 0x1efbe7c0 32 $(printf "0x%08X" $(((cur_s2 & 0xFFFFF9FF) | (1 << 9))))
-
-	# Step 9: Clear PLL2 path in CLK_MUX
-	local cur_clkmux3=$(($(_devmem_read 0x1fa201e0)))
-	devmem 0x1fa201e0 32 $(printf "0x%08X" $((cur_clkmux3 & 0xFFFFFFFB)))
-
-	# Step 10: Re-lock PLL registers
-	local cur_p2=$(($(_devmem_read 0x1fa20268)))
-	devmem 0x1fa20268 32 $(printf "0x%08X" $((cur_p2 & 0xFFFFFF00)))
-
-	# Verify
-	local final_pcw=$(($(_devmem_read 0x1fa202b4)))
-	local final_chg=$(($(_devmem_read 0x1fa202b8)))
-	local read_pcw=$(( (final_pcw >> 24) & 0x7F ))
-	local read_posdiv=$(( (final_chg >> 4) & 7 ))
-	local read_freq
-	if [ "$read_posdiv" -eq 0 ]; then
-		read_freq=$((read_pcw * 50))
-	else
-		read_freq=$((read_pcw * 50 / (1 << read_posdiv)))
-	fi
-
-	# Include warning for above-stock frequencies
-	local warning=""
-	if [ "$target_mhz" -gt 1200 ]; then
-		warning="No voltage adjustment (bypasses BL31). System may crash or reboot."
-	fi
-
-	# If target is within the OPP table, sync cpufreq driver state so the governor
-	# and scaling_max_freq are aware of the new frequency. This is essential
-	# when restoring from an overclock (e.g., 1400→1200) because the cpufreq
-	# driver's internal state was out of sync with the hardware PLL.
-	if [ "$target_mhz" -le 1400 ]; then
-		local freq_khz=$((target_mhz * 1000))
-		local avail=$(cat "$cpufreq_path/scaling_available_frequencies" 2>/dev/null)
-		if echo "$avail" | grep -qw "$freq_khz"; then
-			echo "$freq_khz" > "$cpufreq_path/scaling_max_freq" 2>/dev/null
-			echo "$freq_khz" > "$cpufreq_path/scaling_min_freq" 2>/dev/null
-			# Force governor to re-evaluate by toggling
-			echo userspace > "$cpufreq_path/scaling_governor" 2>/dev/null
-			echo "$freq_khz" > "$cpufreq_path/scaling_setspeed" 2>/dev/null
-			echo performance > "$cpufreq_path/scaling_governor" 2>/dev/null
-			# Restore min to stock 500 MHz
-			echo 500000 > "$cpufreq_path/scaling_min_freq" 2>/dev/null
-		fi
-	fi
-
-	printf '{"result":"ok","target_mhz":%d,"actual_mhz":%d,"pcw":%d,"posdiv":%d,"method":"direct_pll","warning":"%s"}' \
-		"$target_mhz" "$read_freq" "$read_pcw" "$read_posdiv" "$warning"
-}
-
 get_frame_engine() {
 	[ -e /sys/kernel/debug/ppe/entries ] || { echo '{"error":"frame engine not ready"}'; return; }
 	if ! command -v devmem > /dev/null 2>&1; then
@@ -774,7 +602,7 @@ set_apmode_offload() {
 
 case "$1" in
 	list)
-		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"getApModeOffload":{},"setApModeOffload":{"enabled":"int"},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"},"setOverclock":{"freq_mhz":"int"}}'
+		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"getApModeOffload":{},"setApModeOffload":{"enabled":"int"},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"}}'
 		;;
 	call)
 		case "$2" in
@@ -794,10 +622,6 @@ case "$1" in
 			setMaxFreq)
 				read input
 				set_max_freq "$input"
-				;;
-			setOverclock)
-				read input
-				set_overclock "$input"
 				;;
 			getFrameEngine)
 				get_frame_engine

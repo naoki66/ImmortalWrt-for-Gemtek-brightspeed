@@ -10,7 +10,6 @@ var callTokenInfo = rpc.declare({ object: 'luci.airoha_npu', method: 'getTokenIn
 var callFrameEngine = rpc.declare({ object: 'luci.airoha_npu', method: 'getFrameEngine' });
 var callSetGovernor = rpc.declare({ object: 'luci.airoha_npu', method: 'setGovernor', params: ['governor'] });
 var callSetMaxFreq = rpc.declare({ object: 'luci.airoha_npu', method: 'setMaxFreq', params: ['freq'] });
-var callSetOverclock = rpc.declare({ object: 'luci.airoha_npu', method: 'setOverclock', params: ['freq_mhz'] });
 var callGetVlanOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getVlanOffload' });
 var callSetVlanOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setVlanOffload', params: ['enabled'] });
 var callGetPppoeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getPppoeOffload' });
@@ -49,12 +48,11 @@ var themeCSS = '\
 .npu-section h4{font-size:14px;line-height:1.4;font-weight:600;letter-spacing:0;margin-top:14px!important;padding-top:12px;border-top:1px solid var(--soc-border)}\
 .npu-details-table{margin:0}\
 .cpu-panel-grid{display:grid;grid-template-columns:minmax(250px,.85fr) minmax(360px,1.15fr);gap:8px}\
-.cpu-control-grid{display:grid;grid-template-columns:minmax(300px,1.25fr) minmax(250px,.75fr);gap:8px;margin-top:8px}\
+.cpu-control-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin-top:8px}\
 .cpu-panel-card{background:var(--soc-card-bg);border:1px solid var(--soc-border);border-left:3px solid var(--cpu-panel-accent,var(--soc-border));border-radius:8px;padding:11px 14px;min-height:96px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center}\
 .cpu-panel-card.cpu-info{--cpu-panel-accent:#00c8ff}\
 .cpu-panel-card.cpu-frequency{--cpu-panel-accent:#00cc44}\
 .cpu-panel-card.cpu-controls{--cpu-panel-accent:#00c8ff}\
-.cpu-panel-card.cpu-overclock{--cpu-panel-accent:#f5a623}\
 .cpu-panel-title{font-size:11px;line-height:1.35;text-transform:uppercase;letter-spacing:0;color:var(--soc-muted);font-family:var(--airoha-font-ui);font-weight:600;margin-bottom:9px}\
 .cpu-panel-body{color:var(--soc-text);font-size:13px;line-height:1.5}\
 .cpu-info-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;line-height:1.5}\
@@ -66,8 +64,6 @@ var themeCSS = '\
 .cpu-setting{display:flex;align-items:center;gap:8px;min-width:190px;flex:1}\
 .cpu-setting-label{font-size:12px;line-height:1.4;font-weight:500;color:var(--soc-muted);font-family:var(--airoha-font-ui);white-space:nowrap}\
 .cpu-setting .cbi-input-select{flex:1;min-width:0!important}\
-.cpu-overclock-controls{display:grid;grid-template-columns:minmax(130px,1fr) auto;gap:8px;align-items:center;width:100%}\
-.cpu-oc-input{width:100%!important;min-width:0}\
 .npu-frame-wrap{margin-top:8px;border:1px solid var(--soc-border);border-radius:8px;padding:10px;background:var(--soc-card-bg)}\
 .fe-cdm-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:10px}\
 .fe-wifi-band-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}\
@@ -501,30 +497,6 @@ function renderMaxFreqSelect(avail, cur) {
 	}}, fs.map(function(f){return E('option',{'value':f,'selected':parseInt(f)===parseInt(cur)?'':null},(parseInt(f)/1000).toFixed(0)+' MHz');}));
 }
 
-function renderOcControls() {
-	var frequencies = [1200, 1250, 1300, 1350, 1400];
-	var inp = E('select', {'id':'oc-freq-input','class':'cbi-input-select cpu-oc-input'}, frequencies.map(function(freq) {
-		return E('option', {'value':freq, 'selected':freq === 1200 ? '' : null}, freq + ' MHz');
-	}));
-	var btn = E('button',{'class':'cbi-button cbi-button-action','click':function(){
-		var f=parseInt(document.getElementById('oc-freq-input').value);
-		if(frequencies.indexOf(f) === -1){ui.addNotification(null,E('p',{},'请选择 1200-1400 MHz 的预设频率'),'error');return;}
-		if(f>1200&&!confirm(_('Frequencies above 1200 MHz use extended DTS OPP entries and may increase heat or reduce stability. Continue?'))) return;
-		btn.disabled=true;btn.textContent=_('Applying...');
-		callSetOverclock(f).then(function(r){btn.disabled=false;btn.textContent=_('Apply');
-			if(r&&r.error) ui.addNotification(null,E('p',{},_('Failed: ')+r.error),'error');
-			else if(r&&r.result==='ok') {
-				var msg = _('CPU set to ')+r.actual_mhz+' MHz';
-				if(r.warning) msg += ' — ' + r.warning;
-				ui.addNotification(null,E('p',{},msg), r.warning ? 'warning' : 'info');
-			}
-		}).catch(function(e){btn.disabled=false;btn.textContent=_('Apply');});
-	}},_('Apply'));
-	return E('div',{'class':'cpu-overclock-controls'},[
-		inp, btn
-	]);
-}
-
 function renderOffloadBadge(enabled, id) {
 	enabled = isEnabled(enabled);
 	return E('span', {
@@ -670,10 +642,6 @@ return view.extend({
 					E('div',{'class':'cpu-panel-card cpu-controls'},[
 						E('div',{'class':'cpu-panel-title'},_('Control Settings')),
 						E('div',{'id':'cpu-control-content','class':'cpu-panel-body'},buildControlSettingsContent(st))
-					]),
-					E('div',{'class':'cpu-panel-card cpu-overclock'},[
-						E('div',{'class':'cpu-panel-title'},'CPU OPP / 超频 · 上限 1400 MHz'),
-						E('div',{'class':'cpu-panel-body'},renderOcControls())
 					])
 				])
 			]),

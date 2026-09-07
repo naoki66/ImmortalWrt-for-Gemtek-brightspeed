@@ -10,16 +10,6 @@ msgstr ""
 msgid "Airoha SoC Status"
 msgstr ""
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:224
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:233
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:237
-msgid "Apply"
-msgstr ""
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:221
-msgid "Applying..."
-msgstr ""
-
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:350
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:420
 msgid "Bound:"
@@ -37,18 +27,8 @@ msgstr ""
 msgid "CPU Frequency"
 msgstr ""
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:229
-msgid "CPU set to"
-msgstr ""
-
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:291
 msgid "Current Frequency"
-msgstr ""
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:244
-msgid ""
-"Kernel cpufreq uses DTS OPP entries through 1400 MHz. Direct PLL fallback may "
-"bypass BL31 voltage control when restoring from a higher state."
 msgstr ""
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:360
@@ -63,16 +43,12 @@ msgstr ""
 msgid "Failed to set max frequency:"
 msgstr ""
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:212
-msgid "Frequency must be 500-1400 MHz"
-msgstr ""
-
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:296
 msgid "Governor"
 msgstr ""
 
 #: feeds/luci/applications/luci-app-airoha-npu/root/usr/share/rpcd/acl.d/luci-app-airoha-npu.json:3
-msgid "Grant access to Airoha NPU status (NPU + CPU + Overclock)"
+msgid "Grant access to Airoha NPU status (NPU + CPU + Offload)"
 msgstr ""
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:355
@@ -118,15 +94,6 @@ msgstr ""
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:358
 msgid "Original Flow"
-msgstr ""
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:306
-msgid "Overclock"
-msgstr ""
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:226
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:234
-msgid "Overclock failed:"
 msgstr ""
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:347

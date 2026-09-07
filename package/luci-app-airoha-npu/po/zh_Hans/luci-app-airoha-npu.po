@@ -28,16 +28,6 @@ msgstr "未激活"
 msgid "Airoha SoC Status"
 msgstr "Airoha SoC状态"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:224
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:233
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:237
-msgid "Apply"
-msgstr "应用"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:221
-msgid "Applying..."
-msgstr "正在应用..."
-
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:350
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:420
 msgid "Bound:"
@@ -67,27 +57,9 @@ msgstr "核心数量"
 msgid "CPU Frequency"
 msgstr "CPU 频率"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:229
-msgid "CPU set to"
-msgstr "CPU 设置为"
-
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:291
 msgid "Current Frequency"
 msgstr "当前频率"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:399
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:505
-msgid "<=1400 MHz uses kernel cpufreq OPP. Higher frequencies are unavailable."
-msgstr "<=1400 MHz 使用内核 cpufreq OPP。更高频率不可用。"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:510
-msgid "<=1400 MHz: DTS OPP (kernel cpufreq)."
-msgstr "<=1400 MHz：DTS OPP（内核 cpufreq）。"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:390
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:498
-msgid "Frequencies above 1200 MHz use extended DTS OPP entries and may increase heat or reduce stability. Continue?"
-msgstr "超过 1200 MHz 将使用扩展的 DTS OPP 档位，可能增加发热或降低稳定性。是否继续？"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:360
 msgid "Ethernet"
@@ -100,10 +72,6 @@ msgstr "设置调速器失败："
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:112
 msgid "Failed to set max frequency:"
 msgstr "设置最大频率失败："
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:212
-msgid "Frequency must be 500-1400 MHz"
-msgstr "频率必须介于 500–1400 MHz 之间"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:296
 msgid "Governor"
@@ -125,8 +93,8 @@ msgid "performance"
 msgstr "性能模式"
 
 #: feeds/luci/applications/luci-app-airoha-npu/root/usr/share/rpcd/acl.d/luci-app-airoha-npu.json:3
-msgid "Grant access to Airoha NPU status (NPU + CPU + Overclock)"
-msgstr "授予访问 Airoha NPU 状态（NPU + CPU + 超频）的权限"
+msgid "Grant access to Airoha NPU status (NPU + CPU + Offload)"
+msgstr "授予访问 Airoha NPU 状态（NPU + CPU + 卸载）的权限"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:355
 msgid "Index"
@@ -195,15 +163,6 @@ msgstr "硬件加速"
 msgid "Original Flow"
 msgstr "原始连接"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:306
-msgid "Overclock"
-msgstr "超频"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:226
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:234
-msgid "Overclock failed:"
-msgstr "超频失败："
-
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:347
 msgid "PPE Flow Offload Entries"
 msgstr "PPE 硬件加速表"
@@ -239,13 +198,6 @@ msgstr "已启用"
 
 msgid "Disabled"
 msgstr "已禁用"
-
-msgid "Failed: "
-msgstr "失败："
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:387
-msgid "Must be 500-1400 MHz"
-msgstr "必须在 500-1400 MHz 之间"
 
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:356
 msgid "State"
