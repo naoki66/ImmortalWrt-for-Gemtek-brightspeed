@@ -137,7 +137,7 @@ const struct psch_tdm_entry hppe_psch_tdm[] = {
 	{ TDM_PORT_FAB_0, TDM_PORT_PHY_4 },
 };
 
-/* CPPE buffer manager TDM -- 98 entries */
+/* CPPE buffer manager TDM -- 96 entries */
 const struct bm_tdm_entry cppe_bm_tdm[] = {
 	{ TDM_PORT_CPU, TDM_DIR_INGRESS },
 	{ TDM_PORT_CPU, TDM_DIR_EGRESS },
@@ -235,8 +235,6 @@ const struct bm_tdm_entry cppe_bm_tdm[] = {
 	{ TDM_PORT_FAB_1, TDM_DIR_EGRESS },
 	{ TDM_PORT_PHY_7, TDM_DIR_INGRESS },
 	{ TDM_PORT_PHY_7, TDM_DIR_EGRESS },
-	{ TDM_PORT_CPU, TDM_DIR_INGRESS },
-	{ TDM_PORT_CPU, TDM_DIR_EGRESS },
 };
 
 /* HPPE buffer manager TDM -- 96 entries
