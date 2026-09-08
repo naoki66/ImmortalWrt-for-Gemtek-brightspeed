@@ -272,7 +272,7 @@ rcu_unlock:
 	rtl83xx_add_flow(priv, f, flow); /* TODO: check error */
 
 	/* Add log action to flow */
-	flow->rule.packet_cntr = rtl83xx_packet_cntr_alloc(priv);
+	flow->rule.packet_cntr = rtldsa_packet_cntr_alloc(priv);
 	if (flow->rule.packet_cntr >= 0) {
 		pr_debug("Using packet counter %d\n", flow->rule.packet_cntr);
 		flow->rule.log_sel = true;
