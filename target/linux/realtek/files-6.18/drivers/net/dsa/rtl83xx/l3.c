@@ -879,7 +879,7 @@ static int otto_l3_nexthop_update(struct otto_l3_ctrl *ctrl, __be32 ip_addr, u64
 			}
 			priv->r->pie_rule_add(priv, &r->pr);
 		} else {
-			int pkts = priv->r->packet_cntr_read(r->pr.packet_cntr);
+			int pkts = priv->r->packet_cntr_read(priv, r->pr.packet_cntr);
 
 			dev_dbg(ctrl->dev, "total packets: %d\n", pkts);
 

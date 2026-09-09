@@ -1481,8 +1481,8 @@ struct rtldsa_config {
 	int (*pie_rule_add)(struct rtl838x_switch_priv *priv, struct pie_rule *rule);
 	void (*pie_rule_rm)(struct rtl838x_switch_priv *priv, struct pie_rule *rule);
 	void (*l2_learning_setup)(void);
-	u32 (*packet_cntr_read)(int counter);
-	void (*packet_cntr_clear)(int counter);
+	u32 (*packet_cntr_read)(struct rtl838x_switch_priv *priv, int counter);
+	void (*packet_cntr_clear)(struct rtl838x_switch_priv *priv, int counter);
 	void (*set_receive_management_action)(int port, rma_ctrl_t type, action_type_t action);
 	void (*led_init)(struct rtl838x_switch_priv *priv);
 	u32 (*get_egress_rate)(struct rtl838x_switch_priv *priv, int port);

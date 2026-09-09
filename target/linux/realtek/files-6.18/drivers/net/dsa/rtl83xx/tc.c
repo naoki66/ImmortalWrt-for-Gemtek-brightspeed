@@ -427,7 +427,7 @@ static int rtl83xx_stats_flower(struct rtl838x_switch_priv *priv,
 		return -1;
 
 	if (flow->rule.packet_cntr >= 0) {
-		total_packets = priv->r->packet_cntr_read(flow->rule.packet_cntr);
+		total_packets = priv->r->packet_cntr_read(priv, flow->rule.packet_cntr);
 		pr_debug("Total packets: %d\n", total_packets);
 		new_packets = total_packets - flow->rule.last_packet_cnt;
 		flow->rule.last_packet_cnt = total_packets;

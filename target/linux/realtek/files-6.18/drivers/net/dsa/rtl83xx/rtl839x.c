@@ -1467,12 +1467,12 @@ static void rtl839x_pie_init(struct rtl838x_switch_priv *priv)
 		sw_w32(template_selectors, RTL839X_ACL_BLK_TMPLTE_CTRL(i));
 }
 
-static u32 rtl839x_packet_cntr_read(int counter)
+static u32 rtl839x_packet_cntr_read(struct rtl838x_switch_priv *priv, int counter)
 {
 	u32 buf[2];
 	u32 v;
 
-	pr_debug("In %s, id %d\n", __func__, counter);
+	dev_dbg(priv->dev, "reading LOG packet counter %d\n", counter);
 	otto_table_read(RTL8390_TBL_LOG, counter / 2, &buf);
 
 	if (counter % 2)
@@ -1483,12 +1483,12 @@ static u32 rtl839x_packet_cntr_read(int counter)
 	return v;
 }
 
-static void rtl839x_packet_cntr_clear(int counter)
+static void rtl839x_packet_cntr_clear(struct rtl838x_switch_priv *priv, int counter)
 {
 	int tbl = otto_table_acquire(RTL8390_TBL_LOG);
 	u32 buf[2];
 
-	pr_debug("In %s, id %d\n", __func__, counter);
+	dev_dbg(priv->dev, "clearing LOG packet counter %d\n", counter);
 
 	/*
 	 * Two counters share one LOG table entry. Read the current entry
