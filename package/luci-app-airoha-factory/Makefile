@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 LUCI_NAME:=luci-app-airoha-factory
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
 PKG_MAINTAINER:=XR1710G Maintainer
 PKG_LICENSE:=GPL-2.0-or-later
@@ -28,9 +28,11 @@ define Package/$(LUCI_NAME)/install
 	$(INSTALL_BIN) ./root/usr/libexec/rpcd/luci.airoha_factory \
 		$(1)/usr/libexec/rpcd/
 
-	# U-Boot env config used by fw_printenv/fw_setenv
-	$(INSTALL_DIR) $(1)/etc
-	$(INSTALL_DATA) ./root/etc/fw_env.config $(1)/etc/
+	# NOTE: /etc/fw_env.config is intentionally NOT installed any more.  It
+	# belongs to uboot-envtools, which appends the redundant UBI entries;
+	# shipping a /dev/mtd0 entry here put an MTD device in front of the UBI
+	# ones and broke every bare fw_printenv/fw_setenv call.  The vendor env
+	# config is written to /etc/fw_env.factory.config by ensure_env_conf().
 
 	# LuCI menu configuration
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
@@ -50,6 +52,20 @@ define Package/$(LUCI_NAME)/postinst
 # Ensure the rpcd backend is executable even if a packaging path lost the
 # +x bit; rpcd silently skips non-executable scripts in /usr/libexec/rpcd.
 chmod 755 /usr/libexec/rpcd/luci.airoha_factory 2>/dev/null
+
+# Older releases owned the shared /etc/fw_env.config and put the vendor mtd0
+# entry in front of the two UBI entries appended by uboot-envtools.  fw_env
+# only honours the first two entries of a config file, so that MTD+UBI mix
+# made every bare fw_printenv/fw_setenv call fail with "Incompatible flash
+# types!".  Drop the vendor entry from the shared file when it also carries
+# UBI entries so uboot-envtools keeps full control again.  If the file only
+# holds the vendor entry (uboot-envtools not installed/never run) it is left
+# alone, because a single MTD entry is still a perfectly valid config.
+if [ -f /etc/fw_env.config ] && grep -qE '^[[:space:]]*/dev/ubi[0-9]+_[0-9]+[[:space:]]' /etc/fw_env.config && grep -qE '^[[:space:]]*/dev/mtd[0-9]+[[:space:]]+0x200000[[:space:]]' /etc/fw_env.config; then
+	grep -vE '^[[:space:]]*/dev/mtd[0-9]+[[:space:]]+0x200000[[:space:]]' /etc/fw_env.config > /etc/fw_env.config.tmp 2>/dev/null
+	mv /etc/fw_env.config.tmp /etc/fw_env.config 2>/dev/null
+	rm -f /etc/fw_env.config.tmp
+fi
 
 # rpcd only rescan the backend directory on a full (re)start, so restart it
 # to register the new luci.airoha_factory backend.

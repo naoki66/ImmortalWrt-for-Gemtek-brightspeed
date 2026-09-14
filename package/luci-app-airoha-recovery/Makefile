@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 LUCI_NAME:=luci-app-airoha-recovery
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 
 PKG_MAINTAINER:=XR1710G Maintainer
 PKG_LICENSE:=GPL-2.0-or-later

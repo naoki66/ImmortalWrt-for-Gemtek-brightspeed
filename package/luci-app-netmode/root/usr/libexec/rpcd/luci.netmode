@@ -756,16 +756,24 @@ set_lan_ap_client()
 	uci -q set dhcp.lan.ra='disabled'
 }
 
+# Commit happens before this call and the RPC reply is produced after it.
+# The delayed reload must not start until the reply has reached the browser,
+# otherwise switching the management IP (e.g. router -> AP/DHCP) tears down
+# the very TCP connection carrying the success response and the UI reports
+# a false failure. Fully detach the job (new session, all fds redirected) so
+# rpcd/uhttpd do not wait on it either.
 reload_network_later()
 {
-	(
-		sleep 1
+	local launcher=""
+	command -v setsid >/dev/null 2>&1 && launcher="setsid"
+	$launcher /bin/sh -c '
+		sleep 2
 		/etc/init.d/network reload >/dev/null 2>&1 || /etc/init.d/network restart >/dev/null 2>&1
 		/etc/init.d/dnsmasq restart >/dev/null 2>&1
 		/etc/init.d/odhcpd restart >/dev/null 2>&1
 		/etc/init.d/firewall reload >/dev/null 2>&1
 		wifi reload >/dev/null 2>&1
-	) >/dev/null 2>&1 &
+	' </dev/null >/dev/null 2>&1 &
 }
 
 apply_mode()

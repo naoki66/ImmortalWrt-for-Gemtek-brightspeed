@@ -24,6 +24,13 @@
 # NOTE: mtd0 is flagged read-only in the device tree.  Writing requires the
 # "read-only" property to be removed from the "vendor" fixed-partition in the
 # device DTS and the firmware to be reflashed.  Reads always work.
+#
+# The vendor environment has nothing to do with the UBI "ubootenv"/"ubootenv2"
+# volumes used by the chainloader U-Boot, so it gets its own fw_env config.
+# Never touch the shared /etc/fw_env.config: uboot-envtools owns it and
+# fw_env only honours the first two entries of a config file, so prepending a
+# /dev/mtd0 entry makes every bare fw_printenv/fw_setenv call fail with
+# "Incompatible flash types!".
 
 set -f
 . /usr/share/libubox/jshn.sh
@@ -38,7 +45,7 @@ UBI_LAN_OFF=24576               # 0x6000
 ENV_OFFSET=2097152              # 0x200000
 ENV_SIZE=16384                  # 0x4000
 ENV_SECTOR=131072               # 0x20000
-UBOOT_ENV_CONF="/etc/fw_env.config"
+UBOOT_ENV_CONF="/etc/fw_env.factory.config"
 NL='
 '
 
@@ -157,7 +164,7 @@ mac_plus1()
 	printf '%02x:%02x:%02x:%02x:%02x:%02x' "$b0" "$b1" "$b2" "$b3" "$b4" "$b5"
 }
 
-# make sure /etc/fw_env.config points at the embedded U-Boot env
+# make sure the factory-specific fw_env config points at the embedded U-Boot env
 ensure_env_conf()
 {
 	local dev
@@ -362,7 +369,7 @@ set_factory()
 			env_msg="U-Boot env update failed: $(json_escape "$(cat /tmp/airoha_factory_env.log 2>/dev/null | tr '\n' ' ')")"
 		fi
 	else
-		env_msg="skipped (fw_setenv or fw_env.config unavailable)"
+		env_msg="skipped (fw_setenv unavailable or vendor env config not writable)"
 	fi
 
 	# ---- UBI factory volume: the running kernel reads MACs from here ----

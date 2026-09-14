@@ -460,7 +460,7 @@ return view.extend({
 		return ui.showModal(_('确认切换到 %s').format(title), [
 			E('p', {}, details),
 			mode === 'ap' && addresses.length
-				? E('p', {}, _('当前配置中的 AP 管理地址: %s').format(addresses.map(function(item) {
+				? E('p', {}, _('切换前当前管理地址（切换到 AP 后该静态地址会失效，将改为上级 DHCP 分配）: %s').format(addresses.map(function(item) {
 					return item.address + (item.interface ? ' (' + item.interface + ')' : '');
 				}).join(', ')))
 				: '',
@@ -574,7 +574,10 @@ return view.extend({
 			return this.afterModeApply(mode, res);
 		}, this)).catch(L.bind(function(e) {
 			if (mode === 'ap') {
-				return this.showApTransitionWarning(e);
+				// A transport error here is expected: validation failures are
+				// returned as resolved {"success":false}, while uci commit runs
+				// before the network reload that drops this very connection.
+				return this.showApAppliedModal(e);
 			}
 			ui.addNotification(null, E('p', e.message || _('应用失败')));
 		}, this));
@@ -647,27 +650,74 @@ return view.extend({
 			}))
 			: E('p', {}, _('当前没有静态管理地址。AP 模式下管理地址由上级路由 DHCP 分配，请到上级路由的 DHCP 租约列表查看。'));
 
-		return ui.showModal(_('AP 模式已应用'), [
-			E('p', {}, _('配置已提交，网络服务正在重载。当前页面连接可能会短暂中断。')),
-			E('p', {}, _('可尝试访问以下管理地址：')),
+		var statusEl = E('p', { 'class': 'nm-muted' },
+			_('设备正在重载网络，将自动尝试重新检测设备…'));
+		var modal = ui.showModal(_('AP 模式已应用'), [
+			E('p', {}, _('配置已成功提交，网络服务正在重载。')),
+			E('p', {}, _('以下为切换前的管理地址，重载后可能失效：')),
 			addressNodes,
-			E('p', { 'class': 'nm-muted' }, _('如果列表为空，请在上级路由中查找本设备的 DHCP 租约；也可以通过设备 MAC 地址定位。')),
+			statusEl,
+			E('p', { 'class': 'nm-muted' }, _('若自动检测失败，请在上级路由中查找本设备的 DHCP 租约；也可以通过设备 MAC 地址定位。')),
 			E('div', { 'class': 'right' }, [
-				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': ui.hideModal }, _('知道了'))
+				E('button', {
+					'class': 'cbi-button cbi-button-apply',
+					'click': function() { window.location.reload(); }
+				}, _('刷新页面')),
+				' ',
+				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.hideModal }, _('关闭'))
 			])
 		]);
+		setTimeout(L.bind(this.probeApDevice, this, statusEl, 0), 3000);
+		return modal;
 	},
 
-	showApTransitionWarning: function(error) {
-		var message = error && error.message ? error.message : _('页面连接中断');
-		return ui.showModal(_('AP 模式切换结果未知'), [
-			E('p', {}, _('网络重载过程中页面连接中断，配置可能已经提交，不能继续通过当前页面确认状态。')),
-			E('p', {}, _('请到上级路由 DHCP 租约列表中查找本设备的管理地址，然后用新地址打开 LuCI。')),
-			E('p', { 'class': 'nm-muted' }, _('原始提示: %s').format(message)),
+	showApAppliedModal: function(error) {
+		var statusEl = E('p', { 'class': 'nm-muted' },
+			_('设备正在重载网络，将自动尝试重新检测设备…'));
+		var modal = ui.showModal(_('AP 模式已应用'), [
+			E('p', {}, _('配置已成功提交，设备正在切换到 AP 模式。')),
+			E('p', {}, _('切换会把管理地址由静态 IP 改为上级路由 DHCP 分配，当前页面连接中断属于正常现象，并不表示失败。')),
+			statusEl,
+			E('p', {}, _('若自动检测失败，请到上级路由 DHCP 租约列表中按主机名/MAC 查找本设备的新管理地址，然后用新地址打开 LuCI。')),
+			error && error.message
+				? E('p', { 'class': 'nm-muted' }, _('连接提示: %s').format(error.message))
+				: '',
 			E('div', { 'class': 'right' }, [
-				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': ui.hideModal }, _('知道了'))
+				E('button', {
+					'class': 'cbi-button cbi-button-apply',
+					'click': function() { window.location.reload(); }
+				}, _('刷新页面')),
+				' ',
+				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.hideModal }, _('关闭'))
 			])
 		]);
+		setTimeout(L.bind(this.probeApDevice, this, statusEl, 0), 3000);
+		return modal;
+	},
+
+	// After the AP switch the old static address disappears; poll getStatus
+	// on the current address for up to ~90s. If the device is still reachable
+	// (same LAN segment / fast DHCP) reload the page at the new state.
+	probeApDevice: function(statusEl, attempt) {
+		var maxAttempts = 30;
+		if (attempt >= maxAttempts) {
+			statusEl.textContent = _('自动检测超时：设备可能已获取新的 DHCP 地址，请改用上级路由分配的新地址访问。');
+			return;
+		}
+		callGetStatus().then(L.bind(function(res) {
+			if (res && res.mode === 'ap') {
+				ui.hideModal();
+				ui.addNotification(null, E('p',
+					_('设备已进入 AP 模式，当前管理地址: %s').format(res.lan_ip || '-')));
+				window.location.reload();
+				return;
+			}
+			statusEl.textContent = _('设备已有响应，等待模式切换完成…（%d/%d）').format(attempt + 1, maxAttempts);
+			setTimeout(L.bind(this.probeApDevice, this, statusEl, attempt + 1), 3000);
+		}, this)).catch(L.bind(function() {
+			statusEl.textContent = _('网络重载中，正在重试检测…（%d/%d）').format(attempt + 1, maxAttempts);
+			setTimeout(L.bind(this.probeApDevice, this, statusEl, attempt + 1), 3000);
+		}, this));
 	},
 
 	generateChildConfig: function() {

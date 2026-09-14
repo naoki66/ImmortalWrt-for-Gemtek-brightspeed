@@ -84,22 +84,31 @@ return view.extend({
 				_('The device is configured to boot into the U-Boot HTTP recovery environment. Re-flash the firmware from the U-Boot interface.')));
 		}
 
-		body.appendChild(E('div', { 'class': 'rec-card' }, [
+		var card = [
 			E('p', { 'class': 'rec-desc' },
 				_('Reboots the device into the U-Boot HTTP recovery environment using a one-shot trigger. The normal boot command is left unchanged.')),
 			E('div', { 'class': 'rec-status' }, [
 				E('span', { 'class': 'rec-status-label' }, _('U-Boot environment')),
 				E('span', { 'class': 'rec-status-value' + (supported ? '' : ' fail') },
 					supported ? _('Available') : _('Unavailable'))
-			]),
-			E('div', { 'class': 'rec-btn' }, [
-				E('button', {
-					'class': 'cbi-button cbi-button-action important',
-					'disabled': (supported && !recoveryActive) ? null : 'disabled',
-					'click': ui.createHandlerFn(this, 'handleRebootToUboot')
-				}, _('Reboot to U-Boot'))
 			])
+		];
+
+		/* Surface the backend reason code so a failure can be reported
+		 * without digging through the device shell. */
+		if (!supported && status && status.reason)
+			card.push(E('p', { 'class': 'rec-desc' },
+				_('Diagnostic code:') + ' ' + status.reason));
+
+		card.push(E('div', { 'class': 'rec-btn' }, [
+			E('button', {
+				'class': 'cbi-button cbi-button-action important',
+				'disabled': (supported && !recoveryActive) ? null : 'disabled',
+				'click': ui.createHandlerFn(this, 'handleRebootToUboot')
+			}, _('Reboot to U-Boot'))
 		]));
+
+		body.appendChild(E('div', { 'class': 'rec-card' }, card));
 
 		return body;
 	},
