@@ -78,7 +78,7 @@ valid_wifi_ssid()
 valid_wifi_encryption()
 {
 	case "$1" in
-		none|psk2|psk-mixed|sae|sae-mixed) return 0 ;;
+		none|owe|psk2|psk-mixed|sae|sae-mixed) return 0 ;;
 	esac
 	return 1
 }
@@ -319,66 +319,94 @@ find_primary_ap_for_radio()
 	return 1
 }
 
-first_primary_ap()
-{
-	local radio sec
-	for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-device$/\1/p'); do
-		sec="$(find_primary_ap_for_radio "$radio")"
-		[ -n "$sec" ] && {
-			printf '%s' "$sec"
-			return 0
-		}
-	done
-	return 1
-}
-
-primary_ap_value()
-{
-	local sec value
-	sec="$(first_primary_ap)"
-	[ -n "$sec" ] || return 1
-	value="$(uci -q get wireless."$sec"."$1" 2>/dev/null)"
-	[ -n "$value" ] && printf '%s' "$value"
-}
-
-primary_ap_count()
-{
-	local radio
-	local count=0
-	for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-device$/\1/p'); do
-		[ -n "$(find_primary_ap_for_radio "$radio")" ] && count=$((count + 1))
-	done
-	printf '%d' "$count"
-}
-
 wifi_radio_count()
 {
 	uci -q show wireless | grep -c '^wireless\.[^=]*=wifi-device'
 }
 
-sync_primary_aps()
+valid_uci_section_name()
 {
-	local ssid="$1" encryption="$2" key="$3"
-	local radio sec idx=0 ref_sec
+	case "$1" in
+		''|*[^A-Za-z0-9_]*) return 1 ;;
+	esac
+	return 0
+}
 
-	if [ "$encryption" != "none" ] && [ -z "$key" ]; then
-		ref_sec="$(first_primary_ap)"
-		key="$(uci -q get wireless."$ref_sec".key 2>/dev/null)"
-	fi
-	if [ "$encryption" != "none" ] && ! valid_wifi_key "$key"; then
-		return 1
-	fi
+ap_config_list()
+{
+	local radio sec ssid encryption disabled band channel htmode has_key first=1
 
+	printf '['
 	for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-device$/\1/p'); do
 		sec="$(find_primary_ap_for_radio "$radio")"
+		ssid="$(uci -q get wireless."$sec".ssid 2>/dev/null)"
+		encryption="$(uci -q get wireless."$sec".encryption 2>/dev/null)"
+		disabled="$(uci -q get wireless."$sec".disabled 2>/dev/null)"
+		band="$(uci -q get wireless."$radio".band 2>/dev/null)"
+		channel="$(uci -q get wireless."$radio".channel 2>/dev/null)"
+		htmode="$(uci -q get wireless."$radio".htmode 2>/dev/null)"
+		[ "$disabled" = "1" ] && disabled=0 || disabled=1
+		[ -n "$encryption" ] || encryption=none
+		uci -q get wireless."$sec".key >/dev/null 2>&1 && has_key=1 || has_key=0
+
+		[ "$first" = "1" ] || printf ','
+		printf '{"radio":"%s","band":"%s","channel":"%s","htmode":"%s","iface":"%s","enabled":%s,"ssid":"%s","encryption":"%s","has_key":%s}' \
+			"$(json_escape "$radio")" "$(json_escape "$band")" "$(json_escape "$channel")" "$(json_escape "$htmode")" \
+			"$(json_escape "$sec")" "$(bool "$disabled")" "$(json_escape "$ssid")" "$(json_escape "$encryption")" "$(bool "$has_key")"
+		first=0
+	done
+	printf ']'
+}
+
+apply_ap_configs()
+{
+	local configs="$1" idx=0 radio enabled ssid encryption key sec old_key any=0
+
+	valid_text_value "$configs" || return 1
+
+	while [ "$idx" -le "$MAX_WIFI_MESH" ]; do
+		radio="$(jsonfilter -s "$configs" -e "@[$idx].radio" 2>/dev/null)"
+		idx=$((idx + 1))
+		[ -n "$radio" ] || continue
+		valid_uci_section_name "$radio" || return 1
+		[ "$(uci -q get wireless."$radio" 2>/dev/null)" = "wifi-device" ] || return 1
+
+		enabled="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].enabled" 2>/dev/null)"
+		ssid="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].ssid" 2>/dev/null)"
+		encryption="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].encryption" 2>/dev/null)"
+		key="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].key" 2>/dev/null)"
+		case "$enabled" in
+			0|false) enabled=0 ;;
+			*) enabled=1 ;;
+		esac
+		[ -n "$encryption" ] || encryption=sae-mixed
+		valid_wifi_encryption "$encryption" || return 1
+
+		sec="$(find_primary_ap_for_radio "$radio")"
+
+		if [ "$enabled" = "0" ]; then
+			[ -n "$sec" ] && uci -q set wireless."$sec".disabled='1'
+			any=$((any + 1))
+			continue
+		fi
+
+		valid_wifi_ssid "$ssid" || return 1
+		if [ "$encryption" != "none" ] && [ -z "$key" ]; then
+			old_key="$(uci -q get wireless."$sec".key 2>/dev/null)"
+			key="$old_key"
+		fi
+		if [ "$encryption" != "none" ] && ! valid_wifi_key "$key"; then
+			return 1
+		fi
+
 		if [ -z "$sec" ]; then
-			sec="netmode_ap_$idx"
+			sec="netmode_ap_${radio}"
 			uci -q set wireless."$sec"='wifi-iface'
 			uci -q set wireless."$sec".device="$radio"
 			uci -q set wireless."$sec".mode='ap'
 			uci -q set wireless."$sec".network='lan'
-			uci -q set wireless."$sec".disabled='0'
 		fi
+		uci -q set wireless."$sec".disabled='0'
 		uci -q set wireless."$sec".ssid="$ssid"
 		uci -q set wireless."$sec".encryption="$encryption"
 		if [ "$encryption" = "none" ]; then
@@ -386,10 +414,10 @@ sync_primary_aps()
 		else
 			uci -q set wireless."$sec".key="$key"
 		fi
-		idx=$((idx + 1))
+		any=$((any + 1))
 	done
 
-	[ "$idx" -gt 0 ]
+	[ "$any" -gt 0 ]
 }
 
 find_firewall_zone()
@@ -658,7 +686,7 @@ enable_batman_core()
 
 apply_mesh()
 {
-	local args="$1" wired wireless wired_iface mesh_id mesh_key gateway gw_bandwidth gw_sel_class ap_sync ap_ssid ap_encryption ap_key backup_dir radio idx netif ifname
+	local args="$1" wired wireless wired_iface mesh_id mesh_key gateway gw_bandwidth gw_sel_class ap_sync ap_configs backup_dir radio idx netif ifname
 
 	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
 	json_get_var wired wired
@@ -670,9 +698,7 @@ apply_mesh()
 	json_get_var gw_bandwidth gw_bandwidth
 	json_get_var gw_sel_class gw_sel_class
 	json_get_var ap_sync ap_sync
-	json_get_var ap_ssid ap_ssid
-	json_get_var ap_encryption ap_encryption
-	json_get_var ap_key ap_key
+	json_get_var ap_configs ap_configs
 
 	[ "$wired" = "1" ] || wired=0
 	[ "$wireless" = "1" ] || wireless=0
@@ -682,7 +708,6 @@ apply_mesh()
 	mesh_key="${mesh_key:-12345678}"
 	gateway="${gateway:-off}"
 	gw_sel_class="${gw_sel_class:-20}"
-	ap_encryption="${ap_encryption:-sae-mixed}"
 
 	valid_text_value "$mesh_id" || { printf '{"success":false,"error":"invalid mesh id"}'; return; }
 	case "$gateway" in
@@ -707,12 +732,8 @@ apply_mesh()
 		return
 	}
 	if [ "$ap_sync" = "1" ]; then
-		valid_wifi_ssid "$ap_ssid" || {
-			printf '{"success":false,"error":"AP SSID must be 1-32 characters"}'
-			return
-		}
-		valid_wifi_encryption "$ap_encryption" || {
-			printf '{"success":false,"error":"unsupported AP encryption"}'
+		[ -n "$ap_configs" ] || {
+			printf '{"success":false,"error":"per-radio AP settings are required"}'
 			return
 		}
 	fi
@@ -777,8 +798,8 @@ apply_mesh()
 	fi
 
 	if [ "$ap_sync" = "1" ]; then
-		sync_primary_aps "$ap_ssid" "$ap_encryption" "$ap_key" || {
-			printf '{"success":false,"error":"failed to synchronize AP settings; provide a valid AP key or configure an existing LAN AP first"}'
+		apply_ap_configs "$ap_configs" || {
+			printf '{"success":false,"error":"invalid per-radio AP settings or radio configuration"}'
 			return
 		}
 	fi
@@ -815,7 +836,7 @@ detect_mode()
 
 get_status()
 {
-	local mode lan_ip wan_proto wan_up mesh_enabled wired wired_iface wireless_count mesh_id gateway gw_bandwidth gw_sel_class ap_sync ap_ssid ap_encryption ap_radios radio_count bat_up
+	local mode lan_ip wan_proto wan_up mesh_enabled wired wired_iface wireless_count mesh_id gateway gw_bandwidth gw_sel_class ap_sync ap_configs radio_count bat_up
 	local dep_batctl dep_iw dep_wpad board host bat_device
 
 	mode="$(detect_mode)"
@@ -836,9 +857,7 @@ get_status()
 	if [ -z "$ap_sync" ] && [ "$wireless_count" -gt 0 ]; then
 		ap_sync=1
 	fi
-	ap_ssid="$(primary_ap_value ssid)"
-	ap_encryption="$(primary_ap_value encryption)"
-	ap_radios="$(primary_ap_count)"
+	ap_configs="$(ap_config_list)"
 	radio_count="$(wifi_radio_count)"
 	bat_up="$(ubus call network.interface.bat0 status 2>/dev/null | jsonfilter -e '@.up' 2>/dev/null)"
 	[ "$bat_up" = "true" ] || bat_up=false
@@ -853,11 +872,11 @@ get_status()
 
 	printf '{"mode":"%s","board":"%s","hostname":"%s","lan_ip":"%s","wan_proto":"%s","wan_up":%s,' \
 		"$mode" "$(json_escape "$board")" "$(json_escape "$host")" "$(json_escape "$lan_ip")" "$(json_escape "$wan_proto")" "$wan_up"
-	printf '"mesh":{"enabled":%s,"up":%s,"device":"%s","wired":%s,"wired_iface":"%s","wireless_count":%d,"mesh_id":"%s","gateway":"%s","gw_bandwidth":"%s","gw_sel_class":"%s","ap_sync":%s,"ap_ssid":"%s","ap_encryption":"%s","ap_radios":%d,"radio_count":%d},' \
+	printf '"mesh":{"enabled":%s,"up":%s,"device":"%s","wired":%s,"wired_iface":"%s","wireless_count":%d,"mesh_id":"%s","gateway":"%s","gw_bandwidth":"%s","gw_sel_class":"%s","ap_sync":%s,"ap_configs":%s,"radio_count":%d},' \
 		"$(bool "$mesh_enabled")" "$bat_up" "$(json_escape "$bat_device")" \
 		"$(bool "$wired")" "$(json_escape "$wired_iface")" "$wireless_count" "$(json_escape "$mesh_id")" "$(json_escape "$gateway")" \
 		"$(json_escape "$gw_bandwidth")" "$(json_escape "$gw_sel_class")" "$(bool "$ap_sync")" \
-		"$(json_escape "$ap_ssid")" "$(json_escape "$ap_encryption")" "$ap_radios" "$radio_count"
+		"$ap_configs" "$radio_count"
 	printf '"backups":'
 	backup_list
 	printf ',"netdevs":'
@@ -966,7 +985,7 @@ EOF
 
 case "$1" in
 	list)
-		printf '{"getStatus":{},"discoverMesh":{},"applyMode":{"mode":"string","username":"string","password":"string","lan_ip":"string"},"applyMesh":{"wired":"string","wireless":"string","wired_iface":"string","mesh_id":"string","mesh_key":"string","gateway":"string","gw_bandwidth":"string","gw_sel_class":"string","ap_sync":"string","ap_ssid":"string","ap_encryption":"string","ap_key":"string"},"restoreBackup":{"name":"string"}}'
+		printf '{"getStatus":{},"discoverMesh":{},"applyMode":{"mode":"string","username":"string","password":"string","lan_ip":"string"},"applyMesh":{"wired":"string","wireless":"string","wired_iface":"string","mesh_id":"string","mesh_key":"string","gateway":"string","gw_bandwidth":"string","gw_sel_class":"string","ap_sync":"string","ap_configs":"string"},"restoreBackup":{"name":"string"}}'
 		;;
 	call)
 		args="$(cat)"
