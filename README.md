@@ -4,13 +4,15 @@
 
 [![Build Status](https://img.shields.io/github/actions/workflow/status/naoki66/ImmortalWrt-for-Gemtek-XR1710G/build-firmware.yml?branch=master&label=Build)](https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/actions/workflows/build-firmware.yml)
 [![Sync Status](https://img.shields.io/github/actions/workflow/status/naoki66/ImmortalWrt-for-Gemtek-XR1710G/sync-upstream.yml?branch=master&label=Sync)](https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/actions/workflows/sync-upstream.yml)
-[![Upstream](https://img.shields.io/badge/upstream-immortalwrt%409507037475-blue)](https://github.com/immortalwrt/immortalwrt)
-[![Synced](https://img.shields.io/badge/synced-2026--08--07%20merged-brightgreen)](#)
-[![Kernel](https://img.shields.io/badge/kernel-6.18.41-red)](https://www.kernel.org/)
+[![Upstream](https://img.shields.io/badge/upstream-immortalwrt%403e246256ce-blue)](https://github.com/immortalwrt/immortalwrt)
+[![Synced](https://img.shields.io/badge/synced-2026--09--14%20merged-brightgreen)](#)
+[![Kernel](https://img.shields.io/badge/kernel-6.18.44-red)](https://www.kernel.org/)
 [![SoC](https://img.shields.io/badge/SoC-Airoha%20AN7581GT-orange)]()
 [![License](https://img.shields.io/badge/license-GPL--2.0-green)](https://spdx.org/licenses/GPL-2.0-only.html)
 
 基于 [ImmortalWrt](https://github.com/immortalwrt/immortalwrt) 为 Gemtek XR1710G（Brightspeed XR1710G）路由器定制的固件。
+
+项目的重要功能、稳定性和补丁维护记录见 [更新日志](CHANGELOG.md)。
 
 默认管理地址：http://192.168.50.1 或 http://immortalwrt.lan，用户名：**root**，密码：*无*。
 
@@ -42,12 +44,13 @@
 
 - 独立 XR1710G 设备树 [an7581-xr1710g-ubi.dts](target/linux/airoha/dts/an7581-xr1710g-ubi.dts)（基于公共 `an7581.dtsi` 与 `an7581-npu-mt7996.dtsi` 扩展，含 PCIe 3.0 x2 模式配置）。
 - 关键内核与网络补丁（完整列表见 [target/linux/airoha/patches-6.18/](target/linux/airoha/patches-6.18/) 和 [target/linux/generic/pending-6.18/](target/linux/generic/pending-6.18/)）：
-  - `303-01/02`：MediaTek PHY 寄存器与校准支持。
+  - `182-v7.4`：扩大 Airoha 小型 RX ring，缓解 PPPoE 等突发 CPU 流量导致的 descriptor 耗尽。
+  - `221-01`：允许 Airoha 平台启用 CPU PM Domain。
   - `675-02~05`：nft_flow_offload 桥接、WDMA 与 VLAN-aware bridge/PVID 映射。
   - `910-02`、`912`、`913`：USB/PCIe 时钟、PCIe 3.0 x2 链路与复位修复。
-  - `910-04`、`921`：NPU MBQ 超时与 NPU 固件加载修复。
+  - `910-04`、`181`、`924`：NPU 异常恢复、固件加载与 coherent mailbox DMA 修复。
   - `915-01`、`916-02`、`9990`、`9993`、`9999-11`：PPE/flowtable 硬件卸载、WLAN 流绑定、VLAN ingress 与 XFRM 流支持。
-  - `920-*`、`920-cpufreq`、`990-01`：Airoha 网络、MTU、CPU 频率与桥接 FDB 漫游修复。
+  - `920-*`、`607-cpufreq`、`990-01`：Airoha 网络、MTU、CPU 频率与桥接 FDB 漫游修复。
 - 无线栈补丁：
   - [mt76 patches](package/kernel/mt76/patches/) 中的 `001`（mt7996 PS sync TLV/MLO 稳定性）与 `9993`（operating-mode rate control）。
   - [mac80211 patch](package/kernel/mac80211/patches/subsys/411-mac80211-export-link-sta-capability-limits.patch) 与 [hostapd patches](package/network/services/hostapd/patches/)（6GHz、EHT、radio mask 及多 VAP 稳定性）。
@@ -58,7 +61,7 @@
 - 默认 LAN 地址为 `192.168.50.1`；IPv6 使用 SLAAC/EUI-64，关闭 DHCPv6/NDP 与 RA DNS/附加标志，减少国内网络环境下的兼容性问题。
 - 默认开启 firewall4 软件 flow offload 与硬件 flow offload；VLAN 标签卸载、PPPoE 透传卸载和 AP 模式加速可在 NPU 页面按需启用，并由 FlowSense 展示运行状态。
 - 三个无线射频默认启用：2.4GHz 为 HE20/自动信道/28dBm，5GHz 为 EHT160/信道 36/30dBm，6GHz 为 EHT320/信道 37/30dBm。
-- FlowSense 提供 Router/AP 模式、VLAN 标签/PPPoE 透传/AP 模式卸载状态与自定义 Ping 延迟检测；NPU 页面提供 PPE/Frame Engine、CPU 频率与安全超频控制；风扇页面提供实时温度、RPM/PWM 曲线与自定义曲线。
+- FlowSense 提供 Router/AP 模式、VLAN 标签/PPPoE 透传/AP 模式卸载状态与自定义 Ping 延迟检测；NPU 页面提供 PPE/Frame Engine 与 CPU 频率状态；风扇页面提供实时温度、RPM/PWM 曲线与自定义曲线。
 
 ### 预装 LuCI 应用（25 个，含中文界面）
 
@@ -66,7 +69,7 @@
 
 | 应用 | 来源 | 功能 |
 |------|------|------|
-| `luci-app-airoha-npu` | [rchen14b/luci-app-airoha-npu](https://github.com/rchen14b/luci-app-airoha-npu) | SoC/NPU 状态、加速开关与超频控制 |
+| `luci-app-airoha-npu` | [rchen14b/luci-app-airoha-npu](https://github.com/rchen14b/luci-app-airoha-npu) | SoC/NPU 状态与加速开关 |
 | `luci-app-airoha-fancontrol` | [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) | 风扇速度/温度控制与曲线 |
 | `luci-app-airoha-flowsense` | [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) | PPE 硬件 offload、VLAN 标签/PPPoE 透传/AP 模式卸载状态与延迟检测 |
 | `luci-app-airoha-recovery` | 本仓库 | 一键重启进入 U-Boot HTTP Recovery（一次性触发） |
