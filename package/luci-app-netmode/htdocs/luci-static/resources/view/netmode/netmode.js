@@ -23,7 +23,7 @@ var callApplyMode = rpc.declare({
 var callApplyMesh = rpc.declare({
 	object: 'luci.netmode',
 	method: 'applyMesh',
-	params: [ 'wired', 'wireless', 'mesh_id', 'mesh_key', 'gateway' ]
+	params: [ 'wired', 'wireless', 'wired_iface', 'mesh_id', 'mesh_key', 'gateway', 'gw_bandwidth', 'gw_sel_class' ]
 });
 
 var callRestoreBackup = rpc.declare({
@@ -213,6 +213,12 @@ return view.extend({
 		this.wiredInput.checked = !!mesh.wired;
 		this.wirelessInput = E('input', { 'type': 'checkbox' });
 		this.wirelessInput.checked = (mesh.wireless_count || 0) > 0;
+		this.wiredIfaceInput = E('select', {}, [
+			E('option', { 'value': '' }, _('请选择端口'))
+		].concat((this.status.netdevs || []).map(function(iface) {
+			return E('option', { 'value': iface }, iface);
+		})));
+		this.wiredIfaceInput.value = mesh.wired_iface || '';
 		this.meshIdInput = E('input', { 'type': 'text', 'value': mesh.mesh_id || 'XR1710G-MESH' });
 		this.meshKeyInput = E('input', { 'type': 'password', 'value': '12345678', 'autocomplete': 'new-password' });
 		this.gatewayInput = E('select', {}, [
@@ -221,13 +227,24 @@ return view.extend({
 			E('option', { 'value': 'client' }, _('网关客户端'))
 		]);
 		this.gatewayInput.value = mesh.gateway || 'off';
+		this.gwBandwidthInput = E('input', {
+			'type': 'text',
+			'value': mesh.gw_bandwidth || '',
+			'placeholder': _('自动读取物理速率')
+		});
+		this.gwSelClassInput = E('input', {
+			'type': 'number',
+			'min': '1',
+			'max': '255',
+			'value': mesh.gw_sel_class || '20'
+		});
 
 		root.appendChild(E('div', { 'class': 'nm-section' }, [
 			E('div', { 'class': 'nm-title' }, _('Mesh 回程')),
 			E('div', { 'class': 'nm-switches' }, [
 				E('label', { 'class': 'nm-switch' }, [
 					this.wiredInput,
-					E('span', {}, [ E('strong', {}, _('有线 Mesh')), E('span', {}, _('使用 WAN 口作为 batman-adv 有线回程，bat0 并入 br-lan。')) ])
+					E('span', {}, [ E('strong', {}, _('有线 Mesh')), E('span', {}, _('使用指定独立端口作为 batman-adv 有线回程，bat0 并入 br-lan。')) ])
 				]),
 				E('label', { 'class': 'nm-switch' }, [
 					this.wirelessInput,
@@ -237,12 +254,15 @@ return view.extend({
 			E('div', { 'class': 'nm-form' }, [
 				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('Mesh ID')), this.meshIdInput ]),
 				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('Mesh 密钥')), this.meshKeyInput ]),
-				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('BATMAN 网关角色')), this.gatewayInput ])
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('有线 Mesh 端口')), this.wiredIfaceInput ]),
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('BATMAN 网关角色')), this.gatewayInput ]),
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('网关带宽 kbit/s')), this.gwBandwidthInput ]),
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('网关选择等级')), this.gwSelClassInput ])
 			]),
-			E('p', { 'class': 'nm-muted' }, _('网关角色只影响 BATMAN 网关选举；使用 WAN 口作为有线回程时，该端口不再承担普通 WAN 拨号。')),
+			E('p', { 'class': 'nm-muted' }, _('网关带宽留空时会读取物理接口速率并写入 下行/上行 kbit/s；读不到速率时不写入该项。使用 WAN 口作为有线回程时，该端口不再承担普通 WAN 拨号。')),
 			E('div', { 'class': 'nm-actions' }, [
-				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': ui.createHandlerFn(this, 'applyMesh') }, _('应用 Mesh')),
-				E('button', { 'class': 'cbi-button cbi-button-negative', 'click': ui.createHandlerFn(this, 'disableMesh') }, _('关闭 Mesh')),
+				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': ui.createHandlerFn(this, 'confirmMesh') }, _('应用 Mesh')),
+				E('button', { 'class': 'cbi-button cbi-button-negative', 'click': ui.createHandlerFn(this, 'confirmDisableMesh') }, _('关闭 Mesh')),
 				(mesh && (this.status.backups || []).length) ? E('button', {
 					'class': 'cbi-button cbi-button-neutral',
 					'click': ui.createHandlerFn(this, 'restoreLatestBackup')
@@ -285,13 +305,54 @@ return view.extend({
 	},
 
 	confirmMode: function(mode, title) {
+		var details = mode === 'ap'
+			? _('将把 WAN 加入 br-lan，LAN 改为 DHCP 客户端，关闭本机 DHCP，并移除 WAN 防火墙转发。')
+			: _('将 WAN 设为外网接口，LAN 使用静态地址并开启 DHCP，同时恢复 WAN 防火墙 NAT 与 LAN 到 WAN 转发。');
 		return ui.showModal(_('确认切换到 %s').format(title), [
-			E('p', {}, _('应用后会备份当前网络配置并重载 network、dnsmasq、odhcpd、firewall 与 Wi-Fi。')),
+			E('p', {}, details),
+			E('p', {}, _('应用后会备份当前 network、dhcp、wireless、firewall 配置，并重载 network、dnsmasq、odhcpd、firewall 与 Wi-Fi。管理地址可能改变。')),
 			E('div', { 'class': 'right' }, [
 				E('button', {
 					'class': 'cbi-button cbi-button-apply',
 					'click': ui.createHandlerFn(this, 'applyMode', mode)
 				}, _('确认应用')),
+				' ',
+				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.hideModal }, _('取消'))
+			])
+		]);
+	},
+
+	confirmMesh: function() {
+		if (this.wiredInput.checked && !this.wiredIfaceInput.value) {
+			ui.addNotification(null, E('p', _('启用有线 Mesh 前必须选择一个独立回程端口。')));
+			return;
+		}
+
+		return ui.showModal(_('确认应用 Mesh 回程'), [
+			E('p', {}, _('这会修改 batman-adv、wireless、network 配置并重载网络。')),
+			this.wiredInput.checked
+				? E('p', {}, _('有线 Mesh 会把端口 %s 从 br-lan 中移出并交给 bat0 使用；请确认这不是当前唯一管理入口。').format(this.wiredIfaceInput.value))
+				: E('p', {}, _('有线 Mesh 未启用。')),
+			E('p', {}, this.wirelessInput.checked ? _('无线 Mesh 将为每个 radio 创建 802.11s SAE 回程。') : _('无线 Mesh 未启用。')),
+			E('div', { 'class': 'right' }, [
+				E('button', {
+					'class': 'cbi-button cbi-button-apply',
+					'click': ui.createHandlerFn(this, 'applyMesh')
+				}, _('确认应用')),
+				' ',
+				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.hideModal }, _('取消'))
+			])
+		]);
+	},
+
+	confirmDisableMesh: function() {
+		return ui.showModal(_('确认关闭 Mesh'), [
+			E('p', {}, _('这会删除 netmode 创建的 bat0、有线 Mesh hardif 和无线 802.11s 回程配置，然后重载网络。')),
+			E('div', { 'class': 'right' }, [
+				E('button', {
+					'class': 'cbi-button cbi-button-negative',
+					'click': ui.createHandlerFn(this, 'disableMesh')
+				}, _('确认关闭')),
 				' ',
 				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.hideModal }, _('取消'))
 			])
@@ -311,18 +372,23 @@ return view.extend({
 	},
 
 	applyMesh: function() {
+		ui.hideModal();
 		return callApplyMesh(
 			this.wiredInput.checked ? '1' : '0',
 			this.wirelessInput.checked ? '1' : '0',
+			this.wiredIfaceInput.value || '',
 			(this.meshIdInput.value || '').trim(),
 			this.meshKeyInput.value || '',
-			this.gatewayInput.value || 'off'
+			this.gatewayInput.value || 'off',
+			(this.gwBandwidthInput.value || '').trim(),
+			(this.gwSelClassInput.value || '').trim()
 		).then(L.bind(this.afterApply, this)).catch(function(e) {
 			ui.addNotification(null, E('p', e.message || _('应用失败')));
 		});
 	},
 
 	disableMesh: function() {
+		ui.hideModal();
 		this.wiredInput.checked = false;
 		this.wirelessInput.checked = false;
 		return this.applyMesh();

@@ -68,6 +68,95 @@ valid_mesh_key()
 	[ "$n" -ge 8 ] && [ "$n" -le 63 ] && valid_text_value "$1"
 }
 
+valid_uint()
+{
+	case "$1" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+	return 0
+}
+
+valid_gw_bandwidth()
+{
+	local down up
+	[ -z "$1" ] && return 0
+	valid_text_value "$1" || return 1
+	down="${1%/*}"
+	up="${1#*/}"
+	[ "$down" != "$1" ] || return 1
+	valid_uint "$down" && valid_uint "$up"
+}
+
+valid_netdev_name()
+{
+	case "$1" in
+		''|.*|*/*|*\\*|*[^A-Za-z0-9_.:-]*) return 1 ;;
+	esac
+	[ -d "/sys/class/net/$1" ]
+}
+
+safe_mesh_hardif()
+{
+	valid_netdev_name "$1" || return 1
+	case "$1" in
+		lo|br-lan|bat0|mesh_*|phy*-mesh*|phy*-ap*|phy*-sta*) return 1 ;;
+	esac
+	return 0
+}
+
+netdev_is_active_wan()
+{
+	local iface="$1" wan_proto wan_device
+
+	wan_proto="$(uci -q get network.wan.proto 2>/dev/null)"
+	[ -n "$wan_proto" ] || return 1
+	wan_device="$(uci -q get network.wan.device 2>/dev/null)"
+	[ "$wan_device" = "$iface" ]
+}
+
+iface_speed_kbit()
+{
+	local iface="$1" speed
+	[ -n "$iface" ] || return 1
+	[ -r "/sys/class/net/$iface/speed" ] || return 1
+	speed="$(cat "/sys/class/net/$iface/speed" 2>/dev/null)"
+	valid_uint "$speed" || return 1
+	[ "$speed" -gt 0 ] 2>/dev/null || return 1
+	printf '%d' "$((speed * 1000))"
+}
+
+auto_gateway_bandwidth()
+{
+	local iface speed
+	iface="$(uci -q get network.netmode_wired_mesh.device 2>/dev/null)"
+	speed="$(iface_speed_kbit "$iface")" && {
+		printf '%s/%s' "$speed" "$speed"
+		return 0
+	}
+	speed="$(iface_speed_kbit wan)" && {
+		printf '%s/%s' "$speed" "$speed"
+		return 0
+	}
+	return 1
+}
+
+netdev_list()
+{
+	local d iface first=1
+	printf '['
+	for d in /sys/class/net/*; do
+		[ -e "$d" ] || continue
+		iface="${d##*/}"
+		case "$iface" in
+			lo|br-lan|bat0|mesh_*|phy*-mesh*|phy*-ap*|phy*-sta*) continue ;;
+		esac
+		[ "$first" = "1" ] || printf ','
+		printf '"%s"' "$(json_escape "$iface")"
+		first=0
+	done
+	printf ']'
+}
+
 backup_configs()
 {
 	local stamp dir f
@@ -186,6 +275,119 @@ remove_bridge_port()
 	done
 }
 
+find_firewall_zone()
+{
+	local sec name
+	for sec in $(uci -q show firewall | sed -n 's/^firewall\.\([^=]*\)=zone$/\1/p'); do
+		name="$(uci -q get firewall."$sec".name 2>/dev/null)"
+		[ "$name" = "$1" ] && {
+			printf '%s' "$sec"
+			return 0
+		}
+	done
+	return 1
+}
+
+ensure_firewall_zone()
+{
+	local zone="$1" sec
+	sec="$(find_firewall_zone "$zone")"
+	if [ -z "$sec" ]; then
+		sec="netmode_${zone}"
+		uci -q set firewall."$sec"='zone'
+		uci -q set firewall."$sec".name="$zone"
+	fi
+	printf '%s' "$sec"
+}
+
+fw_zone_has_network()
+{
+	local sec="$1" net="$2" n
+	for n in $(uci -q get firewall."$sec".network 2>/dev/null); do
+		[ "$n" = "$net" ] && return 0
+	done
+	return 1
+}
+
+fw_zone_add_network()
+{
+	local sec="$1" net="$2"
+	fw_zone_has_network "$sec" "$net" || uci -q add_list firewall."$sec".network="$net"
+}
+
+fw_zone_remove_network()
+{
+	local sec="$1" net="$2"
+	while fw_zone_has_network "$sec" "$net"; do
+		uci -q del_list firewall."$sec".network="$net" || break
+	done
+}
+
+ensure_lan_wan_forwarding()
+{
+	local sec src dest
+	for sec in $(uci -q show firewall | sed -n 's/^firewall\.\([^=]*\)=forwarding$/\1/p'); do
+		src="$(uci -q get firewall."$sec".src 2>/dev/null)"
+		dest="$(uci -q get firewall."$sec".dest 2>/dev/null)"
+		[ "$src" = "lan" ] && [ "$dest" = "wan" ] && return 0
+	done
+	uci -q add firewall forwarding >/dev/null
+	uci -q set firewall.@forwarding[-1].src='lan'
+	uci -q set firewall.@forwarding[-1].dest='wan'
+}
+
+delete_lan_wan_forwarding()
+{
+	local sec src dest
+	for sec in $(uci -q show firewall | sed -n 's/^firewall\.\([^=]*\)=forwarding$/\1/p'); do
+		src="$(uci -q get firewall."$sec".src 2>/dev/null)"
+		dest="$(uci -q get firewall."$sec".dest 2>/dev/null)"
+		[ "$src" = "lan" ] && [ "$dest" = "wan" ] && uci -q delete firewall."$sec"
+	done
+}
+
+configure_firewall_ap()
+{
+	local lan_sec wan_sec
+	lan_sec="$(ensure_firewall_zone lan)"
+	uci -q set firewall."$lan_sec".input='ACCEPT'
+	uci -q set firewall."$lan_sec".output='ACCEPT'
+	uci -q set firewall."$lan_sec".forward='ACCEPT'
+	uci -q delete firewall."$lan_sec".network 2>/dev/null
+	fw_zone_add_network "$lan_sec" lan
+
+	wan_sec="$(find_firewall_zone wan)"
+	if [ -n "$wan_sec" ]; then
+		fw_zone_remove_network "$wan_sec" wan
+		fw_zone_remove_network "$wan_sec" wan6
+	fi
+	delete_lan_wan_forwarding
+}
+
+configure_firewall_router()
+{
+	local lan_sec wan_sec
+	lan_sec="$(ensure_firewall_zone lan)"
+	wan_sec="$(ensure_firewall_zone wan)"
+
+	uci -q set firewall."$lan_sec".input='ACCEPT'
+	uci -q set firewall."$lan_sec".output='ACCEPT'
+	uci -q set firewall."$lan_sec".forward='ACCEPT'
+	uci -q delete firewall."$lan_sec".network 2>/dev/null
+	fw_zone_add_network "$lan_sec" lan
+
+	uci -q set firewall."$wan_sec".input='REJECT'
+	uci -q set firewall."$wan_sec".output='ACCEPT'
+	uci -q set firewall."$wan_sec".forward='REJECT'
+	uci -q set firewall."$wan_sec".masq='1'
+	uci -q set firewall."$wan_sec".mtu_fix='1'
+	uci -q delete firewall."$wan_sec".network 2>/dev/null
+	fw_zone_add_network "$wan_sec" wan
+	fw_zone_add_network "$wan_sec" wan6
+
+	ensure_lan_wan_forwarding
+}
+
 set_lan_static()
 {
 	local ip="${1:-192.168.50.1}"
@@ -262,6 +464,7 @@ apply_mode()
 			set_lan_ap_client
 			uci -q delete network.wan 2>/dev/null
 			uci -q delete network.wan6 2>/dev/null
+			configure_firewall_ap
 			;;
 		dhcp)
 			remove_bridge_port br-lan wan
@@ -274,6 +477,7 @@ apply_mode()
 			uci -q set network.wan6='interface'
 			uci -q set network.wan6.device='@wan'
 			uci -q set network.wan6.proto='dhcpv6'
+			configure_firewall_router
 			;;
 		pppoe)
 			[ -n "$username" ] || { printf '{"success":false,"error":"missing PPPoE username"}'; return; }
@@ -288,6 +492,7 @@ apply_mode()
 			uci -q set network.wan6='interface'
 			uci -q set network.wan6.device='@wan'
 			uci -q set network.wan6.proto='dhcpv6'
+			configure_firewall_router
 			;;
 	esac
 
@@ -297,6 +502,7 @@ apply_mode()
 
 	uci -q commit network
 	uci -q commit dhcp
+	uci -q commit firewall
 	reload_network_later
 
 	printf '{"success":true,"mode":"%s","backup":"%s"}' "$mode" "$(json_escape "$backup_dir")"
@@ -335,26 +541,43 @@ enable_batman_core()
 
 apply_mesh()
 {
-	local args="$1" wired wireless mesh_id mesh_key gateway backup_dir radio idx netif ifname
+	local args="$1" wired wireless wired_iface mesh_id mesh_key gateway gw_bandwidth gw_sel_class backup_dir radio idx netif ifname
 
 	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
 	json_get_var wired wired
 	json_get_var wireless wireless
+	json_get_var wired_iface wired_iface
 	json_get_var mesh_id mesh_id
 	json_get_var mesh_key mesh_key
 	json_get_var gateway gateway
+	json_get_var gw_bandwidth gw_bandwidth
+	json_get_var gw_sel_class gw_sel_class
 
 	[ "$wired" = "1" ] || wired=0
 	[ "$wireless" = "1" ] || wireless=0
 	mesh_id="${mesh_id:-XR1710G-MESH}"
 	mesh_key="${mesh_key:-12345678}"
 	gateway="${gateway:-off}"
+	gw_sel_class="${gw_sel_class:-20}"
 
 	valid_text_value "$mesh_id" || { printf '{"success":false,"error":"invalid mesh id"}'; return; }
 	case "$gateway" in
 		off|server|client) ;;
 		*) printf '{"success":false,"error":"invalid mesh gateway role"}'; return ;;
 	esac
+	if [ "$wired" = "1" ] && ! safe_mesh_hardif "$wired_iface"; then
+		printf '{"success":false,"error":"select a valid wired mesh interface first"}'
+		return
+	fi
+	if [ "$wired" = "1" ] && netdev_is_active_wan "$wired_iface"; then
+		printf '{"success":false,"error":"wired mesh interface is active WAN; switch to AP mode or choose a dedicated port first"}'
+		return
+	fi
+	valid_gw_bandwidth "$gw_bandwidth" || {
+		printf '{"success":false,"error":"invalid gateway bandwidth, expected down/up kbit such as 1000000/1000000"}'
+		return
+	}
+	valid_uint "$gw_sel_class" || { printf '{"success":false,"error":"invalid gateway selection class"}'; return; }
 	[ "$wireless" = "0" ] || valid_mesh_key "$mesh_key" || {
 		printf '{"success":false,"error":"wireless mesh key must be 8-63 characters"}'
 		return
@@ -366,17 +589,25 @@ apply_mesh()
 	if [ "$wired" = "1" ] || [ "$wireless" = "1" ]; then
 		enable_batman_core
 		uci -q set network.bat0.gw_mode="$gateway"
+		uci -q delete network.bat0.gw_bandwidth 2>/dev/null
+		uci -q delete network.bat0.gw_sel_class 2>/dev/null
+		[ "$gateway" = "server" ] && [ -z "$gw_bandwidth" ] && gw_bandwidth="$(auto_gateway_bandwidth)"
+		if [ "$gateway" = "server" ] && [ -n "$gw_bandwidth" ]; then
+			uci -q set network.bat0.gw_bandwidth="$gw_bandwidth"
+		elif [ "$gateway" = "client" ]; then
+			uci -q set network.bat0.gw_sel_class="$gw_sel_class"
+		fi
 	else
 		remove_bridge_port br-lan bat0
 		uci -q delete network.bat0 2>/dev/null
 	fi
 
 	if [ "$wired" = "1" ]; then
-		remove_bridge_port br-lan wan
+		remove_bridge_port br-lan "$wired_iface"
 		uci -q set network.netmode_wired_mesh='interface'
 		uci -q set network.netmode_wired_mesh.proto='batadv_hardif'
 		uci -q set network.netmode_wired_mesh.master='bat0'
-		uci -q set network.netmode_wired_mesh.device='wan'
+		uci -q set network.netmode_wired_mesh.device="$wired_iface"
 		uci -q set network.netmode_wired_mesh.mtu='1500'
 	elif [ "$(uci -q get network.lan.proto 2>/dev/null)" = "dhcp" ]; then
 		ensure_bridge_port br-lan wan
@@ -442,7 +673,7 @@ detect_mode()
 
 get_status()
 {
-	local mode lan_ip wan_proto wan_up mesh_enabled wired wireless_count mesh_id gateway bat_up
+	local mode lan_ip wan_proto wan_up mesh_enabled wired wired_iface wireless_count mesh_id gateway gw_bandwidth gw_sel_class bat_up
 	local dep_batctl dep_iw dep_wpad board host bat_device
 
 	mode="$(detect_mode)"
@@ -453,9 +684,12 @@ get_status()
 	mesh_enabled=0
 	uci -q get network.bat0.proto >/dev/null 2>&1 && mesh_enabled=1
 	uci -q get network.netmode_wired_mesh.proto >/dev/null 2>&1 && wired=1 || wired=0
+	wired_iface="$(uci -q get network.netmode_wired_mesh.device 2>/dev/null)"
 	wireless_count="$(mesh_wireless_count)"
 	mesh_id="$(uci -q get wireless.netmode_mesh_0.mesh_id 2>/dev/null)"
 	gateway="$(uci -q get network.bat0.gw_mode 2>/dev/null || printf off)"
+	gw_bandwidth="$(uci -q get network.bat0.gw_bandwidth 2>/dev/null)"
+	gw_sel_class="$(uci -q get network.bat0.gw_sel_class 2>/dev/null)"
 	bat_up="$(ubus call network.interface.bat0 status 2>/dev/null | jsonfilter -e '@.up' 2>/dev/null)"
 	[ "$bat_up" = "true" ] || bat_up=false
 	bat_device="$(ubus call network.interface.bat0 status 2>/dev/null | jsonfilter -e '@.l3_device' 2>/dev/null)"
@@ -469,11 +703,14 @@ get_status()
 
 	printf '{"mode":"%s","board":"%s","hostname":"%s","lan_ip":"%s","wan_proto":"%s","wan_up":%s,' \
 		"$mode" "$(json_escape "$board")" "$(json_escape "$host")" "$(json_escape "$lan_ip")" "$(json_escape "$wan_proto")" "$wan_up"
-	printf '"mesh":{"enabled":%s,"up":%s,"device":"%s","wired":%s,"wireless_count":%d,"mesh_id":"%s","gateway":"%s"},' \
+	printf '"mesh":{"enabled":%s,"up":%s,"device":"%s","wired":%s,"wired_iface":"%s","wireless_count":%d,"mesh_id":"%s","gateway":"%s","gw_bandwidth":"%s","gw_sel_class":"%s"},' \
 		"$(bool "$mesh_enabled")" "$bat_up" "$(json_escape "$bat_device")" \
-		"$(bool "$wired")" "$wireless_count" "$(json_escape "$mesh_id")" "$(json_escape "$gateway")"
+		"$(bool "$wired")" "$(json_escape "$wired_iface")" "$wireless_count" "$(json_escape "$mesh_id")" "$(json_escape "$gateway")" \
+		"$(json_escape "$gw_bandwidth")" "$(json_escape "$gw_sel_class")"
 	printf '"backups":'
 	backup_list
+	printf ',"netdevs":'
+	netdev_list
 	printf ',"deps":{"batctl":%s,"iw":%s,"wpad":%s}}' \
 		"$(bool "$dep_batctl")" "$(bool "$dep_iw")" "$(bool "$dep_wpad")"
 }
@@ -578,7 +815,7 @@ EOF
 
 case "$1" in
 	list)
-		printf '{"getStatus":{},"discoverMesh":{},"applyMode":{"mode":"string","username":"string","password":"string","lan_ip":"string"},"applyMesh":{"wired":"string","wireless":"string","mesh_id":"string","mesh_key":"string","gateway":"string"},"restoreBackup":{"name":"string"}}'
+		printf '{"getStatus":{},"discoverMesh":{},"applyMode":{"mode":"string","username":"string","password":"string","lan_ip":"string"},"applyMesh":{"wired":"string","wireless":"string","wired_iface":"string","mesh_id":"string","mesh_key":"string","gateway":"string","gw_bandwidth":"string","gw_sel_class":"string"},"restoreBackup":{"name":"string"}}'
 		;;
 	call)
 		args="$(cat)"

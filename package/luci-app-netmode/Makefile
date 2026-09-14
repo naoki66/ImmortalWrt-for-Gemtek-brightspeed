@@ -9,7 +9,7 @@ PKG_LICENSE:=GPL-2.0-or-later
 
 LUCI_TITLE:=LuCI XR1710G Network Mode and Mesh Wizard
 LUCI_DESCRIPTION:=One-click AP, DHCP router, PPPoE router, wired mesh, wireless mesh, and LAN mesh topology discovery for XR1710G.
-LUCI_DEPENDS:=+luci-base +rpcd +jsonfilter +iw +iwinfo +ip-full +ppp-mod-pppoe +kmod-batman-adv +batctl-default +luci-proto-batman-adv +wpad-mesh-mbedtls
+LUCI_DEPENDS:=+luci-base +rpcd +jsonfilter +iw +iwinfo +ip-full +ppp-mod-pppoe +kmod-batman-adv +batctl-full +wpad-mesh-mbedtls
 LUCI_PKGARCH:=all
 
 include $(TOPDIR)/feeds/luci/luci.mk
