@@ -64,6 +64,19 @@ first_lan_ip()
 	[ -n "$ip" ] && printf '%s' "$ip" || printf ''
 }
 
+first_wan_ip()
+{
+	local ip
+	ip="$(ubus call network.interface.wan status 2>/dev/null | jsonfilter -e "@['ipv4-address'][0].address" 2>/dev/null)"
+	[ -n "$ip" ] && {
+		printf '%s' "$ip"
+		return 0
+	}
+	ip="$(uci -q get network.wan.ipaddr 2>/dev/null | awk '{print $1}')"
+	ip="${ip%%/*}"
+	[ -n "$ip" ] && printf '%s' "$ip" || printf ''
+}
+
 interface_ipv4_addresses()
 {
 	local sec proto ips ip first=1
@@ -1138,11 +1151,12 @@ detect_mode()
 
 get_status()
 {
-	local mode lan_ip wan_proto wan_up mesh_enabled wired wired_iface wired_mode wireless_count mesh_id gateway gw_bandwidth gw_sel_class ap_sync ap_configs radio_count bat_up
+	local mode lan_ip wan_ip wan_proto wan_up mesh_enabled wired wired_iface wired_mode wireless_count mesh_id gateway gw_bandwidth gw_sel_class ap_sync ap_configs radio_count bat_up
 	local dep_batctl dep_iw dep_wpad board host bat_device
 
 	mode="$(detect_mode)"
 	lan_ip="$(first_lan_ip)"
+	wan_ip="$(first_wan_ip)"
 	wan_proto="$(uci -q get network.wan.proto 2>/dev/null)"
 	wan_up="$(ubus call network.interface.wan status 2>/dev/null | jsonfilter -e '@.up' 2>/dev/null)"
 	[ "$wan_up" = "true" ] || wan_up=false
@@ -1181,8 +1195,8 @@ get_status()
 	board="$(board_name_safe)"
 	host="$(hostname_safe)"
 
-	printf '{"mode":"%s","board":"%s","hostname":"%s","lan_ip":"%s","wan_proto":"%s","wan_up":%s,' \
-		"$mode" "$(json_escape "$board")" "$(json_escape "$host")" "$(json_escape "$lan_ip")" "$(json_escape "$wan_proto")" "$wan_up"
+	printf '{"mode":"%s","board":"%s","hostname":"%s","lan_ip":"%s","wan_proto":"%s","wan_up":%s,"wan_ip":"%s",' \
+		"$mode" "$(json_escape "$board")" "$(json_escape "$host")" "$(json_escape "$lan_ip")" "$(json_escape "$wan_proto")" "$wan_up" "$(json_escape "$wan_ip")"
 	printf '"mesh":{"enabled":%s,"up":%s,"device":"%s","wired":%s,"wired_mode":"%s","wired_iface":"%s","wireless_count":%d,"mesh_radios":' \
 		"$(bool "$mesh_enabled")" "$bat_up" "$(json_escape "$bat_device")" \
 		"$(bool "$wired")" "$(json_escape "$wired_mode")" "$(json_escape "$wired_iface")" "$wireless_count"
