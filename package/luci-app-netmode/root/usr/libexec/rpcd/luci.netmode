@@ -204,7 +204,7 @@ netdev_list()
 		[ -e "$d" ] || continue
 		iface="${d##*/}"
 		case "$iface" in
-			lo|br-lan|bat0|mesh_*|phy*-mesh*|phy*-ap*|phy*-sta*) continue ;;
+			lo|cpu|dummy*|br-lan|br-lan.*|bat0|mesh_*|phy*-mesh*|phy*-ap*|phy*-sta*) continue ;;
 		esac
 		[ "$first" = "1" ] || printf ','
 		printf '"%s"' "$(json_escape "$iface")"
@@ -879,12 +879,15 @@ enable_batman_core()
 
 apply_mesh()
 {
-	local args="$1" wired wireless wired_iface mesh_id mesh_key gateway gw_bandwidth gw_sel_class ap_sync ap_configs backup_dir radio idx netif ifname
+	local args="$1" wired wireless wired_iface wired_mode mesh_radios mesh_id mesh_key gateway gw_bandwidth gw_sel_class ap_sync ap_configs backup_dir radio idx netif ifname
+	local old_mode="" old_iface=""
 
 	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
 	json_get_var wired wired
 	json_get_var wireless wireless
 	json_get_var wired_iface wired_iface
+	json_get_var wired_mode wired_mode
+	json_get_var mesh_radios mesh_radios
 	json_get_var mesh_id mesh_id
 	json_get_var mesh_key mesh_key
 	json_get_var gateway gateway
@@ -902,18 +905,53 @@ apply_mesh()
 	gateway="${gateway:-off}"
 	gw_sel_class="${gw_sel_class:-20}"
 
+	# Wired backhaul transport:
+	#   bridge    - br-lan itself is the batman-adv hardif, every LAN/WAN
+	#               port carries mesh traffic (ideal in AP mode; BLA is on)
+	#   dedicated - one physical port is removed from br-lan and handed
+	#               exclusively to bat0
+	if [ "$wired" = "1" ]; then
+		if [ "$wired_iface" = "__bridge__" ]; then
+			wired_mode=bridge
+		else
+			case "$wired_mode" in
+				dedicated) ;;
+				bridge) wired_iface="__bridge__" ;;
+				*)
+					if [ -n "$wired_iface" ]; then
+						wired_mode=dedicated
+					else
+						wired_mode=bridge
+						wired_iface="__bridge__"
+					fi
+				;;
+			esac
+		fi
+	fi
+
 	valid_text_value "$mesh_id" || { printf '{"success":false,"error":"invalid mesh id"}'; return; }
 	case "$gateway" in
 		off|server|client) ;;
 		*) printf '{"success":false,"error":"invalid mesh gateway role"}'; return ;;
 	esac
-	if [ "$wired" = "1" ] && ! safe_mesh_hardif "$wired_iface"; then
-		printf '{"success":false,"error":"select a valid wired mesh interface first"}'
-		return
+	if [ "$wired" = "1" ] && [ "$wired_mode" = "dedicated" ]; then
+		if ! safe_mesh_hardif "$wired_iface"; then
+			printf '{"success":false,"error":"select a valid wired mesh interface first"}'
+			return
+		fi
+		if netdev_is_active_wan "$wired_iface"; then
+			printf '{"success":false,"error":"wired mesh interface is active WAN; switch to AP mode or choose another port first"}'
+			return
+		fi
 	fi
-	if [ "$wired" = "1" ] && netdev_is_active_wan "$wired_iface"; then
-		printf '{"success":false,"error":"wired mesh interface is active WAN; switch to AP mode or choose a dedicated port first"}'
-		return
+	if [ "$wireless" = "1" ] && [ -n "$mesh_radios" ]; then
+		for radio in $(printf '%s' "$mesh_radios" | jsonfilter -e '@[*]' 2>/dev/null); do
+			valid_uci_section_name "$radio" || { printf '{"success":false,"error":"invalid mesh radio list"}'; return; }
+			[ "$(uci -q get wireless."$radio" 2>/dev/null)" = "wifi-device" ] || {
+				printf '{"success":false,"error":"mesh radio %s does not exist"}' "$(json_escape "$radio")"
+				return
+			}
+		done
 	fi
 	valid_gw_bandwidth "$gw_bandwidth" || {
 		printf '{"success":false,"error":"invalid gateway bandwidth, expected down/up kbit such as 1000000/1000000"}'
@@ -932,6 +970,19 @@ apply_mesh()
 	fi
 
 	backup_dir="$(backup_configs)" || { printf '{"success":false,"error":"failed to create backup"}'; return; }
+
+	# remember the previous wired transport so a port removed from br-lan
+	# for dedicated mode can be restored when switching mode/disabling mesh
+	if uci -q get network.netmode_wired_mesh.proto >/dev/null 2>&1; then
+		old_iface="$(uci -q get network.netmode_wired_mesh.device 2>/dev/null)"
+		old_mode="$(uci -q get network.netmode_wired_mesh.netmode_mode 2>/dev/null)"
+		case "$old_mode" in
+			bridge) ;;
+			*) old_mode=dedicated ;;
+		esac
+		[ "$old_mode" = "bridge" ] && old_iface=""
+	fi
+
 	delete_mesh_sections
 
 	if [ "$wired" = "1" ] || [ "$wireless" = "1" ]; then
@@ -952,20 +1003,43 @@ apply_mesh()
 	fi
 
 	if [ "$wired" = "1" ]; then
-		remove_bridge_port br-lan "$wired_iface"
+		# a port previously dedicated to mesh has to rejoin br-lan before
+		# the whole bridge can be used as transport
+		if [ "$wired_mode" = "bridge" ] && [ "$old_mode" = "dedicated" ] && \
+		   [ -n "$old_iface" ] && [ "$old_iface" != "br-lan" ] && valid_netdev_name "$old_iface"; then
+			ensure_bridge_port br-lan "$old_iface"
+		fi
+
 		uci -q set network.netmode_wired_mesh='interface'
 		uci -q set network.netmode_wired_mesh.proto='batadv_hardif'
 		uci -q set network.netmode_wired_mesh.master='bat0'
-		uci -q set network.netmode_wired_mesh.device="$wired_iface"
-		uci -q set network.netmode_wired_mesh.mtu='1500'
-	elif [ "$(uci -q get network.lan.proto 2>/dev/null)" = "dhcp" ]; then
-		ensure_bridge_port br-lan wan
+		uci -q set network.netmode_wired_mesh.netmode_mode="$wired_mode"
+		if [ "$wired_mode" = "dedicated" ]; then
+			remove_bridge_port br-lan "$wired_iface"
+			uci -q set network.netmode_wired_mesh.device="$wired_iface"
+			uci -q set network.netmode_wired_mesh.mtu='1500'
+		else
+			# br-lan itself becomes the hardif (batctl -M allows bridges);
+			# every LAN/WAN port transparently carries batman-adv traffic,
+			# bridge_loop_avoidance on bat0 prevents L2 loops.
+			uci -q set network.netmode_wired_mesh.device='br-lan'
+		fi
+	else
+		# mesh wired transport disabled: return a previously dedicated port
+		# to br-lan (AP mode without a stored section also re-adds wan)
+		if [ "$old_mode" = "dedicated" ] && [ -n "$old_iface" ] && \
+		   [ "$old_iface" != "br-lan" ] && valid_netdev_name "$old_iface"; then
+			ensure_bridge_port br-lan "$old_iface"
+		elif [ "$(uci -q get network.lan.proto 2>/dev/null)" = "dhcp" ]; then
+			ensure_bridge_port br-lan wan
+		fi
 	fi
 
 	idx=0
 	if [ "$wireless" = "1" ]; then
 		for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-device$/\1/p'); do
 			[ "$idx" -le "$MAX_WIFI_MESH" ] || break
+			mesh_radio_selected "$radio" "$mesh_radios" || continue
 			netif="netmode_wmesh_$idx"
 			ifname="mesh_${radio}"
 			uci -q set network."$netif"='interface'
@@ -1001,13 +1075,40 @@ apply_mesh()
 	uci -q commit wireless
 	reload_network_later
 
-	printf '{"success":true,"wired":%s,"wireless":%s,"gateway":"%s","radios":%d,"ap_sync":%s,"backup":"%s"}' \
-		"$(bool "$wired")" "$(bool "$wireless")" "$gateway" "$idx" "$(bool "$ap_sync")" "$(json_escape "$backup_dir")"
+	printf '{"success":true,"wired":%s,"wired_mode":"%s","wireless":%s,"gateway":"%s","radios":%d,"ap_sync":%s,"backup":"%s"}' \
+		"$(bool "$wired")" "$(json_escape "$wired_mode")" "$(bool "$wireless")" "$gateway" "$idx" "$(bool "$ap_sync")" "$(json_escape "$backup_dir")"
 }
 
 mesh_wireless_count()
 {
 	uci -q show wireless | grep -c '^wireless\.netmode_mesh_[0-9]*=wifi-iface'
+}
+
+# JSON array of radios currently carrying an 802.11s mesh backhaul.
+mesh_radio_list()
+{
+	local sec radio first=1
+	printf '['
+	for sec in $(uci -q show wireless | sed -n 's/^wireless\.\(netmode_mesh_[0-9]*\)=wifi-iface$/\1/p'); do
+		radio="$(uci -q get wireless."$sec".device 2>/dev/null)"
+		[ -n "$radio" ] || continue
+		[ "$first" = "1" ] || printf ','
+		printf '"%s"' "$(json_escape "$radio")"
+		first=0
+	done
+	printf ']'
+}
+
+# Check whether $1 (radio name) is contained in the JSON array $2.
+# An empty/invalid array selects every radio (legacy behaviour).
+mesh_radio_selected()
+{
+	local radio="$1" list="$2" r
+	[ -n "$list" ] || return 0
+	for r in $(printf '%s' "$list" | jsonfilter -e '@[*]' 2>/dev/null); do
+		[ "$r" = "$radio" ] && return 0
+	done
+	return 1
 }
 
 detect_mode()
@@ -1029,7 +1130,7 @@ detect_mode()
 
 get_status()
 {
-	local mode lan_ip wan_proto wan_up mesh_enabled wired wired_iface wireless_count mesh_id gateway gw_bandwidth gw_sel_class ap_sync ap_configs radio_count bat_up
+	local mode lan_ip wan_proto wan_up mesh_enabled wired wired_iface wired_mode wireless_count mesh_id gateway gw_bandwidth gw_sel_class ap_sync ap_configs radio_count bat_up
 	local dep_batctl dep_iw dep_wpad board host bat_device
 
 	mode="$(detect_mode)"
@@ -1041,6 +1142,15 @@ get_status()
 	uci -q get network.bat0.proto >/dev/null 2>&1 && mesh_enabled=1
 	uci -q get network.netmode_wired_mesh.proto >/dev/null 2>&1 && wired=1 || wired=0
 	wired_iface="$(uci -q get network.netmode_wired_mesh.device 2>/dev/null)"
+	wired_mode="$(uci -q get network.netmode_wired_mesh.netmode_mode 2>/dev/null)"
+	if [ "$wired" = "1" ]; then
+		case "$wired_mode" in
+			bridge|dedicated) ;;
+			*) wired_mode=dedicated ;;
+		esac
+	else
+		wired_mode=""
+	fi
 	wireless_count="$(mesh_wireless_count)"
 	mesh_id="$(uci -q get wireless.netmode_mesh_0.mesh_id 2>/dev/null)"
 	gateway="$(uci -q get network.bat0.gw_mode 2>/dev/null || printf off)"
@@ -1065,9 +1175,12 @@ get_status()
 
 	printf '{"mode":"%s","board":"%s","hostname":"%s","lan_ip":"%s","wan_proto":"%s","wan_up":%s,' \
 		"$mode" "$(json_escape "$board")" "$(json_escape "$host")" "$(json_escape "$lan_ip")" "$(json_escape "$wan_proto")" "$wan_up"
-	printf '"mesh":{"enabled":%s,"up":%s,"device":"%s","wired":%s,"wired_iface":"%s","wireless_count":%d,"mesh_id":"%s","gateway":"%s","gw_bandwidth":"%s","gw_sel_class":"%s","ap_sync":%s,"ap_configs":%s,"radio_count":%d},' \
+	printf '"mesh":{"enabled":%s,"up":%s,"device":"%s","wired":%s,"wired_mode":"%s","wired_iface":"%s","wireless_count":%d,"mesh_radios":' \
 		"$(bool "$mesh_enabled")" "$bat_up" "$(json_escape "$bat_device")" \
-		"$(bool "$wired")" "$(json_escape "$wired_iface")" "$wireless_count" "$(json_escape "$mesh_id")" "$(json_escape "$gateway")" \
+		"$(bool "$wired")" "$(json_escape "$wired_mode")" "$(json_escape "$wired_iface")" "$wireless_count"
+	mesh_radio_list
+	printf ',"mesh_id":"%s","gateway":"%s","gw_bandwidth":"%s","gw_sel_class":"%s","ap_sync":%s,"ap_configs":%s,"radio_count":%d},' \
+		"$(json_escape "$mesh_id")" "$(json_escape "$gateway")" \
 		"$(json_escape "$gw_bandwidth")" "$(json_escape "$gw_sel_class")" "$(bool "$ap_sync")" \
 		"$ap_configs" "$radio_count"
 	printf '"addresses":'
@@ -1181,7 +1294,7 @@ EOF
 
 case "$1" in
 	list)
-		printf '{"getStatus":{},"discoverMesh":{},"applyMode":{"mode":"string","username":"string","password":"string","lan_ip":"string"},"applyMesh":{"wired":"string","wireless":"string","wired_iface":"string","mesh_id":"string","mesh_key":"string","gateway":"string","gw_bandwidth":"string","gw_sel_class":"string","ap_sync":"string","ap_configs":"string"},"generateChildConfig":{"ip_suffix":"string"},"restoreBackup":{"name":"string"}}'
+		printf '{"getStatus":{},"discoverMesh":{},"applyMode":{"mode":"string","username":"string","password":"string","lan_ip":"string"},"applyMesh":{"wired":"string","wireless":"string","wired_iface":"string","wired_mode":"string","mesh_radios":"string","mesh_id":"string","mesh_key":"string","gateway":"string","gw_bandwidth":"string","gw_sel_class":"string","ap_sync":"string","ap_configs":"string"},"generateChildConfig":{"ip_suffix":"string"},"restoreBackup":{"name":"string"}}'
 		;;
 	call)
 		args="$(cat)"

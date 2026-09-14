@@ -23,7 +23,7 @@ var callApplyMode = rpc.declare({
 var callApplyMesh = rpc.declare({
 	object: 'luci.netmode',
 	method: 'applyMesh',
-	params: [ 'wired', 'wireless', 'wired_iface', 'mesh_id', 'mesh_key', 'gateway', 'gw_bandwidth', 'gw_sel_class', 'ap_sync', 'ap_configs' ]
+	params: [ 'wired', 'wireless', 'wired_iface', 'wired_mode', 'mesh_radios', 'mesh_id', 'mesh_key', 'gateway', 'gw_bandwidth', 'gw_sel_class', 'ap_sync', 'ap_configs' ]
 });
 
 var callRestoreBackup = rpc.declare({
@@ -52,6 +52,7 @@ var css = '\
 .nm-ap-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.nm-ap-radio{border:1px solid var(--nm-border);border-radius:8px;padding:10px;background:var(--nm-soft)}.nm-ap-radio-title{font-weight:650}.nm-ap-radio-meta{margin:2px 0 8px;color:var(--nm-muted);font-size:12px}.nm-ap-radio .nm-form{margin-top:0;grid-template-columns:1fr}.nm-config-preview{width:100%;min-height:180px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;white-space:pre;box-sizing:border-box}\
 .nm-switches{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.nm-switch{display:flex;align-items:flex-start;gap:10px;border:1px solid var(--nm-border);border-radius:8px;background:var(--nm-soft);padding:12px}.nm-switch input{margin-top:3px}.nm-switch strong{display:block}.nm-switch span{display:block;color:var(--nm-muted);font-size:12px}.nm-topology{width:100%;min-height:320px;border:1px solid var(--nm-border);border-radius:8px;background:var(--nm-soft);overflow:hidden}.nm-topology svg{display:block;width:100%;height:320px}.nm-empty{padding:28px;text-align:center;color:var(--nm-muted)}\
 .nm-node-label{font-size:12px;font-weight:650;fill:var(--nm-text)}.nm-node-sub{font-size:10px;fill:var(--nm-muted)}.nm-line{stroke:var(--nm-border);stroke-width:2}.nm-line.mesh{stroke:var(--nm-blue);stroke-dasharray:6 4}.nm-line.lan{stroke:var(--nm-green)}\
+.nm-radio-line{display:flex;gap:16px;flex-wrap:wrap;min-height:34px;align-items:center}.nm-radio-line label{display:inline-flex;gap:6px;align-items:center;font-weight:400;color:var(--nm-text);font-size:13px;cursor:pointer}.nm-radio-line input{margin:0}.nm-radio-line input:disabled+span,.nm-radio-line input:disabled~span{color:var(--nm-muted);cursor:not-allowed}.nm-field.wide{grid-column:1 / -1}.nm-hint{margin:6px 0 0;font-size:12px;line-height:1.55;color:var(--nm-muted)}\
 @media(max-width:900px){.nm-ap-grid{grid-template-columns:1fr 1fr}}@media(max-width:760px){.nm-grid,.nm-form,.nm-switches,.nm-ap-grid{grid-template-columns:1fr}.nm-mode{min-height:auto}}\
 ';
 
@@ -168,6 +169,8 @@ function statusPills(status) {
 		E('span', { 'class': 'nm-pill ok' }, _('当前模式: %s').format(status.mode || 'unknown')),
 		E('span', { 'class': 'nm-pill' }, _('LAN IP: %s').format(status.lan_ip || _('自动获取'))),
 		E('span', { 'class': 'nm-pill ' + (mesh.up ? 'ok' : '') }, mesh.enabled ? (mesh.up ? _('Mesh 运行中') : _('Mesh 未运行')) : _('Mesh 未启用')),
+		mesh.wired ? E('span', { 'class': 'nm-pill' }, _('有线回程: %s').format(mesh.wired_mode === 'dedicated' ? (mesh.wired_iface || '-') : _('全部 LAN 口'))) : '',
+		(mesh.wireless_count || 0) > 0 ? E('span', { 'class': 'nm-pill' }, _('无线回程: %d 个 radio').format(mesh.wireless_count)) : '',
 		mesh.enabled ? E('span', { 'class': 'nm-pill' }, _('网关角色: %s').format(mesh.gateway || 'off')) : '',
 		E('span', { 'class': 'nm-pill ' + (depOk ? 'ok' : 'warn') }, depOk ? _('依赖正常') : _('依赖缺失'))
 	]);
@@ -229,12 +232,33 @@ return view.extend({
 		this.wiredInput.checked = !!mesh.wired;
 		this.wirelessInput = E('input', { 'type': 'checkbox' });
 		this.wirelessInput.checked = (mesh.wireless_count || 0) > 0;
+
+		// wired backhaul transport: the whole br-lan bridge as batman-adv
+		// hardif (no dedicated port needed, AP mode default) or one physical
+		// port removed from br-lan and given exclusively to bat0
+		var initialWiredMode = mesh.wired
+			? (mesh.wired_mode === 'dedicated' ? 'dedicated' : 'bridge')
+			: (mode === 'ap' ? 'bridge' : 'dedicated');
+		this.wiredModeBridgeRadio = E('input', {
+			'type': 'radio',
+			'name': 'nm-wired-mode',
+			'value': 'bridge',
+			'checked': initialWiredMode === 'bridge' ? 'checked' : null
+		});
+		this.wiredModeDedicatedRadio = E('input', {
+			'type': 'radio',
+			'name': 'nm-wired-mode',
+			'value': 'dedicated',
+			'checked': initialWiredMode === 'dedicated' ? 'checked' : null
+		});
+
 		this.wiredIfaceInput = E('select', {}, [
 			E('option', { 'value': '' }, _('请选择端口'))
 		].concat((this.status.netdevs || []).map(function(iface) {
 			return E('option', { 'value': iface }, iface);
 		})));
-		this.wiredIfaceInput.value = mesh.wired_iface || '';
+		this.wiredIfaceInput.value = (mesh.wired && mesh.wired_mode === 'dedicated') ? (mesh.wired_iface || '') : '';
+		this.wiredIfaceField = null;
 		this.meshIdInput = E('input', { 'type': 'text', 'value': mesh.mesh_id || 'XR1710G-MESH' });
 		this.meshKeyInput = E('input', { 'type': 'password', 'value': '12345678', 'autocomplete': 'new-password' });
 		this.gatewayInput = E('select', {}, [
@@ -266,6 +290,7 @@ return view.extend({
 		this.apSyncInput.checked = mesh.ap_sync !== false || !mesh.enabled;
 		this.apConfigInputs = (mesh.ap_configs || []).map(function(config) {
 			var enabled = E('input', { 'type': 'checkbox' });
+			var meshEnabled = E('input', { 'type': 'checkbox' });
 			var ssid = E('input', {
 				'type': 'text',
 				'value': config.ssid || '',
@@ -287,10 +312,16 @@ return view.extend({
 			});
 			enabled.checked = config.enabled !== false;
 			encryption.value = config.encryption || 'sae-mixed';
+			// if mesh is not currently enabled every radio is preselected;
+			// otherwise restore the exact radio set used for backhaul
+			var selectedMeshRadios = mesh.mesh_radios || [];
+			meshEnabled.checked = !mesh.enabled || selectedMeshRadios.length === 0 ||
+				selectedMeshRadios.indexOf(config.radio) >= 0;
 
 			return {
 				radio: config.radio,
 				enabled: enabled,
+				mesh: meshEnabled,
 				ssid: ssid,
 				encryption: encryption,
 				key: key,
@@ -304,6 +335,9 @@ return view.extend({
 					E('div', { 'class': 'nm-form' }, [
 						E('div', { 'class': 'nm-field' }, [
 							E('label', {}, [ enabled, ' ', _('启用 AP') ])
+						]),
+						E('div', { 'class': 'nm-field' }, [
+							E('label', {}, [ meshEnabled, ' ', _('Mesh 回程 (802.11s)') ])
 						]),
 						E('div', { 'class': 'nm-field' }, [ E('label', {}, _('SSID')), ssid ]),
 						E('div', { 'class': 'nm-field' }, [ E('label', {}, _('加密')), encryption ]),
@@ -326,23 +360,40 @@ return view.extend({
 			return config.view;
 		});
 
+		this.wiredIfaceField = E('div', { 'class': 'nm-field' }, [
+			E('label', {}, _('有线 Mesh 独立端口')), this.wiredIfaceInput
+		]);
+		var wiredModeField = E('div', { 'class': 'nm-field wide' }, [
+			E('label', {}, _('有线回程方式')),
+			E('div', { 'class': 'nm-radio-line' }, [
+				E('label', {}, [ this.wiredModeBridgeRadio, E('span', {}, _('全部 LAN 口（br-lan 透传，AP 模式推荐，无需独占端口）')) ]),
+				E('label', {}, [ this.wiredModeDedicatedRadio, E('span', {}, _('指定独立回程端口（该端口只跑 Mesh）')) ])
+			])
+		]);
+		this.wiredInput.addEventListener('change', ui.createHandlerFn(this, 'updateMeshState'));
+		this.wirelessInput.addEventListener('change', ui.createHandlerFn(this, 'updateMeshState'));
+		this.wiredModeBridgeRadio.addEventListener('change', ui.createHandlerFn(this, 'updateMeshState'));
+		this.wiredModeDedicatedRadio.addEventListener('change', ui.createHandlerFn(this, 'updateMeshState'));
+
 		root.appendChild(E('div', { 'class': 'nm-section' }, [
 			E('div', { 'class': 'nm-title' }, _('Mesh 回程')),
 			E('div', { 'class': 'nm-switches' }, [
 				E('label', { 'class': 'nm-switch' }, [
 					this.wiredInput,
-					E('span', {}, [ E('strong', {}, _('有线 Mesh')), E('span', {}, _('使用指定独立端口作为 batman-adv 有线回程，bat0 并入 br-lan。')) ])
+					E('span', {}, [ E('strong', {}, _('有线 Mesh')), E('span', {}, _('AP 模式下可直接复用 br-lan 全部网口作为 batman-adv 回程，bat0 并入 br-lan；也可指定独立端口。')) ])
 				]),
 				E('label', { 'class': 'nm-switch' }, [
 					this.wirelessInput,
-					E('span', {}, [ E('strong', {}, _('无线 Mesh')), E('span', {}, _('为每个无线 radio 创建 802.11s + SAE mesh 接口。')) ])
+					E('span', {}, [ E('strong', {}, _('无线 Mesh')), E('span', {}, _('在下方勾选的 radio 上创建 802.11s + SAE mesh 回程接口。')) ])
 				])
 			]),
+			E('p', { 'class': 'nm-hint' }, _('有线与无线回程可以同时启用（不互斥）：batman-adv 会按链路质量自动优选，有线通常优先、无线作为补充；已启用 bridge loop avoidance 防止有线环路。')),
 			E('div', { 'class': 'nm-form' }, [
 				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('Mesh ID')), this.meshIdInput ]),
 				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('Mesh 密钥')), this.meshKeyInput ]),
-				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('有线 Mesh 端口')), this.wiredIfaceInput ]),
 				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('BATMAN 网关角色')), this.gatewayInput ]),
+				wiredModeField,
+				this.wiredIfaceField,
 				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('网关带宽 kbit/s')), this.gwBandwidthInput ]),
 				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('网关选择等级')), this.gwSelClassInput ]),
 				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('子节点 IP 尾号')), this.childSuffixInput ]),
@@ -373,6 +424,8 @@ return view.extend({
 			]),
 			this.topologyBox
 		]));
+
+		this.updateMeshState();
 
 		poll.add(L.bind(function() {
 			return Promise.all([ callGetStatus(), callDiscoverMesh() ]).then(L.bind(function(res) {
@@ -426,18 +479,62 @@ return view.extend({
 		]);
 	},
 
+	wiredMode: function() {
+		return this.wiredModeDedicatedRadio.checked ? 'dedicated' : 'bridge';
+	},
+
+	collectMeshRadios: function() {
+		return this.apConfigInputs.filter(function(config) {
+			return config.mesh.checked;
+		}).map(function(config) {
+			return config.radio;
+		});
+	},
+
+	// enable/disable dependent controls based on the two mesh switches
+	// and the wired transport selection
+	updateMeshState: function() {
+		var wired = this.wiredInput.checked;
+		var wireless = this.wirelessInput.checked;
+		var dedicated = this.wiredModeDedicatedRadio.checked;
+
+		this.wiredModeBridgeRadio.disabled = !wired;
+		this.wiredModeDedicatedRadio.disabled = !wired;
+		this.wiredIfaceInput.disabled = !(wired && dedicated);
+
+		this.apConfigInputs.forEach(function(config) {
+			config.mesh.disabled = !wireless;
+		});
+	},
+
 	confirmMesh: function() {
-		if (this.wiredInput.checked && !this.wiredIfaceInput.value) {
-			ui.addNotification(null, E('p', _('启用有线 Mesh 前必须选择一个独立回程端口。')));
+		var wiredMode = this.wiredMode();
+		if (this.wiredInput.checked && wiredMode === 'dedicated' && !this.wiredIfaceInput.value) {
+			ui.addNotification(null, E('p',
+				_('请选择一个独立回程端口，或把有线回程方式改为“全部 LAN 口”。')));
+			return;
+		}
+		var meshRadios = this.collectMeshRadios();
+		if (this.wirelessInput.checked && !meshRadios.length) {
+			ui.addNotification(null, E('p',
+				_('无线 Mesh 至少需要在一个 radio 上勾选“Mesh 回程”。')));
 			return;
 		}
 
+		var wiredText;
+		if (!this.wiredInput.checked)
+			wiredText = _('有线 Mesh 未启用。');
+		else if (wiredMode === 'bridge')
+			wiredText = _('有线 Mesh 将在 br-lan 网桥上运行，LAN2/LAN3/LAN4/WAN 任意网口接入对端节点即可回程，无需独占端口；bridge loop avoidance 会防止环路。');
+		else
+			wiredText = _('有线 Mesh 会把端口 %s 从 br-lan 中移出并交给 bat0 独占使用；请确认这不是当前唯一管理入口。').format(this.wiredIfaceInput.value);
+
 		return ui.showModal(_('确认应用 Mesh 回程'), [
 			E('p', {}, _('这会修改 batman-adv、wireless、network 配置并重载网络。')),
-			this.wiredInput.checked
-				? E('p', {}, _('有线 Mesh 会把端口 %s 从 br-lan 中移出并交给 bat0 使用；请确认这不是当前唯一管理入口。').format(this.wiredIfaceInput.value))
-				: E('p', {}, _('有线 Mesh 未启用。')),
-			E('p', {}, this.wirelessInput.checked ? _('无线 Mesh 将为每个 radio 创建 802.11s SAE 回程。') : _('无线 Mesh 未启用。')),
+			E('p', {}, wiredText),
+			E('p', {}, this.wirelessInput.checked
+				? _('无线 Mesh 将在 %s 上创建 802.11s SAE 回程。').format(meshRadios.join(', '))
+				: _('无线 Mesh 未启用。')),
 			this.apSyncInput.checked
 				? E('p', {}, _('将分别应用 2.4G、5G、6G radio 各自的 AP SSID、加密方式和密钥；不同 radio 可以使用不同配置。'))
 				: E('p', {}, _('不会修改各 radio 当前的普通 AP 配置。')),
@@ -485,10 +582,14 @@ return view.extend({
 
 	applyMesh: function(syncAp) {
 		ui.hideModal();
+		var wired = this.wiredInput.checked;
+		var wiredMode = this.wiredMode();
 		return callApplyMesh(
-			this.wiredInput.checked ? '1' : '0',
+			wired ? '1' : '0',
 			this.wirelessInput.checked ? '1' : '0',
-			this.wiredIfaceInput.value || '',
+			(wired && wiredMode === 'dedicated') ? (this.wiredIfaceInput.value || '') : '__bridge__',
+			wired ? wiredMode : '',
+			JSON.stringify(this.collectMeshRadios()),
 			(this.meshIdInput.value || '').trim(),
 			this.meshKeyInput.value || '',
 			this.gatewayInput.value || 'off',
@@ -513,6 +614,7 @@ return view.extend({
 		ui.hideModal();
 		this.wiredInput.checked = false;
 		this.wirelessInput.checked = false;
+		this.updateMeshState();
 		return this.applyMesh(false);
 	},
 
