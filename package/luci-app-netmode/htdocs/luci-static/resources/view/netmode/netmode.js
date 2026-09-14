@@ -23,7 +23,7 @@ var callApplyMode = rpc.declare({
 var callApplyMesh = rpc.declare({
 	object: 'luci.netmode',
 	method: 'applyMesh',
-	params: [ 'wired', 'wireless', 'wired_iface', 'mesh_id', 'mesh_key', 'gateway', 'gw_bandwidth', 'gw_sel_class' ]
+	params: [ 'wired', 'wireless', 'wired_iface', 'mesh_id', 'mesh_key', 'gateway', 'gw_bandwidth', 'gw_sel_class', 'ap_sync', 'ap_ssid', 'ap_encryption', 'ap_key' ]
 });
 
 var callRestoreBackup = rpc.declare({
@@ -41,7 +41,7 @@ var css = '\
 .nm-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}\
 .nm-mode{min-height:104px;text-align:left;border:1px solid var(--nm-border);border-radius:8px;background:var(--nm-soft);padding:12px;cursor:pointer;color:var(--nm-text)}\
 .nm-mode strong{display:block;font-size:15px;margin-bottom:4px}.nm-mode span{display:block;color:var(--nm-muted);font-size:12px}.nm-mode.active{border-color:var(--nm-blue);box-shadow:inset 0 0 0 1px var(--nm-blue);background:rgba(9,105,218,.06)}\
-.nm-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.nm-field{display:flex;flex-direction:column;gap:4px}.nm-field label{font-size:12px;font-weight:650;color:var(--nm-muted)}.nm-field input{min-height:34px;border:1px solid var(--nm-border);border-radius:6px;padding:6px 9px;background:var(--nm-bg);color:var(--nm-text);box-sizing:border-box}\
+.nm-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.nm-field{display:flex;flex-direction:column;gap:4px}.nm-field label{font-size:12px;font-weight:650;color:var(--nm-muted)}.nm-field input,.nm-field select{min-height:34px;border:1px solid var(--nm-border);border-radius:6px;padding:6px 9px;background:var(--nm-bg);color:var(--nm-text);box-sizing:border-box}\
 .nm-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.nm-actions .cbi-button{min-height:34px}.nm-status{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.nm-pill{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:999px;border:1px solid var(--nm-border);background:var(--nm-soft);font-size:12px;font-weight:650}.nm-pill.ok{color:var(--nm-green);border-color:rgba(26,127,55,.35);background:rgba(26,127,55,.08)}.nm-pill.warn{color:var(--nm-orange);border-color:rgba(188,76,0,.35);background:rgba(188,76,0,.08)}\
 .nm-switches{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.nm-switch{display:flex;align-items:flex-start;gap:10px;border:1px solid var(--nm-border);border-radius:8px;background:var(--nm-soft);padding:12px}.nm-switch input{margin-top:3px}.nm-switch strong{display:block}.nm-switch span{display:block;color:var(--nm-muted);font-size:12px}.nm-topology{width:100%;min-height:320px;border:1px solid var(--nm-border);border-radius:8px;background:var(--nm-soft);overflow:hidden}.nm-topology svg{display:block;width:100%;height:320px}.nm-empty{padding:28px;text-align:center;color:var(--nm-muted)}\
 .nm-node-label{font-size:12px;font-weight:650;fill:var(--nm-text)}.nm-node-sub{font-size:10px;fill:var(--nm-muted)}.nm-line{stroke:var(--nm-border);stroke-width:2}.nm-line.mesh{stroke:var(--nm-blue);stroke-dasharray:6 4}.nm-line.lan{stroke:var(--nm-green)}\
@@ -238,6 +238,27 @@ return view.extend({
 			'max': '255',
 			'value': mesh.gw_sel_class || '20'
 		});
+		this.apSyncInput = E('input', { 'type': 'checkbox' });
+		this.apSyncInput.checked = mesh.ap_sync !== false || !mesh.enabled;
+		this.apSsidInput = E('input', {
+			'type': 'text',
+			'value': mesh.ap_ssid || '',
+			'maxlength': '32',
+			'placeholder': _('例如 XR1710G')
+		});
+		this.apEncryptionInput = E('select', {}, [
+			E('option', { 'value': 'sae-mixed' }, _('WPA2/WPA3 混合')),
+			E('option', { 'value': 'psk2' }, _('WPA2-PSK')),
+			E('option', { 'value': 'sae' }, _('WPA3-SAE')),
+			E('option', { 'value': 'psk-mixed' }, _('WPA/WPA2 混合')),
+			E('option', { 'value': 'none' }, _('开放网络'))
+		]);
+		this.apEncryptionInput.value = mesh.ap_encryption || 'sae-mixed';
+		this.apKeyInput = E('input', {
+			'type': 'password',
+			'autocomplete': 'new-password',
+			'placeholder': _('留空沿用主 AP 密钥')
+		});
 
 		root.appendChild(E('div', { 'class': 'nm-section' }, [
 			E('div', { 'class': 'nm-title' }, _('Mesh 回程')),
@@ -257,9 +278,15 @@ return view.extend({
 				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('有线 Mesh 端口')), this.wiredIfaceInput ]),
 				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('BATMAN 网关角色')), this.gatewayInput ]),
 				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('网关带宽 kbit/s')), this.gwBandwidthInput ]),
-				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('网关选择等级')), this.gwSelClassInput ])
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('网关选择等级')), this.gwSelClassInput ]),
+				E('div', { 'class': 'nm-field' }, [
+					E('label', {}, [ this.apSyncInput, ' ', _('同步所有 radio 的 AP 配置') ])
+				]),
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('统一 AP SSID')), this.apSsidInput ]),
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('统一 AP 加密')), this.apEncryptionInput ]),
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('统一 AP 密钥')), this.apKeyInput ])
 			]),
-			E('p', { 'class': 'nm-muted' }, _('网关带宽留空时会读取物理接口速率并写入 下行/上行 kbit/s；读不到速率时不写入该项。使用 WAN 口作为有线回程时，该端口不再承担普通 WAN 拨号。')),
+			E('p', { 'class': 'nm-muted' }, _('AP 同步只修改每个 radio 的 SSID、加密和密钥；各 radio 的 band、channel、htmode 等频段参数保持原值。当前识别到 %s 个 radio，已有 LAN AP %s 个。网关带宽留空时会读取物理接口速率并写入 下行/上行 kbit/s。').format(mesh.radio_count || 0, mesh.ap_radios || 0)),
 			E('div', { 'class': 'nm-actions' }, [
 				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': ui.createHandlerFn(this, 'confirmMesh') }, _('应用 Mesh')),
 				E('button', { 'class': 'cbi-button cbi-button-negative', 'click': ui.createHandlerFn(this, 'confirmDisableMesh') }, _('关闭 Mesh')),
@@ -334,6 +361,9 @@ return view.extend({
 				? E('p', {}, _('有线 Mesh 会把端口 %s 从 br-lan 中移出并交给 bat0 使用；请确认这不是当前唯一管理入口。').format(this.wiredIfaceInput.value))
 				: E('p', {}, _('有线 Mesh 未启用。')),
 			E('p', {}, this.wirelessInput.checked ? _('无线 Mesh 将为每个 radio 创建 802.11s SAE 回程。') : _('无线 Mesh 未启用。')),
+			this.apSyncInput.checked
+				? E('p', {}, _('将同步所有 radio 的普通 AP SSID、加密方式和密钥；每个 radio 的频段参数保持不变。'))
+				: E('p', {}, _('不会同步普通 AP 的 SSID、加密方式和密钥。')),
 			E('div', { 'class': 'right' }, [
 				E('button', {
 					'class': 'cbi-button cbi-button-apply',
@@ -371,7 +401,7 @@ return view.extend({
 		});
 	},
 
-	applyMesh: function() {
+	applyMesh: function(syncAp) {
 		ui.hideModal();
 		return callApplyMesh(
 			this.wiredInput.checked ? '1' : '0',
@@ -381,7 +411,11 @@ return view.extend({
 			this.meshKeyInput.value || '',
 			this.gatewayInput.value || 'off',
 			(this.gwBandwidthInput.value || '').trim(),
-			(this.gwSelClassInput.value || '').trim()
+			(this.gwSelClassInput.value || '').trim(),
+			syncAp === false ? '0' : (this.apSyncInput.checked ? '1' : '0'),
+			(this.apSsidInput.value || '').trim(),
+			this.apEncryptionInput.value || 'sae-mixed',
+			this.apKeyInput.value || ''
 		).then(L.bind(this.afterApply, this)).catch(function(e) {
 			ui.addNotification(null, E('p', e.message || _('应用失败')));
 		});
@@ -391,7 +425,7 @@ return view.extend({
 		ui.hideModal();
 		this.wiredInput.checked = false;
 		this.wirelessInput.checked = false;
-		return this.applyMesh();
+		return this.applyMesh(false);
 	},
 
 	afterApply: function(res) {
