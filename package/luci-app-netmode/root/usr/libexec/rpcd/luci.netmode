@@ -11,6 +11,20 @@ json_escape()
 	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/	/ /g'
 }
 
+json_file_string()
+{
+	awk 'BEGIN { printf "\"" }
+	{
+		gsub(/\\/, "\\\\")
+		gsub(/"/, "\\\"")
+		gsub(/\t/, "\\t")
+		gsub(/\r/, "")
+		if (NR > 1) printf "\\n"
+		printf "%s", $0
+	}
+	END { printf "\"" }' "$1"
+}
+
 bool()
 {
 	[ "$1" = "1" ] && printf true || printf false
@@ -297,6 +311,36 @@ remove_bridge_port()
 	done
 }
 
+has_reusable_ap_topology()
+{
+	local sec net
+
+	uci -q show network | grep -q '^network\.[^=]*=bridge-vlan$' && return 0
+
+	for sec in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-iface$/\1/p'); do
+		[ "$(uci -q get wireless."$sec".mode 2>/dev/null)" = "ap" ] || continue
+		for net in $(uci -q get wireless."$sec".network 2>/dev/null); do
+			[ "$net" != "lan" ] && return 0
+		done
+	done
+
+	return 1
+}
+
+disable_lan_dhcp_servers()
+{
+	local sec iface
+	for sec in $(uci -q show dhcp | sed -n 's/^dhcp\.\([^=]*\)=dhcp$/\1/p'); do
+		iface="$(uci -q get dhcp."$sec".interface 2>/dev/null)"
+		[ "$iface" = "wan" ] && continue
+		uci -q set dhcp."$sec".ignore='1'
+		uci -q set dhcp."$sec".dynamicdhcp='0'
+		uci -q set dhcp."$sec".dhcpv4='disabled'
+		uci -q set dhcp."$sec".dhcpv6='disabled'
+		uci -q set dhcp."$sec".ra='disabled'
+	done
+}
+
 wifi_iface_has_network()
 {
 	local sec="$1" wanted="$2" net
@@ -420,6 +464,130 @@ apply_ap_configs()
 	[ "$any" -gt 0 ]
 }
 
+ipv4_with_suffix()
+{
+	local value="$1" suffix="$2" ip mask a b c d
+	ip="${value%%/*}"
+	mask=""
+	[ "$ip" != "$value" ] && mask="/${value#*/}"
+	valid_ipv4 "$ip" || return 1
+	IFS=. read -r a b c d <<EOF
+$ip
+EOF
+	printf '%s.%s.%s.%s%s' "$a" "$b" "$c" "$suffix" "$mask"
+}
+
+rewrite_child_static_ips()
+{
+	local dir="$1" suffix="$2" sec ips ip new_ip count use_list new_ips
+	for sec in $(uci -c "$dir" -q show network | sed -n 's/^network\.\([^=]*\)=interface$/\1/p'); do
+		[ "$(uci -c "$dir" -q get network."$sec".proto 2>/dev/null)" = "static" ] || continue
+		ips="$(uci -c "$dir" -q get network."$sec".ipaddr 2>/dev/null)"
+		[ -n "$ips" ] || continue
+		count=0
+		use_list=0
+		new_ips=""
+		for ip in $ips; do
+			new_ip="$(ipv4_with_suffix "$ip" "$suffix" 2>/dev/null || printf '%s' "$ip")"
+			new_ips="${new_ips}${new_ips:+ }$new_ip"
+			count=$((count + 1))
+			case "$new_ip" in */*) use_list=1 ;; esac
+		done
+		[ "$count" -gt 1 ] && use_list=1
+		uci -c "$dir" -q delete network."$sec".ipaddr 2>/dev/null
+		if [ "$use_list" = "1" ]; then
+			for ip in $new_ips; do
+				uci -c "$dir" -q add_list network."$sec".ipaddr="$ip"
+			done
+		else
+			uci -c "$dir" -q set network."$sec".ipaddr="$new_ips"
+		fi
+	done
+}
+
+disable_child_dhcp_servers()
+{
+	local dir="$1" sec iface
+	for sec in $(uci -c "$dir" -q show dhcp | sed -n 's/^dhcp\.\([^=]*\)=dhcp$/\1/p'); do
+		iface="$(uci -c "$dir" -q get dhcp."$sec".interface 2>/dev/null)"
+		[ "$iface" = "wan" ] && continue
+		uci -c "$dir" -q set dhcp."$sec".ignore='1'
+		uci -c "$dir" -q set dhcp."$sec".dynamicdhcp='0'
+		uci -c "$dir" -q set dhcp."$sec".dhcpv4='disabled'
+		uci -c "$dir" -q set dhcp."$sec".dhcpv6='disabled'
+		uci -c "$dir" -q set dhcp."$sec".ra='disabled'
+	done
+}
+
+configure_child_firewall()
+{
+	local dir="$1" sec name src dest net
+	for sec in $(uci -c "$dir" -q show firewall | sed -n 's/^firewall\.\([^=]*\)=zone$/\1/p'); do
+		name="$(uci -c "$dir" -q get firewall."$sec".name 2>/dev/null)"
+		if [ "$name" = "lan" ]; then
+			uci -c "$dir" -q set firewall."$sec".input='ACCEPT'
+			uci -c "$dir" -q set firewall."$sec".output='ACCEPT'
+			uci -c "$dir" -q set firewall."$sec".forward='ACCEPT'
+		elif [ "$name" = "wan" ]; then
+			for net in $(uci -c "$dir" -q get firewall."$sec".network 2>/dev/null); do
+				case "$net" in
+					wan|wan6) uci -c "$dir" -q del_list firewall."$sec".network="$net" ;;
+				esac
+			done
+		fi
+	done
+	for sec in $(uci -c "$dir" -q show firewall | sed -n 's/^firewall\.\([^=]*\)=forwarding$/\1/p'); do
+		src="$(uci -c "$dir" -q get firewall."$sec".src 2>/dev/null)"
+		dest="$(uci -c "$dir" -q get firewall."$sec".dest 2>/dev/null)"
+		[ "$src" = "lan" ] && [ "$dest" = "wan" ] && uci -c "$dir" -q delete firewall."$sec"
+	done
+}
+
+generate_child_config()
+{
+	local args="$1" ip_suffix dir stamp f
+	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
+	json_get_var ip_suffix ip_suffix
+	valid_uint "$ip_suffix" || { printf '{"success":false,"error":"invalid child IP suffix"}'; return; }
+	[ "$ip_suffix" -ge 2 ] 2>/dev/null && [ "$ip_suffix" -le 254 ] 2>/dev/null || {
+		printf '{"success":false,"error":"child IP suffix must be 2-254"}'
+		return
+	}
+
+	stamp="$(date +%Y%m%d-%H%M%S 2>/dev/null || date +%s)-$$"
+	dir="/tmp/netmode-child-$stamp"
+	mkdir -p "$dir" 2>/dev/null || { printf '{"success":false,"error":"failed to create child config directory"}'; return; }
+	for f in network wireless dhcp firewall; do
+		if [ -f "/etc/config/$f" ]; then
+			cp -p "/etc/config/$f" "$dir/$f" 2>/dev/null || {
+				printf '{"success":false,"error":"failed to copy %s"}' "$f"
+				return
+			}
+		else
+			: > "$dir/$f"
+		fi
+	done
+
+	uci -c "$dir" -q delete network.wan 2>/dev/null
+	uci -c "$dir" -q delete network.wan6 2>/dev/null
+	rewrite_child_static_ips "$dir" "$ip_suffix"
+	disable_child_dhcp_servers "$dir"
+	configure_child_firewall "$dir"
+	for f in network wireless dhcp firewall; do
+		uci -c "$dir" -q commit "$f"
+	done
+
+	printf '{"success":true,"path":"%s","files":{"network":' "$(json_escape "$dir")"
+	json_file_string "$dir/network"
+	printf ',"wireless":'
+	json_file_string "$dir/wireless"
+	printf ',"dhcp":'
+	json_file_string "$dir/dhcp"
+	printf ',"firewall":'
+	json_file_string "$dir/firewall"
+	printf '}}'
+}
+
 find_firewall_zone()
 {
 	local sec name
@@ -498,7 +666,6 @@ configure_firewall_ap()
 	uci -q set firewall."$lan_sec".input='ACCEPT'
 	uci -q set firewall."$lan_sec".output='ACCEPT'
 	uci -q set firewall."$lan_sec".forward='ACCEPT'
-	uci -q delete firewall."$lan_sec".network 2>/dev/null
 	fw_zone_add_network "$lan_sec" lan
 
 	wan_sec="$(find_firewall_zone wan)"
@@ -605,8 +772,12 @@ apply_mode()
 
 	case "$mode" in
 		ap)
-			ensure_bridge_port br-lan wan
-			set_lan_ap_client
+			if has_reusable_ap_topology; then
+				disable_lan_dhcp_servers
+			else
+				ensure_bridge_port br-lan wan
+				set_lan_ap_client
+			fi
 			uci -q delete network.wan 2>/dev/null
 			uci -q delete network.wan6 2>/dev/null
 			configure_firewall_ap
@@ -985,7 +1156,7 @@ EOF
 
 case "$1" in
 	list)
-		printf '{"getStatus":{},"discoverMesh":{},"applyMode":{"mode":"string","username":"string","password":"string","lan_ip":"string"},"applyMesh":{"wired":"string","wireless":"string","wired_iface":"string","mesh_id":"string","mesh_key":"string","gateway":"string","gw_bandwidth":"string","gw_sel_class":"string","ap_sync":"string","ap_configs":"string"},"restoreBackup":{"name":"string"}}'
+		printf '{"getStatus":{},"discoverMesh":{},"applyMode":{"mode":"string","username":"string","password":"string","lan_ip":"string"},"applyMesh":{"wired":"string","wireless":"string","wired_iface":"string","mesh_id":"string","mesh_key":"string","gateway":"string","gw_bandwidth":"string","gw_sel_class":"string","ap_sync":"string","ap_configs":"string"},"generateChildConfig":{"ip_suffix":"string"},"restoreBackup":{"name":"string"}}'
 		;;
 	call)
 		args="$(cat)"
@@ -994,6 +1165,7 @@ case "$1" in
 			discoverMesh) discover_mesh ;;
 			applyMode) apply_mode "$args" ;;
 			applyMesh) apply_mesh "$args" ;;
+			generateChildConfig) generate_child_config "$args" ;;
 			restoreBackup) restore_backup "$args" ;;
 			*) printf '{"error":"unknown method"}' ;;
 		esac
