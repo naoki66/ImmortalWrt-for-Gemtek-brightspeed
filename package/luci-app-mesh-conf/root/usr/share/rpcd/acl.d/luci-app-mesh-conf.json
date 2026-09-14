@@ -8,7 +8,7 @@
 		},
 		"write": {
 			"ubus": {
-				"luci.meshconf": [ "applyMesh", "generateChildConfig", "restoreBackup" ]
+				"luci.meshconf": [ "applyMesh", "generateChildConfig" ]
 			}
 		}
 	}

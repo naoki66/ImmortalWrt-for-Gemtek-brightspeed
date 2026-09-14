@@ -7,8 +7,6 @@
 set -f
 . /usr/share/libubox/jshn.sh
 
-BACKUP_ROOT="/etc/netmode/backups"
-
 json_escape()
 {
 	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/	/ /g'
@@ -98,53 +96,6 @@ valid_uint()
 		''|*[!0-9]*) return 1 ;;
 	esac
 	return 0
-}
-
-backup_configs()
-{
-	local stamp dir f
-	stamp="$(date +%Y%m%d-%H%M%S 2>/dev/null || date +%s)-$$"
-	dir="$BACKUP_ROOT/$stamp"
-	mkdir -p "$dir" 2>/dev/null || return 1
-	for f in network dhcp wireless firewall; do
-		[ -f "/etc/config/$f" ] && cp -p "/etc/config/$f" "$dir/$f" 2>/dev/null
-	done
-	printf '%s' "$dir"
-}
-
-backup_list()
-{
-	local dir first=1 name
-	printf '['
-	for dir in $(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -r | head -n 8); do
-		name="${dir##*/}"
-		[ "$first" = "1" ] || printf ','
-		printf '"%s"' "$(json_escape "$name")"
-		first=0
-	done
-	printf ']'
-}
-
-restore_backup()
-{
-	local name dir f
-	json_load "$1" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
-	json_get_var name name
-	case "$name" in
-		''|.*|*/*|*\\*) printf '{"success":false,"error":"invalid backup name"}'; return ;;
-	esac
-	dir="$BACKUP_ROOT/$name"
-	[ -d "$dir" ] || { printf '{"success":false,"error":"backup not found"}'; return; }
-
-	for f in network dhcp wireless firewall; do
-		[ -f "$dir/$f" ] && cp -p "$dir/$f" "/etc/config/$f" 2>/dev/null
-	done
-	uci -q commit network
-	uci -q commit dhcp
-	uci -q commit wireless
-	uci -q commit firewall
-	reload_network_later
-	printf '{"success":true,"backup":"%s"}' "$(json_escape "$name")"
 }
 
 find_bridge_section()
@@ -418,7 +369,7 @@ reload_network_later()
 
 apply_mode()
 {
-	local args="$1" mode username password lan_ip backup_dir
+	local args="$1" mode username password lan_ip
 
 	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
 	json_get_var mode mode
@@ -435,8 +386,10 @@ apply_mode()
 	valid_text_value "$password" || { printf '{"success":false,"error":"invalid PPPoE password"}'; return; }
 	[ -z "$lan_ip" ] || valid_ipv4 "$lan_ip" || { printf '{"success":false,"error":"invalid LAN IP"}'; return; }
 
-	backup_dir="$(backup_configs)" || { printf '{"success":false,"error":"failed to create backup"}'; return; }
-	ensure_lan_bridge
+	# must not leak the section name to stdout: for an anonymous device
+	# section it is a literal "@device[0]" which corrupts the JSON reply
+	# and makes rpcd return an error even though everything was applied
+	ensure_lan_bridge >/dev/null
 
 	case "$mode" in
 		ap)
@@ -489,7 +442,7 @@ apply_mode()
 	uci -q commit firewall
 	reload_network_later
 
-	printf '{"success":true,"mode":"%s","backup":"%s","addresses":' "$mode" "$(json_escape "$backup_dir")"
+	printf '{"success":true,"mode":"%s","addresses":' "$mode"
 	interface_ipv4_addresses
 	printf '}'
 }
@@ -528,21 +481,18 @@ get_status()
 		"$mode" "$(json_escape "$board")" "$(json_escape "$host")" "$(json_escape "$lan_ip")" "$(json_escape "$wan_proto")" "$wan_up" "$(json_escape "$wan_ip")"
 	printf '"addresses":'
 	interface_ipv4_addresses
-	printf ',"backups":'
-	backup_list
 	printf '}'
 }
 
 case "$1" in
 	list)
-		printf '{"getStatus":{},"applyMode":{"mode":"string","username":"string","password":"string","lan_ip":"string"},"restoreBackup":{"name":"string"}}'
+		printf '{"getStatus":{},"applyMode":{"mode":"string","username":"string","password":"string","lan_ip":"string"}}'
 		;;
 	call)
 		args="$(cat)"
 		case "$2" in
 			getStatus) get_status ;;
 			applyMode) apply_mode "$args" ;;
-			restoreBackup) restore_backup "$args" ;;
 			*) printf '{"error":"unknown method"}' ;;
 		esac
 		;;
