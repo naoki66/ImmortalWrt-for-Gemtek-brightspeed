@@ -64,6 +64,26 @@ first_lan_ip()
 	[ -n "$ip" ] && printf '%s' "$ip" || printf ''
 }
 
+interface_ipv4_addresses()
+{
+	local sec proto ips ip first=1
+	printf '['
+	for sec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=interface$/\1/p'); do
+		case "$sec" in loopback|wan|wan6|netmode_wired_mesh|netmode_wmesh_*) continue ;; esac
+		proto="$(uci -q get network."$sec".proto 2>/dev/null)"
+		[ "$proto" = "static" ] || continue
+		ips="$(uci -q get network."$sec".ipaddr 2>/dev/null)"
+		for ip in $ips; do
+			ip="${ip%%/*}"
+			valid_ipv4 "$ip" || continue
+			[ "$first" = "1" ] || printf ','
+			printf '{"interface":"%s","address":"%s"}' "$(json_escape "$sec")" "$(json_escape "$ip")"
+			first=0
+		done
+	done
+	printf ']'
+}
+
 valid_ipv4()
 {
 	echo "$1" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$' || return 1
@@ -821,7 +841,9 @@ apply_mode()
 	uci -q commit firewall
 	reload_network_later
 
-	printf '{"success":true,"mode":"%s","backup":"%s"}' "$mode" "$(json_escape "$backup_dir")"
+	printf '{"success":true,"mode":"%s","backup":"%s","addresses":' "$mode" "$(json_escape "$backup_dir")"
+	interface_ipv4_addresses
+	printf '}'
 }
 
 delete_mesh_sections()
@@ -1048,6 +1070,9 @@ get_status()
 		"$(bool "$wired")" "$(json_escape "$wired_iface")" "$wireless_count" "$(json_escape "$mesh_id")" "$(json_escape "$gateway")" \
 		"$(json_escape "$gw_bandwidth")" "$(json_escape "$gw_sel_class")" "$(bool "$ap_sync")" \
 		"$ap_configs" "$radio_count"
+	printf '"addresses":'
+	interface_ipv4_addresses
+	printf ','
 	printf '"backups":'
 	backup_list
 	printf ',"netdevs":'

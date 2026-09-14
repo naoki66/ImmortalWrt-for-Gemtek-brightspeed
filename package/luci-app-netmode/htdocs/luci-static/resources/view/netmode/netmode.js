@@ -403,8 +403,17 @@ return view.extend({
 		var details = mode === 'ap'
 			? _('将把 WAN 加入 br-lan，LAN 改为 DHCP 客户端，关闭本机 DHCP，并移除 WAN 防火墙转发。')
 			: _('将 WAN 设为外网接口，LAN 使用静态地址并开启 DHCP，同时恢复 WAN 防火墙 NAT 与 LAN 到 WAN 转发。');
+		var addresses = this.status.addresses || [];
 		return ui.showModal(_('确认切换到 %s').format(title), [
 			E('p', {}, details),
+			mode === 'ap' && addresses.length
+				? E('p', {}, _('当前配置中的 AP 管理地址: %s').format(addresses.map(function(item) {
+					return item.address + (item.interface ? ' (' + item.interface + ')' : '');
+				}).join(', ')))
+				: '',
+			mode === 'ap' && !addresses.length
+				? E('p', {}, _('AP 模式可能改为由上级路由 DHCP 分配管理地址，请切换后到上级路由 DHCP 租约列表查看。'))
+				: '',
 			E('p', {}, _('应用后会备份当前 network、dhcp、wireless、firewall 配置，并重载 network、dnsmasq、odhcpd、firewall 与 Wi-Fi。管理地址可能改变。')),
 			E('div', { 'class': 'right' }, [
 				E('button', {
@@ -464,9 +473,14 @@ return view.extend({
 			(this.pppoeUserInput.value || '').trim(),
 			this.pppoePassInput.value || '',
 			(this.lanIpInput.value || '').trim()
-		).then(L.bind(this.afterApply, this)).catch(function(e) {
+		).then(L.bind(function(res) {
+			return this.afterModeApply(mode, res);
+		}, this)).catch(L.bind(function(e) {
+			if (mode === 'ap') {
+				return this.showApTransitionWarning(e);
+			}
 			ui.addNotification(null, E('p', e.message || _('应用失败')));
-		});
+		}, this));
 	},
 
 	applyMesh: function(syncAp) {
@@ -509,6 +523,49 @@ return view.extend({
 		}
 		ui.addNotification(null, E('p', _('已应用，配置备份在: %s').format(res.backup || '-')));
 		return this.refresh();
+	},
+
+	afterModeApply: function(mode, res) {
+		if (!res || !res.success) {
+			ui.addNotification(null, E('p', (res && res.error) || _('应用失败')));
+			return;
+		}
+
+		if (mode !== 'ap') {
+			return this.afterApply(res);
+		}
+
+		var addresses = res.addresses || [];
+		var addressNodes = addresses.length
+			? E('ul', {}, addresses.map(function(item) {
+				return E('li', {}, [
+					E('a', { 'href': 'http://' + item.address + '/', 'target': '_blank', 'rel': 'noreferrer' }, item.address),
+					' (', item.interface || _('管理接口'), ')'
+				]);
+			}))
+			: E('p', {}, _('当前没有静态管理地址。AP 模式下管理地址由上级路由 DHCP 分配，请到上级路由的 DHCP 租约列表查看。'));
+
+		return ui.showModal(_('AP 模式已应用'), [
+			E('p', {}, _('配置已提交，网络服务正在重载。当前页面连接可能会短暂中断。')),
+			E('p', {}, _('可尝试访问以下管理地址：')),
+			addressNodes,
+			E('p', { 'class': 'nm-muted' }, _('如果列表为空，请在上级路由中查找本设备的 DHCP 租约；也可以通过设备 MAC 地址定位。')),
+			E('div', { 'class': 'right' }, [
+				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': ui.hideModal }, _('知道了'))
+			])
+		]);
+	},
+
+	showApTransitionWarning: function(error) {
+		var message = error && error.message ? error.message : _('页面连接中断');
+		return ui.showModal(_('AP 模式切换结果未知'), [
+			E('p', {}, _('网络重载过程中页面连接中断，配置可能已经提交，不能继续通过当前页面确认状态。')),
+			E('p', {}, _('请到上级路由 DHCP 租约列表中查找本设备的管理地址，然后用新地址打开 LuCI。')),
+			E('p', { 'class': 'nm-muted' }, _('原始提示: %s').format(message)),
+			E('div', { 'class': 'right' }, [
+				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': ui.hideModal }, _('知道了'))
+			])
+		]);
 	},
 
 	generateChildConfig: function() {
