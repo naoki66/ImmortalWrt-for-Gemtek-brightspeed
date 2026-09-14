@@ -205,6 +205,13 @@ define U-Boot/mangopi-m28k-rk3528
     widora_mangopi-m28k
 endef
 
+define U-Boot/nanopi-zero2-rk3528
+  $(U-Boot/rk3528/Default)
+  NAME:=NanoPi Zero2
+  BUILD_DEVICES:= \
+    friendlyarm_nanopi-zero2
+endef
+
 define U-Boot/radxa-e20c-rk3528
   $(U-Boot/rk3528/Default)
   NAME:=E20C
@@ -301,6 +308,13 @@ define U-Boot/fastrhino-r68s-rk3568
   NAME:=FastRhino R68S
   BUILD_DEVICES:= \
     lunzn_fastrhino-r68s
+endef
+
+define U-Boot/graperain-g3568-v2-rk3568
+  $(U-Boot/rk3568/Default)
+  NAME:=Graperain G3568 v2
+  BUILD_DEVICES:= \
+    graperain_g3568-v2
 endef
 
 define U-Boot/lyt-t68m-rk3568
@@ -546,6 +560,7 @@ UBOOT_TARGETS := \
   rock-pi-e-rk3328 \
   mangopi-m28c-rk3528 \
   mangopi-m28k-rk3528 \
+  nanopi-zero2-rk3528 \
   radxa-e20c-rk3528 \
   rock-2-rk3528 \
   nanopi-r3s-rk3566 \
@@ -557,6 +572,7 @@ UBOOT_TARGETS := \
   easepi-r1-rk3568 \
   fastrhino-r66s-rk3568 \
   fastrhino-r68s-rk3568 \
+  graperain-g3568-v2-rk3568 \
   lyt-t68m-rk3568 \
   mmbox-anas3035-rk3568 \
   mrkaio-m68s-rk3568 \
