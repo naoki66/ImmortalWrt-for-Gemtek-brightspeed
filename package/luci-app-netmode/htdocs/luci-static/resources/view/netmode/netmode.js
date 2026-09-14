@@ -162,18 +162,80 @@ function renderTopology(data) {
 	return E('div', { 'class': 'nm-topology' }, E('svg', { 'viewBox': '0 0 820 320', 'role': 'img' }, svgChildren));
 }
 
+function modeLabel(mode) {
+	return ({
+		ap: _('AP 模式'),
+		dhcp: _('DHCP 路由'),
+		pppoe: _('PPPoE 拨号')
+	})[mode] || _('未知模式');
+}
+
+function wanProtoLabel(proto) {
+	return ({
+		dhcp: _('DHCP 自动获取'),
+		pppoe: _('PPPoE 拨号'),
+		static: _('静态地址')
+	})[proto] || _('WAN 已并入 br-lan');
+}
+
+function infoCard(label, value, sub) {
+	return E('div', { 'class': 'nm-info' }, [
+		E('div', { 'class': 'nm-info-label' }, label),
+		E('div', { 'class': 'nm-info-value' }, value || '—'),
+		sub ? E('div', { 'class': 'nm-info-sub' }, sub) : ''
+	]);
+}
+
 function statusPills(status) {
 	var mesh = status.mesh || {};
 	var deps = status.deps || {};
 	var depOk = deps.batctl && deps.iw && deps.wpad;
-	return E('div', { 'class': 'nm-status' }, [
-		E('span', { 'class': 'nm-pill ok' }, _('当前模式: %s').format(status.mode || 'unknown')),
-		E('span', { 'class': 'nm-pill' }, _('LAN IP: %s').format(status.lan_ip || _('自动获取'))),
-		E('span', { 'class': 'nm-pill ' + (mesh.up ? 'ok' : '') }, mesh.enabled ? (mesh.up ? _('Mesh 运行中') : _('Mesh 未运行')) : _('Mesh 未启用')),
-		mesh.wired ? E('span', { 'class': 'nm-pill' }, _('有线回程: %s').format(mesh.wired_mode === 'dedicated' ? (mesh.wired_iface || '-') : _('全部 LAN 口'))) : '',
-		(mesh.wireless_count || 0) > 0 ? E('span', { 'class': 'nm-pill' }, _('无线回程: %d 个 radio').format(mesh.wireless_count)) : '',
-		mesh.enabled ? E('span', { 'class': 'nm-pill' }, _('网关角色: %s').format(mesh.gateway || 'off')) : '',
-		E('span', { 'class': 'nm-pill ' + (depOk ? 'ok' : 'warn') }, depOk ? _('依赖正常') : _('依赖缺失'))
+	var isAp = status.mode === 'ap';
+
+	var wanPillClass, wanPillText;
+	if (isAp) {
+		wanPillClass = '';
+		wanPillText = _('WAN 桥接（AP）');
+	} else if (status.wan_up) {
+		wanPillClass = 'ok';
+		wanPillText = _('WAN 已连接');
+	} else if (status.wan_proto) {
+		wanPillClass = 'warn';
+		wanPillText = _('WAN 未连接');
+	} else {
+		wanPillClass = '';
+		wanPillText = _('WAN 未配置');
+	}
+
+	var backhaulValue, backhaulSub = '';
+	if (!mesh.enabled) {
+		backhaulValue = _('未启用');
+	} else {
+		var parts = [];
+		if (mesh.wired)
+			parts.push(_('有线：%s').format(mesh.wired_mode === 'dedicated' ? (mesh.wired_iface || '-') : _('全部 LAN 口')));
+		if ((mesh.wireless_count || 0) > 0)
+			parts.push(_('无线：%d 个 radio').format(mesh.wireless_count));
+		backhaulValue = parts.length ? parts.join('，') : _('未配置回程');
+		backhaulSub = _('网关角色：%s').format(mesh.gateway || 'off');
+	}
+
+	return E('div', {}, [
+		E('div', { 'class': 'nm-status' }, [
+			E('span', { 'class': 'nm-pill ok' }, modeLabel(status.mode)),
+			E('span', { 'class': 'nm-pill ' + wanPillClass }, wanPillText),
+			E('span', { 'class': 'nm-pill ' + (mesh.enabled ? (mesh.up ? 'ok' : 'warn') : '') },
+				mesh.enabled ? (mesh.up ? _('Mesh 运行中') : _('Mesh 未运行')) : _('Mesh 未启用')),
+			E('span', { 'class': 'nm-pill ' + (depOk ? 'ok' : 'warn') }, depOk ? _('依赖正常') : _('依赖缺失'))
+		]),
+		E('div', { 'class': 'nm-infogrid' }, [
+			infoCard(_('设备型号'), status.board),
+			infoCard(_('主机名'), status.hostname),
+			infoCard(_('LAN IP'), status.lan_ip, isAp ? _('上级 DHCP 分配') : _('静态地址')),
+			infoCard(_('WAN IP'), isAp ? '' : status.wan_ip, isAp ? _('WAN 已桥接，无独立地址') : wanProtoLabel(status.wan_proto)),
+			infoCard(_('Mesh 回程'), backhaulValue, backhaulSub),
+			infoCard(_('Mesh ID'), mesh.enabled ? (mesh.mesh_id || '-') : '', mesh.enabled ? _('回程接口：%s').format(mesh.device || 'bat0') : '')
+		])
 	]);
 }
 
