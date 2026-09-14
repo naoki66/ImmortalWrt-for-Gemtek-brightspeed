@@ -1,0 +1,15 @@
+{
+	"luci-app-mesh-conf": {
+		"description": "Grant access to the batman-adv mesh configuration wizard",
+		"read": {
+			"ubus": {
+				"luci.meshconf": [ "getStatus", "discoverMesh" ]
+			}
+		},
+		"write": {
+			"ubus": {
+				"luci.meshconf": [ "applyMesh", "generateChildConfig", "restoreBackup" ]
+			}
+		}
+	}
+}

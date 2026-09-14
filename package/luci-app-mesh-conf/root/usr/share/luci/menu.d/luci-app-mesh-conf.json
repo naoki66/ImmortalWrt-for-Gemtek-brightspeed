@@ -1,0 +1,13 @@
+{
+	"admin/network/meshconf": {
+		"title": "Mesh Configuration",
+		"order": 16,
+		"action": {
+			"type": "view",
+			"path": "meshconf/meshconf"
+		},
+		"depends": {
+			"acl": [ "luci-app-mesh-conf" ]
+		}
+	}
+}

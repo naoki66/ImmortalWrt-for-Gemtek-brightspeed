@@ -1,0 +1,1299 @@
+#!/bin/sh
+
+# rpcd backend for luci-app-mesh-conf: batman-adv mesh backhaul (wired and/or
+# wireless), master/slave roles, unified wireless coverage and mesh topology
+# discovery. Switching the upstream WAN mode (AP / DHCP / PPPoE) lives in the
+# separate luci-app-netmode package.
+
+set -f
+. /usr/share/libubox/jshn.sh
+
+BACKUP_ROOT="/etc/meshconf/backups"
+MAX_WIFI_MESH=8
+
+json_escape()
+{
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/	/ /g'
+}
+
+json_file_string()
+{
+	awk 'BEGIN { printf "\"" }
+	{
+		gsub(/\\/, "\\\\")
+		gsub(/"/, "\\\"")
+		gsub(/\t/, "\\t")
+		gsub(/\r/, "")
+		if (NR > 1) printf "\\n"
+		printf "%s", $0
+	}
+	END { printf "\"" }' "$1"
+}
+
+bool()
+{
+	[ "$1" = "1" ] && printf true || printf false
+}
+
+command_flag()
+{
+	command -v "$1" >/dev/null 2>&1 && printf 1 || printf 0
+}
+
+board_name_safe()
+{
+	if command -v board_name >/dev/null 2>&1; then
+		board_name 2>/dev/null
+	elif [ -r /tmp/sysinfo/board_name ]; then
+		cat /tmp/sysinfo/board_name
+	else
+		printf unknown
+	fi
+}
+
+hostname_safe()
+{
+	uci -q get system.@system[0].hostname 2>/dev/null || hostname 2>/dev/null || printf ImmortalWrt
+}
+
+first_lan_ip()
+{
+	local ip
+	ip="$(ubus call network.interface.lan status 2>/dev/null | jsonfilter -e "@['ipv4-address'][0].address" 2>/dev/null)"
+	[ -n "$ip" ] && {
+		printf '%s' "$ip"
+		return 0
+	}
+	ip="$(uci -q get network.lan.ipaddr 2>/dev/null | awk '{print $1}')"
+	ip="${ip%%/*}"
+	[ -n "$ip" ] && printf '%s' "$ip" || printf ''
+}
+
+first_wan_ip()
+{
+	local ip
+	ip="$(ubus call network.interface.wan status 2>/dev/null | jsonfilter -e "@['ipv4-address'][0].address" 2>/dev/null)"
+	[ -n "$ip" ] && {
+		printf '%s' "$ip"
+		return 0
+	}
+	ip="$(uci -q get network.wan.ipaddr 2>/dev/null | awk '{print $1}')"
+	ip="${ip%%/*}"
+	[ -n "$ip" ] && printf '%s' "$ip" || printf ''
+}
+
+interface_ipv4_addresses()
+{
+	local sec proto ips ip first=1
+	printf '['
+	for sec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=interface$/\1/p'); do
+		case "$sec" in loopback|wan|wan6|meshconf_wired_mesh|meshconf_wmesh_*) continue ;; esac
+		proto="$(uci -q get network."$sec".proto 2>/dev/null)"
+		[ "$proto" = "static" ] || continue
+		ips="$(uci -q get network."$sec".ipaddr 2>/dev/null)"
+		for ip in $ips; do
+			ip="${ip%%/*}"
+			valid_ipv4 "$ip" || continue
+			[ "$first" = "1" ] || printf ','
+			printf '{"interface":"%s","address":"%s"}' "$(json_escape "$sec")" "$(json_escape "$ip")"
+			first=0
+		done
+	done
+	printf ']'
+}
+
+valid_ipv4()
+{
+	echo "$1" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$' || return 1
+	echo "$1" | awk -F. '{ exit !($1 < 256 && $2 < 256 && $3 < 256 && $4 < 256) }'
+}
+
+valid_text_value()
+{
+	[ "$(printf '%s' "$1" | tr -d '\n\r')" = "$1" ]
+}
+
+valid_mesh_key()
+{
+	local n
+	n=${#1}
+	[ "$n" -ge 8 ] && [ "$n" -le 63 ] && valid_text_value "$1"
+}
+
+valid_wifi_ssid()
+{
+	local n
+	n=${#1}
+	[ "$n" -ge 1 ] && [ "$n" -le 32 ] && valid_text_value "$1"
+}
+
+valid_wifi_encryption()
+{
+	case "$1" in
+		none|owe|psk2|psk-mixed|sae|sae-mixed) return 0 ;;
+	esac
+	return 1
+}
+
+valid_wifi_key()
+{
+	local n
+	n=${#1}
+	[ "$n" -ge 8 ] && [ "$n" -le 63 ] && valid_text_value "$1"
+}
+
+valid_uint()
+{
+	case "$1" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+	return 0
+}
+
+valid_gw_bandwidth()
+{
+	local down up
+	[ -z "$1" ] && return 0
+	valid_text_value "$1" || return 1
+	down="${1%/*}"
+	up="${1#*/}"
+	[ "$down" != "$1" ] || return 1
+	valid_uint "$down" && valid_uint "$up"
+}
+
+valid_netdev_name()
+{
+	case "$1" in
+		''|.*|*/*|*\\*|*[^A-Za-z0-9_.:-]*) return 1 ;;
+	esac
+	[ -d "/sys/class/net/$1" ]
+}
+
+safe_mesh_hardif()
+{
+	valid_netdev_name "$1" || return 1
+	case "$1" in
+		lo|br-lan|bat0|mesh_*|phy*-mesh*|phy*-ap*|phy*-sta*) return 1 ;;
+	esac
+	return 0
+}
+
+netdev_is_active_wan()
+{
+	local iface="$1" wan_proto wan_device
+
+	wan_proto="$(uci -q get network.wan.proto 2>/dev/null)"
+	[ -n "$wan_proto" ] || return 1
+	wan_device="$(uci -q get network.wan.device 2>/dev/null)"
+	[ "$wan_device" = "$iface" ]
+}
+
+iface_speed_kbit()
+{
+	local iface="$1" speed
+	[ -n "$iface" ] || return 1
+	[ -r "/sys/class/net/$iface/speed" ] || return 1
+	speed="$(cat "/sys/class/net/$iface/speed" 2>/dev/null)"
+	valid_uint "$speed" || return 1
+	[ "$speed" -gt 0 ] 2>/dev/null || return 1
+	printf '%d' "$((speed * 1000))"
+}
+
+auto_gateway_bandwidth()
+{
+	local iface speed
+	iface="$(uci -q get network.meshconf_wired_mesh.device 2>/dev/null)"
+	speed="$(iface_speed_kbit "$iface")" && {
+		printf '%s/%s' "$speed" "$speed"
+		return 0
+	}
+	speed="$(iface_speed_kbit wan)" && {
+		printf '%s/%s' "$speed" "$speed"
+		return 0
+	}
+	return 1
+}
+
+netdev_list()
+{
+	local d iface first=1
+	printf '['
+	for d in /sys/class/net/*; do
+		[ -e "$d" ] || continue
+		iface="${d##*/}"
+		case "$iface" in
+			lo|cpu|dummy*|br-lan|br-lan.*|bat0|mesh_*|phy*-mesh*|phy*-ap*|phy*-sta*) continue ;;
+		esac
+		[ "$first" = "1" ] || printf ','
+		printf '"%s"' "$(json_escape "$iface")"
+		first=0
+	done
+	printf ']'
+}
+
+backup_configs()
+{
+	local stamp dir f
+	stamp="$(date +%Y%m%d-%H%M%S 2>/dev/null || date +%s)-$$"
+	dir="$BACKUP_ROOT/$stamp"
+	mkdir -p "$dir" 2>/dev/null || return 1
+	for f in network dhcp wireless firewall; do
+		[ -f "/etc/config/$f" ] && cp -p "/etc/config/$f" "$dir/$f" 2>/dev/null
+	done
+	printf '%s' "$dir"
+}
+
+backup_list()
+{
+	local dir first=1 name
+	printf '['
+	for dir in $(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -r | head -n 8); do
+		name="${dir##*/}"
+		[ "$first" = "1" ] || printf ','
+		printf '"%s"' "$(json_escape "$name")"
+		first=0
+	done
+	printf ']'
+}
+
+restore_backup()
+{
+	local name dir f
+	json_load "$1" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
+	json_get_var name name
+	case "$name" in
+		''|.*|*/*|*\\*) printf '{"success":false,"error":"invalid backup name"}'; return ;;
+	esac
+	dir="$BACKUP_ROOT/$name"
+	[ -d "$dir" ] || { printf '{"success":false,"error":"backup not found"}'; return; }
+
+	for f in network dhcp wireless firewall; do
+		[ -f "$dir/$f" ] && cp -p "$dir/$f" "/etc/config/$f" 2>/dev/null
+	done
+	uci -q commit network
+	uci -q commit dhcp
+	uci -q commit wireless
+	uci -q commit firewall
+	reload_network_later
+	printf '{"success":true,"backup":"%s"}' "$(json_escape "$name")"
+}
+
+find_bridge_section()
+{
+	local sec name type
+	for sec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=device$/\1/p'); do
+		name="$(uci -q get network."$sec".name 2>/dev/null)"
+		type="$(uci -q get network."$sec".type 2>/dev/null)"
+		[ "$name" = "$1" ] && [ "$type" = "bridge" ] && {
+			printf '%s' "$sec"
+			return 0
+		}
+	done
+	return 1
+}
+
+ensure_lan_bridge()
+{
+	local sec olddev
+	sec="$(find_bridge_section br-lan)"
+	if [ -z "$sec" ]; then
+		uci -q set network.meshconf_br_lan='device'
+		uci -q set network.meshconf_br_lan.name='br-lan'
+		uci -q set network.meshconf_br_lan.type='bridge'
+		sec="meshconf_br_lan"
+	fi
+
+	olddev="$(uci -q get network.lan.device 2>/dev/null)"
+	if [ -n "$olddev" ] && [ "$olddev" != "br-lan" ] && [ "$olddev" != "bat0" ]; then
+		ensure_bridge_port br-lan "$olddev"
+	fi
+	uci -q set network.lan='interface'
+	uci -q set network.lan.device='br-lan'
+	printf '%s' "$sec"
+}
+
+bridge_has_port()
+{
+	local sec port p
+	sec="$1"
+	port="$2"
+	for p in $(uci -q get network."$sec".ports 2>/dev/null); do
+		[ "$p" = "$port" ] && return 0
+	done
+	return 1
+}
+
+ensure_bridge_port()
+{
+	local bridge port sec
+	bridge="$1"
+	port="$2"
+	[ -n "$port" ] || return 0
+	sec="$(find_bridge_section "$bridge")"
+	if [ -z "$sec" ]; then
+		[ "$bridge" = "br-lan" ] && sec="$(ensure_lan_bridge)"
+	fi
+	[ -n "$sec" ] || return 1
+	bridge_has_port "$sec" "$port" || uci -q add_list network."$sec".ports="$port"
+}
+
+remove_bridge_port()
+{
+	local bridge port sec
+	bridge="$1"
+	port="$2"
+	sec="$(find_bridge_section "$bridge")"
+	[ -n "$sec" ] || return 0
+	while bridge_has_port "$sec" "$port"; do
+		uci -q del_list network."$sec".ports="$port" || break
+	done
+}
+
+disable_lan_dhcp_servers()
+{
+	local sec iface
+	for sec in $(uci -q show dhcp | sed -n 's/^dhcp\.\([^=]*\)=dhcp$/\1/p'); do
+		iface="$(uci -q get dhcp."$sec".interface 2>/dev/null)"
+		[ "$iface" = "wan" ] && continue
+		uci -q set dhcp."$sec".ignore='1'
+		uci -q set dhcp."$sec".dynamicdhcp='0'
+		uci -q set dhcp."$sec".dhcpv4='disabled'
+		uci -q set dhcp."$sec".dhcpv6='disabled'
+		uci -q set dhcp."$sec".ra='disabled'
+	done
+}
+
+wifi_iface_has_network()
+{
+	local sec="$1" wanted="$2" net
+	for net in $(uci -q get wireless."$sec".network 2>/dev/null); do
+		[ "$net" = "$wanted" ] && return 0
+	done
+	return 1
+}
+
+find_primary_ap_for_radio()
+{
+	local radio="$1" sec
+	for sec in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-iface$/\1/p'); do
+		[ "$(uci -q get wireless."$sec".device 2>/dev/null)" = "$radio" ] || continue
+		[ "$(uci -q get wireless."$sec".mode 2>/dev/null)" = "ap" ] || continue
+		wifi_iface_has_network "$sec" lan || continue
+		printf '%s' "$sec"
+		return 0
+	done
+	return 1
+}
+
+wifi_radio_count()
+{
+	uci -q show wireless | grep -c '^wireless\.[^=]*=wifi-device'
+}
+
+valid_uci_section_name()
+{
+	case "$1" in
+		''|*[^A-Za-z0-9_]*) return 1 ;;
+	esac
+	return 0
+}
+
+ap_config_list()
+{
+	local radio sec ssid encryption disabled band channel htmode has_key first=1
+
+	printf '['
+	for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-device$/\1/p'); do
+		sec="$(find_primary_ap_for_radio "$radio")"
+		ssid="$(uci -q get wireless."$sec".ssid 2>/dev/null)"
+		encryption="$(uci -q get wireless."$sec".encryption 2>/dev/null)"
+		disabled="$(uci -q get wireless."$sec".disabled 2>/dev/null)"
+		band="$(uci -q get wireless."$radio".band 2>/dev/null)"
+		channel="$(uci -q get wireless."$radio".channel 2>/dev/null)"
+		htmode="$(uci -q get wireless."$radio".htmode 2>/dev/null)"
+		[ "$disabled" = "1" ] && disabled=0 || disabled=1
+		[ -n "$encryption" ] || encryption=none
+		uci -q get wireless."$sec".key >/dev/null 2>&1 && has_key=1 || has_key=0
+
+		[ "$first" = "1" ] || printf ','
+		printf '{"radio":"%s","band":"%s","channel":"%s","htmode":"%s","iface":"%s","enabled":%s,"ssid":"%s","encryption":"%s","has_key":%s}' \
+			"$(json_escape "$radio")" "$(json_escape "$band")" "$(json_escape "$channel")" "$(json_escape "$htmode")" \
+			"$(json_escape "$sec")" "$(bool "$disabled")" "$(json_escape "$ssid")" "$(json_escape "$encryption")" "$(bool "$has_key")"
+		first=0
+	done
+	printf ']'
+}
+
+apply_ap_configs()
+{
+	local configs="$1" idx=0 radio enabled ssid encryption key sec old_key any=0
+
+	valid_text_value "$configs" || return 1
+
+	while [ "$idx" -le "$MAX_WIFI_MESH" ]; do
+		radio="$(jsonfilter -s "$configs" -e "@[$idx].radio" 2>/dev/null)"
+		idx=$((idx + 1))
+		[ -n "$radio" ] || continue
+		valid_uci_section_name "$radio" || return 1
+		[ "$(uci -q get wireless."$radio" 2>/dev/null)" = "wifi-device" ] || return 1
+
+		enabled="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].enabled" 2>/dev/null)"
+		ssid="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].ssid" 2>/dev/null)"
+		encryption="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].encryption" 2>/dev/null)"
+		key="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].key" 2>/dev/null)"
+		case "$enabled" in
+			0|false) enabled=0 ;;
+			*) enabled=1 ;;
+		esac
+		[ -n "$encryption" ] || encryption=sae-mixed
+		valid_wifi_encryption "$encryption" || return 1
+
+		sec="$(find_primary_ap_for_radio "$radio")"
+
+		if [ "$enabled" = "0" ]; then
+			[ -n "$sec" ] && uci -q set wireless."$sec".disabled='1'
+			any=$((any + 1))
+			continue
+		fi
+
+		valid_wifi_ssid "$ssid" || return 1
+		if [ "$encryption" != "none" ] && [ -z "$key" ]; then
+			old_key="$(uci -q get wireless."$sec".key 2>/dev/null)"
+			key="$old_key"
+		fi
+		if [ "$encryption" != "none" ] && ! valid_wifi_key "$key"; then
+			return 1
+		fi
+
+		if [ -z "$sec" ]; then
+			sec="meshconf_ap_${radio}"
+			uci -q set wireless."$sec"='wifi-iface'
+			uci -q set wireless."$sec".device="$radio"
+			uci -q set wireless."$sec".mode='ap'
+			uci -q set wireless."$sec".network='lan'
+		fi
+		uci -q set wireless."$sec".disabled='0'
+		uci -q set wireless."$sec".ssid="$ssid"
+		uci -q set wireless."$sec".encryption="$encryption"
+		if [ "$encryption" = "none" ]; then
+			uci -q delete wireless."$sec".key 2>/dev/null
+		else
+			uci -q set wireless."$sec".key="$key"
+		fi
+		any=$((any + 1))
+	done
+
+	[ "$any" -gt 0 ]
+}
+
+# ---------------------------------------------------------------------------
+# Mesh roles.
+#
+# A wired/wireless mesh is operated as one flat subnet: the master keeps the
+# address authority (DHCPv4/DHCPv6/RA) while every slave node stays in the
+# same subnet and stops answering address requests. The batman-adv gateway
+# role is derived from the node role so traffic always leaves through the
+# master unless the user explicitly picks a peer (gateway off) setup.
+# ---------------------------------------------------------------------------
+apply_master_node_role()
+{
+	uci -q set dhcp.lan='dhcp'
+	uci -q set dhcp.lan.interface='lan'
+	uci -q delete dhcp.lan.ignore 2>/dev/null
+	uci -q set dhcp.lan.dhcpv4='server'
+	uci -q set dhcp.lan.dhcpv6='server'
+	uci -q set dhcp.lan.ra='server'
+	uci -q set dhcp.lan.start='100'
+	uci -q set dhcp.lan.limit='150'
+	uci -q set dhcp.lan.leasetime='12h'
+	[ -n "$(uci -q get network.lan.proto 2>/dev/null)" ] || uci -q set network.lan.proto='static'
+}
+
+apply_slave_node_role()
+{
+	local suffix="$1"
+
+	# keep the node inside the master subnet: when it already holds a static
+	# address only the host part is rewritten, so the prefix is preserved.
+	[ "$(uci -q get network.lan.proto 2>/dev/null)" = "static" ] && \
+		valid_uint "$suffix" && [ "$suffix" -ge 2 ] 2>/dev/null && [ "$suffix" -le 254 ] 2>/dev/null && {
+		rewrite_child_static_ips /etc/config "$suffix"
+	}
+
+	disable_lan_dhcp_servers
+}
+
+# ---------------------------------------------------------------------------
+# Unified coverage (wired mesh / EasyMesh style): every radio advertises the
+# same SSID, encryption and key so the whole deployment looks like one
+# network. Channels stay per-radio (or come from the supplied channel list)
+# so neighbouring cells do not sit on the same channel.
+# ---------------------------------------------------------------------------
+apply_unified_ap()
+{
+	local ssid="$1" encryption="$2" key="$3" radio sec sec_key any=0
+
+	valid_text_value "$ssid" || return 1
+	valid_wifi_ssid "$ssid" || return 1
+	[ -n "$encryption" ] || encryption=sae-mixed
+	valid_wifi_encryption "$encryption" || return 1
+
+	for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-device$/\1/p'); do
+		sec="$(find_primary_ap_for_radio "$radio")"
+		if [ -z "$sec" ]; then
+			sec="meshconf_ap_${radio}"
+			uci -q set wireless."$sec"='wifi-iface'
+			uci -q set wireless."$sec".device="$radio"
+			uci -q set wireless."$sec".mode='ap'
+			uci -q set wireless."$sec".network='lan'
+		fi
+		uci -q set wireless."$sec".disabled='0'
+		uci -q set wireless."$sec".ssid="$ssid"
+		uci -q set wireless."$sec".encryption="$encryption"
+		if [ "$encryption" = "none" ]; then
+			uci -q delete wireless."$sec".key 2>/dev/null
+		else
+			sec_key="$key"
+			[ -n "$sec_key" ] || sec_key="$(uci -q get wireless."$sec".key 2>/dev/null)"
+			valid_wifi_key "$sec_key" || return 1
+			uci -q set wireless."$sec".key="$sec_key"
+		fi
+		any=$((any + 1))
+	done
+
+	[ "$any" -gt 0 ]
+}
+
+apply_radio_channels()
+{
+	local channels="$1" idx=0 radio channel
+	[ -n "$channels" ] || return 0
+	valid_text_value "$channels" || return 1
+	while [ "$idx" -le "$MAX_WIFI_MESH" ]; do
+		radio="$(jsonfilter -s "$channels" -e "@[$idx].radio" 2>/dev/null)"
+		channel="$(jsonfilter -s "$channels" -e "@[$idx].channel" 2>/dev/null)"
+		idx=$((idx + 1))
+		[ -n "$radio" ] && [ -n "$channel" ] || continue
+		valid_uci_section_name "$radio" || return 1
+		[ "$(uci -q get wireless."$radio" 2>/dev/null)" = "wifi-device" ] || return 1
+		if [ "$channel" = "auto" ]; then
+			uci -q set wireless."$radio".channel='auto'
+		else
+			valid_uint "$channel" || return 1
+			[ "$channel" -ge 1 ] 2>/dev/null && [ "$channel" -le 233 ] 2>/dev/null || return 1
+			uci -q set wireless."$radio".channel="$channel"
+		fi
+	done
+	return 0
+}
+
+ipv4_with_suffix()
+{
+	local value="$1" suffix="$2" ip mask a b c d
+	ip="${value%%/*}"
+	mask=""
+	[ "$ip" != "$value" ] && mask="/${value#*/}"
+	valid_ipv4 "$ip" || return 1
+	IFS=. read -r a b c d <<EOF
+$ip
+EOF
+	printf '%s.%s.%s.%s%s' "$a" "$b" "$c" "$suffix" "$mask"
+}
+
+rewrite_child_static_ips()
+{
+	local dir="$1" suffix="$2" sec ips ip new_ip count use_list new_ips
+	for sec in $(uci -c "$dir" -q show network | sed -n 's/^network\.\([^=]*\)=interface$/\1/p'); do
+		[ "$(uci -c "$dir" -q get network."$sec".proto 2>/dev/null)" = "static" ] || continue
+		ips="$(uci -c "$dir" -q get network."$sec".ipaddr 2>/dev/null)"
+		[ -n "$ips" ] || continue
+		count=0
+		use_list=0
+		new_ips=""
+		for ip in $ips; do
+			new_ip="$(ipv4_with_suffix "$ip" "$suffix" 2>/dev/null || printf '%s' "$ip")"
+			new_ips="${new_ips}${new_ips:+ }$new_ip"
+			count=$((count + 1))
+			case "$new_ip" in */*) use_list=1 ;; esac
+		done
+		[ "$count" -gt 1 ] && use_list=1
+		uci -c "$dir" -q delete network."$sec".ipaddr 2>/dev/null
+		if [ "$use_list" = "1" ]; then
+			for ip in $new_ips; do
+				uci -c "$dir" -q add_list network."$sec".ipaddr="$ip"
+			done
+		else
+			uci -c "$dir" -q set network."$sec".ipaddr="$new_ips"
+		fi
+	done
+}
+
+disable_child_dhcp_servers()
+{
+	local dir="$1" sec iface
+	for sec in $(uci -c "$dir" -q show dhcp | sed -n 's/^dhcp\.\([^=]*\)=dhcp$/\1/p'); do
+		iface="$(uci -c "$dir" -q get dhcp."$sec".interface 2>/dev/null)"
+		[ "$iface" = "wan" ] && continue
+		uci -c "$dir" -q set dhcp."$sec".ignore='1'
+		uci -c "$dir" -q set dhcp."$sec".dynamicdhcp='0'
+		uci -c "$dir" -q set dhcp."$sec".dhcpv4='disabled'
+		uci -c "$dir" -q set dhcp."$sec".dhcpv6='disabled'
+		uci -c "$dir" -q set dhcp."$sec".ra='disabled'
+	done
+}
+
+configure_child_firewall()
+{
+	local dir="$1" sec name src dest net
+	for sec in $(uci -c "$dir" -q show firewall | sed -n 's/^firewall\.\([^=]*\)=zone$/\1/p'); do
+		name="$(uci -c "$dir" -q get firewall."$sec".name 2>/dev/null)"
+		if [ "$name" = "lan" ]; then
+			uci -c "$dir" -q set firewall."$sec".input='ACCEPT'
+			uci -c "$dir" -q set firewall."$sec".output='ACCEPT'
+			uci -c "$dir" -q set firewall."$sec".forward='ACCEPT'
+		elif [ "$name" = "wan" ]; then
+			for net in $(uci -c "$dir" -q get firewall."$sec".network 2>/dev/null); do
+				case "$net" in
+					wan|wan6) uci -c "$dir" -q del_list firewall."$sec".network="$net" ;;
+				esac
+			done
+		fi
+	done
+	for sec in $(uci -c "$dir" -q show firewall | sed -n 's/^firewall\.\([^=]*\)=forwarding$/\1/p'); do
+		src="$(uci -c "$dir" -q get firewall."$sec".src 2>/dev/null)"
+		dest="$(uci -c "$dir" -q get firewall."$sec".dest 2>/dev/null)"
+		[ "$src" = "lan" ] && [ "$dest" = "wan" ] && uci -c "$dir" -q delete firewall."$sec"
+	done
+}
+
+generate_child_config()
+{
+	local args="$1" ip_suffix dir stamp f
+	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
+	json_get_var ip_suffix ip_suffix
+	valid_uint "$ip_suffix" || { printf '{"success":false,"error":"invalid child IP suffix"}'; return; }
+	[ "$ip_suffix" -ge 2 ] 2>/dev/null && [ "$ip_suffix" -le 254 ] 2>/dev/null || {
+		printf '{"success":false,"error":"child IP suffix must be 2-254"}'
+		return
+	}
+
+	stamp="$(date +%Y%m%d-%H%M%S 2>/dev/null || date +%s)-$$"
+	dir="/tmp/meshconf-child-$stamp"
+	mkdir -p "$dir" 2>/dev/null || { printf '{"success":false,"error":"failed to create child config directory"}'; return; }
+	for f in network wireless dhcp firewall; do
+		if [ -f "/etc/config/$f" ]; then
+			cp -p "/etc/config/$f" "$dir/$f" 2>/dev/null || {
+				printf '{"success":false,"error":"failed to copy %s"}' "$f"
+				return
+			}
+		else
+			: > "$dir/$f"
+		fi
+	done
+
+	uci -c "$dir" -q delete network.wan 2>/dev/null
+	uci -c "$dir" -q delete network.wan6 2>/dev/null
+	rewrite_child_static_ips "$dir" "$ip_suffix"
+	disable_child_dhcp_servers "$dir"
+	configure_child_firewall "$dir"
+	for f in network wireless dhcp firewall; do
+		uci -c "$dir" -q commit "$f"
+	done
+
+	printf '{"success":true,"path":"%s","files":{"network":' "$(json_escape "$dir")"
+	json_file_string "$dir/network"
+	printf ',"wireless":'
+	json_file_string "$dir/wireless"
+	printf ',"dhcp":'
+	json_file_string "$dir/dhcp"
+	printf ',"firewall":'
+	json_file_string "$dir/firewall"
+	printf '}}'
+}
+
+# Commit happens before this call and the RPC reply is produced after it.
+# The delayed reload must not start until the reply has reached the browser,
+# otherwise switching the management IP (e.g. router -> AP/DHCP) tears down
+# the very TCP connection carrying the success response and the UI reports
+# a false failure. Fully detach the job (new session, all fds redirected) so
+# rpcd/uhttpd do not wait on it either.
+reload_network_later()
+{
+	local launcher=""
+	command -v setsid >/dev/null 2>&1 && launcher="setsid"
+	$launcher /bin/sh -c '
+		sleep 2
+		/etc/init.d/network reload >/dev/null 2>&1 || /etc/init.d/network restart >/dev/null 2>&1
+		/etc/init.d/dnsmasq restart >/dev/null 2>&1
+		/etc/init.d/odhcpd restart >/dev/null 2>&1
+		/etc/init.d/firewall reload >/dev/null 2>&1
+		wifi reload >/dev/null 2>&1
+	' </dev/null >/dev/null 2>&1 &
+}
+
+delete_mesh_sections()
+{
+	local i
+	uci -q delete network.meshconf_wired_mesh 2>/dev/null
+	for i in $(seq 0 "$MAX_WIFI_MESH"); do
+		uci -q delete network.meshconf_wmesh_"$i" 2>/dev/null
+		uci -q delete wireless.meshconf_mesh_"$i" 2>/dev/null
+	done
+}
+
+enable_batman_core()
+{
+	uci -q set network.bat0='interface'
+	uci -q set network.bat0.proto='batadv'
+	uci -q set network.bat0.routing_algo='BATMAN_IV'
+	uci -q set network.bat0.aggregated_ogms='1'
+	uci -q set network.bat0.ap_isolation='0'
+	uci -q set network.bat0.bonding='0'
+	uci -q set network.bat0.bridge_loop_avoidance='1'
+	uci -q set network.bat0.distributed_arp_table='1'
+	uci -q set network.bat0.fragmentation='1'
+	uci -q set network.bat0.hop_penalty='30'
+	uci -q set network.bat0.log_level='0'
+	uci -q set network.bat0.multicast_fanout='16'
+	uci -q set network.bat0.multicast_mode='1'
+	uci -q set network.bat0.network_coding='0'
+	uci -q set network.bat0.orig_interval='1000'
+	ensure_lan_bridge
+	ensure_bridge_port br-lan bat0
+}
+
+apply_mesh()
+{
+	local args="$1" wired wireless wired_iface wired_mode mesh_radios mesh_id mesh_key gateway gw_bandwidth gw_sel_class ap_sync ap_configs backup_dir radio idx netif ifname
+	local role backhaul unified unified_ssid unified_encryption unified_key channels mesh_radio slave_ip_suffix
+	local old_mode="" old_iface=""
+
+	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
+	json_get_var wired wired
+	json_get_var wireless wireless
+	json_get_var wired_iface wired_iface
+	json_get_var wired_mode wired_mode
+	json_get_var mesh_radios mesh_radios
+	json_get_var mesh_id mesh_id
+	json_get_var mesh_key mesh_key
+	json_get_var gateway gateway
+	json_get_var gw_bandwidth gw_bandwidth
+	json_get_var gw_sel_class gw_sel_class
+	json_get_var ap_sync ap_sync
+	json_get_var ap_configs ap_configs
+	role=""
+	backhaul=""
+	unified=""
+	unified_ssid=""
+	unified_encryption=""
+	unified_key=""
+	channels=""
+	mesh_radio=""
+	slave_ip_suffix=""
+	json_get_var role role
+	json_get_var backhaul backhaul
+	json_get_var unified unified
+	json_get_var unified_ssid unified_ssid
+	json_get_var unified_encryption unified_encryption
+	json_get_var unified_key unified_key
+	json_get_var channels channels
+	json_get_var mesh_radio mesh_radio
+	json_get_var slave_ip_suffix slave_ip_suffix
+
+	# Backhaul mode is the primary switch; the legacy wired/wireless flags
+	# are still accepted when no mode is supplied.
+	case "$backhaul" in
+		wired) wired=1; wireless=0 ;;
+		wireless) wired=0; wireless=1 ;;
+		hybrid) wired=1; wireless=1 ;;
+	esac
+
+	# Wireless backhaul is a single select (5G / 6G radio), not a checkbox
+	# set. An explicit single radio overrides any legacy list.
+	[ -n "$mesh_radio" ] && {
+		valid_uci_section_name "$mesh_radio" || { printf '{"success":false,"error":"invalid mesh radio"}'; return; }
+		mesh_radios="[\"$mesh_radio\"]"
+	}
+
+	# Node role drives the batman-adv gateway role so master/slave stays
+	# consistent with the address authority (DHCP) on the LAN side.
+	case "$role" in
+		master) gateway=server ;;
+		slave) gateway=client ;;
+		peer) gateway=off ;;
+	esac
+
+	[ "$wired" = "1" ] || wired=0
+	[ "$wireless" = "1" ] || wireless=0
+	[ "$ap_sync" = "1" ] || ap_sync=0
+	[ "$unified" = "1" ] && ap_sync=1
+	[ "$wired" = "1" ] || [ "$wireless" = "1" ] || ap_sync=0
+	mesh_id="${mesh_id:-XR1710G-MESH}"
+	mesh_key="${mesh_key:-12345678}"
+	gateway="${gateway:-off}"
+	gw_sel_class="${gw_sel_class:-20}"
+
+	# Wired backhaul transport:
+	#   bridge    - br-lan itself is the batman-adv hardif, every LAN/WAN
+	#               port carries mesh traffic (ideal in AP mode; BLA is on)
+	#   dedicated - one physical port is removed from br-lan and handed
+	#               exclusively to bat0
+	if [ "$wired" = "1" ]; then
+		if [ "$wired_iface" = "__bridge__" ]; then
+			wired_mode=bridge
+		else
+			case "$wired_mode" in
+				dedicated) ;;
+				bridge) wired_iface="__bridge__" ;;
+				*)
+					if [ -n "$wired_iface" ]; then
+						wired_mode=dedicated
+					else
+						wired_mode=bridge
+						wired_iface="__bridge__"
+					fi
+				;;
+			esac
+		fi
+	fi
+
+	valid_text_value "$mesh_id" || { printf '{"success":false,"error":"invalid mesh id"}'; return; }
+	case "$gateway" in
+		off|server|client) ;;
+		*) printf '{"success":false,"error":"invalid mesh gateway role"}'; return ;;
+	esac
+	if [ "$wired" = "1" ] && [ "$wired_mode" = "dedicated" ]; then
+		if ! safe_mesh_hardif "$wired_iface"; then
+			printf '{"success":false,"error":"select a valid wired mesh interface first"}'
+			return
+		fi
+		if netdev_is_active_wan "$wired_iface"; then
+			printf '{"success":false,"error":"wired mesh interface is active WAN; switch to AP mode or choose another port first"}'
+			return
+		fi
+	fi
+	if [ "$wireless" = "1" ] && [ -n "$mesh_radios" ]; then
+		for radio in $(printf '%s' "$mesh_radios" | jsonfilter -e '@[*]' 2>/dev/null); do
+			valid_uci_section_name "$radio" || { printf '{"success":false,"error":"invalid mesh radio list"}'; return; }
+			[ "$(uci -q get wireless."$radio" 2>/dev/null)" = "wifi-device" ] || {
+				printf '{"success":false,"error":"mesh radio %s does not exist"}' "$(json_escape "$radio")"
+				return
+			}
+		done
+	fi
+	valid_gw_bandwidth "$gw_bandwidth" || {
+		printf '{"success":false,"error":"invalid gateway bandwidth, expected down/up kbit such as 1000000/1000000"}'
+		return
+	}
+	valid_uint "$gw_sel_class" || { printf '{"success":false,"error":"invalid gateway selection class"}'; return; }
+	[ "$wireless" = "0" ] || valid_mesh_key "$mesh_key" || {
+		printf '{"success":false,"error":"wireless mesh key must be 8-63 characters"}'
+		return
+	}
+	if [ "$unified" = "1" ]; then
+		valid_text_value "$unified_ssid" || {
+			printf '{"success":false,"error":"invalid unified SSID"}'
+			return
+		}
+		valid_wifi_ssid "$unified_ssid" || {
+			printf '{"success":false,"error":"unified SSID must be 1-32 characters"}'
+			return
+		}
+		[ -n "$unified_encryption" ] || unified_encryption=sae-mixed
+		valid_wifi_encryption "$unified_encryption" || {
+			printf '{"success":false,"error":"invalid unified encryption"}'
+			return
+		}
+		if [ "$unified_encryption" != "none" ] && [ -n "$unified_key" ] && ! valid_wifi_key "$unified_key"; then
+			printf '{"success":false,"error":"unified wireless key must be 8-63 characters"}'
+			return
+		fi
+	elif [ "$ap_sync" = "1" ]; then
+		[ -n "$ap_configs" ] || {
+			printf '{"success":false,"error":"per-radio AP settings are required"}'
+			return
+		}
+	fi
+
+	backup_dir="$(backup_configs)" || { printf '{"success":false,"error":"failed to create backup"}'; return; }
+
+	# remember the previous wired transport so a port removed from br-lan
+	# for dedicated mode can be restored when switching mode/disabling mesh
+	if uci -q get network.meshconf_wired_mesh.proto >/dev/null 2>&1; then
+		old_iface="$(uci -q get network.meshconf_wired_mesh.device 2>/dev/null)"
+		old_mode="$(uci -q get network.meshconf_wired_mesh.meshconf_mode 2>/dev/null)"
+		case "$old_mode" in
+			bridge) ;;
+			*) old_mode=dedicated ;;
+		esac
+		[ "$old_mode" = "bridge" ] && old_iface=""
+	fi
+
+	delete_mesh_sections
+
+	if [ "$wired" = "1" ] || [ "$wireless" = "1" ]; then
+		enable_batman_core
+		uci -q set network.bat0.gw_mode="$gateway"
+		uci -q set network.bat0.meshconf_ap_sync="$ap_sync"
+		uci -q delete network.bat0.gw_bandwidth 2>/dev/null
+		uci -q delete network.bat0.gw_sel_class 2>/dev/null
+		[ "$gateway" = "server" ] && [ -z "$gw_bandwidth" ] && gw_bandwidth="$(auto_gateway_bandwidth)"
+		if [ "$gateway" = "server" ] && [ -n "$gw_bandwidth" ]; then
+			uci -q set network.bat0.gw_bandwidth="$gw_bandwidth"
+		elif [ "$gateway" = "client" ]; then
+			uci -q set network.bat0.gw_sel_class="$gw_sel_class"
+		fi
+
+		# master keeps the LAN address authority, a slave hands it over so
+		# every mesh node ends up in one subnet with a single DHCP server
+		case "$role" in
+			master) apply_master_node_role ;;
+			slave) apply_slave_node_role "$slave_ip_suffix" ;;
+		esac
+	else
+		remove_bridge_port br-lan bat0
+		uci -q delete network.bat0 2>/dev/null
+	fi
+
+	if [ "$wired" = "1" ]; then
+		# a port previously dedicated to mesh has to rejoin br-lan before
+		# the whole bridge can be used as transport
+		if [ "$wired_mode" = "bridge" ] && [ "$old_mode" = "dedicated" ] && \
+		   [ -n "$old_iface" ] && [ "$old_iface" != "br-lan" ] && valid_netdev_name "$old_iface"; then
+			ensure_bridge_port br-lan "$old_iface"
+		fi
+
+		uci -q set network.meshconf_wired_mesh='interface'
+		uci -q set network.meshconf_wired_mesh.proto='batadv_hardif'
+		uci -q set network.meshconf_wired_mesh.master='bat0'
+		uci -q set network.meshconf_wired_mesh.meshconf_mode="$wired_mode"
+		if [ "$wired_mode" = "dedicated" ]; then
+			remove_bridge_port br-lan "$wired_iface"
+			uci -q set network.meshconf_wired_mesh.device="$wired_iface"
+			uci -q set network.meshconf_wired_mesh.mtu='1500'
+		else
+			# br-lan itself becomes the hardif (batctl -M allows bridges);
+			# every LAN/WAN port transparently carries batman-adv traffic,
+			# bridge_loop_avoidance on bat0 prevents L2 loops.
+			uci -q set network.meshconf_wired_mesh.device='br-lan'
+		fi
+	else
+		# mesh wired transport disabled: return a previously dedicated port
+		# to br-lan (AP mode without a stored section also re-adds wan)
+		if [ "$old_mode" = "dedicated" ] && [ -n "$old_iface" ] && \
+		   [ "$old_iface" != "br-lan" ] && valid_netdev_name "$old_iface"; then
+			ensure_bridge_port br-lan "$old_iface"
+		elif [ "$(uci -q get network.lan.proto 2>/dev/null)" = "dhcp" ]; then
+			ensure_bridge_port br-lan wan
+		fi
+	fi
+
+	idx=0
+	if [ "$wireless" = "1" ]; then
+		for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-device$/\1/p'); do
+			[ "$idx" -le "$MAX_WIFI_MESH" ] || break
+			mesh_radio_selected "$radio" "$mesh_radios" || continue
+			netif="meshconf_wmesh_$idx"
+			ifname="mesh_${radio}"
+			uci -q set network."$netif"='interface'
+			uci -q set network."$netif".proto='batadv_hardif'
+			uci -q set network."$netif".master='bat0'
+			uci -q set network."$netif".device="$ifname"
+			uci -q set wireless.meshconf_mesh_"$idx"='wifi-iface'
+			uci -q set wireless.meshconf_mesh_"$idx".device="$radio"
+			uci -q set wireless.meshconf_mesh_"$idx".ifname="$ifname"
+			uci -q set wireless.meshconf_mesh_"$idx".mode='mesh'
+			uci -q set wireless.meshconf_mesh_"$idx".mesh_id="$mesh_id"
+			uci -q set wireless.meshconf_mesh_"$idx".mesh_fwding='0'
+			uci -q set wireless.meshconf_mesh_"$idx".mesh_ttl='1'
+			uci -q set wireless.meshconf_mesh_"$idx".mesh_auto_open_plinks='0'
+			uci -q set wireless.meshconf_mesh_"$idx".mcast_rate='24000'
+			uci -q set wireless.meshconf_mesh_"$idx".encryption='sae'
+			uci -q set wireless.meshconf_mesh_"$idx".key="$mesh_key"
+			uci -q set wireless.meshconf_mesh_"$idx".network="$netif"
+			uci -q set wireless.meshconf_mesh_"$idx".disabled='0'
+			uci -q set network."$netif".mtu='2304'
+			idx=$((idx + 1))
+		done
+	fi
+
+	if [ "$unified" = "1" ]; then
+		apply_unified_ap "$unified_ssid" "$unified_encryption" "$unified_key" || {
+			printf '{"success":false,"error":"invalid unified wireless settings"}'
+			return
+		}
+	elif [ "$ap_sync" = "1" ]; then
+		apply_ap_configs "$ap_configs" || {
+			printf '{"success":false,"error":"invalid per-radio AP settings or radio configuration"}'
+			return
+		}
+	fi
+
+	apply_radio_channels "$channels" || {
+		printf '{"success":false,"error":"invalid radio channel settings"}'
+		return
+	}
+
+	uci -q commit network
+	uci -q commit wireless
+	uci -q commit dhcp
+	reload_network_later
+
+	[ -n "$backhaul" ] || {
+		if [ "$wired" = "1" ] && [ "$wireless" = "1" ]; then
+			backhaul=hybrid
+		elif [ "$wired" = "1" ]; then
+			backhaul=wired
+		elif [ "$wireless" = "1" ]; then
+			backhaul=wireless
+		else
+			backhaul=off
+		fi
+	}
+	[ -n "$role" ] || {
+		case "$gateway" in
+			server) role=master ;;
+			client) role=slave ;;
+			*) role=peer ;;
+		esac
+	}
+
+	printf '{"success":true,"backhaul":"%s","role":"%s","wired":%s,"wired_mode":"%s","wireless":%s,"gateway":"%s","radios":%d,"unified":%s,"ap_sync":%s,"backup":"%s"}' \
+		"$(json_escape "$backhaul")" "$(json_escape "$role")" "$(bool "$wired")" "$(json_escape "$wired_mode")" "$(bool "$wireless")" "$gateway" "$idx" "$(bool "$unified")" "$(bool "$ap_sync")" "$(json_escape "$backup_dir")"
+}
+
+mesh_wireless_count()
+{
+	uci -q show wireless | grep -c '^wireless\.meshconf_mesh_[0-9]*=wifi-iface'
+}
+
+# JSON array of radios currently carrying an 802.11s mesh backhaul.
+mesh_radio_list()
+{
+	local sec radio first=1
+	printf '['
+	for sec in $(uci -q show wireless | sed -n 's/^wireless\.\(meshconf_mesh_[0-9]*\)=wifi-iface$/\1/p'); do
+		radio="$(uci -q get wireless."$sec".device 2>/dev/null)"
+		[ -n "$radio" ] || continue
+		[ "$first" = "1" ] || printf ','
+		printf '"%s"' "$(json_escape "$radio")"
+		first=0
+	done
+	printf ']'
+}
+
+# Check whether $1 (radio name) is contained in the JSON array $2.
+# An empty/invalid array selects every radio (legacy behaviour).
+mesh_radio_selected()
+{
+	local radio="$1" list="$2" r
+	[ -n "$list" ] || return 0
+	for r in $(printf '%s' "$list" | jsonfilter -e '@[*]' 2>/dev/null); do
+		[ "$r" = "$radio" ] && return 0
+	done
+	return 1
+}
+
+detect_mode()
+{
+	local wan_proto lan_proto dhcp_ignore
+	wan_proto="$(uci -q get network.wan.proto 2>/dev/null)"
+	lan_proto="$(uci -q get network.lan.proto 2>/dev/null)"
+	dhcp_ignore="$(uci -q get dhcp.lan.ignore 2>/dev/null)"
+	if [ "$lan_proto" = "dhcp" ] && [ "$dhcp_ignore" = "1" ]; then
+		printf ap
+	elif [ "$wan_proto" = "pppoe" ]; then
+		printf pppoe
+	elif [ "$wan_proto" = "dhcp" ]; then
+		printf dhcp
+	else
+		printf unknown
+	fi
+}
+
+get_status()
+{
+	local mode lan_ip wan_ip wan_proto wan_up mesh_enabled wired wired_iface wired_mode wireless_count mesh_id gateway gw_bandwidth gw_sel_class ap_sync ap_configs radio_count bat_up role
+	local dep_batctl dep_iw dep_wpad board host bat_device
+
+	mode="$(detect_mode)"
+	lan_ip="$(first_lan_ip)"
+	wan_ip="$(first_wan_ip)"
+	wan_proto="$(uci -q get network.wan.proto 2>/dev/null)"
+	wan_up="$(ubus call network.interface.wan status 2>/dev/null | jsonfilter -e '@.up' 2>/dev/null)"
+	[ "$wan_up" = "true" ] || wan_up=false
+	mesh_enabled=0
+	uci -q get network.bat0.proto >/dev/null 2>&1 && mesh_enabled=1
+	uci -q get network.meshconf_wired_mesh.proto >/dev/null 2>&1 && wired=1 || wired=0
+	wired_iface="$(uci -q get network.meshconf_wired_mesh.device 2>/dev/null)"
+	wired_mode="$(uci -q get network.meshconf_wired_mesh.meshconf_mode 2>/dev/null)"
+	if [ "$wired" = "1" ]; then
+		case "$wired_mode" in
+			bridge|dedicated) ;;
+			*) wired_mode=dedicated ;;
+		esac
+	else
+		wired_mode=""
+	fi
+	wireless_count="$(mesh_wireless_count)"
+	mesh_id="$(uci -q get wireless.meshconf_mesh_0.mesh_id 2>/dev/null)"
+	gateway="$(uci -q get network.bat0.gw_mode 2>/dev/null || printf off)"
+	gw_bandwidth="$(uci -q get network.bat0.gw_bandwidth 2>/dev/null)"
+	gw_sel_class="$(uci -q get network.bat0.gw_sel_class 2>/dev/null)"
+	ap_sync="$(uci -q get network.bat0.meshconf_ap_sync 2>/dev/null)"
+	# node role mirrors the batman-adv gateway role: master serves the whole
+	# subnet, slaves only bridge it
+	role=peer
+	[ "$gateway" = "server" ] && role=master
+	[ "$gateway" = "client" ] && role=slave
+	if [ -z "$ap_sync" ] && [ "$wireless_count" -gt 0 ]; then
+		ap_sync=1
+	fi
+	ap_configs="$(ap_config_list)"
+	radio_count="$(wifi_radio_count)"
+	bat_up="$(ubus call network.interface.bat0 status 2>/dev/null | jsonfilter -e '@.up' 2>/dev/null)"
+	[ "$bat_up" = "true" ] || bat_up=false
+	bat_device="$(ubus call network.interface.bat0 status 2>/dev/null | jsonfilter -e '@.l3_device' 2>/dev/null)"
+	dep_batctl="$(command_flag batctl)"
+	dep_iw="$(command_flag iw)"
+	dep_wpad=0
+	command -v wpa_supplicant >/dev/null 2>&1 && dep_wpad=1
+	command -v hostapd >/dev/null 2>&1 && dep_wpad=1
+	board="$(board_name_safe)"
+	host="$(hostname_safe)"
+
+	printf '{"mode":"%s","board":"%s","hostname":"%s","lan_ip":"%s","wan_proto":"%s","wan_up":%s,"wan_ip":"%s",' \
+		"$mode" "$(json_escape "$board")" "$(json_escape "$host")" "$(json_escape "$lan_ip")" "$(json_escape "$wan_proto")" "$wan_up" "$(json_escape "$wan_ip")"
+	printf '"mesh":{"enabled":%s,"up":%s,"device":"%s","role":"%s","wired":%s,"wired_mode":"%s","wired_iface":"%s","wireless_count":%d,"mesh_radios":' \
+		"$(bool "$mesh_enabled")" "$bat_up" "$(json_escape "$bat_device")" "$(json_escape "$role")" \
+		"$(bool "$wired")" "$(json_escape "$wired_mode")" "$(json_escape "$wired_iface")" "$wireless_count"
+	mesh_radio_list
+	printf ',"mesh_id":"%s","gateway":"%s","gw_bandwidth":"%s","gw_sel_class":"%s","ap_sync":%s,"ap_configs":%s,"radio_count":%d},' \
+		"$(json_escape "$mesh_id")" "$(json_escape "$gateway")" \
+		"$(json_escape "$gw_bandwidth")" "$(json_escape "$gw_sel_class")" "$(bool "$ap_sync")" \
+		"$ap_configs" "$radio_count"
+	printf '"addresses":'
+	interface_ipv4_addresses
+	printf ','
+	printf '"backups":'
+	backup_list
+	printf ',"netdevs":'
+	netdev_list
+	printf ',"deps":{"batctl":%s,"iw":%s,"wpad":%s}}' \
+		"$(bool "$dep_batctl")" "$(bool "$dep_iw")" "$(bool "$dep_wpad")"
+}
+
+append_node()
+{
+	local id="$1" label="$2" ip="$3" mac="$4" kind="$5" iface="$6" tq="$7" last_seen="$8"
+	[ -n "$DISC_NODES" ] && DISC_NODES="$DISC_NODES,"
+	DISC_NODES="${DISC_NODES}{\"id\":\"$(json_escape "$id")\",\"label\":\"$(json_escape "$label")\",\"ip\":\"$(json_escape "$ip")\",\"mac\":\"$(json_escape "$mac")\",\"kind\":\"$(json_escape "$kind")\",\"iface\":\"$(json_escape "$iface")\",\"tq\":\"$(json_escape "$tq")\",\"last_seen\":\"$(json_escape "$last_seen")\"}"
+}
+
+append_link()
+{
+	local from="$1" to="$2" kind="$3"
+	[ -n "$DISC_LINKS" ] && DISC_LINKS="$DISC_LINKS,"
+	DISC_LINKS="${DISC_LINKS}{\"from\":\"$(json_escape "$from")\",\"to\":\"$(json_escape "$to")\",\"kind\":\"$(json_escape "$kind")\"}"
+}
+
+discover_mesh()
+{
+	local local_id local_mac local_ip host mac ip name seen_macs batmac tmp iface tq last_seen
+	DISC_NODES=""
+	DISC_LINKS=""
+	host="$(hostname_safe)"
+	local_mac="$(cat /sys/class/net/br-lan/address 2>/dev/null || cat /sys/class/net/lan2/address 2>/dev/null || printf local)"
+	local_ip="$(first_lan_ip)"
+	local_id="${local_mac:-local}"
+	append_node "$local_id" "$host" "$local_ip" "$local_mac" "local" "" "" ""
+
+	if [ -r /tmp/dhcp.leases ]; then
+		while read -r _ mac ip name _; do
+			[ -n "$mac" ] && [ -n "$ip" ] || continue
+			mac="$(printf '%s' "$mac" | tr 'A-F' 'a-f')"
+			name="${name:-$ip}"
+			append_node "$mac" "$name" "$ip" "$mac" "lan" "" "" ""
+			append_link "$local_id" "$mac" "lan"
+			seen_macs="$seen_macs $mac"
+		done < /tmp/dhcp.leases
+	fi
+
+	if command -v ip >/dev/null 2>&1; then
+		tmp="/tmp/luci-meshconf-neigh.$$"
+		ip neigh show dev br-lan 2>/dev/null | awk '/lladdr/ && $NF != "FAILED" { print $1, tolower($5) }' > "$tmp"
+		while read -r ip mac; do
+			[ -n "$ip" ] && [ -n "$mac" ] || continue
+			case " $seen_macs " in *" $mac "*) continue ;; esac
+			append_node "$mac" "$ip" "$ip" "$mac" "lan" "" "" ""
+			append_link "$local_id" "$mac" "lan"
+			seen_macs="$seen_macs $mac"
+		done < "$tmp"
+		rm -f "$tmp"
+	fi
+
+	if command -v batctl >/dev/null 2>&1; then
+		while read -r iface batmac last_seen; do
+			[ -n "$batmac" ] || continue
+			batmac="$(printf '%s' "$batmac" | tr 'A-F' 'a-f')"
+			case " $seen_macs " in *" $batmac "*) ;; *)
+				append_node "$batmac" "$batmac" "" "$batmac" "mesh" "$iface" "" "$last_seen"
+				;;
+			esac
+			append_link "$local_id" "$batmac" "mesh"
+			seen_macs="$seen_macs $batmac"
+		done <<EOF
+$(batctl n 2>/dev/null | awk '
+	$0 ~ /Neighbor/ { next }
+	{
+		for (i = 1; i <= NF; i++) {
+			if ($i ~ /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/) {
+				iface = (i > 1 ? $(i - 1) : "")
+				if (iface == "*") iface = (i > 2 ? $(i - 2) : iface)
+				print iface, tolower($i), $(i + 1)
+				break
+			}
+		}
+	}')
+EOF
+
+		while read -r batmac tq last_seen iface; do
+			[ -n "$batmac" ] || continue
+			batmac="$(printf '%s' "$batmac" | tr 'A-F' 'a-f')"
+			case " $seen_macs " in *" $batmac "*) ;; *)
+				append_node "$batmac" "$batmac" "" "$batmac" "mesh" "$iface" "$tq" "$last_seen"
+				;;
+			esac
+			append_link "$local_id" "$batmac" "mesh"
+			seen_macs="$seen_macs $batmac"
+		done <<EOF
+$(batctl o 2>/dev/null | awk '
+	$1 ~ /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/ {
+		tq = $3
+		gsub(/[()]/, "", tq)
+		iface = $NF
+		gsub(/[\[\]]/, "", iface)
+		print tolower($1), tq, $2, iface
+	}')
+EOF
+	fi
+
+	printf '{"nodes":[%s],"links":[%s],"updated":%d}' "$DISC_NODES" "$DISC_LINKS" "$(date +%s 2>/dev/null || echo 0)"
+}
+
+case "$1" in
+	list)
+		printf '{"getStatus":{},"discoverMesh":{},"applyMesh":{"backhaul":"string","role":"string","wired":"string","wireless":"string","wired_iface":"string","wired_mode":"string","mesh_radio":"string","mesh_radios":"string","mesh_id":"string","mesh_key":"string","gateway":"string","gw_bandwidth":"string","gw_sel_class":"string","slave_ip_suffix":"string","unified":"string","unified_ssid":"string","unified_encryption":"string","unified_key":"string","ap_sync":"string","ap_configs":"string","channels":"string"},"generateChildConfig":{"ip_suffix":"string"},"restoreBackup":{"name":"string"}}'
+		;;
+	call)
+		args="$(cat)"
+		case "$2" in
+			getStatus) get_status ;;
+			discoverMesh) discover_mesh ;;
+			applyMesh) apply_mesh "$args" ;;
+			generateChildConfig) generate_child_config "$args" ;;
+			restoreBackup) restore_backup "$args" ;;
+			*) printf '{"error":"unknown method"}' ;;
+		esac
+		;;
+esac
