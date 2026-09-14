@@ -1,0 +1,594 @@
+#!/bin/sh
+
+set -f
+. /usr/share/libubox/jshn.sh
+
+BACKUP_ROOT="/etc/netmode/backups"
+MAX_WIFI_MESH=8
+
+json_escape()
+{
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/	/ /g'
+}
+
+bool()
+{
+	[ "$1" = "1" ] && printf true || printf false
+}
+
+command_flag()
+{
+	command -v "$1" >/dev/null 2>&1 && printf 1 || printf 0
+}
+
+board_name_safe()
+{
+	if command -v board_name >/dev/null 2>&1; then
+		board_name 2>/dev/null
+	elif [ -r /tmp/sysinfo/board_name ]; then
+		cat /tmp/sysinfo/board_name
+	else
+		printf unknown
+	fi
+}
+
+hostname_safe()
+{
+	uci -q get system.@system[0].hostname 2>/dev/null || hostname 2>/dev/null || printf ImmortalWrt
+}
+
+first_lan_ip()
+{
+	local ip
+	ip="$(ubus call network.interface.lan status 2>/dev/null | jsonfilter -e "@['ipv4-address'][0].address" 2>/dev/null)"
+	[ -n "$ip" ] && {
+		printf '%s' "$ip"
+		return 0
+	}
+	ip="$(uci -q get network.lan.ipaddr 2>/dev/null | awk '{print $1}')"
+	ip="${ip%%/*}"
+	[ -n "$ip" ] && printf '%s' "$ip" || printf ''
+}
+
+valid_ipv4()
+{
+	echo "$1" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$' || return 1
+	echo "$1" | awk -F. '{ exit !($1 < 256 && $2 < 256 && $3 < 256 && $4 < 256) }'
+}
+
+valid_text_value()
+{
+	[ "$(printf '%s' "$1" | tr -d '\n\r')" = "$1" ]
+}
+
+valid_mesh_key()
+{
+	local n
+	n=${#1}
+	[ "$n" -ge 8 ] && [ "$n" -le 63 ] && valid_text_value "$1"
+}
+
+backup_configs()
+{
+	local stamp dir f
+	stamp="$(date +%Y%m%d-%H%M%S 2>/dev/null || date +%s)-$$"
+	dir="$BACKUP_ROOT/$stamp"
+	mkdir -p "$dir" 2>/dev/null || return 1
+	for f in network dhcp wireless firewall; do
+		[ -f "/etc/config/$f" ] && cp -p "/etc/config/$f" "$dir/$f" 2>/dev/null
+	done
+	printf '%s' "$dir"
+}
+
+backup_list()
+{
+	local dir first=1 name
+	printf '['
+	for dir in $(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -r | head -n 8); do
+		name="${dir##*/}"
+		[ "$first" = "1" ] || printf ','
+		printf '"%s"' "$(json_escape "$name")"
+		first=0
+	done
+	printf ']'
+}
+
+restore_backup()
+{
+	local name dir f
+	json_load "$1" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
+	json_get_var name name
+	case "$name" in
+		''|.*|*/*|*\\*) printf '{"success":false,"error":"invalid backup name"}'; return ;;
+	esac
+	dir="$BACKUP_ROOT/$name"
+	[ -d "$dir" ] || { printf '{"success":false,"error":"backup not found"}'; return; }
+
+	for f in network dhcp wireless firewall; do
+		[ -f "$dir/$f" ] && cp -p "$dir/$f" "/etc/config/$f" 2>/dev/null
+	done
+	uci -q commit network
+	uci -q commit dhcp
+	uci -q commit wireless
+	uci -q commit firewall
+	reload_network_later
+	printf '{"success":true,"backup":"%s"}' "$(json_escape "$name")"
+}
+
+find_bridge_section()
+{
+	local sec name type
+	for sec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=device$/\1/p'); do
+		name="$(uci -q get network."$sec".name 2>/dev/null)"
+		type="$(uci -q get network."$sec".type 2>/dev/null)"
+		[ "$name" = "$1" ] && [ "$type" = "bridge" ] && {
+			printf '%s' "$sec"
+			return 0
+		}
+	done
+	return 1
+}
+
+ensure_lan_bridge()
+{
+	local sec olddev
+	sec="$(find_bridge_section br-lan)"
+	if [ -z "$sec" ]; then
+		uci -q set network.netmode_br_lan='device'
+		uci -q set network.netmode_br_lan.name='br-lan'
+		uci -q set network.netmode_br_lan.type='bridge'
+		sec="netmode_br_lan"
+	fi
+
+	olddev="$(uci -q get network.lan.device 2>/dev/null)"
+	if [ -n "$olddev" ] && [ "$olddev" != "br-lan" ] && [ "$olddev" != "bat0" ]; then
+		ensure_bridge_port br-lan "$olddev"
+	fi
+	uci -q set network.lan='interface'
+	uci -q set network.lan.device='br-lan'
+	printf '%s' "$sec"
+}
+
+bridge_has_port()
+{
+	local sec port p
+	sec="$1"
+	port="$2"
+	for p in $(uci -q get network."$sec".ports 2>/dev/null); do
+		[ "$p" = "$port" ] && return 0
+	done
+	return 1
+}
+
+ensure_bridge_port()
+{
+	local bridge port sec
+	bridge="$1"
+	port="$2"
+	[ -n "$port" ] || return 0
+	sec="$(find_bridge_section "$bridge")"
+	if [ -z "$sec" ]; then
+		[ "$bridge" = "br-lan" ] && sec="$(ensure_lan_bridge)"
+	fi
+	[ -n "$sec" ] || return 1
+	bridge_has_port "$sec" "$port" || uci -q add_list network."$sec".ports="$port"
+}
+
+remove_bridge_port()
+{
+	local bridge port sec
+	bridge="$1"
+	port="$2"
+	sec="$(find_bridge_section "$bridge")"
+	[ -n "$sec" ] || return 0
+	while bridge_has_port "$sec" "$port"; do
+		uci -q del_list network."$sec".ports="$port" || break
+	done
+}
+
+set_lan_static()
+{
+	local ip="${1:-192.168.50.1}"
+	valid_ipv4 "$ip" || return 1
+	uci -q set network.lan='interface'
+	uci -q set network.lan.device='br-lan'
+	uci -q set network.lan.proto='static'
+	uci -q delete network.lan.ipaddr 2>/dev/null
+	uci -q add_list network.lan.ipaddr="$ip/24"
+	uci -q set network.lan.ip6assign='64'
+	uci -q set dhcp.lan='dhcp'
+	uci -q set dhcp.lan.interface='lan'
+	uci -q delete dhcp.lan.ignore 2>/dev/null
+	uci -q set dhcp.lan.dhcpv4='server'
+	uci -q set dhcp.lan.start='100'
+	uci -q set dhcp.lan.limit='150'
+	uci -q set dhcp.lan.leasetime='12h'
+}
+
+set_lan_ap_client()
+{
+	uci -q set network.lan='interface'
+	uci -q set network.lan.device='br-lan'
+	uci -q set network.lan.proto='dhcp'
+	uci -q delete network.lan.ipaddr 2>/dev/null
+	uci -q delete network.lan.gateway 2>/dev/null
+	uci -q delete network.lan.dns 2>/dev/null
+	uci -q delete network.lan.ip6assign 2>/dev/null
+	uci -q set dhcp.lan='dhcp'
+	uci -q set dhcp.lan.interface='lan'
+	uci -q set dhcp.lan.ignore='1'
+	uci -q set dhcp.lan.dhcpv4='disabled'
+	uci -q set dhcp.lan.dhcpv6='disabled'
+	uci -q set dhcp.lan.ra='disabled'
+}
+
+reload_network_later()
+{
+	(
+		sleep 1
+		/etc/init.d/network reload >/dev/null 2>&1 || /etc/init.d/network restart >/dev/null 2>&1
+		/etc/init.d/dnsmasq restart >/dev/null 2>&1
+		/etc/init.d/odhcpd restart >/dev/null 2>&1
+		/etc/init.d/firewall reload >/dev/null 2>&1
+		wifi reload >/dev/null 2>&1
+	) >/dev/null 2>&1 &
+}
+
+apply_mode()
+{
+	local args="$1" mode username password lan_ip backup_dir
+
+	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
+	json_get_var mode mode
+	json_get_var username username
+	json_get_var password password
+	json_get_var lan_ip lan_ip
+
+	case "$mode" in
+		ap|dhcp|pppoe) ;;
+		*) printf '{"success":false,"error":"unsupported mode"}'; return ;;
+	esac
+
+	valid_text_value "$username" || { printf '{"success":false,"error":"invalid PPPoE username"}'; return; }
+	valid_text_value "$password" || { printf '{"success":false,"error":"invalid PPPoE password"}'; return; }
+	[ -z "$lan_ip" ] || valid_ipv4 "$lan_ip" || { printf '{"success":false,"error":"invalid LAN IP"}'; return; }
+
+	backup_dir="$(backup_configs)" || { printf '{"success":false,"error":"failed to create backup"}'; return; }
+	ensure_lan_bridge
+
+	case "$mode" in
+		ap)
+			ensure_bridge_port br-lan wan
+			set_lan_ap_client
+			uci -q delete network.wan 2>/dev/null
+			uci -q delete network.wan6 2>/dev/null
+			;;
+		dhcp)
+			remove_bridge_port br-lan wan
+			set_lan_static "${lan_ip:-192.168.50.1}" || { printf '{"success":false,"error":"invalid LAN IP"}'; return; }
+			uci -q set network.wan='interface'
+			uci -q set network.wan.device='wan'
+			uci -q set network.wan.proto='dhcp'
+			uci -q delete network.wan.username 2>/dev/null
+			uci -q delete network.wan.password 2>/dev/null
+			uci -q set network.wan6='interface'
+			uci -q set network.wan6.device='@wan'
+			uci -q set network.wan6.proto='dhcpv6'
+			;;
+		pppoe)
+			[ -n "$username" ] || { printf '{"success":false,"error":"missing PPPoE username"}'; return; }
+			remove_bridge_port br-lan wan
+			set_lan_static "${lan_ip:-192.168.50.1}" || { printf '{"success":false,"error":"invalid LAN IP"}'; return; }
+			uci -q set network.wan='interface'
+			uci -q set network.wan.device='wan'
+			uci -q set network.wan.proto='pppoe'
+			uci -q set network.wan.username="$username"
+			uci -q set network.wan.password="$password"
+			uci -q set network.wan.ipv6='1'
+			uci -q set network.wan6='interface'
+			uci -q set network.wan6.device='@wan'
+			uci -q set network.wan6.proto='dhcpv6'
+			;;
+	esac
+
+	uci -q set dhcp.wan='dhcp'
+	uci -q set dhcp.wan.interface='wan'
+	uci -q set dhcp.wan.ignore='1'
+
+	uci -q commit network
+	uci -q commit dhcp
+	reload_network_later
+
+	printf '{"success":true,"mode":"%s","backup":"%s"}' "$mode" "$(json_escape "$backup_dir")"
+}
+
+delete_mesh_sections()
+{
+	local i
+	uci -q delete network.netmode_wired_mesh 2>/dev/null
+	for i in $(seq 0 "$MAX_WIFI_MESH"); do
+		uci -q delete network.netmode_wmesh_"$i" 2>/dev/null
+		uci -q delete wireless.netmode_mesh_"$i" 2>/dev/null
+	done
+}
+
+enable_batman_core()
+{
+	uci -q set network.bat0='interface'
+	uci -q set network.bat0.proto='batadv'
+	uci -q set network.bat0.routing_algo='BATMAN_IV'
+	uci -q set network.bat0.aggregated_ogms='1'
+	uci -q set network.bat0.ap_isolation='0'
+	uci -q set network.bat0.bonding='0'
+	uci -q set network.bat0.bridge_loop_avoidance='1'
+	uci -q set network.bat0.distributed_arp_table='1'
+	uci -q set network.bat0.fragmentation='1'
+	uci -q set network.bat0.hop_penalty='30'
+	uci -q set network.bat0.log_level='0'
+	uci -q set network.bat0.multicast_fanout='16'
+	uci -q set network.bat0.multicast_mode='1'
+	uci -q set network.bat0.network_coding='0'
+	uci -q set network.bat0.orig_interval='1000'
+	ensure_lan_bridge
+	ensure_bridge_port br-lan bat0
+}
+
+apply_mesh()
+{
+	local args="$1" wired wireless mesh_id mesh_key gateway backup_dir radio idx netif ifname
+
+	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
+	json_get_var wired wired
+	json_get_var wireless wireless
+	json_get_var mesh_id mesh_id
+	json_get_var mesh_key mesh_key
+	json_get_var gateway gateway
+
+	[ "$wired" = "1" ] || wired=0
+	[ "$wireless" = "1" ] || wireless=0
+	mesh_id="${mesh_id:-XR1710G-MESH}"
+	mesh_key="${mesh_key:-12345678}"
+	gateway="${gateway:-off}"
+
+	valid_text_value "$mesh_id" || { printf '{"success":false,"error":"invalid mesh id"}'; return; }
+	case "$gateway" in
+		off|server|client) ;;
+		*) printf '{"success":false,"error":"invalid mesh gateway role"}'; return ;;
+	esac
+	[ "$wireless" = "0" ] || valid_mesh_key "$mesh_key" || {
+		printf '{"success":false,"error":"wireless mesh key must be 8-63 characters"}'
+		return
+	}
+
+	backup_dir="$(backup_configs)" || { printf '{"success":false,"error":"failed to create backup"}'; return; }
+	delete_mesh_sections
+
+	if [ "$wired" = "1" ] || [ "$wireless" = "1" ]; then
+		enable_batman_core
+		uci -q set network.bat0.gw_mode="$gateway"
+	else
+		remove_bridge_port br-lan bat0
+		uci -q delete network.bat0 2>/dev/null
+	fi
+
+	if [ "$wired" = "1" ]; then
+		remove_bridge_port br-lan wan
+		uci -q set network.netmode_wired_mesh='interface'
+		uci -q set network.netmode_wired_mesh.proto='batadv_hardif'
+		uci -q set network.netmode_wired_mesh.master='bat0'
+		uci -q set network.netmode_wired_mesh.device='wan'
+		uci -q set network.netmode_wired_mesh.mtu='1500'
+	elif [ "$(uci -q get network.lan.proto 2>/dev/null)" = "dhcp" ]; then
+		ensure_bridge_port br-lan wan
+	fi
+
+	idx=0
+	if [ "$wireless" = "1" ]; then
+		for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-device$/\1/p'); do
+			[ "$idx" -le "$MAX_WIFI_MESH" ] || break
+			netif="netmode_wmesh_$idx"
+			ifname="mesh_${radio}"
+			uci -q set network."$netif"='interface'
+			uci -q set network."$netif".proto='batadv_hardif'
+			uci -q set network."$netif".master='bat0'
+			uci -q set network."$netif".device="$ifname"
+			uci -q set wireless.netmode_mesh_"$idx"='wifi-iface'
+			uci -q set wireless.netmode_mesh_"$idx".device="$radio"
+			uci -q set wireless.netmode_mesh_"$idx".ifname="$ifname"
+			uci -q set wireless.netmode_mesh_"$idx".mode='mesh'
+			uci -q set wireless.netmode_mesh_"$idx".mesh_id="$mesh_id"
+			uci -q set wireless.netmode_mesh_"$idx".mesh_fwding='0'
+			uci -q set wireless.netmode_mesh_"$idx".mesh_ttl='1'
+			uci -q set wireless.netmode_mesh_"$idx".mesh_auto_open_plinks='0'
+			uci -q set wireless.netmode_mesh_"$idx".mcast_rate='24000'
+			uci -q set wireless.netmode_mesh_"$idx".encryption='sae'
+			uci -q set wireless.netmode_mesh_"$idx".key="$mesh_key"
+			uci -q set wireless.netmode_mesh_"$idx".network="$netif"
+			uci -q set wireless.netmode_mesh_"$idx".disabled='0'
+			uci -q set network."$netif".mtu='2304'
+			idx=$((idx + 1))
+		done
+	fi
+
+	uci -q commit network
+	uci -q commit wireless
+	reload_network_later
+
+	printf '{"success":true,"wired":%s,"wireless":%s,"gateway":"%s","radios":%d,"backup":"%s"}' \
+		"$(bool "$wired")" "$(bool "$wireless")" "$gateway" "$idx" "$(json_escape "$backup_dir")"
+}
+
+mesh_wireless_count()
+{
+	uci -q show wireless | grep -c '^wireless\.netmode_mesh_[0-9]*=wifi-iface'
+}
+
+detect_mode()
+{
+	local wan_proto lan_proto dhcp_ignore
+	wan_proto="$(uci -q get network.wan.proto 2>/dev/null)"
+	lan_proto="$(uci -q get network.lan.proto 2>/dev/null)"
+	dhcp_ignore="$(uci -q get dhcp.lan.ignore 2>/dev/null)"
+	if [ "$lan_proto" = "dhcp" ] && [ "$dhcp_ignore" = "1" ]; then
+		printf ap
+	elif [ "$wan_proto" = "pppoe" ]; then
+		printf pppoe
+	elif [ "$wan_proto" = "dhcp" ]; then
+		printf dhcp
+	else
+		printf unknown
+	fi
+}
+
+get_status()
+{
+	local mode lan_ip wan_proto wan_up mesh_enabled wired wireless_count mesh_id gateway bat_up
+	local dep_batctl dep_iw dep_wpad board host bat_device
+
+	mode="$(detect_mode)"
+	lan_ip="$(first_lan_ip)"
+	wan_proto="$(uci -q get network.wan.proto 2>/dev/null)"
+	wan_up="$(ubus call network.interface.wan status 2>/dev/null | jsonfilter -e '@.up' 2>/dev/null)"
+	[ "$wan_up" = "true" ] || wan_up=false
+	mesh_enabled=0
+	uci -q get network.bat0.proto >/dev/null 2>&1 && mesh_enabled=1
+	uci -q get network.netmode_wired_mesh.proto >/dev/null 2>&1 && wired=1 || wired=0
+	wireless_count="$(mesh_wireless_count)"
+	mesh_id="$(uci -q get wireless.netmode_mesh_0.mesh_id 2>/dev/null)"
+	gateway="$(uci -q get network.bat0.gw_mode 2>/dev/null || printf off)"
+	bat_up="$(ubus call network.interface.bat0 status 2>/dev/null | jsonfilter -e '@.up' 2>/dev/null)"
+	[ "$bat_up" = "true" ] || bat_up=false
+	bat_device="$(ubus call network.interface.bat0 status 2>/dev/null | jsonfilter -e '@.l3_device' 2>/dev/null)"
+	dep_batctl="$(command_flag batctl)"
+	dep_iw="$(command_flag iw)"
+	dep_wpad=0
+	command -v wpa_supplicant >/dev/null 2>&1 && dep_wpad=1
+	command -v hostapd >/dev/null 2>&1 && dep_wpad=1
+	board="$(board_name_safe)"
+	host="$(hostname_safe)"
+
+	printf '{"mode":"%s","board":"%s","hostname":"%s","lan_ip":"%s","wan_proto":"%s","wan_up":%s,' \
+		"$mode" "$(json_escape "$board")" "$(json_escape "$host")" "$(json_escape "$lan_ip")" "$(json_escape "$wan_proto")" "$wan_up"
+	printf '"mesh":{"enabled":%s,"up":%s,"device":"%s","wired":%s,"wireless_count":%d,"mesh_id":"%s","gateway":"%s"},' \
+		"$(bool "$mesh_enabled")" "$bat_up" "$(json_escape "$bat_device")" \
+		"$(bool "$wired")" "$wireless_count" "$(json_escape "$mesh_id")" "$(json_escape "$gateway")"
+	printf '"backups":'
+	backup_list
+	printf ',"deps":{"batctl":%s,"iw":%s,"wpad":%s}}' \
+		"$(bool "$dep_batctl")" "$(bool "$dep_iw")" "$(bool "$dep_wpad")"
+}
+
+append_node()
+{
+	local id="$1" label="$2" ip="$3" mac="$4" kind="$5" iface="$6" tq="$7" last_seen="$8"
+	[ -n "$DISC_NODES" ] && DISC_NODES="$DISC_NODES,"
+	DISC_NODES="${DISC_NODES}{\"id\":\"$(json_escape "$id")\",\"label\":\"$(json_escape "$label")\",\"ip\":\"$(json_escape "$ip")\",\"mac\":\"$(json_escape "$mac")\",\"kind\":\"$(json_escape "$kind")\",\"iface\":\"$(json_escape "$iface")\",\"tq\":\"$(json_escape "$tq")\",\"last_seen\":\"$(json_escape "$last_seen")\"}"
+}
+
+append_link()
+{
+	local from="$1" to="$2" kind="$3"
+	[ -n "$DISC_LINKS" ] && DISC_LINKS="$DISC_LINKS,"
+	DISC_LINKS="${DISC_LINKS}{\"from\":\"$(json_escape "$from")\",\"to\":\"$(json_escape "$to")\",\"kind\":\"$(json_escape "$kind")\"}"
+}
+
+discover_mesh()
+{
+	local local_id local_mac local_ip host mac ip name seen_macs batmac tmp iface tq last_seen
+	DISC_NODES=""
+	DISC_LINKS=""
+	host="$(hostname_safe)"
+	local_mac="$(cat /sys/class/net/br-lan/address 2>/dev/null || cat /sys/class/net/lan2/address 2>/dev/null || printf local)"
+	local_ip="$(first_lan_ip)"
+	local_id="${local_mac:-local}"
+	append_node "$local_id" "$host" "$local_ip" "$local_mac" "local" "" "" ""
+
+	if [ -r /tmp/dhcp.leases ]; then
+		while read -r _ mac ip name _; do
+			[ -n "$mac" ] && [ -n "$ip" ] || continue
+			mac="$(printf '%s' "$mac" | tr 'A-F' 'a-f')"
+			name="${name:-$ip}"
+			append_node "$mac" "$name" "$ip" "$mac" "lan" "" "" ""
+			append_link "$local_id" "$mac" "lan"
+			seen_macs="$seen_macs $mac"
+		done < /tmp/dhcp.leases
+	fi
+
+	if command -v ip >/dev/null 2>&1; then
+		tmp="/tmp/luci-netmode-neigh.$$"
+		ip neigh show dev br-lan 2>/dev/null | awk '/lladdr/ && $NF != "FAILED" { print $1, tolower($5) }' > "$tmp"
+		while read -r ip mac; do
+			[ -n "$ip" ] && [ -n "$mac" ] || continue
+			case " $seen_macs " in *" $mac "*) continue ;; esac
+			append_node "$mac" "$ip" "$ip" "$mac" "lan" "" "" ""
+			append_link "$local_id" "$mac" "lan"
+			seen_macs="$seen_macs $mac"
+		done < "$tmp"
+		rm -f "$tmp"
+	fi
+
+	if command -v batctl >/dev/null 2>&1; then
+		while read -r iface batmac last_seen; do
+			[ -n "$batmac" ] || continue
+			batmac="$(printf '%s' "$batmac" | tr 'A-F' 'a-f')"
+			case " $seen_macs " in *" $batmac "*) ;; *)
+				append_node "$batmac" "$batmac" "" "$batmac" "mesh" "$iface" "" "$last_seen"
+				;;
+			esac
+			append_link "$local_id" "$batmac" "mesh"
+			seen_macs="$seen_macs $batmac"
+		done <<EOF
+$(batctl n 2>/dev/null | awk '
+	$0 ~ /Neighbor/ { next }
+	{
+		for (i = 1; i <= NF; i++) {
+			if ($i ~ /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/) {
+				iface = (i > 1 ? $(i - 1) : "")
+				if (iface == "*") iface = (i > 2 ? $(i - 2) : iface)
+				print iface, tolower($i), $(i + 1)
+				break
+			}
+		}
+	}')
+EOF
+
+		while read -r batmac tq last_seen iface; do
+			[ -n "$batmac" ] || continue
+			batmac="$(printf '%s' "$batmac" | tr 'A-F' 'a-f')"
+			case " $seen_macs " in *" $batmac "*) ;; *)
+				append_node "$batmac" "$batmac" "" "$batmac" "mesh" "$iface" "$tq" "$last_seen"
+				;;
+			esac
+			append_link "$local_id" "$batmac" "mesh"
+			seen_macs="$seen_macs $batmac"
+		done <<EOF
+$(batctl o 2>/dev/null | awk '
+	$1 ~ /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/ {
+		tq = $3
+		gsub(/[()]/, "", tq)
+		iface = $NF
+		gsub(/[\[\]]/, "", iface)
+		print tolower($1), tq, $2, iface
+	}')
+EOF
+	fi
+
+	printf '{"nodes":[%s],"links":[%s],"updated":%d}' "$DISC_NODES" "$DISC_LINKS" "$(date +%s 2>/dev/null || echo 0)"
+}
+
+case "$1" in
+	list)
+		printf '{"getStatus":{},"discoverMesh":{},"applyMode":{"mode":"string","username":"string","password":"string","lan_ip":"string"},"applyMesh":{"wired":"string","wireless":"string","mesh_id":"string","mesh_key":"string","gateway":"string"},"restoreBackup":{"name":"string"}}'
+		;;
+	call)
+		args="$(cat)"
+		case "$2" in
+			getStatus) get_status ;;
+			discoverMesh) discover_mesh ;;
+			applyMode) apply_mode "$args" ;;
+			applyMesh) apply_mesh "$args" ;;
+			restoreBackup) restore_backup "$args" ;;
+			*) printf '{"error":"unknown method"}' ;;
+		esac
+		;;
+esac

@@ -1,0 +1,15 @@
+{
+	"luci-app-netmode": {
+		"description": "Grant access to XR1710G network mode and mesh wizard",
+		"read": {
+			"ubus": {
+				"luci.netmode": [ "getStatus", "discoverMesh" ]
+			}
+		},
+		"write": {
+			"ubus": {
+				"luci.netmode": [ "applyMode", "applyMesh", "restoreBackup" ]
+			}
+		}
+	}
+}

@@ -1,0 +1,13 @@
+{
+	"admin/network/netmode": {
+		"title": "Network Mode",
+		"order": 15,
+		"action": {
+			"type": "view",
+			"path": "netmode/netmode"
+		},
+		"depends": {
+			"acl": [ "luci-app-netmode" ]
+		}
+	}
+}
