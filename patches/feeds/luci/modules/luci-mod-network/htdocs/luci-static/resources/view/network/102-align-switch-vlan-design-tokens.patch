@@ -1,0 +1,75 @@
+diff --git a/modules/luci-mod-network/htdocs/luci-static/resources/view/network/switch-vlan.css b/modules/luci-mod-network/htdocs/luci-static/resources/view/network/switch-vlan.css
+index 6c351b4..19b4195 100644
+--- a/modules/luci-mod-network/htdocs/luci-static/resources/view/network/switch-vlan.css
++++ b/modules/luci-mod-network/htdocs/luci-static/resources/view/network/switch-vlan.css
+@@ -34,9 +34,13 @@
+ 	--svc-port-selected-bg: #e8f4fc;
+ 	--svc-port-selected-border: #3c7aa8;
+ 	--svc-port-selected-ring: rgba(60, 141, 188, 0.28);
+-	/* Teal + amber-orange: distinguishable from grey port text */
+-	--svc-vlan-untagged: #0d9488;
+-	--svc-vlan-tagged: #d97706;
++	/* Teal + amber-orange, dark enough to pass WCAG 2.2 AA as text on
++	 * their own tint (4.86:1 and 7.09:1 against white). The lighter
++	 * #0d9488 / #d97706 this view originally shipped measured only
++	 * 3.25:1 and 2.75:1. Shared with the mesh-conf page - see
++	 * docs/design-luci-vlan-ui.md for the measured table. */
++	--svc-vlan-untagged: #0f766e;
++	--svc-vlan-tagged: #92400e;
+ 	--svc-vlan-untagged-bg: rgba(13, 148, 136, 0.12);
+ 	--svc-vlan-tagged-bg: rgba(217, 119, 6, 0.14);
+ 	--svc-vlan-untagged-stripe: rgba(13, 148, 136, 0.2);
+@@ -62,7 +66,7 @@
+ 	background-color: var(--background-color-high, #fff);
+ 	background-image: none;
+ 	border: 1px solid var(--border-color-low, #ddd);
+-	border-radius: 2px;
++	border-radius: 4px;
+ 	box-shadow: none;
+ }
+ 
+@@ -140,7 +144,7 @@
+ 
+ .svc-port-tile {
+ 	border: 1px solid var(--border-color-medium, #ccc);
+-	border-radius: 4px;
++	border-radius: 6px;
+ 	padding: 0.5em 0.6em;
+ 	background: var(--background-color-medium, #fafafa);
+ 	color: var(--text-color-high, #000);
+@@ -614,3 +618,35 @@
+ 		display: none;
+ 	}
+ }
++
++/* Keyboard focus. Three upstream rule blocks suppress the outline on :focus
++ * (specificity as (id, class, type)):
++ *   #switch-vlan-view input[type="text"|"number"]:focus       (1, 2, 1)
++ *   .svc-port-label:focus  /  .svc-vlan-label:focus,
++ *   .svc-vlan-id-input:focus                                  (0, 2, 0)
++ * The first is the dangerous one: a plain
++ * "#switch-vlan-view input:focus-visible" is only (1, 1, 1) and therefore
++ * LOSES to it, leaving keyboard users with no indicator at all
++ * (WCAG 2.2 SC 2.4.7 / 2.4.11). The selectors below mirror those rules, so
++ * the (1, 2, 1) pair ties and this block wins on source order - which is why
++ * it must stay last in the file. Verified by scripts/luci-ui-checks/.
++ * outline:none on plain :focus is kept on purpose - a mouse click should
++ * show only the primary border. The ring returns for :focus-visible. */
++#switch-vlan-view input[type="text"]:focus-visible,
++#switch-vlan-view input[type="number"]:focus-visible,
++#switch-vlan-view .svc-port-label:focus-visible,
++#switch-vlan-view .svc-vlan-label:focus-visible,
++#switch-vlan-view .svc-vlan-id-input:focus-visible,
++#switch-vlan-view .cbi-button:focus-visible,
++#switch-vlan-view .svc-port-tile:focus-visible {
++	outline: 2px solid var(--primary-color-high, #3c8dbc);
++	outline-offset: 2px;
++}
++
++/* Inside a table cell an outward offset would be clipped, so it turns
++ * inward there. Higher specificity than the block above, so order does not
++ * matter for this pair. */
++#switch-vlan-view .svc-vlan-cell-select .cbi-button:focus-visible,
++#switch-vlan-view .svc-vlan-cell-assign .cbi-button:focus-visible {
++	outline-offset: -2px;
++}

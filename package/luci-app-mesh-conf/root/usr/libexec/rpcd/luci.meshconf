@@ -67,9 +67,6 @@ MESH_PROTOS="batman hwmp"
 HTMODES="auto NOHT HT20 HT40 VHT20 VHT40 VHT80 VHT80_80 VHT160
 	HE20 HE40 HE80 HE80_80 HE160 EHT20 EHT40 EHT80 EHT160"
 
-BACKUP_ROOT=/etc/meshconf/backups
-BACKUP_KEEP=8
-
 json_escape()
 {
 	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/	/ /g'
@@ -639,16 +636,72 @@ ap_config_list()
 
 # Split a bridge-vlan port list ("lan2:u* lan3:u* wan:t") into the plain
 # port names carrying that egress mode. Used to prefill the UI checkboxes.
+# Egress role of one bridge-vlan port spec, using the same grammar LuCI's
+# tools/bridgevlan.js parsePortSpec() implements:
+#
+#   port       flags ""   -> untagged + PVID   (what the Switch view writes)
+#   port:u*    flags "u*" -> untagged + PVID   (what older releases wrote)
+#   port:u     flags "u"  -> untagged
+#   port:t     flags "t"  -> tagged
+#   port:t*    flags "t*" -> tagged + PVID
+#   port:ut    flags "ut" -> tagged and untagged at once
+#   port:*     flags "*"  -> PVID only, neither egress mode
+#
+# Prints u (untagged), t (tagged), b (both) or n (neither/unknown).
+#
+# Getting this wrong is not cosmetic. The VLAN editor rebuilds each ports list
+# from what it parsed, so a spec that is mis-read as "port not in this VLAN"
+# is silently dropped from the bridge on the next apply.
+vlan_port_role()
+{
+	local flags has_u=0 has_t=0
+	flags="${1#*:}"
+	[ "$flags" = "$1" ] && flags=""
+
+	case "$flags" in
+		*[!ut*]*) printf 'n'; return 0 ;;
+	esac
+	case "$flags" in *u*) has_u=1 ;; esac
+	case "$flags" in *t*) has_t=1 ;; esac
+	[ -z "$flags" ] && has_u=1
+
+	if [ "$has_u" = "1" ] && [ "$has_t" = "1" ]; then printf 'b'; return 0; fi
+	[ "$has_u" = "1" ] && { printf 'u'; return 0; }
+	[ "$has_t" = "1" ] && { printf 't'; return 0; }
+	printf 'n'
+}
+
 vlan_ports_of()
 {
-	local p out=""
+	local p out="" role
 	for p in $1; do
-		case "$p" in
-			*:u*) [ "$2" = "u" ] && out="$out ${p%%:*}" ;;
-			*:t*) [ "$2" = "t" ] && out="$out ${p%%:*}" ;;
+		role="$(vlan_port_role "$p")"
+		case "$2:$role" in
+			u:u|u:b) out="$out ${p%%:*}" ;;
+			t:t) out="$out ${p%%:*}" ;;
 		esac
 	done
 	printf '%s' "${out# }"
+}
+
+# Port specs on br-lan that this editor cannot write back losslessly: both
+# egress modes at once ("port:ut"), or the PVID flag with no egress mode at
+# all ("port:*"). The Switch view calls both unsupported and refuses to render
+# the bridge; here they would be flattened on the next apply, so applying is
+# refused until they are corrected by hand.
+vlan_foreign_specs()
+{
+	local sec dev p role out=""
+	for sec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=bridge-vlan$/\1/p'); do
+		dev="$(uci -q get network."$sec".device 2>/dev/null)"
+		[ "$dev" = "br-lan" ] || continue
+		for p in $(uci -q get network."$sec".ports 2>/dev/null); do
+			case "${p%%:*}" in bat0|mesh_*) continue ;; esac
+			role="$(vlan_port_role "$p")"
+			case "$role" in b|n) out="${out:+$out }$p" ;; esac
+		done
+	done
+	printf '%s' "$out"
 }
 
 # Is $1 still a member of any br-lan bridge-vlan?
@@ -738,6 +791,20 @@ network_option_list()
 	printf ']'
 }
 
+# Is $1 a switch port rather than a virtual interface that happens to be
+# enslaved to br-lan? netifd puts bat0, every mesh_* backhaul interface and
+# every wireless VAP into the bridge too, but none of them can carry the tagged
+# egress the U/T grid writes. The stock Switch view lists physical
+# ethernet/DSA members only, so this page has to agree with it - otherwise the
+# two pages show different port sets for the same bridge.
+is_physical_lan_port()
+{
+	case "$1" in
+		bat0|mesh_*|wl*|wlan*|phy*|br-*|tun*|tap*|ppp*|wg*|gre*|sit*|6in4*) return 1 ;;
+		*) return 0 ;;
+	esac
+}
+
 # Ports currently enslaved to the LAN bridge - the candidate list for VLAN
 # membership.
 bridge_port_list()
@@ -747,8 +814,10 @@ bridge_port_list()
 	[ -n "$sec" ] || { printf '[]'; return 0; }
 	printf '['
 	for p in $(uci -q get network."$sec".ports 2>/dev/null); do
+		p="${p%%:*}"
+		is_physical_lan_port "$p" || continue
 		[ "$first" = "1" ] || printf ','
-		printf '"%s"' "$(json_escape "${p%%:*}")"
+		printf '"%s"' "$(json_escape "$p")"
 		first=0
 	done
 	printf ']'
@@ -757,7 +826,7 @@ bridge_port_list()
 vlan_list()
 {
 	local sec sec2 dev vlan ports iface proto ipaddr netmask gateway dns first=1
-	local trunk p
+	local trunk p lv ignore dhcpv4
 
 	printf '['
 	for sec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=bridge-vlan$/\1/p'); do
@@ -771,6 +840,14 @@ vlan_list()
 		for p in $ports; do
 			[ "${p%%:*}" = "bat0" ] && trunk=1
 		done
+		# The Switch view exposes "Local"; netifd defaults it to true when
+		# the option is absent, so absence has to read as 1 here as well,
+		# otherwise the two pages disagree about the same section.
+		lv="$(uci -q get network."$sec".local 2>/dev/null)"
+		case "$lv" in
+			0|false|no|off|disabled) lv=0 ;;
+			*) lv=1 ;;
+		esac
 		iface=""
 		for sec2 in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=interface$/\1/p'); do
 			[ "$(uci -q get network."$sec2".device 2>/dev/null)" = "${dev}.${vlan}" ] && {
@@ -792,13 +869,22 @@ vlan_list()
 			dns="$(uci -q get network."$iface".dns 2>/dev/null)"
 			dns="${dns%% *}"
 		fi
+		# Report whether a DHCPv4 server is actually running on the segment.
+		# Without this the editor always showed "off" on load and the next
+		# apply of any unrelated VLAN silently switched a live server off.
+		dhcpv4=0
+		if [ -n "$iface" ]; then
+			ignore="$(uci -q get dhcp."$iface".ignore 2>/dev/null)"
+			[ "$(uci -q get dhcp."$iface".dhcpv4 2>/dev/null)" = "disabled" ] && ignore=1
+			[ "$ignore" = "1" ] || dhcpv4=1
+		fi
 		[ "$first" = "1" ] || printf ','
-		printf '{"section":"%s","device":"%s","vlan":"%s","iface":"%s","proto":"%s","ipaddr":"%s","netmask":"%s","gateway":"%s","dns":"%s","untagged":"%s","tagged":"%s","trunk":%s}' \
+		printf '{"section":"%s","device":"%s","vlan":"%s","iface":"%s","proto":"%s","ipaddr":"%s","netmask":"%s","gateway":"%s","dns":"%s","untagged":"%s","tagged":"%s","trunk":%s,"local":%s,"dhcp":%s}' \
 			"$(json_escape "$sec")" "$(json_escape "$dev")" "$(json_escape "$vlan")" "$(json_escape "$iface")" \
 			"$(json_escape "$proto")" "$(json_escape "$ipaddr")" "$(json_escape "$netmask")" \
 			"$(json_escape "$gateway")" "$(json_escape "$dns")" \
 			"$(json_escape "$(vlan_ports_of "$ports" u)")" "$(json_escape "$(vlan_ports_of "$ports" t)")" \
-			"$trunk"
+			"$trunk" "$lv" "$dhcpv4"
 		first=0
 	done
 	printf ']'
@@ -1095,8 +1181,13 @@ apply_wireless()
 	json_get_var ap_configs ap_configs
 	json_get_var channels channels
 
-	backup_configs "wireless"
-	apply_ap_configs "$ap_configs" || return 1
+	# Same contract as apply_mesh: an empty AP list means "nothing to
+	# rewrite", which is what the page sends now that the per-SSID editor is
+	# gone. Only the channel plan is written here in that case.
+	case "$(printf '%s' "$ap_configs" | tr -d '[:space:]')" in
+		''|'[]') ;;
+		*) apply_ap_configs "$ap_configs" || return 1 ;;
+	esac
 	apply_radio_channels "$channels" || {
 		printf '{"success":false,"error":"invalid radio channel settings"}'
 		return
@@ -1115,6 +1206,18 @@ apply_wireless()
 # rides on top of it (br-lan.<id>); that interface name is what an SSID picks
 # as its "network". VLAN 1 carries the management LAN and is never removed,
 # otherwise applying the page could lock the operator out.
+#
+# There are exactly two modes and the page defaults to the first one:
+#
+#   flat  ("全部透传"): no bridge-vlan at all. netifd does no 802.1Q
+#         filtering, bat0 is an ordinary bridge member, and the whole
+#         deployment shares one broadcast domain and one subnet. This is what
+#         a deployment that never touched VLANs already runs - segmentation
+#         is opt-in, and the mesh carries every port with nothing to
+#         configure. apply_flat_bridge() below is the way back, and is what
+#         collapses a filtered bridge into this state.
+#   custom: one bridge-vlan per segment, with bat0 added to every segment it
+#         has to carry (the default - see the trunk handling in apply_vlans).
 # ---------------------------------------------------------------------------
 vlan_delete()
 {
@@ -1175,6 +1278,10 @@ vlan_sync_lan_device()
 	esac
 
 	if [ "$(uci -q get network.meshconf_vlan_1.vlan 2>/dev/null)" = "1" ]; then
+		# The management address lives on br-lan.1, so this section has to
+		# terminate locally - with local 0 netifd never builds br-lan.1 and
+		# the LAN address disappears.
+		uci -q set network.meshconf_vlan_1.local='1'
 		uci -q set network.lan='interface'
 		uci -q set network.lan.device='br-lan.1'
 		return 0
@@ -1188,6 +1295,7 @@ vlan_sync_lan_device()
 	uci -q set network.meshconf_vlan_1='bridge-vlan'
 	uci -q set network.meshconf_vlan_1.device='br-lan'
 	uci -q set network.meshconf_vlan_1.vlan='1'
+	uci -q set network.meshconf_vlan_1.local='1'
 	uci -q delete network.meshconf_vlan_1.ports 2>/dev/null
 	sec="$(find_bridge_section br-lan)"
 	for p in $(uci -q get network."$sec".ports 2>/dev/null); do
@@ -1196,7 +1304,7 @@ vlan_sync_lan_device()
 		# the untagged management segment
 		case "$p" in bat0|mesh_*) continue ;; esac
 		port_claimed "$p" "$claimed" && continue
-		uci -q add_list network.meshconf_vlan_1.ports="${p}:u*"
+		uci -q add_list network.meshconf_vlan_1.ports="${p}"
 	done
 
 	uci -q set network.lan='interface'
@@ -1204,16 +1312,98 @@ vlan_sync_lan_device()
 	return 0
 }
 
+# Collapse br-lan back into one flat, unfiltered broadcast domain - the mode
+# this page ships with ("全部透传").
+#
+# Without a single bridge-vlan netifd does no 802.1Q filtering, so bat0 is an
+# ordinary bridge member and *every* port's traffic crosses the mesh. That is
+# also why a node that never configured a VLAN still carries everything: the
+# bridge itself is the batman-adv hardif and bat0 sits in it like any other
+# member, so no per-port or per-VLAN setup is required for the mesh to work.
+#
+# Going flat has to undo three things the filtered mode leaves behind:
+#   * the bridge-vlan sections themselves,
+#   * the br-lan.<id> interfaces riding on them - netifd stops building those
+#     devices, so the interfaces would sit on nothing and still show up on the
+#     Network page,
+#   * the port pruning. A port that ended up in no VLAN was detached from
+#     br-lan, and the bridge-vlan port lists deleted here are the only record
+#     of it, so the set has to be harvested before the sections go.
+apply_flat_bridge()
+{
+	local sec dev vlan p iface ports="" changed=0
+
+	for sec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=bridge-vlan$/\1/p'); do
+		[ "$(uci -q get network."$sec".device 2>/dev/null)" = "br-lan" ] || continue
+		for p in $(uci -q get network."$sec".ports 2>/dev/null); do
+			p="${p%%:*}"
+			is_physical_lan_port "$p" || continue
+			port_claimed "$p" "$ports" || ports="$ports $p"
+		done
+	done
+
+	# Only interfaces actually riding on br-lan.<id> are segment interfaces;
+	# skipping `lan` explicitly matters, because in the filtered mode the
+	# management interface is exactly the one sitting on br-lan.1.
+	for sec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=interface$/\1/p'); do
+		[ "$sec" = "lan" ] && continue
+		dev="$(uci -q get network."$sec".device 2>/dev/null)"
+		case "$dev" in
+			br-lan.*) vlan_delete "" "$sec" ;;
+		esac
+	done
+
+	for sec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=bridge-vlan$/\1/p'); do
+		[ "$(uci -q get network."$sec".device 2>/dev/null)" = "br-lan" ] || continue
+		vlan="$(uci -q get network."$sec".vlan 2>/dev/null)"
+		uci -q delete network."$sec" 2>/dev/null
+		changed=$((changed + 1))
+		logger -t meshconf "flat mode: removed br-lan bridge-vlan ${vlan:-?}"
+	done
+
+	# Point the management interface back at the bridge *before* the bridge is
+	# ensured. ensure_lan_bridge() re-adds whatever network.lan.device names as
+	# a bridge port, so leaving "br-lan.1" in place would add it as a literal
+	# port that no device ever provides. Only touched when lan exists: a device
+	# that never had one is not this function's business.
+	[ -n "$(uci -q get network.lan 2>/dev/null)" ] && uci -q set network.lan.device='br-lan'
+
+	ensure_lan_bridge
+	for p in $ports; do
+		ensure_bridge_port br-lan "$p"
+	done
+
+	# A running mesh keeps bat0 in the bridge; that single membership is what
+	# makes all ports reachable across the fabric without any VLAN setup.
+	uci -q get network.bat0.proto >/dev/null 2>&1 && ensure_bridge_port br-lan bat0
+
+	uci -q commit network
+	uci -q commit dhcp
+	uci -q commit firewall
+	[ "$changed" -gt 0 ] && reload_network_later
+
+	printf '{"success":true,"changed":%d,"mode":"flat","lan_device":"%s","restored_ports":"%s"}' \
+		"$changed" "$(json_escape "$(uci -q get network.lan.device 2>/dev/null)")" \
+		"$(json_escape "$(printf '%s' "$ports" | sed 's/^ *//')")"
+}
+
 apply_vlans()
 {
-	local args="$1" vlans idx=0 section vlan iface ipaddr netmask gateway dns
+	local args="$1" vlans idx=0 section vlan iface ipaddr netmask gateway dns mode
 	local untagged tagged remove dhcp trunk port sec zsec bsec changed=0 before_ports
-	local keep_lan_addr=0
+	local keep_lan_addr=0 localon foreign pv pu pseen=""
 
 	json_load "$args" 2>/dev/null || {
 		printf '{"success":false,"error":"bad arguments"}'
 		return
 	}
+	json_get_var mode mode
+	# "flat" is an explicit request for the all-transparent default; it takes
+	# no VLAN list with it and is handled entirely on its own.
+	if [ "$mode" = "flat" ]; then
+		apply_flat_bridge
+		return
+	fi
 	json_get_var vlans vlans
 	[ -n "$vlans" ] || {
 		printf '{"success":false,"error":"empty VLAN list"}'
@@ -1224,7 +1414,40 @@ apply_vlans()
 		return
 	}
 
-	backup_configs "vlans"
+	# Ports marked "ut" (both egress modes at once) or "*" (PVID with no egress
+	# mode) cannot be expressed in the U/T grid, and this function rewrites
+	# every br-lan bridge-vlan section from that grid. Refuse rather than
+	# quietly flatten them into a single membership.
+	foreign="$(vlan_foreign_specs)"
+	[ -n "$foreign" ] && {
+		printf '{"success":false,"error":"br-lan 上有本页无法表示的端口标记：%s。请先在 网络 → 交换机/VLAN 页改正后再应用。"}' \
+			"$(json_escape "$foreign")"
+		return
+	}
+
+	# Validate the whole payload before the first uci write. A validation
+	# failure halfway through would otherwise leave half-applied changes
+	# staged in the rpcd session, ready to be committed by the next call.
+	idx=0
+	while [ "$idx" -lt "$MAX_VLANS" ]; do
+		pv="$(jsonfilter -s "$vlans" -e "@[$idx].vlan" 2>/dev/null)"
+		[ -n "$pv" ] || break
+		idx=$((idx + 1))
+		case "$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].remove" 2>/dev/null)" in
+			1|true) continue ;;
+		esac
+		for pu in $(jsonfilter -s "$vlans" -e "@[$((idx - 1))].untagged" 2>/dev/null); do
+			case "$pu" in bat0|mesh_*) continue ;; esac
+			case " $pseen " in
+				*" $pu "*)
+					printf '{"success":false,"error":"端口 %s 被多个 VLAN 设为 untagged；同一端口只能有一个 untagged 网段。"}' \
+						"$(json_escape "$pu")"
+					return ;;
+			esac
+			pseen="$pseen $pu"
+		done
+	done
+	idx=0
 
 	# snapshot taken before the first change: afterwards every port that is
 	# no longer part of any VLAN is detached from br-lan
@@ -1255,6 +1478,7 @@ apply_vlans()
 		tagged="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].tagged" 2>/dev/null)"
 		dhcp="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].dhcp" 2>/dev/null)"
 		trunk="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].trunk" 2>/dev/null)"
+		localon="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].local" 2>/dev/null)"
 
 		# VLAN 1 is the management segment and reuses the existing lan
 		# interface - stock OpenWrt keeps lan on br-lan.1 as well, so no
@@ -1282,25 +1506,39 @@ apply_vlans()
 				;;
 		esac
 
-		if [ -n "$ipaddr" ]; then
+		# Local termination decides whether a br-lan.<ID> interface exists at
+		# all, so it is written explicitly rather than left to the netifd
+		# default of true - the Switch view shows it as a checkbox, and a
+		# section written without the option would silently disagree with
+		# what an operator unchecks there. VLAN 1 carries the management
+		# address on br-lan.1, so it is always locally terminated.
+		case "$localon" in
+			0|false|no|off) localon=0 ;;
+			*) localon=1 ;;
+		esac
+		[ "$vlan" = "1" ] && localon=1
+
+		# A transit-only VLAN has no interface, so its address fields are
+		# inactive - validating them would reject input nobody can see.
+		if [ "$localon" = "1" ] && [ -n "$ipaddr" ]; then
 			valid_ipv4 "$ipaddr" || {
 				printf '{"success":false,"error":"VLAN %s: invalid IP address"}' "$vlan"
 				return
 			}
 		fi
-		if [ -n "$netmask" ]; then
+		if [ "$localon" = "1" ] && [ -n "$netmask" ]; then
 			valid_ipv4 "$netmask" || {
 				printf '{"success":false,"error":"VLAN %s: invalid netmask"}' "$vlan"
 				return
 			}
 		fi
-		if [ -n "$gateway" ]; then
+		if [ "$localon" = "1" ] && [ -n "$gateway" ]; then
 			valid_ipv4 "$gateway" || {
 				printf '{"success":false,"error":"VLAN %s: invalid gateway"}' "$vlan"
 				return
 			}
 		fi
-		if [ -n "$dns" ]; then
+		if [ "$localon" = "1" ] && [ -n "$dns" ]; then
 			valid_ipv4 "$dns" || {
 				printf '{"success":false,"error":"VLAN %s: invalid DNS server"}' "$vlan"
 				return
@@ -1316,13 +1554,18 @@ apply_vlans()
 		uci -q set network."$sec"='bridge-vlan'
 		uci -q set network."$sec".device='br-lan'
 		uci -q set network."$sec".vlan="$vlan"
+		uci -q set network."$sec".local="$localon"
 		uci -q delete network."$sec".ports 2>/dev/null
 		for port in $untagged; do
 			# bat0 / mesh_* are owned by the mesh setup: the "carry over
 			# the mesh" flag below is the single source of truth for
 			# them, so they must never come in through the port lists.
 			case "$port" in bat0|mesh_*) continue ;; esac
-			uci -q add_list network."$sec".ports="${port}:u*"
+			# A bare port name means untagged + PVID, which is exactly what
+			# the Switch view's formatPortSpec() writes. The old ":u*"
+			# spelling parses identically but made the raw UCI differ from
+			# every other writer in the tree.
+			uci -q add_list network."$sec".ports="${port}"
 			ensure_bridge_port br-lan "$port"
 		done
 		for port in $tagged; do
@@ -1338,10 +1581,33 @@ apply_vlans()
 		# it here would leave a dangling bridge member on nodes that run no
 		# mesh at all; creating the backhaul port is enable_batman_core's
 		# job, this only decides which VLANs it carries.
-		if [ "$trunk" = "1" ] || [ "$trunk" = "true" ]; then
-			bsec="$(find_bridge_section br-lan)"
-			[ -n "$bsec" ] && bridge_has_port "$bsec" bat0 &&
-				uci -q add_list network."$sec".ports='bat0:t'
+		#
+		# An absent flag means carried. "全部透传" is the default this page
+		# ships with, and the Switch view - the other writer of this model -
+		# has no such option at all, so a bridge-vlan it created must not end
+		# up as a segment that silently stays on one node.
+		case "$trunk" in
+			0|false|no|off|disabled) ;;
+			*)
+				bsec="$(find_bridge_section br-lan)"
+				[ -n "$bsec" ] && bridge_has_port "$bsec" bat0 &&
+					uci -q add_list network."$sec".ports='bat0:t'
+				;;
+		esac
+
+		if [ "$localon" = "0" ]; then
+			# Transit-only segment: this node forwards the VLAN but does not
+			# terminate it, so no br-lan.<ID> interface belongs here. Remove
+			# one left over from an earlier local setup - it would otherwise
+			# sit on a device netifd no longer builds and still be listed on
+			# the Network page. `lan` is never touched: VLAN 1 is pinned
+			# local above precisely because it carries the management
+			# address.
+			if [ "$iface" != "lan" ] && [ "$(uci -q get network."$iface" 2>/dev/null)" = "interface" ]; then
+				vlan_delete "" "$iface"
+			fi
+			changed=$((changed + 1))
+			continue
 		fi
 
 		uci -q set network."$iface"='interface'
@@ -1401,7 +1667,7 @@ apply_vlans()
 	uci -q commit firewall
 	[ "$changed" -gt 0 ] && reload_network_later
 
-	printf '{"success":true,"changed":%d,"lan_device":"%s","bridge_mode":"%s","bat0_vlans":"%s"}' \
+	printf '{"success":true,"changed":%d,"mode":"custom","lan_device":"%s","bridge_mode":"%s","bat0_vlans":"%s"}' \
 		"$changed" "$(json_escape "$(uci -q get network.lan.device 2>/dev/null)")" \
 		"$(bridge_vlan_mode)" "$(json_escape "$(bat0_vlan_ids)")"
 }
@@ -1779,73 +2045,6 @@ reload_network_later()
 	' </dev/null >/dev/null 2>&1 &
 }
 
-# ---------------------------------------------------------------------------
-# Configuration backups.
-#
-# Applying can move the management address or detach the port carrying it, so
-# the four config files are copied aside beforehand and can be restored from
-# the page without serial access.
-# ---------------------------------------------------------------------------
-backup_configs()
-{
-	local tag="$1" dir f ok=0
-	[ -d "$BACKUP_ROOT" ] || mkdir -p "$BACKUP_ROOT" 2>/dev/null || return 0
-	dir="$BACKUP_ROOT/$(date +%Y%m%d-%H%M%S 2>/dev/null || date +%s)-${tag:-apply}"
-	[ -d "$dir" ] && return 0
-	mkdir -p "$dir" 2>/dev/null || return 0
-	for f in network wireless dhcp firewall; do
-		if [ -f "/etc/config/$f" ]; then
-			cp -p "/etc/config/$f" "$dir/$f" 2>/dev/null && ok=1
-		fi
-	done
-	[ "$ok" = "1" ] || { rmdir "$dir" 2>/dev/null; return 0; }
-	backup_rotate
-	return 0
-}
-
-backup_rotate()
-{
-	local d n=0
-	[ -d "$BACKUP_ROOT" ] || return 0
-	for d in $(ls -1r "$BACKUP_ROOT" 2>/dev/null); do
-		n=$((n + 1))
-		[ "$n" -gt "$BACKUP_KEEP" ] && rm -rf "$BACKUP_ROOT/$d" 2>/dev/null
-	done
-	return 0
-}
-
-list_backups()
-{
-	local d first=1
-	printf '['
-	for d in $(ls -1r "$BACKUP_ROOT" 2>/dev/null); do
-		[ -f "$BACKUP_ROOT/$d/network" ] || continue
-		[ "$first" = "1" ] || printf ','
-		printf '{"name":"%s","time":"%s"}' "$(json_escape "$d")" \
-			"$(json_escape "$(date -r "$BACKUP_ROOT/$d/network" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)")"
-		first=0
-	done
-	printf ']'
-}
-
-restore_backup()
-{
-	local args="$1" name f dir
-	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
-	json_get_var name name
-	case "$name" in
-		''|.*|*/*|*[^A-Za-z0-9_-]*) printf '{"success":false,"error":"invalid backup name"}'; return ;;
-	esac
-	dir="$BACKUP_ROOT/$name"
-	[ -f "$dir/network" ] || { printf '{"success":false,"error":"备份不存在"}'; return; }
-	backup_configs "pre-restore"
-	for f in network wireless dhcp firewall; do
-		[ -f "$dir/$f" ] && cp -p "$dir/$f" "/etc/config/$f" 2>/dev/null
-	done
-	reload_network_later
-	printf '{"success":true,"restored":"%s"}' "$(json_escape "$name")"
-}
-
 delete_mesh_sections()
 {
 	local i
@@ -1984,7 +2183,7 @@ apply_mesh()
 {
 	local args="$1" wired wireless mesh_radios mesh_id mesh_key gateway gw_bandwidth gw_sel_class ap_sync ap_configs radio idx netif ifname
 	local role backhaul unified unified_ssid unified_encryption unified_key channels mesh_radio slave_ip_suffix
-	local mesh_proto mesh_params bat_algo bat_advanced use_batman fwding
+	local mesh_proto mesh_params bat_algo bat_advanced use_batman fwding band
 	local old_iface=""
 
 	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
@@ -2084,6 +2283,21 @@ apply_mesh()
 				printf '{"success":false,"error":"mesh radio %s does not exist"}' "$(json_escape "$radio")"
 				return
 			}
+			# Only 5G/6G may carry the 802.11s backhaul. The 2.4G radio is
+			# the band every legacy client still depends on and has neither
+			# the bandwidth nor the airtime for a mesh link, so a request
+			# that names it is a mistake rather than a preference. An empty
+			# / unknown band is left alone: drivers that predate the band
+			# option would otherwise be impossible to configure at all.
+			band="$(uci -q get wireless."$radio".band 2>/dev/null)"
+			case "$band" in
+				''|5g|6g) ;;
+				*)
+					printf '{"success":false,"error":"mesh radio %s is a %s radio; only 5G/6G radios can carry the wireless backhaul"}' \
+						"$(json_escape "$radio")" "$(json_escape "$band")"
+					return
+					;;
+			esac
 		done
 	fi
 	valid_gw_bandwidth "$gw_bandwidth" || {
@@ -2113,9 +2327,14 @@ apply_mesh()
 			printf '{"success":false,"error":"unified wireless key must be 8-63 characters"}'
 			return
 		fi
-	elif [ "$ap_sync" = "1" ]; then
-		[ -n "$ap_configs" ] || {
-			printf '{"success":false,"error":"per-radio AP settings are required"}'
+	elif [ "$ap_sync" = "1" ] && [ -n "$ap_configs" ]; then
+		# The payload is optional now: the page no longer carries a per-SSID
+		# editor, so a node whose radios are all dedicated to the backhaul
+		# legitimately sends nothing. Only a malformed payload is an error -
+		# refusing an empty one would fail the whole apply for a node that
+		# has nothing to say about coverage.
+		valid_text_value "$ap_configs" || {
+			printf '{"success":false,"error":"invalid AP settings"}'
 			return
 		}
 	fi
@@ -2127,7 +2346,6 @@ apply_mesh()
 		[ "$old_iface" = "br-lan" ] && old_iface=""
 	fi
 
-	backup_configs "mesh"
 	delete_mesh_sections
 
 	if [ "$wired" = "1" ] || [ "$wireless" = "1" ]; then
@@ -2244,7 +2462,15 @@ apply_mesh()
 			return
 		}
 	elif [ "$ap_sync" = "1" ]; then
-		apply_ap_configs "$ap_configs" || return 1
+		# A non-empty payload is still honoured: this RPC is part of the
+		# published interface and callers built on it have to keep working.
+		# The page itself sends [] - its SSID / encryption / key stay on the
+		# wireless page, and a child receives them through the generated
+		# bundle, which copies /etc/config/wireless verbatim.
+		case "$(printf '%s' "$ap_configs" | tr -d '[:space:]')" in
+			''|'[]') ;;
+			*) apply_ap_configs "$ap_configs" || return 1 ;;
+		esac
 	fi
 
 	# channels belong to the radio, but they are still part of "push these
@@ -2366,7 +2592,7 @@ get_status()
 	local mode lan_ip wan_ip wan_proto wan_up mesh_enabled wired wireless_count mesh_id gateway gw_bandwidth gw_sel_class ap_sync ap_configs radio_count bat_up role
 	local dep_batctl dep_iw dep_wpad board host bat_device
 	local dep_wpad_mesh dep_iw_full wpad_var lan_dev mesh_proto
-	local mesh_params_val bat_settings mesh11sd ft_domain
+	local mesh_params_val bat_settings mesh11sd ft_domain ap_sync_set
 	local bridge_mode trunk_vlans
 
 	mode="$(detect_mode)"
@@ -2384,12 +2610,18 @@ get_status()
 	gw_bandwidth="$(uci -q get network.bat0.gw_bandwidth 2>/dev/null)"
 	gw_sel_class="$(uci -q get network.bat0.gw_sel_class 2>/dev/null)"
 	ap_sync="$(uci -q get network.bat0.meshconf_ap_sync 2>/dev/null)"
+	# The page defaults this switch to *on*, so it has to be able to tell a
+	# stored 0 from "never configured": the flag alone cannot, and defaulting
+	# a switched-off setting back on would undo the operator's choice on
+	# every reload.
+	ap_sync_set=1
+	[ -n "$ap_sync" ] || ap_sync_set=0
 	# node role mirrors the batman-adv gateway role: master serves the whole
 	# subnet, slaves only bridge it
 	role=peer
 	[ "$gateway" = "server" ] && role=master
 	[ "$gateway" = "client" ] && role=slave
-	if [ -z "$ap_sync" ] && [ "$wireless_count" -gt 0 ]; then
+	if [ "$ap_sync_set" = "0" ] && [ "$wireless_count" -gt 0 ]; then
 		ap_sync=1
 	fi
 	ap_configs="$(ap_config_list)"
@@ -2436,9 +2668,9 @@ get_status()
 		"$(bool "$mesh_enabled")" "$bat_up" "$(json_escape "$bat_device")" "$(json_escape "$role")" \
 		"$(bool "$wired")" "$wireless_count"
 	mesh_radio_list
-	printf ',"mesh_id":"%s","gateway":"%s","gw_bandwidth":"%s","gw_sel_class":"%s","ap_sync":%s,"ap_configs":%s,"radio_count":%d,"proto":"%s","params":%s,"batman":%s},' \
+	printf ',"mesh_id":"%s","gateway":"%s","gw_bandwidth":"%s","gw_sel_class":"%s","ap_sync":%s,"ap_sync_set":%s,"ap_configs":%s,"radio_count":%d,"proto":"%s","params":%s,"batman":%s},' \
 		"$(json_escape "$mesh_id")" "$(json_escape "$gateway")" \
-		"$(json_escape "$gw_bandwidth")" "$(json_escape "$gw_sel_class")" "$(bool "$ap_sync")" \
+		"$(json_escape "$gw_bandwidth")" "$(json_escape "$gw_sel_class")" "$(bool "$ap_sync")" "$ap_sync_set" \
 		"$ap_configs" "$radio_count" "$mesh_proto" "$mesh_params_val" "$bat_settings"
 	printf '"addresses":'
 	interface_ipv4_addresses
@@ -2446,15 +2678,14 @@ get_status()
 	network_option_list
 	printf ',"vlans":'
 	vlan_list
+	printf ',"vlan_foreign":"%s"' "$(json_escape "$(vlan_foreign_specs)")"
 	bridge_mode="$(bridge_vlan_mode)"
 	trunk_vlans="$(bat0_vlan_ids)"
 	printf ',"bridge":{"name":"br-lan","ports":'
 	bridge_port_list
 	printf ',"mode":"%s","trunk_vlans":"%s"}' "$bridge_mode" "$(json_escape "$trunk_vlans")"
 	printf ',"mesh11sd":%s,"foreign_mesh":%s,' "$mesh11sd" "$(foreign_mesh_json)"
-	printf '"backups":'
-	list_backups
-	printf ',"deps":{"batctl":%s,"iw":%s,"wpad":%s,"wpad_mesh":%s,"iw_full":%s}}' \
+	printf '"deps":{"batctl":%s,"iw":%s,"wpad":%s,"wpad_mesh":%s,"iw_full":%s}}' \
 		"$(bool "$dep_batctl")" "$(bool "$dep_iw")" "$(bool "$dep_wpad")" \
 		"$dep_wpad_mesh" "$dep_iw_full"
 }
@@ -2800,7 +3031,7 @@ block_mesh_peer()
 
 case "$1" in
 	list)
-		printf '{"getStatus":{},"discoverMesh":{},"getMeshDiag":{},"listBackups":{},"restoreBackup":{"name":"string"},"blockMeshPeer":{"iface":"string","mac":"string","action":"string"},"applyMesh":{"backhaul":"string","role":"string","wired":"string","wireless":"string","mesh_radio":"string","mesh_radios":"string","mesh_id":"string","mesh_key":"string","gateway":"string","gw_bandwidth":"string","gw_sel_class":"string","slave_ip_suffix":"string","unified":"string","unified_ssid":"string","unified_encryption":"string","unified_key":"string","ap_sync":"string","ap_configs":"string","channels":"string","mesh_proto":"string","mesh_params":"string","bat_algo":"string","bat_advanced":"string"},"generateChildConfig":{"ip_suffix":"string","offset":"string"},"applyVlans":{"vlans":"string"},"applyWireless":{"ap_configs":"string","channels":"string"}}'
+		printf '{"getStatus":{},"discoverMesh":{},"getMeshDiag":{},"blockMeshPeer":{"iface":"string","mac":"string","action":"string"},"applyMesh":{"backhaul":"string","role":"string","wired":"string","wireless":"string","mesh_radio":"string","mesh_radios":"string","mesh_id":"string","mesh_key":"string","gateway":"string","gw_bandwidth":"string","gw_sel_class":"string","slave_ip_suffix":"string","unified":"string","unified_ssid":"string","unified_encryption":"string","unified_key":"string","ap_sync":"string","ap_configs":"string","channels":"string","mesh_proto":"string","mesh_params":"string","bat_algo":"string","bat_advanced":"string"},"generateChildConfig":{"ip_suffix":"string","offset":"string"},"applyVlans":{"vlans":"string","mode":"string"},"applyWireless":{"ap_configs":"string","channels":"string"}}'
 		;;
 	call)
 		args="$(cat)"
@@ -2813,8 +3044,6 @@ case "$1" in
 			getStatus) rc_out="$(get_status)" ;;
 			discoverMesh) rc_out="$(discover_mesh)" ;;
 			getMeshDiag) rc_out="$(get_mesh_diag)" ;;
-			listBackups) rc_out="{\"backups\":$(list_backups)}" ;;
-			restoreBackup) rc_out="$(restore_backup "$args")" ;;
 			blockMeshPeer) rc_out="$(block_mesh_peer "$args")" ;;
 			applyMesh) rc_out="$(apply_mesh "$args")" ;;
 			generateChildConfig) rc_out="$(generate_child_config "$args")" ;;

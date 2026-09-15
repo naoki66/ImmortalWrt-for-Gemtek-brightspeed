@@ -19,17 +19,6 @@ var callGetMeshDiag = rpc.declare({
 	method: 'getMeshDiag'
 });
 
-var callListBackups = rpc.declare({
-	object: 'luci.meshconf',
-	method: 'listBackups'
-});
-
-var callRestoreBackup = rpc.declare({
-	object: 'luci.meshconf',
-	method: 'restoreBackup',
-	params: [ 'name' ]
-});
-
 var callBlockMeshPeer = rpc.declare({
 	object: 'luci.meshconf',
 	method: 'blockMeshPeer',
@@ -55,7 +44,7 @@ var callApplyWireless = rpc.declare({
 var callApplyVlans = rpc.declare({
 	object: 'luci.meshconf',
 	method: 'applyVlans',
-	params: [ 'vlans' ]
+	params: [ 'vlans', 'mode' ]
 });
 
 var callGenerateChildConfig = rpc.declare({
@@ -64,167 +53,220 @@ var callGenerateChildConfig = rpc.declare({
 	params: [ 'ip_suffix', 'offset' ]
 });
 
+/* ---------------------------------------------------------------------------
+ * Shared design tokens.
+ *
+ * The canonical values live in docs/design-luci-vlan-ui.md and are mirrored in
+ * the Switch view's stylesheet (view/network/switch-vlan.css, see
+ * patches/feeds/luci/.../102-align-switch-vlan-design-tokens.patch) so that
+ * the two pages editing the same bridge-vlan model read as one product.
+ *
+ * Surfaces, text and borders map onto the LuCI theme variables instead of
+ * being hardcoded: the theme owns its light/dark palette, and the previous
+ * fixed GitHub palette plus the body-background luminance probe made this page
+ * ignore it entirely. Themes that ship a dark mode also set
+ * :root[data-darkmode="true"], which is the only extra hook the accents need.
+ *
+ * Sizes are em-based, never px: the LuCI theme sets the base font size, and
+ * only a relative scale keeps the page in step with it.
+ *
+ * Every foreground below was verified against its own tint to reach WCAG 2.2
+ * AA (>= 4.5:1, or >= 3:1 for borders and non-text UI); the measured ratios
+ * are tabulated in the design document.
+ * ------------------------------------------------------------------------- */
 var css = [
-	'.meshconf-page{--nm-bg:#fff;--nm-border:#d8dee4;--nm-soft:#f6f8fa;--nm-text:#1f2328;--nm-muted:#5c6773;--nm-blue:#0969da;--nm-green:#1a7f37;--nm-orange:#bc4c00;--nm-red:#cf222e;--nm-purple:#8250df;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:13px;line-height:1.55;color:var(--nm-text);letter-spacing:0}',
-	'.meshconf-page h2{margin:0 0 4px;font-size:21px;line-height:1.3;font-weight:650;color:var(--nm-text)}',
-	'.meshconf-page .nm-lede{margin:0 0 14px;color:var(--nm-muted);font-size:12.5px}',
-	'.nm-section{margin:0 0 18px;padding:16px 18px;border:1px solid var(--nm-border);border-radius:12px;background:var(--nm-bg);box-shadow:0 1px 2px rgba(16,24,40,.04)}',
-	'.nm-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;font-size:15px;font-weight:650}',
-	'.nm-subtitle{margin:3px 0 14px;color:var(--nm-muted);font-size:12px}',
-	'.nm-muted{color:var(--nm-muted)}',
-	'.nm-hint{margin:10px 0 0;font-size:12px;line-height:1.6;color:var(--nm-muted)}',
-	'.nm-alert{margin:10px 0 0;padding:9px 12px;border-radius:8px;border:1px solid rgba(188,76,0,.35);background:rgba(188,76,0,.07);color:var(--nm-orange);font-size:12px;line-height:1.6}',
-	'.nm-alert.ok{border-color:rgba(26,127,55,.35);background:rgba(26,127,55,.08);color:var(--nm-green)}',
+	'.meshconf-page{--ds-surface:var(--background-color-high,#fff);--ds-surface-sunken:var(--background-color-medium,#f6f8fa);--ds-border:var(--border-color-low,#d8dee4);--ds-border-strong:var(--border-color-medium,#b8c0c8);--ds-text:var(--text-color-high,#1f2328);--ds-text-muted:var(--text-color-low,#5c6773);--ds-primary:var(--primary-color-high,#0969da);--ds-primary-text:#0969da;--ds-ok:#1a7f37;--ds-ok-tint:rgba(26,127,55,.08);--ds-ok-line:rgba(26,127,55,.35);--ds-warn:#bc4c00;--ds-warn-tint:rgba(188,76,0,.08);--ds-warn-line:rgba(188,76,0,.35);--ds-error:#cf222e;--ds-error-tint:rgba(207,34,46,.08);--ds-error-line:rgba(207,34,46,.40);--ds-info:#0969da;--ds-info-tint:rgba(9,105,218,.08);--ds-info-line:rgba(9,105,218,.35);--ds-focus-ring:rgba(9,105,218,.32);--ds-accent:#6f42c1;--ds-accent-tint:rgba(130,80,223,.10);--ds-untagged:#0f766e;--ds-untagged-tint:rgba(13,148,136,.10);--ds-tagged:#92400e;--ds-tagged-tint:rgba(217,119,6,.10);--ds-r-sm:4px;--ds-r-md:6px;--ds-r-lg:8px;--ds-r-pill:999px;--ds-sp-1:.25em;--ds-sp-2:.5em;--ds-sp-3:.75em;--ds-sp-4:1em;--ds-sp-5:1.5em;--ds-fs-xs:.8em;--ds-fs-sm:.88em;--ds-fs-base:1em;--ds-fs-lg:1.1em;--ds-fs-xl:1.35em;--ds-fs-2xl:1.6em;--ds-shadow-1:0 1px 2px rgba(16,24,40,.04);line-height:1.5;color:var(--ds-text)}',
+	'.meshconf-page :focus-visible{outline:2px solid var(--ds-primary);outline-offset:2px}',
+	'.meshconf-page h2{margin:0 0 var(--ds-sp-1);font-size:var(--ds-fs-2xl);line-height:1.3;font-weight:650;color:var(--ds-text)}',
+	'.meshconf-page .nm-lede{margin:0 0 var(--ds-sp-4);color:var(--ds-text-muted);font-size:var(--ds-fs-sm)}',
+	'.nm-section{margin:0 0 var(--ds-sp-5);padding:var(--ds-sp-4) var(--ds-sp-5);border:1px solid var(--ds-border);border-radius:var(--ds-r-lg);background:var(--ds-surface);box-shadow:var(--ds-shadow-1)}',
+	'.nm-title{display:flex;align-items:center;justify-content:space-between;gap:var(--ds-sp-3);margin:0;font-size:var(--ds-fs-lg);font-weight:650}',
+	'.nm-title .nm-muted{font-size:var(--ds-fs-sm);font-weight:400}',
+	'.nm-subtitle{margin:var(--ds-sp-1) 0 var(--ds-sp-4);color:var(--ds-text-muted);font-size:var(--ds-fs-sm)}',
+	'.nm-muted{color:var(--ds-text-muted)}',
+	'.nm-hint{margin:var(--ds-sp-3) 0 0;font-size:var(--ds-fs-sm);line-height:1.6;color:var(--ds-text-muted)}',
+	'.nm-alert{margin:var(--ds-sp-3) 0 0;padding:var(--ds-sp-2) var(--ds-sp-3);border:1px solid var(--ds-warn-line);border-radius:var(--ds-r-md);background:var(--ds-warn-tint);color:var(--ds-warn);font-size:var(--ds-fs-sm);line-height:1.6}',
+	'.nm-alert.ok{border-color:var(--ds-ok-line);background:var(--ds-ok-tint);color:var(--ds-ok)}',
 	'.nm-alert.hidden{display:none}',
 	'',
-	'.nm-status{display:flex;gap:8px;flex-wrap:wrap;align-items:center}',
-	'.nm-pill{display:inline-flex;align-items:center;height:25px;padding:0 10px;border-radius:999px;border:1px solid var(--nm-border);background:var(--nm-soft);font-size:12px;font-weight:600;white-space:nowrap}',
-	'.nm-pill.ok{color:var(--nm-green);border-color:rgba(26,127,55,.35);background:rgba(26,127,55,.08)}',
-	'.nm-pill.warn{color:var(--nm-orange);border-color:rgba(188,76,0,.35);background:rgba(188,76,0,.08)}',
-	'.nm-pill.info{color:var(--nm-blue);border-color:rgba(9,105,218,.35);background:rgba(9,105,218,.08)}',
-	'.nm-pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:6px;opacity:.85}',
-	'.nm-infogrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:8px;margin-top:12px}',
-	'.nm-info{border:1px solid var(--nm-border);border-radius:10px;background:var(--nm-soft);padding:9px 11px;min-width:0}',
-	'.nm-info-label{font-size:11px;font-weight:650;color:var(--nm-muted);margin-bottom:3px}',
-	'.nm-info-value{font-size:14px;font-weight:650;word-break:break-all;line-height:1.35}',
-	'.nm-info-sub{font-size:11px;color:var(--nm-muted);margin-top:2px;word-break:break-all}',
+	/* status pills */
+	'.nm-status{display:flex;gap:var(--ds-sp-2);flex-wrap:wrap;align-items:center}',
+	'.nm-pill{display:inline-flex;align-items:center;min-height:25px;padding:0 var(--ds-sp-3);border:1px solid var(--ds-border);border-radius:var(--ds-r-pill);background:var(--ds-surface-sunken);font-size:var(--ds-fs-sm);font-weight:600;white-space:nowrap}',
+	'.nm-pill.ok{color:var(--ds-ok);border-color:var(--ds-ok-line);background:var(--ds-ok-tint)}',
+	'.nm-pill.warn{color:var(--ds-warn);border-color:var(--ds-warn-line);background:var(--ds-warn-tint)}',
+	'.nm-pill.info{color:var(--ds-info);border-color:var(--ds-info-line);background:var(--ds-info-tint)}',
+	'.nm-pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:var(--ds-sp-2);opacity:.85}',
+	'.nm-infogrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:var(--ds-sp-2);margin-top:var(--ds-sp-3)}',
+	'.nm-info{border:1px solid var(--ds-border);border-radius:var(--ds-r-md);background:var(--ds-surface-sunken);padding:var(--ds-sp-2) var(--ds-sp-3);min-width:0}',
+	'.nm-info-label{font-size:var(--ds-fs-xs);font-weight:650;color:var(--ds-text-muted);margin-bottom:var(--ds-sp-1)}',
+	'.nm-info-value{font-size:var(--ds-fs-lg);font-weight:650;word-break:break-all;line-height:1.35}',
+	'.nm-info-sub{font-size:var(--ds-fs-xs);color:var(--ds-text-muted);margin-top:2px;word-break:break-all}',
 	'',
-	'.nm-group{margin-top:18px;padding-top:16px;border-top:1px dashed var(--nm-border)}',
-	'.nm-group.first{border-top:0;padding-top:0;margin-top:4px}',
-	'.nm-group-head{display:flex;align-items:center;gap:8px;margin:0 0 3px;font-size:13px;font-weight:650}',
-	'.nm-step{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--nm-blue);color:#fff;font-size:11px;font-weight:700;flex:0 0 auto}',
-	'.nm-group-desc{margin:0 0 12px;padding-left:28px;color:var(--nm-muted);font-size:12px;line-height:1.6}',
+	/* numbered step groups */
+	'.nm-group{margin-top:var(--ds-sp-5);padding-top:var(--ds-sp-4);border-top:1px dashed var(--ds-border)}',
+	'.nm-group.first{border-top:0;padding-top:0;margin-top:var(--ds-sp-1)}',
+	'.nm-group-head{display:flex;align-items:center;gap:var(--ds-sp-2);margin:0 0 var(--ds-sp-1);font-size:var(--ds-fs-base);font-weight:650}',
+	'.nm-step{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--ds-primary-text);color:#fff;font-size:var(--ds-fs-xs);font-weight:700;flex:0 0 auto}',
+	'.nm-group-desc{margin:0 0 var(--ds-sp-3);padding-left:28px;color:var(--ds-text-muted);font-size:var(--ds-fs-sm);line-height:1.6}',
 	'.nm-group.hidden{display:none}',
 	'.nm-field.hidden{display:none}',
 	'',
-	'.nm-choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}',
-	'.nm-choices.two{grid-template-columns:repeat(2,minmax(0,1fr))}',
-	'.nm-choice{position:relative;display:block;border:1px solid var(--nm-border);border-radius:10px;background:var(--nm-soft);padding:12px 14px;cursor:pointer;transition:border-color .18s,box-shadow .18s,background .18s}',
+	/* choice cards: auto-fit grid, so no breakpoint is needed */
+	'.nm-choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--ds-sp-3)}',
+	'.nm-choices.two{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}',
+	'.nm-choice{position:relative;display:block;min-height:44px;border:1px solid var(--ds-border);border-radius:var(--ds-r-md);background:var(--ds-surface-sunken);padding:var(--ds-sp-3) var(--ds-sp-4);cursor:pointer;transition:border-color .18s,box-shadow .18s,background .18s}',
 	'.nm-choice input{position:absolute;width:1px;height:1px;opacity:0;margin:0}',
-	'.nm-choice:hover{border-color:rgba(9,105,218,.45)}',
-	'.nm-choice.active{border-color:var(--nm-blue);background:rgba(9,105,218,.06);box-shadow:0 0 0 1px var(--nm-blue)}',
-	'.nm-choice:focus-within{outline:2px solid var(--nm-blue);outline-offset:2px}',
+	'.nm-choice:hover{border-color:var(--ds-primary)}',
+	'.nm-choice.active{border-color:var(--ds-primary);background:var(--ds-info-tint);box-shadow:0 0 0 1px var(--ds-primary)}',
+	'.nm-choice:focus-within{outline:2px solid var(--ds-primary);outline-offset:2px}',
 	'.nm-choice.disabled{opacity:.5;cursor:not-allowed}',
-	'.nm-choice.disabled:hover{border-color:var(--nm-border)}',
-	'.nm-choice-title{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:650}',
-	'.nm-choice-desc{display:block;margin-top:4px;color:var(--nm-muted);font-size:12px;line-height:1.5}',
-	'.nm-choice-dot{width:8px;height:8px;border-radius:50%;background:var(--nm-border);flex:0 0 auto}',
-	'.nm-choice.active .nm-choice-dot{background:var(--nm-blue)}',
+	'.nm-choice.disabled:hover{border-color:var(--ds-border)}',
+	'.nm-choice-title{display:flex;align-items:center;gap:var(--ds-sp-2);font-size:var(--ds-fs-base);font-weight:650}',
+	'.nm-choice-desc{display:block;margin-top:var(--ds-sp-1);color:var(--ds-text-muted);font-size:var(--ds-fs-sm);line-height:1.5}',
+	'.nm-choice-dot{width:8px;height:8px;border-radius:50%;background:var(--ds-border-strong);flex:0 0 auto}',
+	'.nm-choice.active .nm-choice-dot{background:var(--ds-primary)}',
 	'',
-	'.nm-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}',
-	'.nm-field{display:flex;flex-direction:column;gap:5px;min-width:0}',
-	'.nm-field>label{font-size:12px;font-weight:600;color:var(--nm-muted)}',
-	'.nm-field input,.nm-field select{min-height:36px;border:1px solid var(--nm-border);border-radius:8px;padding:7px 10px;background:var(--nm-bg);color:var(--nm-text);font-size:13px;box-sizing:border-box;width:100%;font-family:inherit}',
-	'.nm-field input:focus,.nm-field select:focus{outline:none;border-color:var(--nm-blue);box-shadow:0 0 0 3px rgba(9,105,218,.15)}',
+	/* form fields */
+	'.nm-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:var(--ds-sp-3);margin-top:var(--ds-sp-3)}',
+	'.nm-field{display:flex;flex-direction:column;gap:var(--ds-sp-1);min-width:0}',
+	'.nm-field>label{font-size:var(--ds-fs-sm);font-weight:600;color:var(--ds-text-muted)}',
+	'.nm-field input,.nm-field select{min-height:34px;border:1px solid var(--ds-border);border-radius:var(--ds-r-sm);padding:var(--ds-sp-1) var(--ds-sp-2);background:var(--ds-surface);color:var(--ds-text);font-size:var(--ds-fs-base);box-sizing:border-box;width:100%;font-family:inherit}',
+	'.nm-field input:focus,.nm-field select:focus{border-color:var(--ds-primary);box-shadow:0 0 0 3px var(--ds-focus-ring)}',
+	'.nm-field input:focus-visible,.nm-field select:focus-visible{outline:2px solid var(--ds-primary);outline-offset:1px}',
 	'.nm-field input:disabled,.nm-field select:disabled{opacity:.55;cursor:not-allowed}',
 	'.nm-field.wide{grid-column:1 / -1}',
-	'.nm-field.inline{flex-direction:row;align-items:center;gap:8px;min-height:36px}',
-	'.nm-field.inline>label{font-size:13px;font-weight:400;color:var(--nm-text);cursor:pointer;display:inline-flex;align-items:center;gap:7px}',
-	'.nm-field.inline input[type=checkbox]{width:15px;height:15px;min-height:0;margin:0}',
-	'.nm-radio-line{display:flex;gap:18px;flex-wrap:wrap;min-height:36px;align-items:center}',
-	'.nm-radio-line label{display:inline-flex;gap:7px;align-items:center;font-weight:400;color:var(--nm-text);font-size:13px;cursor:pointer}',
-	'.nm-radio-line input{margin:0}',
+	'.nm-field.inline{flex-direction:row;align-items:center;gap:var(--ds-sp-2);min-height:34px}',
+	'.nm-field.inline>label{font-size:var(--ds-fs-base);font-weight:400;color:var(--ds-text);cursor:pointer;display:inline-flex;align-items:center;gap:var(--ds-sp-2)}',
+	'.nm-field.inline input[type=checkbox]{width:16px;height:16px;min-height:0;margin:0;accent-color:var(--ds-primary)}',
+	'.nm-radio-line{display:flex;gap:var(--ds-sp-5);flex-wrap:wrap;min-height:34px;align-items:center}',
+	'.nm-radio-line label{display:inline-flex;gap:var(--ds-sp-2);align-items:center;font-weight:400;color:var(--ds-text);font-size:var(--ds-fs-base);cursor:pointer}',
+	'.nm-radio-line input{margin:0;accent-color:var(--ds-primary)}',
+	'.nm-check input{width:16px;height:16px;margin:0;accent-color:var(--ds-primary)}',
 	'',
-	'.nm-ap-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px;margin-top:12px}',
-	'.nm-ap-radio{border:1px solid var(--nm-border);border-radius:10px;padding:11px 12px;background:var(--nm-soft)}',
-	'.nm-ap-radio-title{display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:650;font-size:13px}',
-	'.nm-band{display:inline-flex;align-items:center;height:19px;padding:0 7px;border-radius:5px;font-size:11px;font-weight:650;background:rgba(9,105,218,.10);color:var(--nm-blue)}',
-	'.nm-ap-radio-meta{margin:2px 0 9px;color:var(--nm-muted);font-size:11.5px;word-break:break-all}',
-	'.nm-ap-radio .nm-form{margin-top:0;grid-template-columns:1fr 1fr;gap:9px}',
+	/* per-radio cards (diagnostics only - the coverage step is a summary) */
+	'.nm-ap-radio{border:1px solid var(--ds-border);border-radius:var(--ds-r-md);padding:var(--ds-sp-3);background:var(--ds-surface-sunken)}',
+	'.nm-ap-radio-title{display:flex;align-items:center;justify-content:space-between;gap:var(--ds-sp-2);font-weight:650;font-size:var(--ds-fs-base)}',
+	'.nm-band{display:inline-flex;align-items:center;min-height:19px;padding:0 var(--ds-sp-2);border-radius:var(--ds-r-sm);font-size:var(--ds-fs-xs);font-weight:650;background:var(--ds-info-tint);color:var(--ds-info)}',
+	'.nm-ap-radio-meta{margin:2px 0 var(--ds-sp-2);color:var(--ds-text-muted);font-size:var(--ds-fs-xs);word-break:break-all}',
+	'.nm-ap-radio .nm-form{margin-top:0;grid-template-columns:1fr 1fr;gap:var(--ds-sp-2)}',
 	'.nm-ap-radio .nm-field.wide{grid-column:1 / -1}',
 	'',
-	'.nm-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--nm-border)}',
-	'.nm-actions .cbi-button{min-height:36px}',
+	/* action rows */
+	'.nm-actions{display:flex;gap:var(--ds-sp-2);flex-wrap:wrap;margin-top:var(--ds-sp-4);padding-top:var(--ds-sp-3);border-top:1px solid var(--ds-border)}',
+	'.nm-actions .cbi-button{min-height:34px}',
 	'',
-	'.nm-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(116px,1fr));gap:8px;margin:12px 0}',
-	'.nm-stat{border:1px solid var(--nm-border);border-radius:10px;background:var(--nm-soft);padding:9px 12px}',
-	'.nm-stat-value{font-size:19px;font-weight:700;line-height:1.25;color:var(--nm-text)}',
-	'.nm-stat-label{font-size:11px;color:var(--nm-muted)}',
-	'.nm-topology{width:100%;box-sizing:border-box;margin:0 auto;border:1px solid var(--nm-border);border-radius:12px;background:var(--nm-soft);overflow:hidden}',
+	/* topology */
+	'.nm-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(116px,1fr));gap:var(--ds-sp-2);margin:var(--ds-sp-3) 0}',
+	'.nm-stat{border:1px solid var(--ds-border);border-radius:var(--ds-r-md);background:var(--ds-surface-sunken);padding:var(--ds-sp-2) var(--ds-sp-3)}',
+	'.nm-stat-value{font-size:var(--ds-fs-xl);font-weight:700;line-height:1.25;color:var(--ds-text)}',
+	'.nm-stat-label{font-size:var(--ds-fs-xs);color:var(--ds-text-muted)}',
+	'.nm-topology{width:100%;box-sizing:border-box;margin:0 auto;border:1px solid var(--ds-border);border-radius:var(--ds-r-lg);background:var(--ds-surface-sunken);overflow:hidden}',
 	'.nm-topology svg{display:block;width:100%;height:auto}',
-	'.nm-legend{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:10px 0 0;font-size:12px;color:var(--nm-muted)}',
-	'.nm-legend i{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:5px;margin-right:6px;vertical-align:-3px;color:#fff;font-size:10px;font-weight:700;font-style:normal}',
-	'.nm-legend .k-local{background:#0969da}.nm-legend .k-mesh{background:rgba(130,80,223,.9)}.nm-legend .k-lan{background:rgba(26,127,55,.9)}',
-	'.nm-empty{display:flex;flex-direction:column;justify-content:center;min-height:380px;box-sizing:border-box;padding:38px 20px;text-align:center;color:var(--nm-muted)}',
-	'.nm-empty strong{display:block;color:var(--nm-text);font-size:14px;margin-bottom:5px}',
-	'.nm-config-preview{width:100%;min-height:180px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;white-space:pre;box-sizing:border-box}',
+	'.nm-legend{display:flex;gap:var(--ds-sp-4);flex-wrap:wrap;align-items:center;margin:var(--ds-sp-3) 0 0;font-size:var(--ds-fs-sm);color:var(--ds-text-muted)}',
+	'.nm-legend i{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:var(--ds-r-sm);margin-right:var(--ds-sp-2);vertical-align:-3px;color:#fff;font-size:var(--ds-fs-xs);font-weight:700;font-style:normal}',
+	'.nm-legend .k-local{background:var(--ds-primary-text)}.nm-legend .k-mesh{background:var(--ds-accent)}.nm-legend .k-lan{background:var(--ds-ok)}',
+	'.nm-empty{display:flex;flex-direction:column;justify-content:center;min-height:220px;box-sizing:border-box;padding:var(--ds-sp-5) var(--ds-sp-4);text-align:center;color:var(--ds-text-muted);border:1px dashed var(--ds-border);border-radius:var(--ds-r-md)}',
+	'.nm-empty strong{display:block;color:var(--ds-text);font-size:var(--ds-fs-lg);margin-bottom:var(--ds-sp-1)}',
+	'.nm-config-preview{width:100%;min-height:180px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:var(--ds-fs-xs);white-space:pre;box-sizing:border-box}',
 	'',
-	'.nm-t-card{fill:var(--nm-bg);stroke:var(--nm-border);stroke-width:1}',
-	'.nm-t-card.local{fill:rgba(9,105,218,.10);stroke:#0969da;stroke-width:2}',
-	'.nm-t-card.mesh{fill:rgba(130,80,223,.09);stroke:rgba(130,80,223,.5)}',
-	'.nm-t-card.lan{fill:rgba(26,127,55,.09);stroke:rgba(26,127,55,.45)}',
-	'.nm-t-badge.local{fill:#0969da}',
-	'.nm-t-badge.mesh{fill:rgba(130,80,223,.9)}',
-	'.nm-t-badge.lan{fill:rgba(26,127,55,.9)}',
+	/* topology SVG primitives */
+	'.nm-t-card{fill:var(--ds-surface);stroke:var(--ds-border);stroke-width:1}',
+	'.nm-t-card.local{fill:var(--ds-info-tint);stroke:var(--ds-primary-text);stroke-width:2}',
+	'.nm-t-card.mesh{fill:var(--ds-accent-tint);stroke:var(--ds-accent)}',
+	'.nm-t-card.lan{fill:var(--ds-ok-tint);stroke:var(--ds-ok)}',
+	'.nm-t-badge.local{fill:var(--ds-primary-text)}',
+	'.nm-t-badge.mesh{fill:var(--ds-accent)}',
+	'.nm-t-badge.lan{fill:var(--ds-ok)}',
 	'.nm-t-glyph{font-size:14px;font-weight:700;fill:#fff;text-anchor:middle;font-style:normal}',
-	'.nm-t-title{font-size:13px;font-weight:650;fill:var(--nm-text)}',
-	'.nm-t-sub{font-size:10.5px;fill:var(--nm-muted)}',
-	'.nm-t-tag{font-size:9.5px;font-weight:650;fill:var(--nm-muted)}',
-	'.nm-t-col{font-size:12px;font-weight:650;fill:var(--nm-muted);letter-spacing:.04em}',
-	'.nm-t-link{fill:none;stroke:rgba(26,127,55,.55);stroke-width:2}',
-	'.nm-t-link.mesh{stroke:rgba(130,80,223,.6);stroke-width:2;stroke-dasharray:6 4}',
-	'.nm-t-lq{font-size:9px;fill:var(--nm-muted)}',
-	/* multi-SSID editor */
-	'.nm-ssid-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:12px 0 7px;font-size:12px;font-weight:650;color:var(--nm-muted)}',
-	'.nm-ssid-list{display:flex;flex-direction:column;gap:8px}',
-	'.nm-ssid-row{border:1px solid var(--nm-border);border-radius:9px;background:var(--nm-bg);padding:9px 10px}',
-	'.nm-ssid-row.removed{opacity:.6;border-style:dashed}',
-	'.nm-ssid-top{display:flex;align-items:center;gap:8px}',
-	'.nm-check{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--nm-text);cursor:pointer;white-space:nowrap;flex:0 0 auto}',
-	'.nm-check input{width:15px;height:15px;margin:0}',
-	'.nm-ssid-name{flex:1 1 auto;min-width:0;height:34px;border:1px solid var(--nm-border);border-radius:8px;padding:6px 10px;background:var(--nm-bg);color:var(--nm-text);font-size:13px;box-sizing:border-box;font-family:inherit}',
-	'.nm-ssid-name:focus{outline:none;border-color:var(--nm-blue);box-shadow:0 0 0 3px rgba(9,105,218,.15)}',
-	'.nm-ssid-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}',
-	'.nm-ssid-opts{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:9px;padding-top:8px;border-top:1px dashed var(--nm-border)}',
-	'.nm-ssid-opts .nm-check{font-size:12px;color:var(--nm-muted)}',
-	'.nm-mini{min-height:28px;padding:0 10px;font-size:12px;flex:0 0 auto}',
+	'.nm-t-title{font-size:var(--ds-fs-base);font-weight:650;fill:var(--ds-text)}',
+	'.nm-t-sub{font-size:var(--ds-fs-xs);fill:var(--ds-text-muted)}',
+	'.nm-t-tag{font-size:var(--ds-fs-xs);font-weight:650;fill:var(--ds-text-muted)}',
+	'.nm-t-col{font-size:var(--ds-fs-sm);font-weight:650;fill:var(--ds-text-muted);letter-spacing:.04em}',
+	'.nm-t-link{fill:none;stroke:var(--ds-ok);stroke-width:2}',
+	'.nm-t-link.mesh{stroke:var(--ds-accent);stroke-width:2;stroke-dasharray:6 4}',
+	'.nm-t-lq{font-size:var(--ds-fs-xs);fill:var(--ds-text-muted)}',
+	'',
+	/* Wireless coverage summary. The per-SSID editor is gone: the mesh profile
+	 * *is* the node's own wireless config, so the page only has to state what
+	 * is being distributed. Each radio is one row, and the SSID is real text -
+	 * never only a colour or a tooltip (WCAG 2.2 SC 1.3.1 / 1.4.1). */
+	'.nm-ssid-head{display:flex;align-items:center;justify-content:space-between;gap:var(--ds-sp-2);margin:var(--ds-sp-3) 0 var(--ds-sp-2);font-size:var(--ds-fs-sm);font-weight:650;color:var(--ds-text-muted)}',
+	'.nm-cover-list{display:flex;flex-direction:column;gap:var(--ds-sp-1)}',
+	'.nm-cover-item{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--ds-sp-1) var(--ds-sp-3);border:1px solid var(--ds-border);border-radius:var(--ds-r-md);background:var(--ds-surface-sunken);padding:var(--ds-sp-2) var(--ds-sp-3);font-size:var(--ds-fs-sm)}',
+	'.nm-cover-radio{font-weight:650;flex:0 0 auto}',
+	'.nm-cover-ssid{font-weight:650;flex:1 1 auto;min-width:0;word-break:break-all}',
+	'.nm-cover-meta{color:var(--ds-text-muted);font-size:var(--ds-fs-xs);flex:0 0 auto}',
+	'.nm-check{display:inline-flex;align-items:center;gap:var(--ds-sp-2);font-size:var(--ds-fs-sm);color:var(--ds-text);cursor:pointer;white-space:nowrap;flex:0 0 auto}',
+	'.nm-mini{min-height:26px;padding:0 var(--ds-sp-2);font-size:var(--ds-fs-sm);flex:0 0 auto}',
+	'',
 	/* VLAN segmentation */
-	'.nm-vlan-list{display:flex;flex-direction:column;gap:10px}',
-	'.nm-vlan-row{border:1px solid var(--nm-border);border-radius:10px;background:var(--nm-soft);padding:11px 12px}',
+	'.nm-vlan-list{display:flex;flex-direction:column;gap:var(--ds-sp-3)}',
+	'.nm-vlan-row{border:1px solid var(--ds-border);border-radius:var(--ds-r-md);background:var(--ds-surface-sunken);padding:var(--ds-sp-3)}',
 	'.nm-vlan-row.removed{opacity:.6;border-style:dashed}',
-	'.nm-vlan-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px}',
-	'.nm-vlan-title{font-size:13px;font-weight:650;margin-right:auto}',
-	'.nm-tag{display:inline-flex;align-items:center;height:19px;padding:0 7px;border-radius:5px;font-size:11px;font-weight:650;background:rgba(130,80,223,.12);color:var(--nm-purple)}',
-	'.nm-vlan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:9px}',
-	'.nm-ports{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px;padding-top:9px;border-top:1px dashed var(--nm-border)}',
-	'.nm-port-item{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--nm-muted)}',
-	'.nm-port-item select{min-height:28px;border:1px solid var(--nm-border);border-radius:7px;padding:3px 6px;background:var(--nm-bg);color:var(--nm-text);font-size:12px;font-family:inherit}',
+	'.nm-vlan-row.conflict{border-color:var(--ds-error);box-shadow:0 0 0 1px var(--ds-error)}',
+	'.nm-vlan-head{display:flex;align-items:center;gap:var(--ds-sp-2);flex-wrap:wrap;margin-bottom:var(--ds-sp-2)}',
+	'.nm-vlan-title{font-size:var(--ds-fs-base);font-weight:650;margin-right:auto}',
+	'.nm-tag{display:inline-flex;align-items:center;min-height:19px;padding:0 var(--ds-sp-2);border-radius:var(--ds-r-sm);font-size:var(--ds-fs-xs);font-weight:650;background:var(--ds-accent-tint);color:var(--ds-accent)}',
+	'.nm-vlan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:var(--ds-sp-2)}',
+	'.nm-ports{display:flex;flex-wrap:wrap;gap:var(--ds-sp-2);margin-top:var(--ds-sp-2);padding-top:var(--ds-sp-2);border-top:1px dashed var(--ds-border)}',
+	'.nm-port-item{display:inline-flex;align-items:center;gap:var(--ds-sp-1);font-size:var(--ds-fs-sm);color:var(--ds-text-muted);border:1px solid var(--ds-border);border-radius:var(--ds-r-md);background:var(--ds-surface);padding:var(--ds-sp-1) var(--ds-sp-2) var(--ds-sp-1) var(--ds-sp-3)}',
+	'.nm-port-name{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:650;color:var(--ds-text);font-size:var(--ds-fs-sm)}',
+	/* Tri-state port egress control: the same off / U / T model, and the same
+	 * teal-untagged / amber-tagged language, as the Switch view. 26x24px keeps
+	 * it at the WCAG 2.2 minimum target size. */
+	'.nm-port-set{display:inline-flex;align-items:stretch;border:1px solid var(--ds-border);border-radius:var(--ds-r-sm);overflow:hidden}',
+	'.nm-port-opt{appearance:none;border:0;border-left:1px solid var(--ds-border);background:var(--ds-surface-sunken);color:var(--ds-text-muted);font-family:inherit;font-size:var(--ds-fs-sm);font-weight:650;line-height:1;min-width:26px;min-height:24px;padding:0 var(--ds-sp-2);cursor:pointer}',
+	'.nm-port-opt:first-child{border-left:0}',
+	'.nm-port-opt:hover{background:var(--ds-surface)}',
+	'.nm-port-opt[aria-pressed=true][data-role=""]{background:var(--ds-surface);color:var(--ds-text);box-shadow:inset 0 0 0 1px var(--ds-border-strong)}',
+	'.nm-port-opt[aria-pressed=true].u{background:var(--ds-untagged-tint);color:var(--ds-untagged);box-shadow:inset 0 0 0 1px var(--ds-untagged)}',
+	'.nm-port-opt[aria-pressed=true].t{background:var(--ds-tagged-tint);color:var(--ds-tagged);box-shadow:inset 0 0 0 1px var(--ds-tagged)}',
+	'.nm-port-opt:focus-visible{outline:2px solid var(--ds-primary);outline-offset:-2px}',
+	'.nm-legend-role{display:inline-flex;align-items:center;gap:var(--ds-sp-1);font-size:var(--ds-fs-sm);color:var(--ds-text-muted)}',
+	'.nm-legend-role b{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:var(--ds-r-sm);font-size:var(--ds-fs-xs);font-weight:700}',
+	'.nm-legend-role b.u{background:var(--ds-untagged-tint);color:var(--ds-untagged)}',
+	'.nm-legend-role b.t{background:var(--ds-tagged-tint);color:var(--ds-tagged)}',
+	'',
 	/* warnings / banners */
-	'.nm-banner{display:flex;gap:8px;align-items:flex-start;margin:12px 0 0;padding:9px 12px;border-radius:9px;font-size:12px;line-height:1.6;border:1px solid rgba(188,76,0,.35);background:rgba(188,76,0,.07);color:var(--nm-orange)}',
-	'.nm-banner.bad{border-color:rgba(207,34,46,.4);background:rgba(207,34,46,.08);color:var(--nm-red)}',
-	'.nm-banner.info{border-color:rgba(9,105,218,.35);background:rgba(9,105,218,.07);color:var(--nm-blue)}',
+	'.nm-banner{display:flex;gap:var(--ds-sp-2);align-items:flex-start;margin:var(--ds-sp-3) 0 0;padding:var(--ds-sp-2) var(--ds-sp-3);border:1px solid var(--ds-warn-line);border-radius:var(--ds-r-md);background:var(--ds-warn-tint);color:var(--ds-warn);font-size:var(--ds-fs-sm);line-height:1.6}',
+	'.nm-banner.bad{border-color:var(--ds-error-line);background:var(--ds-error-tint);color:var(--ds-error)}',
+	'.nm-banner.info{border-color:var(--ds-info-line);background:var(--ds-info-tint);color:var(--ds-info)}',
 	'.nm-banner strong{display:block;margin-bottom:2px}',
 	'.nm-banner.hidden{display:none}',
+	'',
 	/* 802.11s / batman diagnostics */
-	'.nm-details{margin-top:12px;border:1px solid var(--nm-border);border-radius:10px;background:var(--nm-soft);overflow:hidden}',
-	'.nm-details>summary{cursor:pointer;padding:9px 12px;font-size:12.5px;font-weight:650;list-style:none}',
+	'.nm-details{margin-top:var(--ds-sp-3);border:1px solid var(--ds-border);border-radius:var(--ds-r-md);background:var(--ds-surface-sunken);overflow:hidden}',
+	'.nm-details>summary{cursor:pointer;padding:var(--ds-sp-2) var(--ds-sp-3);font-size:var(--ds-fs-sm);font-weight:650;list-style:none}',
 	'.nm-details>summary::-webkit-details-marker{display:none}',
-	'.nm-details>summary::before{content:"▸";display:inline-block;margin-right:8px;transition:transform .15s}',
+	'.nm-details>summary::before{content:"▸";display:inline-block;margin-right:var(--ds-sp-2);transition:transform .15s}',
 	'.nm-details[open]>summary::before{content:"▾"}',
-	'.nm-details[open]>summary{border-bottom:1px dashed var(--nm-border)}',
-	'.nm-details .nm-form{margin:0;padding:12px}',
-	'.nm-table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px}',
-	'.nm-table th,.nm-table td{border:1px solid var(--nm-border);padding:5px 8px;text-align:left;vertical-align:top;word-break:break-all}',
-	'.nm-table th{background:var(--nm-soft);font-weight:650;color:var(--nm-muted);white-space:nowrap}',
+	'.nm-details[open]>summary{border-bottom:1px dashed var(--ds-border)}',
+	'.nm-details .nm-form{margin:0;padding:var(--ds-sp-3)}',
+	'.nm-table{width:100%;border-collapse:collapse;margin-top:var(--ds-sp-3);font-size:var(--ds-fs-sm)}',
+	'.nm-table th,.nm-table td{border:1px solid var(--ds-border);padding:var(--ds-sp-1) var(--ds-sp-2);text-align:left;vertical-align:top;word-break:break-all}',
+	'.nm-table th{background:var(--ds-surface-sunken);font-weight:650;color:var(--ds-text-muted);white-space:nowrap}',
 	'.nm-table td.num{text-align:right;white-space:nowrap}',
-	'.nm-mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px}',
-	'.nm-state{display:inline-flex;align-items:center;height:19px;padding:0 7px;border-radius:5px;font-size:11px;font-weight:650;background:var(--nm-soft);color:var(--nm-muted)}',
-	'.nm-state.estab{background:rgba(26,127,55,.12);color:var(--nm-green)}',
-	'.nm-state.listen{background:rgba(188,76,0,.12);color:var(--nm-orange)}',
-	'.nm-state.blocked{background:rgba(207,34,46,.12);color:var(--nm-red)}',
-	'.nm-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:6px;margin-top:10px}',
-	'.nm-kv-item{display:flex;justify-content:space-between;gap:10px;border:1px solid var(--nm-border);border-radius:7px;background:var(--nm-soft);padding:4px 9px;font-size:12px}',
+	/* em sizes compound, so anything nested one level deeper than the table is
+	 * scaled back up instead of shrinking twice. */
+	'.nm-table .nm-mono,.nm-table .nm-state,.nm-table .nm-tag,.nm-kv-item .nm-mono{font-size:.95em}',
+	'.nm-mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:var(--ds-fs-xs)}',
+	'.nm-state{display:inline-flex;align-items:center;min-height:19px;padding:0 var(--ds-sp-2);border-radius:var(--ds-r-sm);font-size:var(--ds-fs-xs);font-weight:650;background:var(--ds-surface-sunken);color:var(--ds-text-muted)}',
+	'.nm-state.estab{background:var(--ds-ok-tint);color:var(--ds-ok)}',
+	'.nm-state.listen{background:var(--ds-warn-tint);color:var(--ds-warn)}',
+	'.nm-state.blocked{background:var(--ds-error-tint);color:var(--ds-error)}',
+	'.nm-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:var(--ds-sp-1);margin-top:var(--ds-sp-3)}',
+	'.nm-kv-item{display:flex;justify-content:space-between;gap:var(--ds-sp-3);border:1px solid var(--ds-border);border-radius:var(--ds-r-sm);background:var(--ds-surface-sunken);padding:var(--ds-sp-1) var(--ds-sp-2);font-size:var(--ds-fs-sm)}',
 	'.nm-kv-item span:last-child{font-weight:650}',
-	/* rollback */
-	'.nm-backups{display:flex;flex-direction:column;gap:6px;margin-top:10px}',
-	'.nm-backup{display:flex;align-items:center;gap:10px;justify-content:space-between;border:1px solid var(--nm-border);border-radius:8px;background:var(--nm-soft);padding:6px 10px;font-size:12px}',
-	'.nm-backup .nm-mono{flex:1 1 auto}',
-	'.nm-scroll{max-height:280px;overflow:auto}',
-	'@media(max-width:900px){.nm-choices{grid-template-columns:1fr}.nm-choices.two{grid-template-columns:1fr}}',
-	'@media(max-width:760px){.nm-form,.nm-ap-radio .nm-form{grid-template-columns:1fr}}'
+	'',
+	/* One breakpoint, the same one the Switch view uses. */
+	'@media(max-width:720px){.nm-ap-radio .nm-form{grid-template-columns:1fr}.nm-cover-item{flex-direction:column;align-items:flex-start}}'
 ].join('\n');
 
-var darkVars = ':root{--nm-bg:#1e1f22;--nm-border:#3a3d42;--nm-soft:#26282d;--nm-text:#f0f3f6;--nm-muted:#a7adb5;--nm-blue:#4d9cf6;--nm-green:#4ac26b;--nm-orange:#e3934a;--nm-red:#f47067;--nm-purple:#a98bf5}.nm-t-card.local{fill:rgba(77,156,246,.16);stroke:#4d9cf6}.nm-t-card.mesh{fill:rgba(169,139,245,.14);stroke:rgba(169,139,245,.6)}.nm-t-card.lan{fill:rgba(74,194,107,.13);stroke:rgba(74,194,107,.5)}.nm-t-link{stroke:rgba(74,194,107,.6)}.nm-t-link.mesh{stroke:rgba(169,139,245,.7)}.nm-t-badge.local{fill:#4d9cf6}.nm-t-badge.mesh{fill:rgba(169,139,245,.95)}.nm-t-badge.lan{fill:rgba(74,194,107,.95)}';
+/* Dark accents. LuCI themes that ship a dark mode set this attribute on :root;
+ * surfaces and text already follow the theme variables, so only the semantic
+ * accents have to be re-tuned for a dark background - and the tints get a
+ * higher alpha, since a .08 wash is invisible on a dark surface. */
+var darkVars = ':root[data-darkmode="true"]{--ds-ok:#4ac26b;--ds-ok-tint:rgba(74,194,107,.18);--ds-ok-line:rgba(74,194,107,.45);--ds-warn:#e3934a;--ds-warn-tint:rgba(227,147,74,.18);--ds-warn-line:rgba(227,147,74,.45);--ds-error:#f47067;--ds-error-tint:rgba(244,112,103,.18);--ds-error-line:rgba(244,112,103,.5);--ds-info:#4d9cf6;--ds-info-tint:rgba(77,156,246,.18);--ds-info-line:rgba(77,156,246,.45);--ds-focus-ring:rgba(77,156,246,.45);--ds-primary-text:#4d9cf6;--ds-accent:#a98bf5;--ds-accent-tint:rgba(169,139,245,.18);--ds-untagged:#2dd4bf;--ds-untagged-tint:rgba(45,212,191,.18);--ds-tagged:#fbbf24;--ds-tagged-tint:rgba(251,191,36,.18);--ds-border-strong:#4a4e55;--ds-shadow-1:none}';
 
 function injectCSS() {
 	var el = document.getElementById('meshconf-css');
@@ -233,10 +275,7 @@ function injectCSS() {
 		el.id = 'meshconf-css';
 		document.head.appendChild(el);
 	}
-	var bg = window.getComputedStyle(document.body).backgroundColor;
-	var nums = bg.match(/\d+/g) || [];
-	var dark = nums.length >= 3 && ((+nums[0] * 299 + +nums[1] * 587 + +nums[2] * 114) / 1000) < 128;
-	el.textContent = css + (dark ? darkVars : '');
+	el.textContent = css + '\n' + darkVars;
 }
 
 function textLimit(s, n) {
@@ -265,46 +304,34 @@ function radioTitle(config) {
 	return bandLabel(config.band) || config.radio || _('无线 radio');
 }
 
-// Roaming happens between nodes on the same band, so radios of different
-// bands may advertise different SSIDs (e.g. separate 2.4G / 5G / 6G names).
-// Only multiple enabled radios inside one band must share SSID / encryption
-// / key.
+// Read-only summary of what the mesh distributes: one row per radio, showing
+// the SSID of every AP it advertises and the channel it runs on. Deliberately
+// not an editor - the SSID, the encryption and the key live on 网络 → 无线,
+// and the generated child bundle copies them from there verbatim, so a second
+// editor here would only be a second place for the two to disagree.
 //
-// Preferred non-overlapping channels per band, shared with the backend:
-// child node N picks entry ((N-master) mod length) for each band, so APs on
-// the same band never share a channel. 2.4G/5G/6G are different bands and do
-// not need to differ from each other on the same node.
-var CHANNEL_SPREAD = {
-	'2g': [ '1', '6', '11', '2', '7', '12', '3', '8', '13' ],
-	'5g': [ '36', '149', '44', '153', '52', '157', '60', '161', '100', '165' ],
-	'6g': [ '37', '5', '69', '101', '133', '165', '197', '229' ]
-};
+// The non-overlapping channel pools a child node is spread across stay in the
+// backend (CHANNEL_SPREAD there): the page no longer offers a per-radio
+// channel dropdown, so it has no use for them.
+function coverageRows(configs) {
+	if (!configs || !configs.length)
+		return [ E('p', { 'class': 'nm-hint' }, _('未发现无线 radio。')) ];
 
-function channelList(band, current) {
-	var list;
-	if (band === '2g')
-		list = [ '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13' ];
-	else if (band === '5g')
-		list = [ '36', '40', '44', '48', '52', '56', '60', '64', '100', '104', '108', '112',
-			'116', '120', '124', '128', '132', '136', '140', '144', '149', '153', '157', '161', '165' ];
-	else if (band === '6g')
-		list = [ '1', '5', '9', '13', '17', '21', '25', '29', '33', '37', '41', '45', '49', '53',
-			'57', '61', '65', '69', '73', '77', '81', '85', '89', '93', '97', '101', '105', '109',
-			'113', '117', '121', '125', '129', '133', '137', '141', '145', '149', '153', '157',
-			'161', '165', '169', '173', '177', '181', '185', '189', '193', '197', '201', '205',
-			'209', '213', '217', '221', '225', '229', '233' ];
-	else
-		list = [];
-	if (current && current !== 'auto' && list.indexOf(current) < 0)
-		list.unshift(current);
-	return list;
+	return configs.map(function(c) {
+		var names = (c.aps || []).filter(function(a) { return a.ssid; })
+			.map(function(a) { return a.ssid; });
+		var meta = [ c.radio ];
+		if (c.channel) meta.push(_('频道 %s').format(c.channel));
+		if (c.htmode) meta.push(c.htmode);
+		if (names.length > 1) meta.push(_('%d 个 SSID').format(names.length));
+
+		return E('div', { 'class': 'nm-cover-item' }, [
+			E('span', { 'class': 'nm-cover-radio' }, radioTitle(c)),
+			E('span', { 'class': 'nm-cover-ssid' }, names.length ? names.join(' / ') : _('该 radio 未启用 AP')),
+			E('span', { 'class': 'nm-cover-meta' }, meta.join(' · '))
+		]);
+	});
 }
-
-// Channel widths offered per radio. Mixed generation hardware (802.11ax
-// peering with 802.11ac only peers) has to use the same width on both ends,
-// so this is editable instead of being inherited from the board defaults.
-var HTMODES = [ 'auto', 'NOHT', 'HT20', 'HT40', 'VHT20', 'VHT40', 'VHT80', 'VHT80_80', 'VHT160',
-	'HE20', 'HE40', 'HE80', 'HE80_80', 'HE160', 'EHT20', 'EHT40', 'EHT80', 'EHT160' ];
 
 // Backhaul L2 routing: batman-adv (B.A.T.M.A.N. IV / V, supports the gateway
 // role used by master/slave) or plain 802.11s HWMP (kernel built in, no
@@ -362,37 +389,13 @@ var MESH_PARAM_FIELDS = [
 	[ 'mesh_power_mode', 'string', _('省电模式'), _('active / light / deep') ]
 ];
 
-// Channel widths a radio can actually run. Offering HE/EHT on a 2.4G radio
-// only produces a config netifd/hostapd rejects, so the list is band aware.
-function htmodeList(band, current) {
-	var list = [ 'auto' ];
-	if (band === '2g')
-		list = list.concat([ 'NOHT', 'HT20', 'HT40' ]);
-	else if (band === '6g')
-		list = list.concat([ 'HE20', 'HE40', 'HE80', 'HE80_80', 'HE160',
-			'EHT20', 'EHT40', 'EHT80', 'EHT160' ]);
-	else
-		list = list.concat(HTMODES.filter(function(m) { return m !== 'auto'; }));
-	if (current && list.indexOf(current) < 0)
-		list.push(current);
-	return list;
-}
-
-var ENCRYPTIONS = [
-	[ 'sae-mixed', _('WPA2/WPA3 混合') ],
-	[ 'psk2', _('WPA2-PSK') ],
-	[ 'sae', _('WPA3-SAE') ],
-	[ 'psk-mixed', _('WPA/WPA2 混合') ],
-	[ 'owe', _('OWE 增强开放') ],
-	[ 'none', _('开放网络（无密码）') ]
-];
-
-function encryptionSelect(value) {
-	var sel = E('select', {}, ENCRYPTIONS.map(function(item) {
-		return E('option', { 'value': item[0] }, item[1]);
-	}));
-	sel.value = value || 'sae-mixed';
-	return sel;
+/* Mirror a port cell's U/T state onto its buttons. `cell.select.value` is the
+ * model; the three buttons are only a view of it, so every write goes through
+ * here to keep the pressed state in step. */
+function syncPortCell(cell) {
+	(cell.buttons || []).forEach(function(b) {
+		b.setAttribute('aria-pressed', b.getAttribute('data-role') === cell.select.value ? 'true' : 'false');
+	});
 }
 
 function dedupeNodes(nodes) {
@@ -583,6 +586,18 @@ function warningBanners(status) {
 				.format(foreign.join('、')))
 		]));
 
+	// Port specs the U/T grid cannot round-trip. Applying rebuilds every
+	// bridge-vlan ports list from the grid, so these would be flattened to a
+	// single membership; the backend refuses until they are corrected, and
+	// saying so here means the operator finds out before clicking apply.
+	// The Switch view flags the same two combinations as unsupported.
+	if (status.vlan_foreign)
+		out.push(E('div', { 'class': 'nm-banner bad' }, [
+			E('strong', {}, _('br-lan 上有无法用 U/T 表示的端口标记')),
+			E('div', {}, _('以下端口标记带有「同时 tagged 与 untagged」或「只有 PVID、两种出口都没有」的语义：%s。本页的 U/T 网格无法保留它们，应用 VLAN 会被拒绝；请先在 网络 → 交换机/VLAN 页把它们改成明确的 U 或 T。')
+				.format(status.vlan_foreign))
+		]));
+
 	return out;
 }
 
@@ -640,9 +655,9 @@ function bridgeModeBanner(status) {
 
 	if ((bridge.mode || 'flat') === 'flat')
 		return E('div', { 'class': 'nm-banner info' }, [
-			E('strong', {}, _('扁平模式：全网一个二层、一个子网')),
-			E('div', {}, _('br-lan 上没有 bridge-vlan，802.1Q 过滤未开启，bat0 直接作为普通成员承载全部流量。')),
-			E('div', { 'class': 'nm-muted' }, _('所有节点必须同样保持扁平。任何一台节点一旦建立 bridge-vlan 就切换成分段模式，它与扁平节点之间将完全不通。'))
+			E('strong', {}, _('当前：全部透传（扁平二层，全网一个子网）')),
+			E('div', {}, _('br-lan 上没有 bridge-vlan，802.1Q 过滤未开启，每个网口与 bat0 都是同一广播域的普通成员，Mesh 回程因此自动承载全部流量。')),
+			E('div', { 'class': 'nm-muted' }, _('所有节点必须同样保持透传。任何一台节点一旦建立 bridge-vlan 就切换成分段模式，它与透传节点之间将完全不通。'))
 		]);
 
 	return E('div', { 'class': 'nm-banner info' }, [
@@ -688,15 +703,13 @@ return view.extend({
 		this.discovery = data[1] || {};
 
 		var status = this.status;
-		// VLAN / interface inventory: the SSID rows bind against these, and
-		// the VLAN section edits them.
-		this.networks = status.networks || [];
+		// VLAN / interface inventory the VLAN section edits.
 		this.vlans = status.vlans || [];
 		this.bridgePorts = (status.bridge && status.bridge.ports) || [];
 
 		var root = E('div', { 'class': 'cbi-map meshconf-page' }, [
 			E('h2', {}, _('Mesh 组网')),
-			E('p', { 'class': 'nm-lede' }, _('先规划 VLAN 与网络分段，再按“组网方式 → 主从关系 → 回程链路 → 无线覆盖”四步配置；同一组网内所有节点保持一致即可自动成网。')),
+			E('p', { 'class': 'nm-lede' }, _('网络分段默认全部透传，不需要任何设置；按“组网方式 → 主从关系 → 回程链路 → 无线覆盖”四步配置即可，同一组网内所有节点保持一致就能自动成网。')),
 		]);
 
 		if (status.error)
@@ -717,7 +730,6 @@ return view.extend({
 		root.appendChild(this.renderMeshSection(status));
 		root.appendChild(this.renderDiagSection());
 		root.appendChild(this.renderTopologySection(status));
-		root.appendChild(this.renderRollbackSection(status));
 
 		this.updateMeshState();
 		this.updateTopology();
@@ -761,17 +773,31 @@ return view.extend({
 		// a config that never peers, so the choice is offered but locked.
 		this.noMeshWpad = !!(status.deps && status.deps.wpad_mesh === false);
 
+		/* Only a 5G/6G radio may carry the 802.11s backhaul. The 2.4G band has
+		 * neither the bandwidth nor the airtime, and it is the one band every
+		 * legacy client still depends on, so the candidate list is *not*
+		 * widened to the full radio set when nothing matches: silently
+		 * offering 2.4G is how a mesh ends up on the band it must not use. */
+		var backhaulCandidates = apConfigs.filter(function(c) { return c.band === '5g' || c.band === '6g'; });
+		this.backhaulCandidates = backhaulCandidates;
+		this.wirelessBlocked = this.noMeshWpad
+			? _('当前 wpad 不支持 802.11s，无法使用无线回程')
+			: (backhaulCandidates.length ? '' : _('未发现 5G / 6G radio，无法使用无线回程'));
+
+		// Wired is the default: it is the more stable link and needs no radio
+		// at all. Wireless is only preselected when a wireless backhaul is
+		// already up and working.
 		var initialBackhaul = (mesh.enabled && !mesh.wired && (mesh.wireless_count || 0) > 0)
 			? 'wireless' : 'wired';
-		if (this.noMeshWpad) initialBackhaul = 'wired';
+		if (this.wirelessBlocked) initialBackhaul = 'wired';
 
 		var initialRole = mesh.enabled ? (mesh.role || 'peer') : 'master';
 
 		/* ---- step 1: backhaul (exactly one link) ---- */
 		this.backhaulCards = [
-			this.backhaulCard('wired', _('有线组网'), _('网线互联，全屋同一子网；稳定性最好，推荐作为主回程。'), initialBackhaul === 'wired'),
-			this.backhaulCard('wireless', _('无线组网'), _('802.11s 无线回程，免布线；需要选择用于回程的 5G / 6G radio。'),
-				initialBackhaul === 'wireless', this.noMeshWpad)
+			this.backhaulCard('wired', _('有线组网（推荐）'), _('网线互联，全屋同一子网；稳定性最好，不需要占用任何 radio。'), initialBackhaul === 'wired'),
+			this.backhaulCard('wireless', _('无线组网'), _('802.11s 无线回程，免布线；只能使用 5G / 6G radio。'),
+				initialBackhaul === 'wireless', this.wirelessBlocked)
 		];
 
 		/* ---- step 2: master / slave role ---- */
@@ -788,19 +814,22 @@ return view.extend({
 		this.gwSelClassInput = E('input', { 'type': 'number', 'min': '1', 'max': '255', 'value': mesh.gw_sel_class || '20' });
 
 		/* ---- step 3: wireless backhaul ---- */
-		var backhaulCandidates = apConfigs.filter(function(c) { return c.band === '5g' || c.band === '6g'; });
-		if (!backhaulCandidates.length) backhaulCandidates = apConfigs;
-		this.meshRadioInput = E('select', {}, backhaulCandidates.map(function(c) {
-			return E('option', { 'value': c.radio }, [ radioTitle(c), ' (', c.radio, ')' ]);
-		}));
-		if (!backhaulCandidates.length)
-			this.meshRadioInput.appendChild(E('option', { 'value': '' }, _('未发现 5G / 6G radio')));
+		this.meshRadioInput = E('select', {}, backhaulCandidates.length
+			? backhaulCandidates.map(function(c) {
+				return E('option', { 'value': c.radio }, [ radioTitle(c), ' (', c.radio, ')' ]);
+			})
+			: [ E('option', { 'value': '' }, _('未发现 5G / 6G radio，无法使用无线回程')) ]);
+		if (!backhaulCandidates.length) this.meshRadioInput.disabled = true;
 		var selectedRadio = (mesh.mesh_radios || [])[0] || '';
 		if (!selectedRadio && backhaulCandidates.length) {
-			var fiveG = backhaulCandidates.filter(function(c) { return c.band === '5g'; })[0];
-			selectedRadio = (fiveG || backhaulCandidates[0]).radio;
+			// The 6G radio wins when it exists: on a tri-band node it has no
+			// legacy client traffic competing with the mesh link. 5G is the
+			// fallback, and the operator can still pick either one.
+			var sixG = backhaulCandidates.filter(function(c) { return c.band === '6g'; })[0];
+			selectedRadio = (sixG || backhaulCandidates[0]).radio;
 		}
 		this.meshRadioInput.value = selectedRadio;
+		if (this.wirelessBlocked) this.meshRadioInput.disabled = true;
 
 		this.meshIdInput = E('input', { 'type': 'text', 'value': mesh.mesh_id || 'XR1710G-MESH', 'maxlength': '32' });
 		this.meshKeyInput = E('input', { 'type': 'password', 'value': '', 'autocomplete': 'new-password', 'placeholder': _('8-63 位，全网一致') });
@@ -874,13 +903,27 @@ return view.extend({
 				_('BATMAN V 按吞吐量选路，新硬件推荐；改为 IV/V 会让 bat0 重建并短暂断网。范围外的取值会被设备侧自动收敛到合法值。'))
 		]);
 
-		/* ---- step 4: per-radio coverage ---- */
-		this.apConfigInputs = apConfigs.map(L.bind(function(config) {
-			return this.buildApCard(config, this.networks);
-		}, this));
+		/* ---- step 4: per-radio coverage ----
+		 * There is no per-SSID editor any more. The mesh-wide wireless
+		 * profile *is* this node's own wireless config - the same one the
+		 * generated child bundle copies verbatim - so all this step decides
+		 * is whether those settings take part in the deployment (and whether
+		 * the radio channel plan is written here) or are left untouched.
+		 *
+		 * The rows below are read-only on purpose: the SSID, the encryption
+		 * and the key stay on 网络 → 无线, and a second editor here only
+		 * created a second place for the two to disagree.
+		 */
+		this.apConfigs = apConfigs;
+		this.coverageCountEl = E('span', {}, _('%d 个 radio').format(apConfigs.length));
+		this.coverageList = E('div', { 'class': 'nm-cover-list' }, coverageRows(apConfigs));
 
 		this.apSyncInput = E('input', { 'type': 'checkbox' });
-		this.apSyncInput.checked = mesh.ap_sync !== false || !mesh.enabled;
+		// On by default; only an explicitly stored 0 turns it off. Absent is
+		// the fresh case and has to read as "on" - that is what makes the
+		// node's own coverage part of the deployment without any setting.
+		this.apSyncInput.checked = !mesh.ap_sync_set || mesh.ap_sync === true;
+		this.apSyncLabel = E('span', {});
 
 		this.coverageAlert = E('div', { 'class': 'nm-alert hidden' });
 
@@ -910,22 +953,19 @@ return view.extend({
 			this.roleFields
 		]);
 
-		this.apCards = E('div', { 'class': 'nm-ap-grid' }, this.apConfigInputs.length
-			? this.apConfigInputs.map(function(c) { return c.view; })
-			: [ E('div', { 'class': 'nm-empty' }, _('未发现无线 radio')) ]);
-
 		this.coverageGroup = E('div', { 'class': 'nm-group' }, [
 			E('div', { 'class': 'nm-group-head' }, [ E('span', { 'class': 'nm-step' }, '4'), _('无线覆盖（SSID）') ]),
-			E('p', { 'class': 'nm-group-desc' }, _('每个 radio 可承载多个 SSID：点“添加 SSID”叠加，各 SSID 独立设置名称、加密方式与密码，并绑定到规划好的网络（VLAN 子接口）。跨机漫游只需保证多台 AP 上同名 SSID 的设置一致；多台 AP 之间同频段的频道错开由“生成子节点配置”按节点序号自动完成。')),
-			this.apCards,
+			E('p', { 'class': 'nm-group-desc' }, _('各 radio 的 SSID、加密方式与密码沿用“网络 → 无线”里当前的设置，本页不再单独编辑：跨机漫游只要多台设备上同名 SSID 的设置一致即可。下面列出本机参与下发的无线配置。')),
+			E('div', { 'class': 'nm-ssid-head' }, [ E('span', {}, _('本机各 radio 的无线配置')), this.coverageCountEl ]),
+			this.coverageList,
 			this.coverageAlert,
-			E('p', { 'class': 'nm-hint' }, _('密码留空表示沿用该 SSID 的当前密钥。“绑定网络”的选项来自 /etc/config/network，新增 VLAN 应用后会自动出现在列表里。802.11k / BSS Transition / WNM Sleep 是漫游辅助选项，建议保持开启。')),
+			E('p', { 'class': 'nm-hint' }, _('勾选后本节点按上面的配置参与全网统一覆盖，并接管各 radio 的频道规划；取消则完全不动无线配置，各 radio 保留当前 AP 设置。频道在多个节点之间按节点序号自动错开，由“生成子节点配置”完成。')),
 			E('div', { 'class': 'nm-field inline', 'style': 'margin-top:12px' }, [
-				E('label', {}, [ this.apSyncInput, _('下发上述各 radio 的无线配置（取消则保留各 radio 当前 AP 设置）') ])
+				E('label', {}, [ this.apSyncInput, this.apSyncLabel ])
 			]),
-			E('div', { 'class': 'nm-actions', 'style': 'margin-top:10px;padding-top:10px;border-top:1px dashed var(--nm-border)' }, [
-				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.createHandlerFn(this, 'confirmApplyCoverage') },
-					_('仅应用无线覆盖（不改动 Mesh）'))
+			E('div', { 'class': 'nm-actions', 'style': 'margin-top:10px;padding-top:10px;border-top:1px dashed var(--ds-border)' }, [
+				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.createHandlerFn(this, 'confirmApplyChannels') },
+					_('仅应用频道规划（不改动 Mesh）'))
 			])
 		]);
 
@@ -1144,187 +1184,186 @@ return view.extend({
 	},
 
 	/* ------------------------------------------------------------------
-	 * Configuration rollback. Every apply backs the four config files up
-	 * first, so a mistake that moves the management address can be undone
-	 * without serial access.
+	 * Channel plan.
+	 *
+	 * The channel is the one part of a radio's wireless settings that is
+	 * per node rather than shared: neighbouring APs must not sit on the same
+	 * channel of the same band. It is written from here and spread across
+	 * nodes by "生成子节点配置"; the SSID, the encryption and the key stay
+	 * on 网络 → 无线 and are never rewritten by this page.
 	 * ------------------------------------------------------------------ */
-	renderRollbackSection: function() {
-		this.backupBox = E('div', {}, []);
-		this.loadBackups();
-		return E('div', { 'class': 'nm-section' }, [
-			E('div', { 'class': 'nm-title' }, [
-				E('span', {}, _('配置备份与回滚')),
-				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.createHandlerFn(this, 'loadBackups') }, _('刷新列表'))
-			]),
-			E('p', { 'class': 'nm-subtitle' }, _('每次应用 Mesh / 无线 / VLAN 前都会自动备份 network、wireless、dhcp、firewall，最多保留最近 8 份。')),
-			this.backupBox
-		]);
-	},
+	confirmApplyChannels: function() {
+		var lines = this.channelLines();
 
-	loadBackups: function() {
-		var self = this;
-		if (!this.backupBox) return Promise.resolve();
-		return callListBackups().then(function(res) {
-			self.renderBackups((res && res.backups) || []);
-		}).catch(function(e) {
-			self.backupBox.innerHTML = '';
-			self.backupBox.appendChild(E('div', { 'class': 'nm-banner' },
-				_('读取备份列表失败：%s').format(e.message || String(e))));
-		});
-	},
-
-	renderBackups: function(backups) {
-		var self = this;
-		if (!this.backupBox) return;
-		this.backupBox.innerHTML = '';
-		if (!backups.length) {
-			this.backupBox.appendChild(E('p', { 'class': 'nm-hint' }, _('还没有任何备份；应用一次配置后会自动生成。')));
-			return;
-		}
-		this.backupBox.appendChild(E('div', { 'class': 'nm-backups nm-scroll' }, backups.map(function(b) {
-			return E('div', { 'class': 'nm-backup' }, [
-				E('span', { 'class': 'nm-mono' }, b.name),
-				E('span', { 'class': 'nm-muted' }, b.time || ''),
-				E('button', {
-					'class': 'cbi-button cbi-button-neutral nm-mini',
-					'click': ui.createHandlerFn(self, function() { return self.confirmRestore(b.name); })
-				}, _('回滚到此处'))
-			]);
-		})));
-	},
-
-	confirmRestore: function(name) {
-		return ui.showModal(_('确认回滚配置'), [
-			E('p', {}, _('将用备份 %s 覆盖当前的 /etc/config/network、wireless、dhcp、firewall，然后重载网络。').format(name)),
-			E('div', { 'class': 'nm-alert' }, [
-				E('strong', {}, _('管理地址可能随之改变。')),
-				E('div', {}, _('如果备份里的 LAN 地址与现在不同，回滚后需要用新地址重新登录。当前配置会先自动另存一份再覆盖。'))
-			]),
-			E('div', { 'class': 'right' }, [
-				E('button', {
-					'class': 'cbi-button cbi-button-apply',
-					'click': ui.createHandlerFn(this, function() { return this.restoreBackup(name); })
-				}, _('确认回滚')),
-				' ',
-				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.hideModal }, _('取消'))
-			])
-		]);
-	},
-
-	restoreBackup: function(name) {
-		ui.hideModal();
-		var self = this;
-		return callRestoreBackup(name).then(function(res) {
-			if (!res || !res.success) {
-				ui.addNotification(null, E('p', (res && res.error) || _('回滚失败')));
-				return;
-			}
-			ui.addNotification(null, E('p', _('已回滚到 %s，网络正在重载。').format(name)));
-			return self.loadBackups();
-		}).catch(function(e) {
-			ui.addNotification(null, E('p', e.message || _('回滚失败')));
-		});
-	},
-
-	// Everything that has to be fixed before any wireless config is written.
-	coverageErrors: function() {
-		var errors = [];
-		(this.apConfigInputs || []).forEach(function(card) {
-			card.ssids.forEach(function(row) {
-				if (row.removed || !row.enabled.checked) return;
-				if (!(row.ssid.value || '').trim())
-					errors.push(_('%s 上有启用的 SSID 未填写名称').format(radioTitle(card)));
-			});
-		});
-		return errors.concat(this.coverageBlockers());
-	},
-
-	confirmApplyCoverage: function() {
-		var errors = this.coverageErrors();
-		if (errors.length) {
-			ui.addNotification(null, E('p', _('无线覆盖配置有问题：%s。').format(errors.join('；'))));
-			return;
-		}
-
-		var lines = (this.apConfigInputs || []).map(function(card) {
-			var names = card.ssids.filter(function(r) {
-				return !r.removed && r.enabled.checked;
-			}).map(function(r) {
-				return (r.ssid.value || '').trim() + ' → ' + r.network.value;
-			});
-			return _('%s：%s').format(radioTitle(card),
-				names.length ? names.join('、') : _('（无启用的 SSID）'));
-		});
-
-		return ui.showModal(_('确认应用无线覆盖'), [
-			E('p', {}, _('只修改 /etc/config/wireless 并重载 Wi-Fi，不会创建或修改 batman-adv、网络与 DHCP 配置。')),
-			E('div', { 'class': 'nm-alert' }, lines.join('；')),
+		return ui.showModal(_('确认应用频道规划'), [
+			E('p', {}, _('只修改各 radio 的频道与频宽（/etc/config/wireless）并重载 Wi-Fi；不会创建或修改 batman-adv、网络与 DHCP 配置，也不会改动 SSID 与密码。')),
+			lines.length
+				? E('div', { 'class': 'nm-alert' }, lines.join('；'))
+				: E('p', { 'class': 'nm-muted' }, _('未发现无线 radio。')),
 			E('p', { 'class': 'nm-muted' }, _('重载期间 Wi-Fi 会短暂中断，若管理口走无线请留意。')),
 			E('div', { 'class': 'right' }, [
-				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': ui.createHandlerFn(this, 'applyCoverage') }, _('确认应用')),
+				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': ui.createHandlerFn(this, 'applyChannels') }, _('确认应用')),
 				' ',
 				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.hideModal }, _('取消'))
 			])
 		]);
 	},
 
-	applyCoverage: function() {
-		ui.hideModal();
-		var errors = this.coverageErrors();
-		if (errors.length) {
-			ui.addNotification(null, E('p', _('无线覆盖配置有问题：%s。').format(errors.join('；'))));
-			return;
-		}
-		var self = this;
-		return callApplyWireless(
-			JSON.stringify(this.collectApEntries()),
-			JSON.stringify(this.collectChannels())
-		).then(function(res) {
-			if (!res || !res.success) {
-				ui.addNotification(null, E('p', (res && res.error) || _('应用无线覆盖失败')));
-				return;
-			}
-			ui.addNotification(null, E('p', _('无线覆盖已应用，Wi-Fi 正在重载。')));
-			return self.refreshWireless();
-		}).catch(function(e) {
-			ui.addNotification(null, E('p', e.message || _('应用无线覆盖失败')));
+	channelLines: function() {
+		return (this.apConfigs || []).map(function(c) {
+			return _('%s：频道 %s / %s').format(radioTitle(c), c.channel || 'auto', c.htmode || 'auto');
 		});
 	},
 
-	// Rebuild just the radio cards from a fresh status: newly created
-	// interfaces come back with their real section names, so a follow-up
-	// edit updates them instead of creating duplicates.
+	applyChannels: function() {
+		ui.hideModal();
+		var self = this;
+		return callApplyWireless('[]', JSON.stringify(this.collectChannels())).then(function(res) {
+			if (!res || !res.success) {
+				ui.addNotification(null, E('p', (res && res.error) || _('应用频道规划失败')));
+				return;
+			}
+			ui.addNotification(null, E('p', _('频道规划已应用，Wi-Fi 正在重载。')));
+			return self.refreshWireless();
+		}).catch(function(e) {
+			ui.addNotification(null, E('p', e.message || _('应用频道规划失败')));
+		});
+	},
+
+	// The coverage summary is rendered from the status snapshot, so re-reading
+	// it is what keeps the rows in step with a radio renamed or added
+	// elsewhere (and with a channel change that just went in).
 	refreshWireless: function() {
 		var self = this;
 		return callGetStatus().then(function(res) {
 			self.status = res || {};
 			self.networks = (res && res.networks) || [];
-			self.apConfigInputs = (((res && res.mesh) || {}).ap_configs || []).map(function(c) {
-				return self.buildApCard(c, self.networks);
-			});
-			if (self.apCards) {
-				self.apCards.innerHTML = '';
-				self.apConfigInputs.forEach(function(c) { self.apCards.appendChild(c.view); });
-			}
+			self.apConfigs = ((res && res.mesh) || {}).ap_configs || [];
+			self.renderCoverageRows();
 			self.updateMeshState();
 		}).catch(function() {});
 	},
 
+	renderCoverageRows: function() {
+		if (!this.coverageList) return;
+		this.coverageList.innerHTML = '';
+		coverageRows(this.apConfigs).forEach(function(row) {
+			this.coverageList.appendChild(row);
+		}, this);
+		if (this.coverageCountEl)
+			this.coverageCountEl.textContent = _('%d 个 radio').format((this.apConfigs || []).length);
+	},
+
 	renderVlanSection: function(status) {
+		var bridge = status.bridge || {};
+		// "全部透传" is the mode this page defaults to, and it stays selected
+		// unless the bridge really is segmented right now: showing the
+		// editor for a flat bridge would hide the state the device is in.
+		this.vlanMode = (bridge.mode === 'filtered' && (this.vlans || []).length) ? 'custom' : 'flat';
+
 		this.vlanBox = E('div', {}, []);
 		this.vlanBox.appendChild(this.buildVlanList(this.vlans, this.bridgePorts));
 		this.vlanBannerBox = E('div', {}, []);
 		this.renderVlanBanners(status);
 
-		return E('div', { 'class': 'nm-section' }, [
+		this.vlanModeCards = [
+			this.vlanModeCard('flat', _('全部透传（默认）'),
+				_('不建立 bridge-vlan：所有网口与 bat0 同处 br-lan 内，全网一个二层、一个子网，Mesh 回程自动承载全部流量，不需要任何 VLAN 设置。')),
+			this.vlanModeCard('custom', _('自定义网络分段'),
+				_('建立 bridge-vlan 做 802.1Q 分段。每个网段默认都经 Mesh 回程透传，只有需要留在本机的网段才单独取消。'))
+		];
+
+		this.flatPanel = E('div', { 'class': 'nm-group' }, [
+			E('p', { 'class': 'nm-hint' }, _('当前为全部透传：br-lan 不做 802.1Q 过滤，每个网口与 bat0 都在同一个广播域里，跨节点不需要任何额外配置。')),
+			E('div', { 'class': 'nm-actions' }, [
+				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': ui.createHandlerFn(this, 'confirmApplyFlat') },
+					_('应用「全部透传」'))
+			])
+		]);
+
+		this.customPanel = E('div', { 'class': 'nm-group' }, [ this.vlanBox ]);
+
+		var section = E('div', { 'class': 'nm-section' }, [
 			E('div', { 'class': 'nm-title' }, [
 				E('span', {}, _('VLAN 与网络分段')),
-				E('span', { 'class': 'nm-muted' }, _('br-lan 上的 802.1Q 分段'))
+				E('span', { 'class': 'nm-muted' }, _('br-lan 上的 802.1Q 分段（可选）'))
 			]),
-			E('p', { 'class': 'nm-subtitle' }, _('每个 VLAN 在 br-lan 上建立一个 bridge-vlan，并生成 br-lan.<ID> 子接口；SSID 通过“绑定网络”挂到对应网段。VLAN 1 是管理网段，不允许删除。')),
-			this.vlanBannerBox,
-			this.vlanBox
+			E('p', { 'class': 'nm-subtitle' }, _('默认不需要设置：不建立 bridge-vlan 时 br-lan 不做 802.1Q 过滤，所有网口与 Mesh 回程同处一个二层域。需要把设备或 SSID 划分到不同网段时，再切换到「自定义网络分段」。')),
+			E('div', { 'class': 'nm-choices two' }, this.vlanModeCards.map(function(c) { return c.card; })),
+			this.flatPanel,
+			this.customPanel,
+			this.vlanBannerBox
 		]);
+
+		this.updateVlanMode();
+		return section;
+	},
+
+	vlanModeCard: function(value, title, desc) {
+		var self = this;
+		var input = E('input', { 'type': 'radio', 'name': 'nm-vlan-mode', 'value': value });
+		var card = E('label', { 'class': 'nm-choice' }, [
+			input,
+			E('span', { 'class': 'nm-choice-title' }, [ E('span', { 'class': 'nm-choice-dot' }), title ]),
+			E('span', { 'class': 'nm-choice-desc' }, desc)
+		]);
+		input.checked = this.vlanMode === value;
+		input.addEventListener('change', function() {
+			self.vlanMode = value;
+			self.updateVlanMode();
+		});
+		return { value: value, input: input, card: card };
+	},
+
+	syncVlanModeCards: function() {
+		(this.vlanModeCards || []).forEach(function(c) {
+			c.input.checked = (c.value === this.vlanMode);
+			c.card.classList.toggle('active', c.input.checked);
+		}, this);
+	},
+
+	updateVlanMode: function() {
+		var custom = this.vlanMode === 'custom';
+		this.syncVlanModeCards();
+		if (this.flatPanel) this.flatPanel.classList.toggle('hidden', custom);
+		if (this.customPanel) this.customPanel.classList.toggle('hidden', !custom);
+	},
+
+	confirmApplyFlat: function() {
+		var labels = (this.vlans || []).map(function(v) {
+			return _('VLAN %s%s').format(v.vlan, v.iface ? '（' + v.iface + '）' : '');
+		});
+
+		return ui.showModal(_('确认应用「全部透传」'), [
+			E('p', {}, _('将删除 br-lan 上的全部 bridge-vlan，并把所有网口重新加入 br-lan，恢复扁平二层。')),
+			labels.length
+				? E('div', { 'class': 'nm-alert' }, [
+					E('strong', {}, _('以下分段配置会被删除：')),
+					E('div', {}, labels.join('、')),
+					E('div', { 'class': 'nm-muted' }, _('各网段的接口、地址与 DHCP 配置一并移除，管理接口改回 br-lan。同一组网内所有节点必须同为透传模式，否则互不相通。'))
+				])
+				: E('p', { 'class': 'nm-muted' }, _('当前没有任何分段配置；应用后会确保所有网口与 bat0 都在 br-lan 中。')),
+			E('div', { 'class': 'right' }, [
+				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': ui.createHandlerFn(this, 'applyFlat') }, _('确认应用')),
+				' ',
+				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.hideModal }, _('取消'))
+			])
+		]);
+	},
+
+	applyFlat: function() {
+		ui.hideModal();
+		var self = this;
+		return callApplyVlans('', 'flat').then(function(res) {
+			if (!res || !res.success) {
+				ui.addNotification(null, E('p', (res && res.error) || _('应用失败')));
+				return;
+			}
+			ui.addNotification(null, E('p', _('已切换为「全部透传」，网络正在重载。')));
+			return self.refreshNetworkOptions();
+		}).catch(function(e) {
+			ui.addNotification(null, E('p', e.message || _('应用失败')));
+		});
 	},
 
 	// Applying VLANs can flip br-lan from flat to filtered, so the mode and
@@ -1355,9 +1394,10 @@ return view.extend({
 			var row = self.buildVlanRow({}, gridPorts);
 			self.vlanRows.push(row);
 			list.appendChild(row.view);
+			self.refreshVlanOwnership();
 		});
 
-		var trunkAll = E('button', { 'class': 'cbi-button cbi-button-neutral' }, _('全部透传（bat0 加入所有 VLAN）'));
+		var trunkAll = E('button', { 'class': 'cbi-button cbi-button-neutral' }, _('全部跨节点透传（bat0 加入所有 VLAN）'));
 		trunkAll.addEventListener('click', function() {
 			self.vlanRows.forEach(function(r) {
 				if (r.trunk) r.trunk.checked = true;
@@ -1366,8 +1406,15 @@ return view.extend({
 
 		return E('div', {}, [
 			list,
-			E('p', { 'class': 'nm-hint' }, _('端口列中 U = untagged（出口剥离标签，接终端 / AP），T = tagged（保留标签，接上行交换机）；未选择的端口不加入该 VLAN。当一个端口从所有 VLAN 里都移除后，它也会自动从 br-lan 的成员中摘除。bat0 是 Mesh 回程端口，不在此列，由下方的「经 Mesh 回程透传」控制。')),
-			E('p', { 'class': 'nm-hint' }, _('Mesh 回程上的 VLAN：br-lan 一旦建立 bridge-vlan，netifd 就会开启 802.1Q 过滤，此时“不在任何 VLAN 里的端口”不再转发流量。需要哪个 VLAN 跨节点，就勾选该 VLAN 的「经 Mesh 回程透传」——后端会把 bat0 以 tagged 成员写入该 bridge-vlan；不勾则该网段只存在于本机。mesh_* 无线回程接口由 Mesh 自行管理，不在此处配置。')),
+			// The U/T wording and the teal/amber colours are the same ones the
+			// Switch view uses, so the two pages describe one model.
+			E('div', { 'class': 'nm-legend' }, [
+				E('span', { 'class': 'nm-legend-role' }, [ E('b', { 'class': 'u' }, 'U'), _('untagged：出口剥离标签，接终端 / AP（同一端口只能属于一个 U）') ]),
+				E('span', { 'class': 'nm-legend-role' }, [ E('b', { 'class': 't' }, 'T'), _('tagged：保留标签，接上行交换机（一个端口可属于多个 T）') ]),
+				E('span', { 'class': 'nm-legend-role' }, [ E('b', {}, '—'), _('不加入该 VLAN') ])
+			]),
+			E('p', { 'class': 'nm-hint' }, _('未选择的端口不加入该 VLAN。当一个端口从所有 VLAN 里都移除后，它也会自动从 br-lan 的成员中摘除。bat0 是 Mesh 回程端口，不在此列，由「经 Mesh 回程透传」控制。')),
+			E('p', { 'class': 'nm-hint' }, _('Mesh 回程上的 VLAN：br-lan 一旦建立 bridge-vlan，netifd 就会开启 802.1Q 过滤，此时“不在任何 VLAN 里的端口”不再转发流量。每个 VLAN 的「经 Mesh 回程透传」默认就是勾选的——后端会把 bat0 以 tagged 成员写入该 bridge-vlan，网段自动跨节点；只有需要让某个网段只留在本机时才取消。mesh_* 无线回程接口由 Mesh 自行管理，不在此处配置。')),
 			E('div', { 'class': 'nm-actions' }, [
 				addBtn,
 				trunkAll,
@@ -1380,16 +1427,30 @@ return view.extend({
 		var self = this;
 		v = v || {};
 		var isMgmt = String(v.vlan || '') === '1';
+		// netifd treats an absent "local" as true; the backend is what decides,
+		// so absent and '1' mean the same thing here.
+		var isLocal = v.local === undefined || v.local === null || v.local === '' || !!v.local;
 
 		var vlanId = E('input', { 'type': 'number', 'min': '1', 'max': '4094', 'value': v.vlan || '' });
 		var iface = E('input', { 'type': 'text', 'value': v.iface || '', 'maxlength': '15',
 			'placeholder': v.vlan ? 'lan' + v.vlan : 'lan2' });
 		var ipaddr = E('input', { 'type': 'text', 'value': v.ipaddr || '', 'placeholder': '10.10.20.251' });
 		var netmask = E('input', { 'type': 'text', 'value': v.netmask || '255.255.255.0' });
-		var gateway = E('input', { 'type': 'text', 'value': v.gateway || '' });
-		var dns = E('input', { 'type': 'text', 'value': v.dns || '' });
+		var gateway = E('input', { 'type': 'text', 'value': v.gateway || '', 'placeholder': '留空 = 不带默认路由' });
+		var dns = E('input', { 'type': 'text', 'value': v.dns || '', 'placeholder': '留空 = 继承上游' });
+		// The real state has to come back from the device: a checkbox that always
+		// starts unchecked would silently switch a running DHCP server off on the
+		// next apply of any unrelated VLAN change.
 		var dhcp = E('input', { 'type': 'checkbox' });
-		dhcp.checked = false;
+		dhcp.checked = v.dhcp === 1 || v.dhcp === true;
+
+		// Local termination: the VLAN gets a br-lan.<ID> interface on this node.
+		// It has to match what the bridge does, otherwise the interface this page
+		// creates sits on a device netifd never builds. VLAN 1 carries the
+		// management address, so it is pinned on.
+		var local = E('input', { 'type': 'checkbox' });
+		local.checked = isMgmt ? true : isLocal;
+		if (isMgmt) local.disabled = true;
 
 		// Carrying a VLAN across the mesh means making bat0 a tagged member
 		// of it. New segments default to carried: an operator who planned a
@@ -1401,19 +1462,47 @@ return view.extend({
 		var untagged = String(v.untagged || '').split(/\s+/).filter(Boolean);
 		var tagged = String(v.tagged || '').split(/\s+/).filter(Boolean);
 
+		/* One off / U / T control per port. `cell.select.value` stays the model
+		 * so the collector and the prune logic read the same field they always
+		 * did; the buttons only mirror it, and keep aria-pressed in step. */
 		var portCells = (ports || []).map(function(p) {
-			var sel = E('select', {}, [
-				E('option', { 'value': '' }, _('未加入')),
-				E('option', { 'value': 'u' }, 'U'),
-				E('option', { 'value': 't' }, 'T')
-			]);
-			sel.value = untagged.indexOf(p) >= 0 ? 'u' : (tagged.indexOf(p) >= 0 ? 't' : '');
-			return { port: p, select: sel };
+			var cell = { port: p, select: { value: untagged.indexOf(p) >= 0 ? 'u' : (tagged.indexOf(p) >= 0 ? 't' : '') } };
+			var btns = [ '', 'u', 't' ].map(function(role) {
+				var b = E('button', {
+					'type': 'button',
+					'class': 'nm-port-opt' + (role ? ' ' + role : ''),
+					'data-role': role,
+					'title': role === 'u' ? _('untagged') : (role === 't' ? _('tagged') : _('不加入该 VLAN'))
+				}, role === 'u' ? 'U' : (role === 't' ? 'T' : '—'));
+				b.addEventListener('click', function() {
+					self.setPortRole(portCells, cell, role);
+				});
+				return b;
+			});
+			cell.buttons = btns;
+			var set = E('span', { 'class': 'nm-port-set', 'role': 'group',
+				'aria-label': _('端口 %s 在本 VLAN 中的出口方式').format(p) }, btns);
+			cell.view = E('span', { 'class': 'nm-port-item' }, [ E('span', { 'class': 'nm-port-name' }, p), set ]);
+			return cell;
 		});
 
 		var removeBtn = E('button', { 'class': 'cbi-button cbi-button-negative nm-mini' }, _('删除'));
 		var titleEl = E('span', { 'class': 'nm-vlan-title' },
 			isMgmt ? _('VLAN %s · 管理网段').format(v.vlan) : _('VLAN %s').format(v.vlan || '—'));
+
+		// Address fields only exist for a locally terminated VLAN: with local
+		// off there is no br-lan.<ID> device to put them on.
+		var addrFields = [
+			E('div', { 'class': 'nm-field' }, [ E('label', {}, _('IPv4 地址')), ipaddr ]),
+			E('div', { 'class': 'nm-field' }, [ E('label', {}, _('IPv4 子网掩码')), netmask ]),
+			E('div', { 'class': 'nm-field' }, [ E('label', {}, _('IPv4 网关')), gateway ]),
+			E('div', { 'class': 'nm-field' }, [ E('label', {}, _('DNS 服务器')), dns ]),
+			E('div', { 'class': 'nm-field inline' }, [
+				E('label', { 'class': 'nm-check' }, [ dhcp, _('启用 DHCPv4 服务器') ])
+			])
+		];
+
+		var localNote = E('p', { 'class': 'nm-hint' }, _('本机终止已关闭：该 VLAN 只做二层透传，本机不建立 br-lan.%s 接口，也不分配地址。').format(v.vlan || '<ID>'));
 
 		var view = E('div', { 'class': 'nm-vlan-row' }, [
 			E('div', { 'class': 'nm-vlan-head' }, [
@@ -1423,22 +1512,19 @@ return view.extend({
 			]),
 			E('div', { 'class': 'nm-vlan-grid' }, [
 				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('VLAN ID')), vlanId ]),
-				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('接口名')), iface ]),
-				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('IP 地址')), ipaddr ]),
-				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('子网掩码')), netmask ]),
-				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('网关')), gateway ]),
-				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('DNS')), dns ]),
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('接口名（UCI 名称）')), iface ]),
 				E('div', { 'class': 'nm-field inline' }, [
-					E('label', { 'class': 'nm-check' }, [ dhcp, _('在该网段启用 DHCP 服务器') ])
+					E('label', { 'class': 'nm-check', 'title': isMgmt ? _('VLAN 1 承载管理地址，必须本机终止') : '' },
+						[ local, _('本机终止（分配地址）') ])
 				]),
 				E('div', { 'class': 'nm-field inline' }, [
 					E('label', { 'class': 'nm-check' }, [ trunk, _('经 Mesh 回程透传（bat0 加入本 VLAN）') ])
 				])
 			]),
+			E('div', { 'class': 'nm-vlan-grid' }, addrFields),
+			localNote,
 			portCells.length
-				? E('div', { 'class': 'nm-ports' }, portCells.map(function(c) {
-					return E('span', { 'class': 'nm-port-item' }, [ c.port, c.select ]);
-				}))
+				? E('div', { 'class': 'nm-ports' }, portCells.map(function(c) { return c.view; }))
 				: E('p', { 'class': 'nm-hint' }, _('未在 br-lan 上发现成员端口，请先在网络 → 接口中把物理端口加入 br-lan。'))
 		]);
 
@@ -1451,14 +1537,26 @@ return view.extend({
 			gateway: gateway,
 			dns: dns,
 			dhcp: dhcp,
+			local: local,
 			trunk: trunk,
 			ports: portCells,
+			isMgmt: isMgmt,
+			addrFields: addrFields,
+			localNote: localNote,
 			// ports this VLAN owned when the page was rendered; needed to
 			// work out which ones stop being VLAN members altogether
 			initPorts: untagged.concat(tagged),
 			removed: false,
 			view: view
 		};
+
+		function syncLocal() {
+			var on = local.checked;
+			addrFields.forEach(function(f) { f.classList.toggle('hidden', !on); });
+			localNote.classList.toggle('hidden', on);
+		}
+		local.addEventListener('change', syncLocal);
+		syncLocal();
 
 		if (!isMgmt) {
 			removeBtn.addEventListener('click', function() {
@@ -1471,15 +1569,86 @@ return view.extend({
 					if (i >= 0) self.vlanRows.splice(i, 1);
 					if (view.parentNode) view.parentNode.removeChild(view);
 				}
+				self.refreshVlanOwnership();
 			});
 		}
 
 		vlanId.addEventListener('input', function() {
 			titleEl.textContent = _('VLAN %s').format(vlanId.value || '—');
 			iface.placeholder = 'lan' + (vlanId.value || '');
+			self.refreshVlanOwnership();
 		});
 
+		portCells.forEach(function(c) { syncPortCell(c); });
+
 		return row;
+	},
+
+	/* Set one port's role in one row, mirroring the Switch view's rule that a
+	 * port can be untagged in exactly one VLAN: picking U moves it out of the
+	 * other rows' U instead of letting the two disagree and produce a config
+	 * the official page would refuse to render. */
+	setPortRole: function(cells, cell, role) {
+		if (cell.select.value === role) return;
+		cell.select.value = role;
+
+		if (role === 'u') {
+			(this.vlanRows || []).forEach(function(r) {
+				if (r.removed) return;
+				r.ports.forEach(function(c) {
+					if (c !== cell && c.port === cell.port && c.select.value === 'u') {
+						c.select.value = '';
+						syncPortCell(c);
+					}
+				});
+			});
+		}
+		syncPortCell(cell);
+		this.refreshVlanOwnership();
+	},
+
+	// Map port -> VLAN ids that use it untagged. A port in more than one entry
+	// is exactly what checkUnsupportedConfig() rejects on the Switch view.
+	untaggedOwners: function() {
+		var out = {};
+		(this.vlanRows || []).forEach(function(r) {
+			if (r.removed) return;
+			var id = (r.vlan.value || '').trim();
+			r.ports.forEach(function(c) {
+				if (c.select.value !== 'u') return;
+				out[c.port] = out[c.port] || [];
+				out[c.port].push(id || '—');
+			});
+		});
+		return out;
+	},
+
+	// Reflect the U/T conflicts in the UI: rows holding a doubly-untagged port
+	// are outlined, so the problem is visible before the apply is attempted.
+	// The outline is only a supplementary cue - it carries a title with the
+	// port names too, because a state conveyed by colour alone is not
+	// perceivable to everyone (WCAG 2.2 SC 1.4.1).
+	refreshVlanOwnership: function() {
+		var owners = this.untaggedOwners();
+		var conflicts = {};
+		Object.keys(owners).forEach(function(p) {
+			if (owners[p].length > 1) owners[p].forEach(function(id) { conflicts[id] = 1; });
+		});
+		var detail = {};
+		Object.keys(owners).forEach(function(p) {
+			if (owners[p].length > 1) owners[p].forEach(function(id) {
+				detail[id] = (detail[id] ? detail[id] + '、' : '') + p;
+			});
+		});
+		(this.vlanRows || []).forEach(function(r) {
+			var id = (r.vlan.value || '').trim();
+			var bad = !r.removed && !!conflicts[id];
+			r.view.classList.toggle('conflict', bad);
+			if (bad)
+				r.view.setAttribute('title', _('端口 %s 在多个 VLAN 中被设为 U，同一端口只能有一个 untagged 网段。').format(detail[id]));
+			else
+				r.view.removeAttribute('title');
+		});
 	},
 
 	collectVlans: function() {
@@ -1489,17 +1658,19 @@ return view.extend({
 				if (c.select.value === 'u') untagged.push(c.port);
 				else if (c.select.value === 't') tagged.push(c.port);
 			});
+			var local = r.local ? r.local.checked : true;
 			return {
 				section: r.section || '',
 				vlan: (r.vlan.value || '').trim(),
 				iface: (r.iface.value || '').trim(),
-				ipaddr: (r.ipaddr.value || '').trim(),
-				netmask: (r.netmask.value || '').trim(),
-				gateway: (r.gateway.value || '').trim(),
-				dns: (r.dns.value || '').trim(),
+				local: local ? 1 : 0,
+				ipaddr: local ? (r.ipaddr.value || '').trim() : '',
+				netmask: local ? (r.netmask.value || '').trim() : '',
+				gateway: local ? (r.gateway.value || '').trim() : '',
+				dns: local ? (r.dns.value || '').trim() : '',
 				untagged: untagged.join(' '),
 				tagged: tagged.join(' '),
-				dhcp: r.dhcp.checked ? 1 : 0,
+				dhcp: (local && r.dhcp.checked) ? 1 : 0,
 				trunk: (r.trunk && r.trunk.checked) ? 1 : 0,
 				remove: r.removed ? 1 : 0
 			};
@@ -1526,6 +1697,25 @@ return view.extend({
 		if (dupHit)
 			return [ _('存在重复的 VLAN ID，请合并后再应用。') ];
 
+		// A port that is untagged on two VLANs at once is legal 802.1Q but has
+		// no unambiguous PVID: netifd picks one and the Switch view refuses to
+		// display the bridge until it is resolved. Refuse it here too rather
+		// than writing a config the other page calls unsupported.
+		var owners = this.untaggedOwners();
+		var clash = Object.keys(owners).filter(function(p) { return owners[p].length > 1; });
+		if (clash.length) {
+			return [ _('端口 %s 在多个 VLAN 中被设为 U（untagged）：同一端口只能有一个 untagged 网段，请把多余的改为 T 或“不加入”。')
+				.format(clash.map(function(p) { return p + '（VLAN ' + owners[p].join('、') + '）'; }).join('、')) ];
+		}
+
+		// Without local termination netifd builds no br-lan.<ID>, so the
+		// interface this page would create has no device to sit on.
+		var orphan = vlans.filter(function(v) { return !v.remove && !v.local; });
+		if (orphan.length) {
+			return [ _('VLAN %s 关闭了本机终止，但本页仍会为该网段生成接口；netifd 不会建立 br-lan.<ID>，该接口将无法工作。请勾选「本机终止」，或改用网络 → 接口页自行管理这些网段。')
+				.format(orphan.map(function(v) { return v.vlan; }).join('、')) ];
+		}
+
 		return [];
 	},
 
@@ -1543,7 +1733,6 @@ return view.extend({
 		});
 		return Object.keys(before).filter(function(p) { return !after[p]; });
 	},
-
 	confirmApplyVlans: function() {
 		var errors = this.vlanErrors();
 		if (errors.length) {
@@ -1590,7 +1779,7 @@ return view.extend({
 		}
 		var vlans = this.collectVlans();
 
-		return callApplyVlans(JSON.stringify(vlans)).then(function(res) {
+		return callApplyVlans(JSON.stringify(vlans), 'custom').then(function(res) {
 			if (!res || !res.success) {
 				ui.addNotification(null, E('p', (res && res.error) || _('应用 VLAN 失败')));
 				return;
@@ -1602,9 +1791,9 @@ return view.extend({
 		});
 	},
 
-	// After VLANs change the set of bindable networks changes too, so pull a
-	// fresh status and rebuild the SSID dropdowns (and the VLAN list) in
-	// place instead of re-rendering the whole page and losing edits.
+	// After VLANs change the set of networks changes too, so pull a fresh
+	// status and rebuild the VLAN list (and the coverage rows) in place
+	// instead of re-rendering the whole page.
 	refreshNetworkOptions: function() {
 		var self = this;
 		return callGetStatus().then(function(res) {
@@ -1612,39 +1801,34 @@ return view.extend({
 			self.networks = (res && res.networks) || [];
 			self.vlans = (res && res.vlans) || [];
 			self.bridgePorts = (res && res.bridge && res.bridge.ports) || [];
-			(self.apConfigInputs || []).forEach(function(card) {
-				card.ssids.forEach(function(row) {
-					self.fillNetworkSelect(row.network, self.networks);
-				});
-			});
+			self.apConfigs = ((res && res.mesh) || {}).ap_configs || [];
+			self.renderCoverageRows();
+
+			// the bridge may have flipped between flat and segmented, so the
+			// mode shown has to come back from the device as well
+			var bridge = (res && res.bridge) || {};
+			self.vlanMode = (bridge.mode === 'filtered' && self.vlans.length) ? 'custom' : 'flat';
 			if (self.vlanBox) {
 				self.vlanBox.innerHTML = '';
 				self.vlanBox.appendChild(self.buildVlanList(self.vlans, self.bridgePorts));
 			}
+			self.updateVlanMode();
 			self.renderVlanBanners(self.status);
 			self.updateCoverageAlert();
 		}).catch(function() {});
 	},
 
-	fillNetworkSelect: function(sel, networks) {
-		var current = sel.value;
-		sel.innerHTML = '';
-		(networks || []).forEach(function(n) {
-			sel.appendChild(E('option', { 'value': n.name }, n.ipaddr ? n.name + ' · ' + n.ipaddr : n.name));
-		});
-		if (current && !(networks || []).some(function(n) { return n.name === current; }))
-			sel.appendChild(E('option', { 'value': current }, current));
-		sel.value = current;
-	},
-
-	backhaulCard: function(value, title, desc, active, disabled) {
+	// `blocked` is the reason this link cannot be used, not a flag: the card
+	// has to say *why* it is unavailable, otherwise a greyed-out option reads
+	// as a broken page rather than as a missing dependency.
+	backhaulCard: function(value, title, desc, active, blocked) {
 		var self = this;
 		var input = E('input', { 'type': 'radio', 'name': 'nm-backhaul', 'value': value });
 		input.checked = !!active;
-		input.disabled = !!disabled;
+		input.disabled = !!blocked;
 		var card = E('label', {
-			'class': 'nm-choice' + (active ? ' active' : '') + (disabled ? ' disabled' : ''),
-			'title': disabled ? _('当前 wpad 不支持 802.11s，无法使用无线回程') : ''
+			'class': 'nm-choice' + (active ? ' active' : '') + (blocked ? ' disabled' : ''),
+			'title': blocked || ''
 		}, [
 			input,
 			E('span', { 'class': 'nm-choice-title' }, [ E('span', { 'class': 'nm-choice-dot' }), title ]),
@@ -1680,255 +1864,6 @@ return view.extend({
 		});
 	},
 
-	buildApCard: function(config, networks) {
-		var self = this;
-		var channel = E('select', {}, [ E('option', { 'value': 'auto' }, _('自动')) ].concat(
-			channelList(config.band, config.channel).map(function(ch) {
-				return E('option', { 'value': ch }, ch);
-			})));
-		channel.value = config.channel || 'auto';
-
-		// Channel width: an 802.11ax radio peering with an 802.11ac only one
-		// must drop to the older width (e.g. VHT80 on both ends), otherwise
-		// the wireless backhaul never comes up.
-		var htmode = E('select', {}, htmodeList(config.band, config.htmode).map(function(m) {
-			return E('option', { 'value': m }, m === 'auto' ? _('跟随设备默认') : m);
-		}));
-		htmode.value = config.htmode || 'auto';
-
-		var bandTag = bandLabel(config.band);
-		var ssidList = E('div', { 'class': 'nm-ssid-list' });
-
-		// A radio without any AP interface still gets one empty row so the
-		// operator has something to fill in.
-		var entries = (config.aps && config.aps.length) ? config.aps : [ {} ];
-		var ssids = entries.map(function(ap) {
-			var row = self.buildSsidRow(ap, networks);
-			ssidList.appendChild(row.view);
-			return row;
-		});
-
-		var addBtn = E('button', { 'class': 'cbi-button cbi-button-neutral nm-mini' }, _('+ 添加 SSID'));
-		var countEl = E('span', {}, _('SSID 列表（%d 个）').format(ssids.length));
-
-		var view = E('div', { 'class': 'nm-ap-radio' }, [
-			E('div', { 'class': 'nm-ap-radio-title' }, [
-				E('span', {}, radioTitle(config)),
-				bandTag ? E('span', { 'class': 'nm-band' }, bandTag.replace(' radio', '')) : ''
-			]),
-			E('div', { 'class': 'nm-ap-radio-meta' }, [
-				config.radio || '',
-				config.htmode ? _(' / %s').format(config.htmode) : ''
-			]),
-			E('div', { 'class': 'nm-form' }, [
-				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('频道号（本机）')), channel ]),
-				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('频宽 (htmode)')), htmode ])
-			]),
-			E('div', { 'class': 'nm-ssid-head' }, [ countEl, addBtn ]),
-			ssidList
-		]);
-
-		var card = {
-			radio: config.radio,
-			band: config.band,
-			channel: channel,
-			htmode: htmode,
-			ssids: ssids,
-			ssidList: ssidList,
-			countEl: countEl,
-			view: view
-		};
-
-		addBtn.addEventListener('click', function() {
-			var row = self.buildSsidRow({}, self.networks);
-			card.ssids.push(row);
-			ssidList.appendChild(row.view);
-			self.updateCoverage();
-		});
-		channel.addEventListener('change', L.bind(self.updateCoverage, self));
-		htmode.addEventListener('change', L.bind(self.updateCoverage, self));
-
-		return card;
-	},
-
-	buildSsidRow: function(ap, networks) {
-		var self = this;
-		ap = ap || {};
-
-		var enabled = E('input', { 'type': 'checkbox' });
-		enabled.checked = ap.enabled !== false;
-
-		var ssid = E('input', {
-			'class': 'nm-ssid-name', 'type': 'text', 'value': ap.ssid || '',
-			'maxlength': '32', 'aria-label': _('SSID'),
-			'placeholder': _('SSID 名称，例如 USHOME')
-		});
-		var encryption = encryptionSelect(ap.encryption);
-		var key = E('input', { 'type': 'password', 'autocomplete': 'new-password' });
-		key.placeholder = ap.has_key ? _('留空沿用当前密钥') : _('8-63 位');
-
-		var netName = ap.network || 'lan';
-		var network = E('select', {}, (networks || []).map(function(n) {
-			return E('option', { 'value': n.name }, n.ipaddr ? n.name + ' · ' + n.ipaddr : n.name);
-		}));
-		if (!(networks || []).some(function(n) { return n.name === netName; }))
-			network.appendChild(E('option', { 'value': netName }, netName));
-		network.value = netName;
-
-		function flag(value, fallback) {
-			var el = E('input', { 'type': 'checkbox' });
-			el.checked = value === undefined ? !!fallback : (value === true || value === 'true' || value === 1);
-			return el;
-		}
-
-		var ieee80211k = flag(ap.ieee80211k, true);
-		var bssTransition = flag(ap.bss_transition, true);
-		var wnmSleep = flag(ap.wnm_sleep_mode, false);
-		var proxyArp = flag(ap.proxy_arp, false);
-		var isolate = flag(ap.isolate, false);
-		var ieee80211r = flag(ap.ieee80211r, false);
-
-		// 802.11r (FT): every AP advertising this SSID has to share the same
-		// 4 hex digit mobility domain, so the value already in use on this
-		// device is offered as the default for new SSIDs.
-		var mobilityDomain = E('input', { 'type': 'text', 'maxlength': '4' });
-		mobilityDomain.value = ap.mobility_domain || ((self.status && self.status.ft_domain) || '');
-		mobilityDomain.placeholder = _('4 位十六进制');
-		var reassocDeadline = E('input', { 'type': 'number', 'min': '1', 'max': '65535' });
-		reassocDeadline.value = ap.reassociation_deadline || '';
-		reassocDeadline.placeholder = '1000';
-		var ftOverDs = flag(ap.ft_over_ds, true);
-		var ftPskLocal = flag(ap.ft_psk_generate_local, true);
-		var pmkR1Push = flag(ap.pmk_r1_push, false);
-
-		var ftDetails = E('details', { 'class': 'nm-details' }, [
-			E('summary', {}, _('802.11r 高级设置')),
-			E('div', { 'class': 'nm-form' }, [
-				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('移动域（4 位十六进制）')), mobilityDomain ]),
-				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('重关联时限（1-65535）')), reassocDeadline ]),
-				E('div', { 'class': 'nm-field inline' }, [
-					E('label', { 'class': 'nm-check', 'title': _('通过分布式系统而非空中接口完成 FT 握手') },
-						[ ftOverDs, _('FT over DS') ])
-				]),
-				E('div', { 'class': 'nm-field inline' }, [
-					E('label', { 'class': 'nm-check', 'title': _('由本机从 PSK 推导 FT 密钥，多 AP 同一密码即可漫游') },
-						[ ftPskLocal, _('本地生成 FT PSK') ])
-				]),
-				E('div', { 'class': 'nm-field inline' }, [
-					E('label', { 'class': 'nm-check', 'title': _('认证后立即把 PMK-R1 推送到邻居 AP') },
-						[ pmkR1Push, _('PMK-R1 推送') ])
-				])
-			]),
-			E('p', { 'class': 'nm-hint', 'style': 'padding:0 12px 12px' },
-				_('同一个 SSID 的所有 AP 必须使用相同的移动域；开放网络与 OWE 不支持 FT。'))
-		]);
-		ftDetails.open = !!ap.ieee80211r;
-
-		// FT sub-fields only matter while FT itself is on
-		function syncFt() {
-			var on = ieee80211r.checked;
-			[ mobilityDomain, reassocDeadline, ftOverDs, ftPskLocal, pmkR1Push ].forEach(function(el) {
-				el.disabled = !on;
-			});
-			if (on) ftDetails.open = true;
-		}
-		syncFt();
-		ieee80211r.addEventListener('change', function() {
-			syncFt();
-			self.updateCoverage();
-		});
-
-		var removeBtn = E('button', { 'class': 'cbi-button cbi-button-negative nm-mini' }, _('删除'));
-
-		var view = E('div', { 'class': 'nm-ssid-row' }, [
-			E('div', { 'class': 'nm-ssid-top' }, [
-				E('label', { 'class': 'nm-check' }, [ enabled, _('启用') ]),
-				ssid,
-				removeBtn
-			]),
-			E('div', { 'class': 'nm-ssid-grid' }, [
-				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('加密方式')), encryption ]),
-				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('无线密码')), key ]),
-				E('div', { 'class': 'nm-field wide' }, [ E('label', {}, _('绑定网络（VLAN）')), network ])
-			]),
-			E('div', { 'class': 'nm-ssid-opts' }, [
-				E('label', { 'class': 'nm-check', 'title': _('802.11k 邻居报告，帮助终端快速发现邻近 AP') },
-					[ ieee80211k, _('802.11k') ]),
-				E('label', { 'class': 'nm-check', 'title': _('802.11v BSS Transition，AP 主动引导终端切换') },
-					[ bssTransition, _('BSS Transition') ]),
-				E('label', { 'class': 'nm-check', 'title': _('WNM 睡眠模式，省电终端可短暂休眠') },
-					[ wnmSleep, _('WNM Sleep') ]),
-				E('label', { 'class': 'nm-check', 'title': _('代理 ARP，桥接网段下改善三层互通') },
-					[ proxyArp, _('Proxy ARP') ]),
-				E('label', { 'class': 'nm-check', 'title': _('客户端隔离，同一 SSID 内终端互不通信') },
-					[ isolate, _('客户端隔离') ]),
-				E('label', { 'class': 'nm-check', 'title': _('802.11r 快速 BSS 切换，跨 AP 漫游无需完整重认证') },
-					[ ieee80211r, _('802.11r FT') ])
-			]),
-			ftDetails
-		]);
-
-		var row = {
-			section: ap.section || '',
-			enabled: enabled,
-			ssid: ssid,
-			encryption: encryption,
-			key: key,
-			network: network,
-			ieee80211k: ieee80211k,
-			bss_transition: bssTransition,
-			wnm_sleep_mode: wnmSleep,
-			proxy_arp: proxyArp,
-			isolate: isolate,
-			ft: {
-				ieee80211r: ieee80211r,
-				mobility_domain: mobilityDomain,
-				reassociation_deadline: reassocDeadline,
-				ft_over_ds: ftOverDs,
-				ft_psk_generate_local: ftPskLocal,
-				pmk_r1_push: pmkR1Push
-			},
-			removed: false,
-			view: view
-		};
-
-		removeBtn.addEventListener('click', function() {
-			if (row.section) {
-				// an existing interface is only marked for deletion so a
-				// misclick can be undone before applying
-				row.removed = !row.removed;
-				view.classList.toggle('removed', row.removed);
-				removeBtn.textContent = row.removed ? _('恢复') : _('删除');
-			} else {
-				self.removeSsidRow(row);
-			}
-			self.updateCoverage();
-		});
-
-		[ enabled, ssid, encryption, key, network ].forEach(function(el) {
-			el.addEventListener('change', L.bind(self.updateCoverage, self));
-			el.addEventListener('input', L.bind(self.updateCoverage, self));
-		});
-
-		return row;
-	},
-
-	removeSsidRow: function(row) {
-		var self = this;
-		(this.apConfigInputs || []).forEach(function(card) {
-			var i = card.ssids.indexOf(row);
-			if (i < 0) return;
-			card.ssids.splice(i, 1);
-			if (row.view.parentNode)
-				row.view.parentNode.removeChild(row.view);
-			if (!card.ssids.length) {
-				var fresh = self.buildSsidRow({}, self.networks);
-				card.ssids.push(fresh);
-				card.ssidList.appendChild(fresh.view);
-			}
-		});
-	},
-
 	backhaul: function() {
 		// set by disableMesh() for the single call that tears the mesh down
 		if (this.meshOff) return 'off';
@@ -1952,7 +1887,7 @@ return view.extend({
 		var useWireless = backhaul === 'wireless';
 
 		this.wirelessGroup.classList.toggle('hidden', !useWireless);
-		this.meshRadioInput.disabled = !useWireless;
+		this.meshRadioInput.disabled = !useWireless || !!this.wirelessBlocked;
 		this.meshIdInput.disabled = !useWireless;
 		this.meshKeyInput.disabled = !useWireless;
 		this.meshProtoInput.disabled = !useWireless;
@@ -1967,35 +1902,15 @@ return view.extend({
 		this.slaveIpInput.parentNode.parentNode.classList.toggle('hidden', role !== 'slave');
 		this.gwSelClassInput.parentNode.parentNode.classList.toggle('hidden', role !== 'slave');
 
-		// coverage is configured per SSID: a disabled radio keeps its
-		// current AP settings until it is switched back on
-		this.apConfigInputs.forEach(function(card) {
-			var sync = this.apSyncInput.checked;
-			card.channel.disabled = !sync;
-			if (card.htmode) card.htmode.disabled = !sync;
-			if (card.countEl)
-				card.countEl.textContent = _('SSID 列表（%d 个）').format(card.ssids.length);
-			card.ssids.forEach(function(row) {
-				var on = sync && !row.removed && row.enabled.checked;
-				row.enabled.disabled = !sync || row.removed;
-				row.ssid.disabled = !on;
-				row.encryption.disabled = !on;
-				row.key.disabled = !on || row.encryption.value === 'none';
-				row.network.disabled = !on;
-				[ row.ieee80211k, row.bss_transition, row.wnm_sleep_mode,
-					row.proxy_arp, row.isolate ].forEach(function(el) {
-					el.disabled = !on;
-				});
-				if (row.ft) {
-					row.ft.ieee80211r.disabled = !on;
-					[ row.ft.mobility_domain, row.ft.reassociation_deadline,
-						row.ft.ft_over_ds, row.ft.ft_psk_generate_local,
-						row.ft.pmk_r1_push ].forEach(function(el) {
-						el.disabled = !on || !row.ft.ieee80211r.checked;
-					});
-				}
-			});
-		}, this);
+		// The coverage switch is the same option on every role, but it means
+		// opposite things: the node that owns the profile hands it out, the
+		// one joining the fabric takes it in. The label is what tells the two
+		// apart, so it follows the role.
+		if (this.apSyncLabel) {
+			this.apSyncLabel.textContent = role === 'slave'
+				? _('接受主机各 radio 的无线配置（取消则保留各 radio 当前 AP 设置）')
+				: _('下发各 radio 的无线配置（取消则保留各 radio 当前 AP 设置）');
+		}
 
 		this.updateCoverageAlert();
 	},
@@ -2004,87 +1919,34 @@ return view.extend({
 		this.updateMeshState();
 	},
 
-	// Every radio carries its own SSID / encryption / key, so bands -- and even
-	// radios inside the same band -- may be named independently. Roaming only
-	// needs the same SSID on several APs to share encryption and key, which the
-	// "generate child config" step takes care of. The one thing worth flagging
-	// here is two radios of the same band sitting on the same channel.
-	// A radio only counts as "in use" when at least one of its SSIDs is
-	// enabled and not marked for deletion.
-	radioActive: function(card) {
-		return (card.ssids || []).some(function(row) {
-			return row.enabled.checked && !row.removed;
+	// A radio counts as "in use" when it still carries an enabled AP: a radio
+	// left with no AP has nothing to distribute and must not be reported as a
+	// coverage problem.
+	radioActive: function(config) {
+		return (config.aps || []).some(function(ap) {
+			return ap.enabled && ap.ssid;
 		});
 	},
 
-	// Blocking mistakes: the resulting config would be ambiguous or plainly
-	// wrong, so applying is refused until they are fixed.
-	coverageBlockers: function() {
-		var blockers = [];
-
-	(this.apConfigInputs || []).forEach(function(card) {
-		var names = {};
-		card.ssids.forEach(function(row) {
-			if (row.removed || !row.enabled.checked) return;
-			var name = (row.ssid.value || '').trim();
-			if (!name) return;
-			if (names[name]) {
-				blockers.push(_('%s 上有重复的 SSID「%s」').format(radioTitle(card), name));
-				return;
-			}
-			names[name] = 1;
-
-			// 802.11r needs WPA2/WPA3 and a shared 4 hex digit domain
-			if (row.ft && row.ft.ieee80211r.checked) {
-				var enc = row.encryption.value;
-				if (enc === 'none' || enc === 'owe') {
-					blockers.push(_('SSID「%s」启用了 802.11r，但 %s 加密不支持 FT').format(name, enc));
-					return;
-				}
-				if (!/^[0-9a-fA-F]{4}$/.test((row.ft.mobility_domain.value || '').trim())) {
-					blockers.push(_('SSID「%s」的 802.11r 移动域必须是 4 位十六进制字符').format(name));
-					return;
-				}
-				var dl = (row.ft.reassociation_deadline.value || '').trim();
-				if (dl && (!/^[0-9]+$/.test(dl) || +dl < 1 || +dl > 65535))
-					blockers.push(_('SSID「%s」的 802.11r 重关联时限必须在 1-65535 之间').format(name));
-			}
-		});
-	});
-
-	return blockers;
-},
-
+	// Advisory only. Nothing here can be fixed from this page any more - the
+	// channels and the SSIDs live on 网络 → 无线 - so a finding must never
+	// block an apply, or the operator would be stuck on a page that refuses
+	// to do anything about a problem it will not let them correct.
 	coverageProblems: function() {
-		var self = this;
-		var active = (this.apConfigInputs || []).filter(this.radioActive);
-		var problems = this.coverageBlockers();
+		var problems = [];
 		var seen = {};
 
-		active.forEach(function(c) {
-			var ch = c.channel.value;
+		(this.apConfigs || []).filter(this.radioActive).forEach(function(c) {
+			var ch = c.channel;
 			if (!ch || ch === 'auto') return;
 			// only radios inside the same band can actually collide
 			var k = (c.band || '') + ':' + ch;
 			if (seen[k]) {
 				var band = bandLabel(c.band);
-				problems.push(_('%s 频段有 radio 复用频道 %s，会互相干扰，请错开')
-					.format(band ? band.replace(' radio', '') : _('同'), ch));
+				problems.push(_('%s 频段有多个 radio 使用同一频道 %s，会互相干扰，请到「网络 → 无线」错开')
+					.format(band ? band.replace(' radio', '') : _('同一'), ch));
 			}
 			seen[k] = 1;
-		});
-
-		// an SSID bound to a network that no longer exists would leave the
-		// interface unbridged after a reload
-		var known = (this.networks || []).map(function(n) { return n.name; });
-		(this.apConfigInputs || []).forEach(function(card) {
-			card.ssids.forEach(function(row) {
-				if (row.removed || !row.enabled.checked) return;
-				var net = row.network.value;
-				if (net && known.length && known.indexOf(net) < 0)
-					problems.push(_('SSID「%s」绑定的网络 %s 已不存在').format(
-						(row.ssid.value || '').trim() || '?', net));
-			});
 		});
 
 		return problems;
@@ -2098,9 +1960,9 @@ return view.extend({
 		this.coverageAlert.classList.toggle('hidden', !problems.length);
 		if (!problems.length) return;
 
-		this.coverageAlert.appendChild(E('strong', {}, _('无线覆盖配置提醒')));
+		this.coverageAlert.appendChild(E('strong', {}, _('无线覆盖提醒')));
 		this.coverageAlert.appendChild(E('div', {}, problems.join('；') + '。'));
-		this.coverageAlert.appendChild(E('div', {}, _('各 SSID 的名称、加密方式与密码相互独立；跨机漫游只需保证多台 AP 上同名 SSID 的设置一致。')));
+		this.coverageAlert.appendChild(E('div', {}, _('本页只负责把各 radio 的配置参与下发与频道规划，不会改写这些值。')));
 	},
 
 	// Only non-empty values are sent: an empty field means "remove the UCI
@@ -2123,48 +1985,18 @@ return view.extend({
 		return out;
 	},
 
+	// The channel plan is the node's own current channels: this page has no
+	// per-radio channel dropdown any more, it re-affirms what the device runs
+	// so a later "生成子节点配置" can spread the pool across nodes. An empty
+	// htmode means "leave the radio's width alone" on the device side.
 	collectChannels: function() {
-		return this.apConfigInputs.map(function(config) {
+		return (this.apConfigs || []).map(function(config) {
 			return {
 				radio: config.radio,
-				channel: config.channel.value,
-				htmode: config.htmode ? config.htmode.value : ''
+				channel: config.channel || 'auto',
+				htmode: config.htmode || ''
 			};
 		});
-	},
-
-	// Flatten every radio's SSID rows into the list the backend expects.
-	// A brand new row that is deleted again is dropped outright; an existing
-	// interface is sent with remove=1 so the backend deletes it.
-	collectApEntries: function() {
-		var out = [];
-		this.apConfigInputs.forEach(function(card) {
-			card.ssids.forEach(function(row) {
-				if (!row.section && row.removed) return;
-				out.push({
-					radio: card.radio,
-					section: row.section || '',
-					remove: row.removed ? 1 : 0,
-					enabled: row.enabled.checked ? 1 : 0,
-					ssid: (row.ssid.value || '').trim(),
-					encryption: row.encryption.value || 'sae-mixed',
-					key: row.key.value || '',
-					network: row.network.value || 'lan',
-					ieee80211k: row.ieee80211k.checked ? 1 : 0,
-					bss_transition: row.bss_transition.checked ? 1 : 0,
-					wnm_sleep_mode: row.wnm_sleep_mode.checked ? 1 : 0,
-					proxy_arp: row.proxy_arp.checked ? 1 : 0,
-					isolate: row.isolate.checked ? 1 : 0,
-					ieee80211r: (row.ft && row.ft.ieee80211r.checked) ? 1 : 0,
-					mobility_domain: (row.ft ? (row.ft.mobility_domain.value || '').trim() : ''),
-					ft_over_ds: (row.ft && row.ft.ft_over_ds.checked) ? 1 : 0,
-					ft_psk_generate_local: (row.ft && row.ft.ft_psk_generate_local.checked) ? 1 : 0,
-					reassociation_deadline: (row.ft ? (row.ft.reassociation_deadline.value || '').trim() : ''),
-					pmk_r1_push: (row.ft && row.ft.pmk_r1_push.checked) ? 1 : 0
-				});
-			});
-		});
-		return out;
 	},
 
 	confirmMesh: function() {
@@ -2180,13 +2012,6 @@ return view.extend({
 		if (useWireless && !this.meshIdInput.value.trim()) {
 			ui.addNotification(null, E('p', _('请填写 Mesh ID，同一组网内所有节点必须一致。')));
 			return;
-		}
-		if (this.apSyncInput.checked) {
-			var errors = this.coverageErrors();
-			if (errors.length) {
-				ui.addNotification(null, E('p', _('无线覆盖配置有问题：%s。').format(errors.join('；'))));
-				return;
-			}
 		}
 
 		var wiredText = useWired
@@ -2209,9 +2034,10 @@ return view.extend({
 			E('p', {}, wiredText),
 			E('p', {}, wirelessText),
 			E('p', {}, this.apSyncInput.checked
-				? _('无线覆盖：按各 SSID 的设置下发，共 %d 个 SSID，各 SSID 绑定到各自的网络（VLAN），频道号按 radio 下发。')
-					.format(this.collectApEntries().filter(function(e) { return !e.remove; }).length)
-				: _('无线覆盖：不下发，各 radio 保留当前 AP 配置。')),
+				? (role === 'slave'
+					? _('无线覆盖：接受主机各 radio 的无线配置，并按本节点的频道规划写入（%s）。').format(this.channelLines().join('；'))
+					: _('无线覆盖：本机各 radio 的无线配置作为全网统一覆盖下发，并按本节点的频道规划写入（%s）。').format(this.channelLines().join('；')))
+				: _('无线覆盖：不下发，各 radio 保留当前 AP 设置与频道。')),
 			E('div', { 'class': 'right' }, [
 				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': ui.createHandlerFn(this, 'applyMesh') }, _('确认应用')),
 				' ',
@@ -2252,12 +2078,16 @@ return view.extend({
 			'', /* gw_bandwidth: always announced at maximum on the device */
 			(this.gwSelClassInput.value || '').trim(),
 			(this.slaveIpInput.value || '').trim(),
-			'0', /* unified: coverage is configured per radio */
+			'0', /* unified: each radio keeps its own profile */
 			'',
 			'sae-mixed',
 			'',
 			syncAp === false ? '0' : (this.apSyncInput.checked ? '1' : '0'),
-			JSON.stringify(this.collectApEntries()),
+			// No per-SSID payload any more: the wireless profile is the
+			// node's own config, which the generated child bundle carries
+			// verbatim. An empty list is accepted by the backend and means
+			// "nothing to rewrite", not "the request is broken".
+			'[]',
 			JSON.stringify(this.collectChannels()),
 			this.meshProtoInput.value || 'batman',
 			JSON.stringify(this.collectMeshParams()),
@@ -2389,6 +2219,10 @@ return view.extend({
 				this.statusBox.appendChild(statusPills(this.status));
 			}
 			this.updateTopology();
+			// An apply can flip the bridge between flat and segmented and
+			// change what each radio advertises, so the sections that read
+			// that state have to come along, not just the status pills.
+			return this.refreshNetworkOptions();
 		}, this));
 	},
 
