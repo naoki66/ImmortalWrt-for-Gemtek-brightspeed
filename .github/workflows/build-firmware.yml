@@ -64,6 +64,9 @@ jobs:
           ./scripts/feeds install -a
           bash scripts/fix-stale-golang-host.sh
 
+      - name: Apply feed patches
+        run: bash scripts/apply-feed-patches.sh
+
       - name: Configure
         run: |
           cp config.seed .config

@@ -1,0 +1,40 @@
+diff --git a/modules/luci-mod-network/htdocs/luci-static/resources/tools/bridgevlan.js b/modules/luci-mod-network/htdocs/luci-static/resources/tools/bridgevlan.js
+index 011e26f..b368530 100644
+--- a/modules/luci-mod-network/htdocs/luci-static/resources/tools/bridgevlan.js
++++ b/modules/luci-mod-network/htdocs/luci-static/resources/tools/bridgevlan.js
+@@ -135,6 +135,21 @@ function findActiveBridge() {
+ 	return match;
+ }
+ 
++/* netifd enslaves a wireless VAP into the bridge as soon as a wifi-iface is
++ * attached to an interface laid on top of it, so every AP interface shows up
++ * in the live port list. Those are not switch ports and cannot carry the
++ * tagged egress this view edits, so drop them. Decide by device type rather
++ * than by name so every naming scheme is covered (wlan0, phy0-ap0,
++ * phy0.0-ap0, ...). */
++function isWirelessBridgeMember(name) {
++	try {
++		return network.instantiateDevice(name).getType() === 'wifi';
++	}
++	catch (e) {
++		return false;
++	}
++}
++
+ function collectBridgePorts(deviceSection) {
+ 	const seen = {};
+ 	const devname = getBridgeDeviceName(deviceSection);
+@@ -173,7 +188,12 @@ function collectBridgePorts(deviceSection) {
+ 		});
+ 	}
+ 
+-	return Object.keys(seen).sort(L.naturalCompare);
++	/* Wireless members are excluded from the port list on purpose: they would
++	 * otherwise fail the switch/ethernet check in findActiveBridge() and make
++	 * every wifi-carrying bridge unusable here. */
++	return Object.keys(seen).filter(function(name) {
++		return !isWirelessBridgeMember(name);
++	}).sort(L.naturalCompare);
+ }
+ 
+ function collectBridgeVlans(deviceSection) {
