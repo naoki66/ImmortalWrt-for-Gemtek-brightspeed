@@ -592,6 +592,54 @@ child_band_channel()
 	eval "printf '%s' \"\${$idx}\""
 }
 
+# Whether $2 is one of the preferred pool entries for band $1. "auto" and any
+# value outside the pool returns false so the master can be pinned to slot 0
+# before children are generated.
+channel_in_pool()
+{
+	local band="$1" ch="$2" pool i
+	case "$band" in
+		2g) pool="1 6 11 2 7 12 3 8 13" ;;
+		5g) pool="36 149 44 153 52 157 60 161 100 165" ;;
+		6g) pool="37 5 69 101 133 165 197 229" ;;
+		*) return 1 ;;
+	esac
+	for i in $pool; do
+		[ "$i" = "$ch" ] && return 0
+	done
+	return 1
+}
+
+# Pin master radios whose channel is auto or off-pool to slot 0 of their band
+# pool so child nodes (offset >= 1) never share a channel with the master.
+# Only commits when something actually changed; collects the per-radio
+# adjustment JSON in global MASTER_ADJUSTMENTS_JSON.
+master_fix_channels()
+{
+	local radio band cur fixed el
+	MASTER_ADJUSTMENTS_JSON=""
+	for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-device$/\1/p'); do
+		band="$(uci -q get wireless."$radio".band 2>/dev/null)"
+		cur="$(uci -q get wireless."$radio".channel 2>/dev/null)"
+		case "$cur" in
+			auto|'') : ;;
+			*) channel_in_pool "$band" "$cur" && continue ;;
+		esac
+		fixed="$(child_band_channel "$band" 0)" || continue
+		[ "$fixed" = "$cur" ] && continue
+		uci -q set wireless."$radio".channel="$fixed"
+		el="$(printf '{"radio":"%s","band":"%s","from":"%s","to":"%s"}' \
+			"$(json_escape "$radio")" "$(json_escape "$band")" \
+			"$(json_escape "$cur")" "$(json_escape "$fixed")")"
+		if [ -n "$MASTER_ADJUSTMENTS_JSON" ]; then
+			MASTER_ADJUSTMENTS_JSON="$MASTER_ADJUSTMENTS_JSON,$el"
+		else
+			MASTER_ADJUSTMENTS_JSON="$el"
+		fi
+	done
+	[ -n "$MASTER_ADJUSTMENTS_JSON" ] && uci -q commit wireless
+}
+
 # Rewrite channels in the child config copy so same-band APs never share a
 # channel. Runs in the current shell (uci staging must survive until the
 # caller commits) and returns the "channels":[...] JSON elements in the
@@ -646,13 +694,16 @@ generate_child_config()
 	rewrite_child_static_ips "$dir" "$ip_suffix"
 	disable_child_dhcp_servers "$dir"
 	configure_child_firewall "$dir"
+	# Pin master off-pool / auto radios to slot 0 before spreading children
+	# so the master never shares a channel with any of its children.
+	master_fix_channels
 	child_spread_channels "$dir" "$offset"
 	for f in network wireless dhcp firewall; do
 		uci -c "$dir" -q commit "$f"
 	done
 
-	printf '{"success":true,"path":"%s","channels":[%s],"files":{"network":' \
-		"$(json_escape "$dir")" "$CHILD_CHANNEL_JSON"
+	printf '{"success":true,"path":"%s","master_adjustments":[%s],"channels":[%s],"files":{"network":' \
+		"$(json_escape "$dir")" "$MASTER_ADJUSTMENTS_JSON" "$CHILD_CHANNEL_JSON"
 	json_file_string "$dir/network"
 	printf ',"wireless":'
 	json_file_string "$dir/wireless"

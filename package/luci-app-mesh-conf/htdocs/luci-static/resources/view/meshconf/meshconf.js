@@ -478,16 +478,10 @@ return view.extend({
 
 		this.coverageGroup = E('div', { 'class': 'nm-group' }, [
 			E('div', { 'class': 'nm-group-head' }, [ E('span', { 'class': 'nm-step' }, '4'), _('无线覆盖（SSID）') ]),
-			E('p', { 'class': 'nm-group-desc' }, _('逐 radio 配置：2.4G / 5G / 6G 可分别命名 SSID（如 ImmortalWrt-2.4G、-5G、-6G）；仅同一频段内有多个 radio 时，其 SSID、加密方式与密码需保持一致。多台 AP 之间的同频错开由“生成子节点配置”按节点序号自动完成。')),
-			E('div', { 'class': 'nm-actions', 'style': 'margin-top:0;padding-top:0;border-top:0' }, [
-				E('button', {
-					'class': 'cbi-button cbi-button-neutral',
-					'click': ui.createHandlerFn(this, 'syncCoverage')
-				}, _('同步各 radio 的 SSID / 加密 / 密码'))
-			]),
+			E('p', { 'class': 'nm-group-desc' }, _('逐 radio 配置：各 radio 的 SSID、加密方式与密码相互独立，2.4G / 5G / 6G 可分别命名（如 ImmortalWrt-2.4G、-5G、-6G）。多台 AP 之间同频段的频道错开由“生成子节点配置”按节点序号自动完成。')),
 			this.apCards,
 			this.coverageAlert,
-			E('p', { 'class': 'nm-hint' }, _('密码留空表示沿用该 radio 的当前密钥；同一频段内的多个 radio 要改密码时请填入相同的新密码，否则无法漫游。')),
+			E('p', { 'class': 'nm-hint' }, _('密码留空表示沿用该 radio 的当前密钥；跨机漫游要求多台 AP 上同名 SSID 的加密方式与密码一致。')),
 			E('div', { 'class': 'nm-field inline', 'style': 'margin-top:12px' }, [
 				E('label', {}, [ this.apSyncInput, _('下发上述各 radio 的无线配置（取消则保留各 radio 当前 AP 设置）') ])
 			])
@@ -680,39 +674,16 @@ return view.extend({
 		this.updateMeshState();
 	},
 
-	// Different bands may use different SSIDs; only multiple enabled radios
-	// in the SAME band must agree on SSID / encryption / key for roaming.
-	// With hard=true the channel overlap is left out: it is a warning, not a
-	// blocker.
-	coverageProblems: function(hard) {
+	// Every radio carries its own SSID / encryption / key, so bands -- and even
+	// radios inside the same band -- may be named independently. Roaming only
+	// needs the same SSID on several APs to share encryption and key, which the
+	// "generate child config" step takes care of. The one thing worth flagging
+	// here is two radios of the same band sitting on the same channel.
+	coverageProblems: function() {
 		var active = (this.apConfigInputs || []).filter(function(c) { return c.enabled.checked; });
-		var groups = {};
-		active.forEach(function(c) {
-			var k = c.band || '_';
-			(groups[k] = groups[k] || []).push(c);
-		});
 		var problems = [];
-
-		Object.keys(groups).forEach(function(band) {
-			var list = groups[band];
-			if (list.length < 2) return;
-			var name = (bandLabel(band) || _('同频段')).replace(' radio', '');
-			var first = list[0];
-			var ssid = (first.ssid.value || '').trim();
-			if (!list.every(function(c) { return (c.ssid.value || '').trim() === ssid; }))
-				problems.push(_('%s 频段内各 radio 的 SSID 不一致').format(name));
-			if (!list.every(function(c) { return c.encryption.value === first.encryption.value; }))
-				problems.push(_('%s 频段内各 radio 的加密方式不一致').format(name));
-
-			var keys = list.map(function(c) { return c.key.value || ''; });
-			if (keys.every(function(k) { return k !== ''; }) &&
-				!keys.every(function(k) { return k === keys[0]; }))
-				problems.push(_('%s 频段内各 radio 的无线密码不一致').format(name));
-		});
-
-		if (hard) return problems;
-
 		var seen = {};
+
 		active.forEach(function(c) {
 			var ch = c.channel.value;
 			if (!ch || ch === 'auto') return;
@@ -720,7 +691,8 @@ return view.extend({
 			var k = (c.band || '') + ':' + ch;
 			if (seen[k]) {
 				var band = bandLabel(c.band);
-				problems.push(_('%s 频段有 radio 复用频道 %s').format(band ? band.replace(' radio', '') : _('同'), ch));
+				problems.push(_('%s 频段有 radio 复用频道 %s，会互相干扰，请错开')
+					.format(band ? band.replace(' radio', '') : _('同'), ch));
 			}
 			seen[k] = 1;
 		});
@@ -736,26 +708,9 @@ return view.extend({
 		this.coverageAlert.classList.toggle('hidden', !problems.length);
 		if (!problems.length) return;
 
-		this.coverageAlert.appendChild(E('strong', {}, _('当前配置不满足漫游要求')));
+		this.coverageAlert.appendChild(E('strong', {}, _('频道冲突提醒')));
 		this.coverageAlert.appendChild(E('div', {}, problems.join('；') + '。'));
-		this.coverageAlert.appendChild(E('div', {}, _('2.4G / 5G / 6G 可分别命名 SSID；仅同一频段内的多个 radio 需保持 SSID、加密方式与密码一致，频道号各自错开。')));
-	},
-
-	syncCoverage: function() {
-		var active = this.apConfigInputs.filter(function(c) { return c.enabled.checked; });
-		if (!active.length) {
-			ui.addNotification(null, E('p', _('请先启用至少一个 radio 的 AP。')));
-			return;
-		}
-		var src = active[0];
-		this.apConfigInputs.forEach(function(c) {
-			c.ssid.value = src.ssid.value;
-			c.encryption.value = src.encryption.value;
-			c.key.value = src.key.value;
-		});
-		this.apSyncInput.checked = true;
-		this.updateMeshState();
-		ui.addNotification(null, E('p', _('已把 SSID / 加密方式 / 密码同步到所有 radio，频道号保持不变。')));
+		this.coverageAlert.appendChild(E('div', {}, _('各 radio 的 SSID、加密方式与密码相互独立；只需保证多台 AP 上同名 SSID 的设置一致即可漫游。')));
 	},
 
 	collectChannels: function() {
@@ -785,11 +740,6 @@ return view.extend({
 			if (missing.length) {
 				ui.addNotification(null, E('p', _('请为启用的 radio 填写 SSID：%s').format(
 					missing.map(function(c) { return c.radio; }).join('、'))));
-				return;
-			}
-			var problems = this.coverageProblems(true);
-			if (problems.length) {
-				ui.addNotification(null, E('p', _('无线覆盖不满足漫游要求：%s。不同频段可分别命名，仅同一频段内的多个 radio 需保持 SSID、加密方式与密码一致。').format(problems.join('；'))));
 				return;
 			}
 		}
@@ -928,6 +878,12 @@ return view.extend({
 			return '### /etc/config/' + name + '\n' + (files[name] || '');
 		}).join('\n\n');
 
+		var masterAdjLines = (res.master_adjustments || []).map(function(a) {
+			var label = bandLabel(a.band);
+			var from = a.from || 'auto';
+			return _('%s（%s）：%s → %s').format(a.radio, label || a.band, from, a.to);
+		});
+
 		var channelLines = (res.channels || []).map(function(c) {
 			var label = bandLabel(c.band);
 			return _('%s（%s）：频道 %s').format(c.radio, label || c.band, c.channel);
@@ -935,8 +891,15 @@ return view.extend({
 
 		return ui.showModal(_('子节点配置已生成'), [
 			E('p', {}, _('把它导入从节点即可复用主节点的 Mesh ID、SSID 与加密方式。设备临时目录: %s').format(res.path || '-')),
-			channelLines.length
+			masterAdjLines.length
 				? E('div', { 'class': 'nm-alert' }, [
+					E('strong', {}, _('主节点以下 radio 已固定到池中频道以避免与子节点重叠：')),
+					E('div', {}, masterAdjLines.join('；')),
+					E('div', { 'class': 'nm-muted' }, _('主节点配置已写入，需执行 wifi reload 或重启主节点后生效。'))
+				])
+				: '',
+			channelLines.length
+				? E('div', { 'class': 'nm-alert ok' }, [
 					E('strong', {}, _('该子节点已按节点序号自动错开同频段频道：')),
 					E('div', {}, channelLines.join('；'))
 				])

@@ -2,13 +2,13 @@ include $(TOPDIR)/rules.mk
 
 LUCI_NAME:=luci-app-mesh-conf
 PKG_VERSION:=0.1.0
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
 PKG_MAINTAINER:=XR1710G Maintainer
 PKG_LICENSE:=GPL-2.0-or-later
 
 LUCI_TITLE:=LuCI batman-adv Mesh Configuration
-LUCI_DESCRIPTION:=Wired or wireless 802.11s mesh backhaul (one link at a time), master/slave roles, per-radio wireless coverage with roaming checks and mesh topology discovery. Upstream WAN mode (AP / DHCP / PPPoE) is handled by luci-app-netmode.
+LUCI_DESCRIPTION:=Wired or wireless 802.11s mesh backhaul (one link at a time), master/slave roles, per-radio wireless coverage with same-band channel conflict checks and mesh topology discovery. Upstream WAN mode (AP / DHCP / PPPoE) is handled by luci-app-netmode.
 LUCI_DEPENDS:=+luci-base +rpcd +jsonfilter +iw +iwinfo +ip-full +kmod-batman-adv +batctl-full +wpad-mesh-mbedtls
 LUCI_PKGARCH:=all
 
