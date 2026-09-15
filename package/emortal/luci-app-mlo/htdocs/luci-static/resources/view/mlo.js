@@ -450,6 +450,13 @@ return view.extend({
 				section_id;
 		};
 
+		/* 802.11s mesh backhaul interfaces are managed exclusively
+		 * from Network -> Wireless; never expose them to the AP/STA
+		 * editor on this page. */
+		s.filter = function(section_id) {
+			return optionValue(section_id, 'mode') != 'mesh';
+		};
+
 		quickAdd = function(mode) {
 			let selectedRadios = radios.slice(0, 2).map(r => r['.name']);
 			let sid;
@@ -680,6 +687,11 @@ return view.extend({
 				function() { return quickAdd('sta'); },
 				function() { return refreshRuntime(nodes); }),
 			nodes.firstChild);
+
+			if (uci.sections('wireless', 'wifi-iface').some(w => w.mode == 'mesh'))
+				nodes.insertBefore(E('div', { 'class': 'alert-message notice' },
+					E('p', _('802.11s mesh backhaul interfaces are hidden on this page. Manage them from Network - Wireless.'))),
+					nodes.firstChild);
 
 			return refreshRuntime(nodes).then(function() {
 				poll.add(function() {

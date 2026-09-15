@@ -18,6 +18,10 @@ msgstr "%d 个 MLO 接口覆盖了自动生成的 MLD ifname。"
 msgid "%d MLO interface(s) still have fewer than two radios selected."
 msgstr "%d 个 MLO 接口当前选择的 radio 少于 2 个。"
 
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:693
+msgid "802.11s mesh backhaul interfaces are hidden on this page. Manage them from Network - Wireless."
+msgstr "本页面已隐藏 802.11s Mesh 回程接口，请在「网络 → 无线」中管理。"
+
 #: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:529
 msgid "802.11w Management Frame Protection"
 msgstr "802.11w 管理帧保护"

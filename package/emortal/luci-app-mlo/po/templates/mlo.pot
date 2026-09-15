@@ -9,6 +9,10 @@ msgstr ""
 msgid "%d MLO interface(s) still have fewer than two radios selected."
 msgstr ""
 
+#: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:693
+msgid "802.11s mesh backhaul interfaces are hidden on this page. Manage them from Network - Wireless."
+msgstr ""
+
 #: luci-app-mlo/htdocs/luci-static/resources/view/mlo.js:529
 msgid "802.11w Management Frame Protection"
 msgstr ""
