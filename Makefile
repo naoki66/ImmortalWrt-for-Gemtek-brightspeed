@@ -31,6 +31,7 @@ ifneq ($(OPENWRT_BUILD),1)
   include $(TOPDIR)/include/debug.mk
   include $(TOPDIR)/include/depends.mk
   include $(TOPDIR)/include/toplevel.mk
+  -include $(TOPDIR)/include/feed-patches.mk
 else
   include rules.mk
   include $(INCLUDE_DIR)/depends.mk

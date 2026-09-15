@@ -12,8 +12,9 @@
 # `git -C feeds/<feed> apply`.
 #
 # Idempotent: a patch that is already applied is reported and skipped, so this
-# is safe to run on top of a warm feed checkout. Run from the repository root,
-# after `./scripts/feeds update -a` / `install -a`.
+# is safe to run on top of a warm feed checkout. Run it after
+# `./scripts/feeds update -a` / `install -a`; include/feed-patches.mk hooks it
+# into every make invocation, so a normal build does this automatically.
 #
 # The patch is fed to git on stdin rather than by path: `git -C <feed> apply`
 # resolves a path argument relative to the feed directory, and building an
@@ -21,6 +22,11 @@
 # on Windows, which the native git.exe cannot open).
 
 set -Eeuo pipefail
+
+# Resolve the repository root from this script's own location: the build hook
+# calls us by absolute path, and everything below (patches/feeds, feeds/<feed>)
+# is relative to the repository root.
+cd "$(cd "$(dirname "$0")" && pwd)/.." || exit 1
 
 if [[ ! -d patches/feeds ]]; then
 	echo "No patches/feeds directory, nothing to apply."
