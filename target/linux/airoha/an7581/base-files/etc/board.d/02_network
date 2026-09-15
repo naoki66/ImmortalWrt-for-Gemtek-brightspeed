@@ -6,6 +6,32 @@
 . /lib/functions/uci-defaults.sh
 . /lib/functions/system.sh
 
+#
+# Gemtek XR1710G / W1700K use a vlan-aware br-lan so that LuCI's
+# Network -> Switch (switch-vlan.js, the DSA-style view) can manage the
+# LAN ports.  That view only accepts a bridge which
+#   - is a "device" section of type "bridge" with VLAN filtering on
+#     (explicit vlan_filtering=1, or implicitly through bridge-vlan), and
+#   - whose every member port resolves to getType() "ethernet" or "switch".
+#
+# "lan3"/"lan4" are internal GSW (DSA) ports -> devtype "dsa" -> "switch",
+# "lan2" is &gdm4 (USXGMII) -> "ethernet"; both qualify.  "wan" is a separate
+# &gdm2 netdev and therefore stays OUT of the bridge by default, so it is not
+# offered as a switch port.
+#
+# NOTE on board.json.bridge: ucidef_set_bridge_device() is deliberately NOT
+# used here.  config_generate's "[ -n "$bridge" ]" branch runs for EVERY
+# board.json network entry, so declaring a bridge would fold "wan" into it as
+# well and hand both interfaces the same "br-lan.1" device.  Leaving bridge
+# unset keeps the plain "lan -> br-lan" path, and the VLAN filtering +
+# bridge-vlan sections are added by 22_airoha-network-migrate-v4 (which runs
+# from uci-defaults, i.e. after config_generate has written /etc/config/network).
+#
+gemtek_setup_bridge_vlan()
+{
+	ucidef_set_interfaces_lan_wan "lan2 lan3 lan4" "wan"
+}
+
 an7581_setup_interfaces()
 {
 	local board="$1"
@@ -16,7 +42,7 @@ an7581_setup_interfaces()
 		;;
 	gemtek,w1700k-ubi|\
 		gemtek,xr1710g-ubi)
-		ucidef_set_interfaces_lan_wan "lan2 lan3 lan4" "wan"
+		gemtek_setup_bridge_vlan
 		;;
 	nokia,valyrian)
 		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 10g" "wan"

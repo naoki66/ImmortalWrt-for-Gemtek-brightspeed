@@ -146,10 +146,149 @@ set_xr1710g_wan_clientid_default() {
 	migrated=1
 }
 
+#
+# Make br-lan vlan-aware so LuCI's Network -> Switch view (switch-vlan.js)
+# accepts it.  That view's findActiveBridge() requires a "device" section of
+# type "bridge" with VLAN filtering on -- either vlan_filtering='1' or at
+# least one bridge-vlan section -- and every member port resolving to
+# getType() "ethernet" or "switch".  lan2 is &gdm4 (ethernet) while lan3/lan4
+# are internal GSW/DSA ports (switch), so the default LAN set qualifies as-is.
+#
+# Runs from uci-defaults, i.e. AFTER /bin/config_generate has written
+# /etc/config/network, which is why this cannot live in board.d/02_network.
+#
+_xr1710g_bridge_name=""
+_xr1710g_bridge_section=""
+
+_xr1710g_match_bridge() {
+	local cfg="$1"
+	local name type
+
+	config_get name "$cfg" name
+	config_get type "$cfg" type
+
+	[ "$type" = "bridge" ] || return 0
+	[ "$name" = "br-lan" ] || return 0
+
+	_xr1710g_bridge_section="$cfg"
+	_xr1710g_bridge_name="$name"
+}
+
+#
+# Does the given bridge already carry any bridge-vlan section?  Queried
+# through the uci CLI rather than config_foreach on purpose: uci_load
+# snapshots /etc/config/network into CONFIG_* shell variables once, so a
+# section created earlier in this same process would be invisible to
+# config_foreach and the script would re-create it on every boot.
+#
+# The "get" below doubles as a type check: "uci -q get network.<sec>" prints
+# the section TYPE, so comparing against "bridge-vlan" needs no parsing of
+# "uci show" -- which matters because bridge-vlan sections are usually
+# anonymous and print as "network.@bridge-vlan[0]=bridge-vlan".
+#
+_xr1710g_bridge_has_vlan() {
+	local name="$1"
+	local section
+
+	for section in $(_xr1710g_list_bridge_vlan_sections); do
+		if [ "$(uci -q get "network.$section.device")" = "$name" ]; then
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+# Emit the id of every bridge-vlan section: named ones by their name, and
+# anonymous ones by their "@bridge-vlan[n]" index path.
+_xr1710g_list_bridge_vlan_sections() {
+	local line key value
+
+	while IFS= read -r line; do
+		key="${line%%=*}"
+		value="${line#*=}"
+		[ "$value" = "bridge-vlan" ] || continue
+
+		case "$key" in
+		network.*) printf '%s\n' "${key#network.}" ;;
+		esac
+	done <<-EOF
+	$(uci -q show network)
+	EOF
+}
+
+enable_xr1710g_bridge_vlan_filtering() {
+	local ports raw_ports="" port seen=""
+
+	_xr1710g_bridge_section=""
+	_xr1710g_bridge_name=""
+	config_foreach _xr1710g_match_bridge device
+
+	[ -n "$_xr1710g_bridge_section" ] || return 0
+
+	# Collect the current bridge members.  migrate_xr1710g_device() has
+	# already rewritten any legacy "eth0.x"/"ae_wan" spelling by now, so the
+	# values read here are the final "lan2 lan3 lan4" form.
+	config_get ports "$_xr1710g_bridge_section" ports
+	config_get raw_ports "$_xr1710g_bridge_section" ifname
+
+	for port in $ports $raw_ports; do
+		case "$port" in
+		lan2|lan3|lan4|wan) ;;
+		*) continue ;;
+		esac
+
+		case " $seen " in
+		*" $port "*) continue ;;
+		esac
+
+		seen="$seen $port"
+	done
+	seen="${seen# }"
+
+	# Fall back to the known-good default if the bridge looked empty.
+	[ -n "$seen" ] || seen="lan2 lan3 lan4"
+
+	# Read state back through the uci CLI, NOT config_get: uci_load snapshots
+	# the config into CONFIG_* shell variables, and the "uci set" calls below
+	# do not refresh that snapshot.  config_get would therefore keep reporting
+	# the pre-migration value forever and the script would re-add the section
+	# on every boot.
+	if [ "$(uci -q get "network.$_xr1710g_bridge_section.vlan_filtering")" != "1" ]; then
+		uci set "network.$_xr1710g_bridge_section.vlan_filtering='1'"
+		migrated=1
+	fi
+
+	if ! _xr1710g_bridge_has_vlan "$_xr1710g_bridge_name"; then
+		# Flat VLAN 1, every member untagged: byte-for-byte the forwarding
+		# behaviour of the previous non-VLAN-aware bridge, so nothing changes
+		# until the operator adds VLANs themselves.
+		#
+		# One add_list per port, never a single "uci set ... .ports=a b c".
+		# UCI cannot represent a multi-value option as a string: "set" would
+		# store the literal value "lan2 lan3 lan4", and LuCI's switch-vlan view
+		# reads that back with L.toArray() as ONE port named "lan2 lan3 lan4"
+		# (collectBridgePorts only strips a ":u*"/":t" suffix, it never splits
+		# on whitespace), so the page renders a bogus port tile. netifd's
+		# bridge-vlan parser also expects an array here.
+		uci -q delete network.br_lan_vlan1
+		uci set network.br_lan_vlan1='bridge-vlan'
+		uci set network.br_lan_vlan1.device="$_xr1710g_bridge_name"
+		uci set network.br_lan_vlan1.vlan='1'
+		for port in $seen; do
+			uci -q add_list "network.br_lan_vlan1.ports=${port}:u*"
+		done
+		migrated=1
+	fi
+
+	return 0
+}
+
 config_load network
 config_foreach migrate_xr1710g_device device
 config_foreach migrate_xr1710g_interface interface
 set_xr1710g_wan_clientid_default
+enable_xr1710g_bridge_vlan_filtering
 
 [ "$migrated" -eq 1 ] || exit 0
 
