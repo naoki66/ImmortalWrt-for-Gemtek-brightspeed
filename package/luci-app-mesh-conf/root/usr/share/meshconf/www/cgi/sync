@@ -1,0 +1,180 @@
+#!/bin/sh
+# Management endpoint for luci-app-mesh-conf - the "controller channel" half of
+# the wired sync feature. Discovery (who is out there) is UDP broadcast and
+# lives in /usr/sbin/meshconf-beacon; this CGI is only what happens after a
+# node has been found:
+#
+#   GET  /cgi/sync?action=hello          - who am I (no key needed)
+#   GET  /cgi/sync?action=get&key=KEY    - hand out /etc/config/wireless
+#   POST /cgi/sync?action=put&key=KEY    - take a /etc/config/wireless and apply
+#
+# It is served by a dedicated uhttpd instance bound to the sync port, over
+# plain HTTP, and the shared key is the only thing standing between a LAN peer
+# and this device's wireless config. That is the same trust model as the L2
+# discovery it sits next to: anyone who can plug into the LAN can reach it.
+#
+# uhttpd runs CGI as root, so every handler has to validate its own input
+# rather than rely on a wrapper.
+
+WIFI=/etc/config/wireless
+BAK="$WIFI.meshconf-bak"
+TMPDIR_SYNC=/tmp/meshconf-sync
+
+# uhttpd hands the CGI a minimal environment; without this, uci/head/sed can
+# come back "not found" and the peer sees a 500 instead of a config.
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin:$PATH
+
+# Shared with the rpcd plugin: "keep my own channel" has to behave the same
+# whether a config walked in through push or through pull.
+MESHCONF_LIB=""
+[ -r /usr/share/meshconf/lib.sh ] && . /usr/share/meshconf/lib.sh
+
+set -f
+
+out_json() {
+	printf 'Content-Type: application/json\r\nCache-Control: no-store\r\n\r\n%s' "$1"
+}
+
+fail() { out_json "{\"success\":false,\"error\":\"$(json_escape "$1")\"}"; exit 0; }
+
+json_escape() {
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/	/ /g' | tr -d '\r\n'
+}
+
+# /etc/config/wireless as a JSON string value: the newlines have to survive the
+# trip, otherwise the peer would apply one long single-line config.
+config_as_json_string() {
+	awk 'BEGIN { printf "\"" }
+	{
+		gsub(/\\/, "\\\\")
+		gsub(/"/, "\\\"")
+		gsub(/\t/, "\\t")
+		gsub(/\r/, "")
+		if (NR > 1) printf "\\n"
+		printf "%s", $0
+	}
+	END { printf "\"" }' "$1"
+}
+
+qs_get() {
+	printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n "s/^$1=//p" | head -n1
+}
+
+# The key travels in a URL, so it is restricted to unreserved characters and
+# never needs URL decoding - which also means two nodes that were given the
+# same key really do send the same bytes.
+valid_key() {
+	case "$1" in
+		'') return 1 ;;
+		*[!A-Za-z0-9_-]*) return 1 ;;
+	esac
+	return 0
+}
+
+sync_key() { uci -q get meshconf.sync.key 2>/dev/null; }
+
+check_key() {
+	local want have
+	want="$(sync_key)"
+	if ! valid_key "$want"; then
+		fail 'this node has no sync key configured, refusing'
+	fi
+	have="$1"
+	[ "$have" = "$want" ] || fail 'sync key mismatch'
+}
+
+local_facts() {
+	local wifirev uptime
+	wifirev="$(md5sum $WIFI 2>/dev/null | cut -c1-8)"
+	[ -n "$wifirev" ] || wifirev="--------"
+	uptime="$(awk '{print int($1)}' /proc/uptime 2>/dev/null || echo 0)"
+	printf '{"success":true,"app":"meshconf","hostname":"%s","model":"%s","fwver":"%s","mac":"%s","lan_ip":"%s","wifirev":"%s","mesh_id":"%s","kvr":%s,"uptime":%s}' \
+		"$(json_escape "$(cat /proc/sys/kernel/hostname 2>/dev/null)")" \
+		"$(json_escape "$(cat /tmp/sysinfo/model 2>/dev/null || cat /tmp/sysinfo/board_name 2>/dev/null || echo unknown)")" \
+		"$(json_escape "$(cat /etc/openwrt_version 2>/dev/null || echo unknown)")" \
+		"$(json_escape "$(cat /sys/class/net/br-lan/address 2>/dev/null || echo '')")" \
+		"$(json_escape "$(ip -4 addr show dev br-lan 2>/dev/null | awk '/inet /{print $2; exit}' | cut -d/ -f1)")" \
+		"$(json_escape "$wifirev")" \
+		"$(json_escape "$(uci -q get meshconf.mesh.mesh_id 2>/dev/null)")" \
+		"$(uci -q get meshconf.roaming.kvr 2>/dev/null | grep -q '^1$' && echo true || echo false)" \
+		"$uptime"
+}
+
+do_hello() { out_json "$(local_facts)"; }
+
+do_get() {
+	check_key "$1"
+	[ -r "$WIFI" ] || fail 'no wireless config to hand out'
+	out_json "{\"success\":true,\"wifirev\":\"$(json_escape "$(md5sum $WIFI 2>/dev/null | cut -c1-8)")\",\"config\":$(config_as_json_string "$WIFI")}"
+}
+
+do_put() {
+	local len="$CONTENT_LENGTH" body bytes
+	check_key "$1"
+
+	case "$len" in
+		''|*[!0-9]*) fail 'missing or invalid Content-Length' ;;
+	esac
+	[ "$len" -gt 0 ] 2>/dev/null || fail 'empty upload'
+	[ "$len" -le 262144 ] || fail 'upload too large'
+
+	mkdir -p "$TMPDIR_SYNC" 2>/dev/null
+	body="$TMPDIR_SYNC/wireless.$$"
+	head -c "$len" > "$body" 2>/dev/null
+	bytes="$(wc -c < "$body" 2>/dev/null | tr -d ' ')"
+	[ -n "$bytes" ] || bytes=0
+
+	# Refuse anything that is not a UCI wireless config before it can become
+	# one: a truncated or mangled upload would leave the radio dead.
+	grep -q 'config wifi-device' "$body" 2>/dev/null || { rm -f "$body"; fail 'upload is not a wireless config'; }
+
+	# Only the receiver can know whether it sits far enough from the sender to
+	# want a different channel, so the rewrite happens here - the sender always
+	# puts its own (already corrected) config on the wire. A failure leaves the
+	# upload untouched; the parse check below still decides if it is usable.
+	if [ "$MESHCONF_LIB" = "1" ] && meshconf_keep_channel; then
+		meshconf_apply_local_channels "$body" && {
+			# the rewrite can change the size, and bytes is what gets reported
+			bytes="$(wc -c < "$body" 2>/dev/null | tr -d ' ')"
+			[ -n "$bytes" ] || bytes=0
+		}
+	fi
+
+	mkdir -p "$TMPDIR_SYNC/uci" 2>/dev/null
+	cp -f "$body" "$TMPDIR_SYNC/uci/wireless" 2>/dev/null
+	uci -c "$TMPDIR_SYNC/uci" show wireless >/dev/null 2>&1 || { rm -f "$body"; fail 'upload does not parse as UCI'; }
+
+	cp -f "$WIFI" "$BAK" 2>/dev/null
+	cp -f "$body" "$WIFI" 2>/dev/null || { rm -f "$body"; fail 'could not write the wireless config'; }
+	rm -f "$body"
+
+	mkdir -p "$TMPDIR_SYNC/uci" 2>/dev/null
+	uci -q set meshconf.sync.last_sync="$(date +%s 2>/dev/null || echo 0)"
+	uci -q set meshconf.sync.last_peer="${REMOTE_ADDR:-}"
+	uci -q commit meshconf 2>/dev/null
+
+	# Reloading the radios takes seconds and would hold the HTTP request open
+	# (and with it the caller's spinner).
+	(/sbin/wifi reload >/dev/null 2>&1 &) 2>/dev/null
+
+	out_json "{\"success\":true,\"bytes\":$bytes,\"reloading\":true}"
+}
+
+main() {
+	local action key
+	action="$(qs_get action)"
+	key="$(qs_get key)"
+
+	case "$action" in
+		hello) do_hello ;;
+		get) do_get "$key" ;;
+		put)
+			[ "${REQUEST_METHOD:-GET}" = "POST" ] || fail 'put requires POST'
+			do_put "$key"
+			;;
+		*) fail 'unknown action' ;;
+	esac
+	exit 0
+}
+
+main

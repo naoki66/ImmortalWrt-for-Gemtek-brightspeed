@@ -1,0 +1,232 @@
+#!/bin/sh
+# L2 neighbour discovery for luci-app-mesh-conf.
+#
+# Same shape a wireless controller uses to find its APs: every node keeps
+# announcing itself on the LAN, and answers at once when another node asks.
+# The controller side therefore only has to listen - no subnet sweep, no
+# credentials, no mDNS stack, and no assumption that the LAN is a /24.
+#
+# Wire format: one UDP datagram, one line, pipe separated (chosen over JSON so
+# that a plain shell read can split it without an escaping library):
+#
+#   MESHCONF1|announce|<mac>|<ip>|<hostname>|<model>|<fwver>|<wifirev>|<mesh_id>|<kvr>|<uptime>
+#   MESHCONF1|discover|<mac>|<ip>
+#
+# Announcements land in /tmp/meshconf-neigh/<ip> (payload + last-seen stamp),
+# which is the file the rpcd backend reads, so the peer list is already
+# populated when the page asks for it.
+#
+# Usage:
+#   meshconf-beacon          run as a service (procd)
+#   meshconf-beacon discover ask the neighbours to announce themselves now
+
+PORT=7761
+NEIGH_DIR=/tmp/meshconf-neigh
+INTERVAL=10
+
+# rpcd and procd do not guarantee the PATH an interactive shell has, and
+# "command -v socat" answering "not found" on a device that demonstrably ships
+# /usr/bin/socat is a hard failure of a feature, not a warning.
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin:$PATH
+
+set -f
+
+log() { logger -t meshconf-beacon "$1" 2>/dev/null; }
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# The payload is pipe separated, so a value containing a pipe would shift every
+# field after it.
+field() { printf '%s' "$1" | tr -d '\r\n' | tr '|' ' '; }
+
+self_ip() {
+	local ip=""
+	if [ -r /lib/functions/network.sh ]; then
+		. /lib/functions/network.sh
+		network_get_ipaddr ip lan 2>/dev/null
+	fi
+	[ -n "$ip" ] || ip="$(ip -4 addr show dev br-lan 2>/dev/null | awk '/inet /{print $2; exit}' | cut -d/ -f1)"
+	printf '%s' "$ip"
+}
+
+self_mac() {
+	local mac=""
+	mac="$(cat /sys/class/net/br-lan/address 2>/dev/null)"
+	[ -n "$mac" ] || mac="$(ip -4 link show dev br-lan 2>/dev/null | awk '/ether/{print $2; exit}')"
+	[ -n "$mac" ] || mac="00:00:00:00:00:00"
+	printf '%s' "$(printf '%s' "$mac" | tr 'A-F' 'a-f')"
+}
+
+board_model() {
+	local m=""
+	[ -r /tmp/sysinfo/model ] && m="$(cat /tmp/sysinfo/model 2>/dev/null)"
+	if [ -z "$m" ] && [ -r /tmp/sysinfo/board_name ]; then
+		m="$(cat /tmp/sysinfo/board_name 2>/dev/null)"
+	fi
+	[ -n "$m" ] || m="unknown"
+	printf '%s' "$m"
+}
+
+fw_version() {
+	local v=""
+	[ -r /etc/openwrt_version ] && v="$(cat /etc/openwrt_version 2>/dev/null)"
+	[ -n "$v" ] || v="unknown"
+	printf '%s' "$v"
+}
+
+# Fingerprint of the config that gets pushed around, so the page can say
+# "same as this unit" instead of making the operator guess.
+wifi_rev() {
+	local r=""
+	r="$(md5sum /etc/config/wireless 2>/dev/null | cut -c1-8)"
+	[ -n "$r" ] || r="--------"
+	printf '%s' "$r"
+}
+
+uptime_s() { awk '{print int($1)}' /proc/uptime 2>/dev/null || printf 0; }
+
+# Directed broadcast for the LAN subnet: 255.255.255.255 would leave on
+# whatever interface holds the default route, which is the WAN on a router.
+broadcast_addr() {
+	local ip="$1" prefix="$2"
+	[ -n "$ip" ] && [ -n "$prefix" ] || return 1
+	case "$prefix" in ''|*[!0-9]*) return 1 ;; esac
+	awk -v ip="$ip" -v p="$prefix" 'BEGIN {
+		split(ip, o, ".")
+		v = ((o[1] * 256 + o[2]) * 256 + o[3]) * 256 + o[4]
+		if (p <= 0 || p >= 31) exit 1
+		size = 2 ^ (32 - p)
+		b = int(v / size) * size + size - 1
+		printf "%d.%d.%d.%d\n", int(b / 16777216) % 256, int(b / 65536) % 256, int(b / 256) % 256, b % 256
+	}'
+}
+
+lan_prefix() {
+	local pfx="" subnet=""
+	if [ -r /lib/functions/network.sh ]; then
+		. /lib/functions/network.sh
+		if network_get_subnet subnet lan 2>/dev/null; then
+			pfx="${subnet#*/}"
+		fi
+	fi
+	[ -n "$pfx" ] || pfx="$(ip -4 route show dev br-lan proto kernel scope link 2>/dev/null | awk '{print $1; exit}' | cut -d/ -f2)"
+	[ -n "$pfx" ] || pfx=24
+	printf '%s' "$pfx"
+}
+
+build_payload() {
+	SELF_IP="$(self_ip)"
+	SELF_MAC="$(self_mac)"
+	PAYLOAD="MESHCONF1|announce|$SELF_MAC|$SELF_IP|$(field "$(cat /proc/sys/kernel/hostname 2>/dev/null)")|$(field "$(board_model)")|$(field "$(fw_version)")|$(field "$(wifi_rev)")|$(field "$(uci -q get meshconf.mesh.mesh_id 2>/dev/null)")|$(uci -q get meshconf.roaming.kvr 2>/dev/null || echo 0)|$(uptime_s)"
+}
+
+# socat does the actual L2 work: -u keeps it one-way (stdin -> socket) so it
+# exits as soon as the payload is out instead of waiting for an answer a
+# broadcast will never get, and `broadcast` sets SO_BROADCAST.
+send_line() {
+	local line="$1" dest="$2" opts="broadcast"
+	[ -n "$dest" ] || return 1
+	# Binding to the LAN address is what keeps the datagram on the LAN:
+	# 0.0.0.0 lets the kernel pick the interface from the routing table, which
+	# is the WAN on a router.
+	[ -n "$SELF_IP" ] && opts="$opts,bind=$SELF_IP:$PORT"
+	printf '%s\n' "$line" | socat -u -t 0 - "UDP4-DATAGRAM:$dest:$PORT,$opts" >/dev/null 2>&1
+}
+
+broadcast_target() {
+	local bcast
+	bcast="$(broadcast_addr "$SELF_IP" "$(lan_prefix)")"
+	[ -n "$bcast" ] && printf '%s' "$bcast" || printf '%s' "255.255.255.255"
+}
+
+announce() {
+	local dest
+	build_payload
+	dest="$(broadcast_target)"
+	send_line "$PAYLOAD" "$dest"
+}
+
+announce_to() {
+	local dest="$1"
+	[ -n "$dest" ] || return 0
+	[ -n "$PAYLOAD" ] || build_payload
+	send_line "$PAYLOAD" "$dest"
+}
+
+discover() {
+	build_payload
+	send_line "MESHCONF1|discover|$SELF_MAC|$SELF_IP" "$(broadcast_target)"
+}
+
+record() {
+	local line="$1" ip="$2" now tmp
+	case "$ip" in ''|*[!0-9.]*) return 0 ;; esac
+	now="$(date +%s 2>/dev/null || echo 0)"
+	tmp="$NEIGH_DIR/.$ip.$$"
+	printf '%s\n%s\n' "$line" "$now" > "$tmp" 2>/dev/null || return 0
+	mv -f "$tmp" "$NEIGH_DIR/$ip" 2>/dev/null
+}
+
+prune() {
+	find "$NEIGH_DIR" -type f -mmin +5 -exec rm -f {} \; 2>/dev/null
+}
+
+handle() {
+	local line="$1" kind mac ip oldifs
+	case "$line" in MESHCONF1\|*) ;; *) return 0 ;; esac
+
+	oldifs="$IFS"
+	IFS='|'
+	set -- $line
+	IFS="$oldifs"
+	[ "$1" = "MESHCONF1" ] || return 0
+	kind="$2"
+	mac="$3"
+	ip="$4"
+	case "$ip" in ''|*[!0-9.]*) return 0 ;; esac
+	# Our own datagram coming back, or a second interface hearing it.
+	[ "$mac" = "$SELF_MAC" ] && return 0
+
+	case "$kind" in
+		announce) record "$line" "$ip" ;;
+		# Somebody is scanning: answer now instead of making them wait for
+		# the next periodic announcement.
+		discover) announce_to "$ip" ;;
+	esac
+}
+
+main() {
+	have socat || { log "socat is missing, discovery disabled"; sleep 3600; exit 1; }
+
+	case "$1" in
+		discover)
+			discover
+			exit 0
+			;;
+	esac
+
+	mkdir -p "$NEIGH_DIR" 2>/dev/null
+	build_payload
+	log "starting (ip=$SELF_IP mac=$SELF_MAC)"
+
+	announce
+
+	# Periodic announcements in the background; the receive loop stays in the
+	# foreground so procd respawns us if the socket dies.
+	(
+		while :; do
+			sleep "$INTERVAL"
+			announce
+			prune
+		done
+	) &
+
+	socat -u "UDP4-RECVFROM:$PORT,reuseaddr,bind=0.0.0.0" - 2>/dev/null | while IFS= read -r line; do
+		handle "$line"
+	done
+
+	log "receive loop exited"
+	exit 1
+}
+
+main "$@"

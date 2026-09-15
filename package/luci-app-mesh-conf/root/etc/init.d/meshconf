@@ -1,0 +1,102 @@
+#!/bin/sh /etc/rc.common
+
+# Two procd instances behind the wired sync feature:
+#
+#   beacon - /usr/sbin/meshconf-beacon, the L2 discovery half. It announces
+#            this unit on the LAN and keeps the neighbour table fresh, which is
+#            what makes a peer show up on the page without a subnet sweep.
+#   httpd  - a private uhttpd on the sync port, serving only
+#            /cgi/sync (hello / get / put of /etc/config/wireless).
+#
+# Both are started only when the feature is enabled; a unit that is not part of
+# a wired pair has no reason to announce itself or to open a port.
+#
+# This file also absorbs what used to be meshconf-fix: the rpcd plugin has
+# shipped with a CRLF shebang and with mode 0664 before, and both of those make
+# rpcd drop it at startup and answer every call with -32000 "Object not found".
+# Repairing it here - before rpcd would matter - is cheaper than debugging it
+# on a device.
+
+START=95
+STOP=10
+USE_PROCD=1
+
+PLUGIN=/usr/libexec/rpcd/luci.meshconf
+VIEW=/www/luci-static/resources/view/meshconf/meshconf.js
+BEACON=/usr/sbin/meshconf-beacon
+DOCROOT=/usr/share/meshconf/www
+SYNC_PORT_DEFAULT=7761
+
+repair()
+{
+	local tmp="/tmp/.meshconf-repair.$$" changed=0
+
+	[ -f "$PLUGIN" ] || return 0
+
+	cp -f "$PLUGIN" "$tmp" 2>/dev/null
+	sed -i 's/\r$//' "$PLUGIN" 2>/dev/null
+	cmp -s "$PLUGIN" "$tmp" || changed=1
+	rm -f "$tmp"
+
+	# Unconditional: a repair that only ran when the content changed would
+	# have left the 0664 plugin untouched.
+	chmod 0755 "$PLUGIN" 2>/dev/null
+
+	[ -f "$VIEW" ] && sed -i 's/\r$//' "$VIEW" 2>/dev/null
+
+	if [ "$changed" = "1" ]; then
+		logger -t meshconf "stripped CR from $PLUGIN"
+		# rpcd enumerates its plugins once at startup, so a plugin that was
+		# broken at that moment is still missing now.
+		ubus list luci.meshconf >/dev/null 2>&1 || /etc/init.d/rpcd restart >/dev/null 2>&1
+	fi
+
+	return 0
+}
+
+sync_port()
+{
+	local p
+	p="$(uci -q get meshconf.sync.port 2>/dev/null)"
+	case "$p" in ''|*[!0-9]*) p="$SYNC_PORT_DEFAULT" ;; esac
+	[ "$p" -ge 1 ] 2>/dev/null && [ "$p" -le 65535 ] 2>/dev/null || p="$SYNC_PORT_DEFAULT"
+	printf '%s' "$p"
+}
+
+start_service()
+{
+	local enabled port
+
+	repair
+
+	enabled="$(uci -q get meshconf.sync.enabled 2>/dev/null)"
+	[ "$enabled" = "1" ] || return 0
+
+	port="$(sync_port)"
+
+	if ! command -v socat >/dev/null 2>&1; then
+		logger -t meshconf "socat is missing: L2 discovery disabled, only manually added peers will be found"
+	fi
+
+	procd_open_instance beacon
+	procd_set_param command "$BEACON"
+	procd_set_param respawn 3600 5 5
+	procd_set_param file /etc/config/meshconf
+	procd_close_instance
+
+	procd_open_instance httpd
+	procd_set_param command /usr/sbin/uhttpd -f -p "0.0.0.0:$port" -h "$DOCROOT" -x /cgi -t 30 -n 2
+	procd_set_param respawn 3600 5 5
+	procd_set_param file /etc/config/meshconf
+	procd_close_instance
+}
+
+service_triggers()
+{
+	procd_add_reload_trigger meshconf
+}
+
+reload_service()
+{
+	restart
+}

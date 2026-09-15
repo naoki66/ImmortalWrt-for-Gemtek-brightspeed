@@ -1,8 +1,10 @@
 # luci-ui-checks
 
-Maintainer checks for the two pages that edit the same `bridge-vlan` model:
+Maintainer checks that grew out of the two pages that used to edit the same
+`bridge-vlan` model:
 
-- `package/luci-app-mesh-conf/` (the mesh-conf page)
+- `package/luci-app-mesh-conf/` (the mesh-conf page) — **rewritten**: it is a
+  802.11s / wired-config-sync page now and has no VLAN editor any more.
 - `luci-mod-network`'s Switch view, `view/network/switch-vlan.*` (upstream, patched
   from `patches/feeds/`)
 
@@ -44,7 +46,7 @@ the pre-patch baseline instead, where the keyboard rows are *supposed* to fail.
 | --- | --- |
 | `syncheck.js` | Does the LuCI view parse in the shape the browser loads it (`new Function` + `'use strict'`)? `node --check` cannot be used — view files are function bodies with `'require …'` pseudo-directives. Strict mode is what caught an illegal octal escape (`'\25B8'`) hiding in the CSS. |
 | `tokencheck.js` | Are the design tokens wired up — no `var(--ds-*)` without a declaration, no duplicate declarations, balanced braces, and no `:focus` rule that suppresses `outline` without giving one back? |
-| `portcheck.js` | Does the shell classifier `vlan_port_role()` agree with upstream `parsePortSpec()` on every port-spec spelling? Needs `bash` (auto-detected; override with `BASH=…`). |
+| `portcheck.js` | Does the shell classifier `vlan_port_role()` agree with upstream `parsePortSpec()` on every port-spec spelling? Needs `bash` (auto-detected; override with `BASH=…`). **Exits 0 with `SKIP`** while the mesh-conf plugin defines no `vlan_port_role()`. |
 | `contrast.js` | Do the palette pairs reach WCAG 2.2 AA, measured through alpha compositing (a translucent tint is measured as painted, not as authored)? Also holds the "before" values, so it doubles as the failing baseline. |
 | `ringcheck.js` | Is the focus indicator stack sound — the soft halo is supplementary, and the border / outline that must clear 3:1 do? |
 | `make-css-patch.js` | Regenerates the Switch-view feed patch and asserts each edit matched exactly once. |

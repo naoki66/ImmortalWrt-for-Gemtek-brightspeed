@@ -71,7 +71,21 @@ const luciSrc = fs.readFileSync(LUCI, 'utf8');
 const parsePortSpec = new Function(extractFn(luciSrc, 'parsePortSpec') + '; return parsePortSpec;')();
 
 const shSrc = fs.readFileSync(PLUGIN, 'utf8');
-const roleFn = extractFn(shSrc, 'vlan_port_role');
+
+/* The mesh-conf page no longer edits bridge-vlan sections - it is a 802.11s /
+ * wired-config-sync page now - so the classifier it used to ship is gone.
+ * Report SKIP rather than a failure: a missing function is not a mismatch, and
+ * a check that fails on purpose is a check nobody runs. Re-add this file's
+ * body if a VLAN editor ever comes back. */
+let roleFn;
+try {
+	roleFn = extractFn(shSrc, 'vlan_port_role');
+} catch (e) {
+	console.log('SKIP  %s defines no vlan_port_role()', path.basename(PLUGIN));
+	console.log('      the mesh-conf page no longer edits bridge-vlan sections.');
+	process.exit(0);
+}
+
 console.log('extracted from upstream luci (snapshot) : %d chars', extractFn(luciSrc, 'parsePortSpec').length);
 console.log('extracted from plugin                  : %d chars\n', roleFn.length);
 

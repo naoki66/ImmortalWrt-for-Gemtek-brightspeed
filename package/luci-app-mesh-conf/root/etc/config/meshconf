@@ -1,0 +1,33 @@
+# luci-app-mesh-conf
+#
+# Two ways of joining two XR1710G units, kept in separate sections so that one
+# can be turned off without disturbing the other.
+#
+#   mesh    - native 802.11s on one radio (no batman-adv)
+#   sync    - wired: discover peers on the LAN and sync /etc/config/wireless
+#   roaming - whether 802.11k/v/r has been written into the AP interfaces
+
+config mesh 'mesh'
+	option enabled '0'
+	option radio 'radio1'
+	option mesh_id 'XR1710G-Mesh'
+	option encryption 'sae'
+	option key ''
+	option bridge_lan '1'
+
+config sync 'sync'
+	option enabled '0'
+	option port '7761'
+	option key ''
+	option last_sync '0'
+	option last_peer ''
+	# Keep this unit's channel when a config arrives from a peer. Turn it off
+	# when the two units are far apart and you do want them to end up on the
+	# channel the sender picked.
+	option keep_channel '1'
+	# Peers that are not on this L2 (the manual equivalent of handing an AP
+	# the controller address) are added as:
+	#   list peers '192.168.2.1'
+
+config roaming 'roaming'
+	option kvr '0'

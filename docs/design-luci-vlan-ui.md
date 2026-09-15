@@ -1,7 +1,19 @@
 # LuCI VLAN 界面设计规范与配置一致性修复
 
-适用范围：`/cgi-bin/luci/admin/network/switch-vlan`（上游 LuCI 的交换机视图）与
-`package/luci-app-mesh-conf`（本仓库的 Mesh 组网页）。两个页面编辑的是**同一份**
+> **现状说明（重要）**：`package/luci-app-mesh-conf` 已重写。它现在只做两件事 ——
+> 原生 802.11s 无线 mesh，以及有线场景下在局域网内发现同型号设备并同步
+> `/etc/config/wireless`（含 802.11k/v/r）。**VLAN 编辑器已整体移除**，页面不再读写
+> `bridge-vlan`。
+>
+> 因此本文里关于「两个页面编辑同一份 bridge-vlan 模型」的部分，只剩
+> `switch-vlan` 一侧还在生效；`meshconf.js` 仍然沿用本文的设计 token（所以
+> `tokencheck.js` 依旧适用），但 §1.1 的端口互读问题、§4 的端口标记一致性、
+> `portcheck.js` 所校验的 `vlan_port_role()` 都已随功能一起下线 —— `portcheck.js`
+> 现在检测不到该函数会输出 `SKIP` 而不是失败。保留本文作为 token 与设计决策的
+> 唯一事实来源。
+
+适用范围（历史）：`/cgi-bin/luci/admin/network/switch-vlan`（上游 LuCI 的交换机视图）与
+`package/luci-app-mesh-conf`（本仓库的 Mesh 组网页）。两个页面曾经编辑的是**同一份**
 `/etc/config/network` 的 `bridge-vlan` 模型，因此必须共用一套设计语言，并且必须
 对配置有完全一致的读法与写法。
 
