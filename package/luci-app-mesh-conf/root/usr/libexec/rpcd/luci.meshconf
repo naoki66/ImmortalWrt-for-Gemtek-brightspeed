@@ -9,6 +9,10 @@ set -f
 . /usr/share/libubox/jshn.sh
 
 MAX_WIFI_MESH=8
+# One radio may carry several AP interfaces (multi-SSID), so the per-SSID
+# list needs a much larger bound than the mesh radio count.
+MAX_AP_ENTRIES=64
+MAX_VLANS=32
 # Announced gateway bandwidth for a gw_mode=server node. There is no UI knob
 # for it any more: the master always advertises the maximum so batman-adv
 # picks it purely on link quality (TQ) instead of a throttled number.
@@ -130,6 +134,19 @@ valid_wifi_ssid()
 	[ "$n" -ge 1 ] && [ "$n" -le 32 ] && valid_text_value "$1"
 }
 
+# Devices configured from stock LuCI often carry a cipher suffix
+# (psk2+ccmp, sae+ccmp, sae-mixed+ccmp ...). hostapd treats those as the
+# same security mode as the bare name, so drop the suffix to keep the UI
+# select in sync with what is on disk.
+normalize_encryption()
+{
+	local base="${1%%+*}"
+	case "$base" in
+		none|owe|psk2|psk-mixed|sae|sae-mixed) printf '%s' "$base" ;;
+		*) printf '%s' "$1" ;;
+	esac
+}
+
 valid_wifi_encryption()
 {
 	case "$1" in
@@ -202,7 +219,12 @@ ensure_lan_bridge()
 		ensure_bridge_port br-lan "$olddev"
 	fi
 	uci -q set network.lan='interface'
-	uci -q set network.lan.device='br-lan'
+	# A VLAN aware setup keeps lan on a sub-interface (br-lan.1); forcing the
+	# device back to br-lan would silently flatten every VLAN bound SSID.
+	case "$olddev" in
+		br-lan.*) ;;
+		*) uci -q set network.lan.device='br-lan' ;;
+	esac
 	printf '%s' "$sec"
 }
 
@@ -266,16 +288,25 @@ wifi_iface_has_network()
 	return 1
 }
 
+# The AP the page treats as "the" interface of a radio. With multi-SSID a
+# radio may have no interface bound to lan at all (every SSID sits on its
+# own VLAN), so fall back to the first AP interface of that radio.
 find_primary_ap_for_radio()
 {
-	local radio="$1" sec
+	local radio="$1" sec first_ap=""
 	for sec in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-iface$/\1/p'); do
 		[ "$(uci -q get wireless."$sec".device 2>/dev/null)" = "$radio" ] || continue
 		[ "$(uci -q get wireless."$sec".mode 2>/dev/null)" = "ap" ] || continue
-		wifi_iface_has_network "$sec" lan || continue
-		printf '%s' "$sec"
-		return 0
+		wifi_iface_has_network "$sec" lan && {
+			printf '%s' "$sec"
+			return 0
+		}
+		[ -n "$first_ap" ] || first_ap="$sec"
 	done
+	[ -n "$first_ap" ] && {
+		printf '%s' "$first_ap"
+		return 0
+	}
 	return 1
 }
 
@@ -290,6 +321,45 @@ valid_uci_section_name()
 		''|*[^A-Za-z0-9_]*) return 1 ;;
 	esac
 	return 0
+}
+
+# Every AP interface of one radio, in file order. This is what drives the
+# multi-SSID editor: each entry is one SSID with its own VLAN binding and
+# its own 802.11k/v roaming switches.
+ap_iface_list()
+{
+	local radio="$1" sec ssid encryption disabled network has_key
+	local ieee80211k bss_transition wnm proxy_arp isolate first=1
+
+	printf '['
+	for sec in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-iface$/\1/p'); do
+		[ "$(uci -q get wireless."$sec".device 2>/dev/null)" = "$radio" ] || continue
+		[ "$(uci -q get wireless."$sec".mode 2>/dev/null)" = "ap" ] || continue
+
+		ssid="$(uci -q get wireless."$sec".ssid 2>/dev/null)"
+		encryption="$(uci -q get wireless."$sec".encryption 2>/dev/null)"
+		[ -n "$encryption" ] || encryption=none
+		encryption="$(normalize_encryption "$encryption")"
+		disabled="$(uci -q get wireless."$sec".disabled 2>/dev/null)"
+		network="$(uci -q get wireless."$sec".network 2>/dev/null)"
+		network="${network%% *}"
+		[ -n "$network" ] || network=lan
+		ieee80211k="$(uci -q get wireless."$sec".ieee80211k 2>/dev/null)"
+		bss_transition="$(uci -q get wireless."$sec".bss_transition 2>/dev/null)"
+		wnm="$(uci -q get wireless."$sec".wnm_sleep_mode 2>/dev/null)"
+		proxy_arp="$(uci -q get wireless."$sec".proxy_arp 2>/dev/null)"
+		isolate="$(uci -q get wireless."$sec".isolate 2>/dev/null)"
+		uci -q get wireless."$sec".key >/dev/null 2>&1 && has_key=1 || has_key=0
+		[ "$disabled" = "1" ] && disabled=0 || disabled=1
+
+		[ "$first" = "1" ] || printf ','
+		printf '{"section":"%s","ssid":"%s","encryption":"%s","has_key":%s,"network":"%s","enabled":%s,"ieee80211k":%s,"bss_transition":%s,"wnm_sleep_mode":%s,"proxy_arp":%s,"isolate":%s}' \
+			"$(json_escape "$sec")" "$(json_escape "$ssid")" "$(json_escape "$encryption")" "$(bool "$has_key")" \
+			"$(json_escape "$network")" "$(bool "$disabled")" "$(bool "$ieee80211k")" "$(bool "$bss_transition")" \
+			"$(bool "$wnm")" "$(bool "$proxy_arp")" "$(bool "$isolate")"
+		first=0
+	done
+	printf ']'
 }
 
 ap_config_list()
@@ -307,27 +377,192 @@ ap_config_list()
 		htmode="$(uci -q get wireless."$radio".htmode 2>/dev/null)"
 		[ "$disabled" = "1" ] && disabled=0 || disabled=1
 		[ -n "$encryption" ] || encryption=none
+		encryption="$(normalize_encryption "$encryption")"
 		uci -q get wireless."$sec".key >/dev/null 2>&1 && has_key=1 || has_key=0
 
 		[ "$first" = "1" ] || printf ','
-		printf '{"radio":"%s","band":"%s","channel":"%s","htmode":"%s","iface":"%s","enabled":%s,"ssid":"%s","encryption":"%s","has_key":%s}' \
+		printf '{"radio":"%s","band":"%s","channel":"%s","htmode":"%s","iface":"%s","enabled":%s,"ssid":"%s","encryption":"%s","has_key":%s,"aps":' \
 			"$(json_escape "$radio")" "$(json_escape "$band")" "$(json_escape "$channel")" "$(json_escape "$htmode")" \
 			"$(json_escape "$sec")" "$(bool "$disabled")" "$(json_escape "$ssid")" "$(json_escape "$encryption")" "$(bool "$has_key")"
+		ap_iface_list "$radio"
+		printf '}'
 		first=0
 	done
 	printf ']'
 }
 
+# Split a bridge-vlan port list ("lan2:u* lan3:u* wan:t") into the plain
+# port names carrying that egress mode. Used to prefill the UI checkboxes.
+vlan_ports_of()
+{
+	local p out=""
+	for p in $1; do
+		case "$p" in
+			*:u*) [ "$2" = "u" ] && out="$out ${p%%:*}" ;;
+			*:t*) [ "$2" = "t" ] && out="$out ${p%%:*}" ;;
+		esac
+	done
+	printf '%s' "${out# }"
+}
+
+# Is $1 still a member of any br-lan bridge-vlan?
+vlan_uses_port()
+{
+	local want="$1" sec p dev
+	for sec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=bridge-vlan$/\1/p'); do
+		dev="$(uci -q get network."$sec".device 2>/dev/null)"
+		[ "$dev" = "br-lan" ] || continue
+		for p in $(uci -q get network."$sec".ports 2>/dev/null); do
+			[ "${p%%:*}" = "$want" ] && return 0
+		done
+	done
+	return 1
+}
+
+# Every port name currently referenced by a br-lan bridge-vlan.
+vlan_member_ports()
+{
+	local sec p dev
+	for sec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=bridge-vlan$/\1/p'); do
+		dev="$(uci -q get network."$sec".device 2>/dev/null)"
+		[ "$dev" = "br-lan" ] || continue
+		for p in $(uci -q get network."$sec".ports 2>/dev/null); do
+			printf '%s\n' "${p%%:*}"
+		done
+	done
+}
+
+# Drop ports that used to belong to a VLAN but are now in none of them: a
+# port with no VLAN left must not stay enslaved to br-lan.
+#
+# Only ports that were VLAN members beforehand are considered, so a flat
+# (non VLAN filtered) setup and virtual devices such as bat0 - which never
+# appear in a bridge-vlan - are never touched.
+vlan_prune_bridge_ports()
+{
+	local port
+	for port in $1; do
+		vlan_uses_port "$port" || remove_bridge_port br-lan "$port"
+	done
+	return 0
+}
+
+# Network interfaces an SSID may be bridged into. Everything the mesh
+# backend owns (bat0, hardifs) and the upstream WAN is filtered out.
+network_option_list()
+{
+	local sec proto dev ip first=1
+	printf '['
+	for sec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=interface$/\1/p'); do
+		case "$sec" in loopback|wan|wan6|bat0|meshconf_wired_mesh|meshconf_wmesh_*) continue ;; esac
+		proto="$(uci -q get network."$sec".proto 2>/dev/null)"
+		dev="$(uci -q get network."$sec".device 2>/dev/null)"
+		ip="$(uci -q get network."$sec".ipaddr 2>/dev/null)"
+		ip="${ip%% *}"
+		ip="${ip%%/*}"
+		[ "$first" = "1" ] || printf ','
+		printf '{"name":"%s","device":"%s","proto":"%s","ipaddr":"%s"}' \
+			"$(json_escape "$sec")" "$(json_escape "$dev")" "$(json_escape "$proto")" "$(json_escape "$ip")"
+		first=0
+	done
+	printf ']'
+}
+
+# Ports currently enslaved to the LAN bridge - the candidate list for VLAN
+# membership.
+bridge_port_list()
+{
+	local sec p first=1
+	sec="$(find_bridge_section br-lan)"
+	[ -n "$sec" ] || { printf '[]'; return 0; }
+	printf '['
+	for p in $(uci -q get network."$sec".ports 2>/dev/null); do
+		[ "$first" = "1" ] || printf ','
+		printf '"%s"' "$(json_escape "${p%%:*}")"
+		first=0
+	done
+	printf ']'
+}
+
+vlan_list()
+{
+	local sec sec2 dev vlan ports iface proto ipaddr netmask gateway dns first=1
+
+	printf '['
+	for sec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=bridge-vlan$/\1/p'); do
+		dev="$(uci -q get network."$sec".device 2>/dev/null)"
+		vlan="$(uci -q get network."$sec".vlan 2>/dev/null)"
+		ports="$(uci -q get network."$sec".ports 2>/dev/null)"
+		[ -n "$vlan" ] || continue
+		iface=""
+		for sec2 in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=interface$/\1/p'); do
+			[ "$(uci -q get network."$sec2".device 2>/dev/null)" = "${dev}.${vlan}" ] && {
+				iface="$sec2"
+				break
+			}
+		done
+		proto=""
+		ipaddr=""
+		netmask=""
+		gateway=""
+		dns=""
+		if [ -n "$iface" ]; then
+			proto="$(uci -q get network."$iface".proto 2>/dev/null)"
+			ipaddr="$(uci -q get network."$iface".ipaddr 2>/dev/null)"
+			ipaddr="${ipaddr%% *}"
+			netmask="$(uci -q get network."$iface".netmask 2>/dev/null)"
+			gateway="$(uci -q get network."$iface".gateway 2>/dev/null)"
+			dns="$(uci -q get network."$iface".dns 2>/dev/null)"
+			dns="${dns%% *}"
+		fi
+		[ "$first" = "1" ] || printf ','
+		printf '{"section":"%s","device":"%s","vlan":"%s","iface":"%s","proto":"%s","ipaddr":"%s","netmask":"%s","gateway":"%s","dns":"%s","untagged":"%s","tagged":"%s"}' \
+			"$(json_escape "$sec")" "$(json_escape "$dev")" "$(json_escape "$vlan")" "$(json_escape "$iface")" \
+			"$(json_escape "$proto")" "$(json_escape "$ipaddr")" "$(json_escape "$netmask")" \
+			"$(json_escape "$gateway")" "$(json_escape "$dns")" \
+			"$(json_escape "$(vlan_ports_of "$ports" u)")" "$(json_escape "$(vlan_ports_of "$ports" t)")"
+		first=0
+	done
+	printf ']'
+}
+
+firewall_lan_zone()
+{
+	local sec
+	for sec in $(uci -q show firewall | sed -n 's/^firewall\.\([^=]*\)=zone$/\1/p'); do
+		[ "$(uci -q get firewall."$sec".name 2>/dev/null)" = "lan" ] && {
+			printf '%s' "$sec"
+			return 0
+		}
+	done
+	return 1
+}
+
+firewall_zone_has_network()
+{
+	local net n
+	for n in $(uci -q get firewall."$1".network 2>/dev/null); do
+		[ "$n" = "$2" ] && return 0
+	done
+	return 1
+}
+
+# Multi-SSID editor: one entry per AP interface of a radio.
+#   section - existing wifi-iface to update; empty creates a new one
+#   remove  - 1 deletes that wifi-iface instead of updating it
+#   network - interface the SSID bridges into (usually a VLAN sub-interface)
 apply_ap_configs()
 {
-	local configs="$1" idx=0 radio enabled ssid encryption key sec old_key any=0
+	local configs="$1" idx=0 radio section enabled ssid encryption key network
+	local ieee80211k bss_transition wnm proxy_arp isolate remove sec n any=0
 
 	valid_text_value "$configs" || return 1
 
-	while [ "$idx" -le "$MAX_WIFI_MESH" ]; do
+	while [ "$idx" -lt "$MAX_AP_ENTRIES" ]; do
 		radio="$(jsonfilter -s "$configs" -e "@[$idx].radio" 2>/dev/null)"
+		[ -n "$radio" ] || break
 		idx=$((idx + 1))
-		[ -n "$radio" ] || continue
+
 		valid_uci_section_name "$radio" || {
 			printf '{"success":false,"error":"invalid radio name"}'
 			return 1
@@ -337,10 +572,30 @@ apply_ap_configs()
 			return 1
 		}
 
+		section="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].section" 2>/dev/null)"
+		remove="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].remove" 2>/dev/null)"
 		enabled="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].enabled" 2>/dev/null)"
 		ssid="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].ssid" 2>/dev/null)"
 		encryption="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].encryption" 2>/dev/null)"
 		key="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].key" 2>/dev/null)"
+		network="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].network" 2>/dev/null)"
+		ieee80211k="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].ieee80211k" 2>/dev/null)"
+		bss_transition="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].bss_transition" 2>/dev/null)"
+		wnm="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].wnm_sleep_mode" 2>/dev/null)"
+		proxy_arp="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].proxy_arp" 2>/dev/null)"
+		isolate="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].isolate" 2>/dev/null)"
+
+		case "$remove" in
+			1|true)
+				[ -n "$section" ] || continue
+				[ "$(uci -q get wireless."$section" 2>/dev/null)" = "wifi-iface" ] || continue
+				[ "$(uci -q get wireless."$section".device 2>/dev/null)" = "$radio" ] || continue
+				uci -q delete wireless."$section" 2>/dev/null
+				any=$((any + 1))
+				continue
+				;;
+		esac
+
 		case "$enabled" in
 			0|false) enabled=0 ;;
 			*) enabled=1 ;;
@@ -350,49 +605,335 @@ apply_ap_configs()
 			printf '{"success":false,"error":"radio %s: unsupported encryption"}' "$radio"
 			return 1
 		}
-
-		sec="$(find_primary_ap_for_radio "$radio")"
-
-		if [ "$enabled" = "0" ]; then
-			[ -n "$sec" ] && uci -q set wireless."$sec".disabled='1'
-			any=$((any + 1))
-			continue
-		fi
-
-		valid_wifi_ssid "$ssid" || {
-			printf '{"success":false,"error":"radio %s: SSID must be 1-32 characters"}' "$radio"
+		[ -n "$network" ] || network=lan
+		valid_uci_section_name "$network" || {
+			printf '{"success":false,"error":"radio %s: invalid network name"}' "$radio"
 			return 1
 		}
+		[ -n "$(uci -q get network."$network" 2>/dev/null)" ] || {
+			printf '{"success":false,"error":"radio %s: network %s does not exist"}' "$radio" "$network"
+			return 1
+		}
+		if [ "$enabled" = "1" ]; then
+			valid_wifi_ssid "$ssid" || {
+				printf '{"success":false,"error":"radio %s: SSID must be 1-32 characters"}' "$radio"
+				return 1
+			}
+		else
+			# a switched-off SSID left blank is simply left alone
+			[ -n "$ssid" ] || continue
+		fi
+
+		sec=""
+		if [ -n "$section" ] &&
+			[ "$(uci -q get wireless."$section" 2>/dev/null)" = "wifi-iface" ] &&
+			[ "$(uci -q get wireless."$section".device 2>/dev/null)" = "$radio" ]; then
+			sec="$section"
+		else
+			n=0
+			while [ "$n" -le "$MAX_AP_ENTRIES" ]; do
+				sec="meshconf_ap_${radio}_${n}"
+				[ -z "$(uci -q get wireless."$sec" 2>/dev/null)" ] && break
+				sec=""
+				n=$((n + 1))
+			done
+			[ -n "$sec" ] || {
+				printf '{"success":false,"error":"radio %s: no free AP section"}' "$radio"
+				return 1
+			}
+			uci -q set wireless."$sec"='wifi-iface'
+			uci -q set wireless."$sec".device="$radio"
+			uci -q set wireless."$sec".mode='ap'
+		fi
+
 		# an empty key means "keep what is already configured", which is how
-		# the per-radio form avoids rewriting every password on each apply
+		# the form avoids rewriting every password on each apply
 		if [ "$encryption" != "none" ] && [ -z "$key" ]; then
-			old_key="$(uci -q get wireless."$sec".key 2>/dev/null)"
-			key="$old_key"
+			key="$(uci -q get wireless."$sec".key 2>/dev/null)"
 		fi
 		if [ "$encryption" != "none" ] && ! valid_wifi_key "$key"; then
 			printf '{"success":false,"error":"radio %s: wireless key must be 8-63 characters"}' "$radio"
 			return 1
 		fi
 
-		if [ -z "$sec" ]; then
-			sec="meshconf_ap_${radio}"
-			uci -q set wireless."$sec"='wifi-iface'
-			uci -q set wireless."$sec".device="$radio"
-			uci -q set wireless."$sec".mode='ap'
-			uci -q set wireless."$sec".network='lan'
+		if [ "$enabled" = "1" ]; then
+			uci -q set wireless."$sec".disabled='0'
+		else
+			uci -q set wireless."$sec".disabled='1'
 		fi
-		uci -q set wireless."$sec".disabled='0'
 		uci -q set wireless."$sec".ssid="$ssid"
 		uci -q set wireless."$sec".encryption="$encryption"
+		uci -q set wireless."$sec".network="$network"
 		if [ "$encryption" = "none" ]; then
 			uci -q delete wireless."$sec".key 2>/dev/null
 		else
 			uci -q set wireless."$sec".key="$key"
 		fi
+
+		# 802.11k / 802.11v roaming aids, written the same way stock LuCI
+		# does so the resulting config stays portable
+		if [ "$ieee80211k" = "1" ] || [ "$ieee80211k" = "true" ]; then
+			uci -q set wireless."$sec".ieee80211k='1'
+		else
+			uci -q delete wireless."$sec".ieee80211k 2>/dev/null
+		fi
+		if [ "$bss_transition" = "1" ] || [ "$bss_transition" = "true" ]; then
+			uci -q set wireless."$sec".bss_transition='1'
+		else
+			uci -q delete wireless."$sec".bss_transition 2>/dev/null
+		fi
+		if [ "$wnm" = "1" ] || [ "$wnm" = "true" ]; then
+			uci -q set wireless."$sec".wnm_sleep_mode='1'
+			uci -q set wireless."$sec".wnm_sleep_mode_no_keys='1'
+		else
+			uci -q delete wireless."$sec".wnm_sleep_mode 2>/dev/null
+			uci -q delete wireless."$sec".wnm_sleep_mode_no_keys 2>/dev/null
+		fi
+		if [ "$proxy_arp" = "1" ] || [ "$proxy_arp" = "true" ]; then
+			uci -q set wireless."$sec".proxy_arp='1'
+		else
+			uci -q delete wireless."$sec".proxy_arp 2>/dev/null
+		fi
+		if [ "$isolate" = "1" ] || [ "$isolate" = "true" ]; then
+			uci -q set wireless."$sec".isolate='1'
+		else
+			uci -q delete wireless."$sec".isolate 2>/dev/null
+		fi
+
 		any=$((any + 1))
 	done
 
 	[ "$any" -gt 0 ]
+}
+
+# Push the per-SSID wireless settings without touching batman-adv. Editing
+# SSIDs on a plain AP must not silently create a mesh interface.
+reload_wifi_later()
+{
+	local launcher=""
+	command -v setsid >/dev/null 2>&1 && launcher="setsid"
+	$launcher /bin/sh -c '
+		sleep 1
+		wifi reload >/dev/null 2>&1 || wifi up >/dev/null 2>&1
+	' >/dev/null 2>&1 &
+	return 0
+}
+
+apply_wireless()
+{
+	local args="$1" ap_configs channels
+
+	json_load "$args" 2>/dev/null || {
+		printf '{"success":false,"error":"bad arguments"}'
+		return
+	}
+	json_get_var ap_configs ap_configs
+	json_get_var channels channels
+
+	apply_ap_configs "$ap_configs" || return 1
+	apply_radio_channels "$channels" || {
+		printf '{"success":false,"error":"invalid radio channel settings"}'
+		return
+	}
+
+	uci -q commit wireless
+	reload_wifi_later
+
+	printf '{"success":true,"applied":true}'
+}
+
+# ---------------------------------------------------------------------------
+# VLAN / network segmentation.
+#
+# One entry describes a bridge-vlan on the LAN bridge plus the interface that
+# rides on top of it (br-lan.<id>); that interface name is what an SSID picks
+# as its "network". VLAN 1 carries the management LAN and is never removed,
+# otherwise applying the page could lock the operator out.
+# ---------------------------------------------------------------------------
+vlan_delete()
+{
+	local section="$1" iface="$2" zsec
+
+	if [ -n "$section" ] && [ "$(uci -q get network."$section" 2>/dev/null)" = "bridge-vlan" ]; then
+		uci -q delete network."$section" 2>/dev/null
+	fi
+	if [ -n "$iface" ] && [ "$(uci -q get network."$iface" 2>/dev/null)" = "interface" ]; then
+		uci -q delete network."$iface" 2>/dev/null
+		uci -q delete dhcp."$iface" 2>/dev/null
+		zsec="$(firewall_lan_zone)" && {
+			while firewall_zone_has_network "$zsec" "$iface"; do
+				uci -q del_list firewall."$zsec".network="$iface" || break
+			done
+		}
+	fi
+	return 0
+}
+
+apply_vlans()
+{
+	local args="$1" vlans idx=0 section vlan iface ipaddr netmask gateway dns
+	local untagged tagged remove dhcp port sec zsec changed=0 before_ports
+
+	json_load "$args" 2>/dev/null || {
+		printf '{"success":false,"error":"bad arguments"}'
+		return
+	}
+	json_get_var vlans vlans
+	[ -n "$vlans" ] || {
+		printf '{"success":false,"error":"empty VLAN list"}'
+		return
+	}
+	valid_text_value "$vlans" || {
+		printf '{"success":false,"error":"invalid VLAN list"}'
+		return
+	}
+
+	# snapshot taken before the first change: afterwards every port that is
+	# no longer part of any VLAN is detached from br-lan
+	before_ports="$(vlan_member_ports)"
+
+	while [ "$idx" -lt "$MAX_VLANS" ]; do
+		vlan="$(jsonfilter -s "$vlans" -e "@[$idx].vlan" 2>/dev/null)"
+		[ -n "$vlan" ] || break
+		idx=$((idx + 1))
+
+		valid_uint "$vlan" || {
+			printf '{"success":false,"error":"invalid VLAN id"}'
+			return
+		}
+		[ "$vlan" -ge 1 ] 2>/dev/null && [ "$vlan" -le 4094 ] 2>/dev/null || {
+			printf '{"success":false,"error":"VLAN id must be 1-4094"}'
+			return
+		}
+
+		section="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].section" 2>/dev/null)"
+		remove="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].remove" 2>/dev/null)"
+		iface="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].iface" 2>/dev/null)"
+		ipaddr="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].ipaddr" 2>/dev/null)"
+		netmask="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].netmask" 2>/dev/null)"
+		gateway="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].gateway" 2>/dev/null)"
+		dns="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].dns" 2>/dev/null)"
+		untagged="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].untagged" 2>/dev/null)"
+		tagged="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].tagged" 2>/dev/null)"
+		dhcp="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].dhcp" 2>/dev/null)"
+
+		[ -n "$iface" ] || iface="lan${vlan}"
+		valid_uci_section_name "$iface" || {
+			printf '{"success":false,"error":"invalid interface name %s"}' "$iface"
+			return
+		}
+
+		case "$remove" in
+			1|true)
+				[ "$vlan" = "1" ] && {
+					printf '{"success":false,"error":"VLAN 1 是管理网络，不能删除"}'
+					return
+				}
+				vlan_delete "$section" "$iface"
+				changed=$((changed + 1))
+				continue
+				;;
+		esac
+
+		if [ -n "$ipaddr" ]; then
+			valid_ipv4 "$ipaddr" || {
+				printf '{"success":false,"error":"VLAN %s: invalid IP address"}' "$vlan"
+				return
+			}
+		fi
+		if [ -n "$netmask" ]; then
+			valid_ipv4 "$netmask" || {
+				printf '{"success":false,"error":"VLAN %s: invalid netmask"}' "$vlan"
+				return
+			}
+		fi
+		if [ -n "$gateway" ]; then
+			valid_ipv4 "$gateway" || {
+				printf '{"success":false,"error":"VLAN %s: invalid gateway"}' "$vlan"
+				return
+			}
+		fi
+		if [ -n "$dns" ]; then
+			valid_ipv4 "$dns" || {
+				printf '{"success":false,"error":"VLAN %s: invalid DNS server"}' "$vlan"
+				return
+			}
+		fi
+
+		if [ -n "$section" ] && [ "$(uci -q get network."$section" 2>/dev/null)" = "bridge-vlan" ]; then
+			sec="$section"
+		else
+			sec="meshconf_vlan_${vlan}"
+		fi
+
+		uci -q set network."$sec"='bridge-vlan'
+		uci -q set network."$sec".device='br-lan'
+		uci -q set network."$sec".vlan="$vlan"
+		uci -q delete network."$sec".ports 2>/dev/null
+		for port in $untagged; do
+			uci -q add_list network."$sec".ports="${port}:u*"
+			ensure_bridge_port br-lan "$port"
+		done
+		for port in $tagged; do
+			uci -q add_list network."$sec".ports="${port}:t"
+			ensure_bridge_port br-lan "$port"
+		done
+
+		uci -q set network."$iface"='interface'
+		uci -q set network."$iface".device="br-lan.${vlan}"
+		uci -q set network."$iface".proto='static'
+		uci -q set network."$iface".delegate='0'
+		if [ -n "$ipaddr" ]; then
+			uci -q set network."$iface".ipaddr="$ipaddr"
+		else
+			uci -q delete network."$iface".ipaddr 2>/dev/null
+		fi
+		if [ -n "$netmask" ]; then
+			uci -q set network."$iface".netmask="$netmask"
+		else
+			uci -q delete network."$iface".netmask 2>/dev/null
+		fi
+		if [ -n "$gateway" ]; then
+			uci -q set network."$iface".gateway="$gateway"
+			# an AP-side segment must not steal the default route
+			uci -q set network."$iface".defaultroute='0'
+		else
+			uci -q delete network."$iface".gateway 2>/dev/null
+			uci -q delete network."$iface".defaultroute 2>/dev/null
+		fi
+		uci -q delete network."$iface".dns 2>/dev/null
+		[ -n "$dns" ] && uci -q add_list network."$iface".dns="$dns"
+
+		uci -q set dhcp."$iface"='dhcp'
+		uci -q set dhcp."$iface".interface="$iface"
+		if [ "$dhcp" = "1" ] || [ "$dhcp" = "true" ]; then
+			uci -q delete dhcp."$iface".ignore 2>/dev/null
+			uci -q delete dhcp."$iface".dynamicdhcp 2>/dev/null
+			uci -q set dhcp."$iface".dhcpv4='server'
+			uci -q set dhcp."$iface".start='100'
+			uci -q set dhcp."$iface".limit='150'
+			uci -q set dhcp."$iface".leasetime='12h'
+		else
+			uci -q set dhcp."$iface".ignore='1'
+			uci -q set dhcp."$iface".dynamicdhcp='0'
+		fi
+
+		zsec="$(firewall_lan_zone)" && {
+			firewall_zone_has_network "$zsec" "$iface" ||
+				uci -q add_list firewall."$zsec".network="$iface"
+		}
+
+		changed=$((changed + 1))
+	done
+
+	vlan_prune_bridge_ports "$before_ports"
+
+	uci -q commit network
+	uci -q commit dhcp
+	uci -q commit firewall
+	[ "$changed" -gt 0 ] && reload_network_later
+
+	printf '{"success":true,"changed":%d}' "$changed"
 }
 
 # ---------------------------------------------------------------------------
@@ -1123,6 +1664,13 @@ get_status()
 		"$ap_configs" "$radio_count"
 	printf '"addresses":'
 	interface_ipv4_addresses
+	printf ',"networks":'
+	network_option_list
+	printf ',"vlans":'
+	vlan_list
+	printf ',"bridge":{"name":"br-lan","ports":'
+	bridge_port_list
+	printf '}'
 	printf ',"deps":{"batctl":%s,"iw":%s,"wpad":%s}}' \
 		"$(bool "$dep_batctl")" "$(bool "$dep_iw")" "$(bool "$dep_wpad")"
 }
@@ -1264,7 +1812,7 @@ EOF
 
 case "$1" in
 	list)
-		printf '{"getStatus":{},"discoverMesh":{},"applyMesh":{"backhaul":"string","role":"string","wired":"string","wireless":"string","mesh_radio":"string","mesh_radios":"string","mesh_id":"string","mesh_key":"string","gateway":"string","gw_bandwidth":"string","gw_sel_class":"string","slave_ip_suffix":"string","unified":"string","unified_ssid":"string","unified_encryption":"string","unified_key":"string","ap_sync":"string","ap_configs":"string","channels":"string"},"generateChildConfig":{"ip_suffix":"string","offset":"string"}}'
+		printf '{"getStatus":{},"discoverMesh":{},"applyMesh":{"backhaul":"string","role":"string","wired":"string","wireless":"string","mesh_radio":"string","mesh_radios":"string","mesh_id":"string","mesh_key":"string","gateway":"string","gw_bandwidth":"string","gw_sel_class":"string","slave_ip_suffix":"string","unified":"string","unified_ssid":"string","unified_encryption":"string","unified_key":"string","ap_sync":"string","ap_configs":"string","channels":"string"},"generateChildConfig":{"ip_suffix":"string","offset":"string"},"applyVlans":{"vlans":"string"},"applyWireless":{"ap_configs":"string","channels":"string"}}'
 		;;
 	call)
 		args="$(cat)"
@@ -1273,6 +1821,8 @@ case "$1" in
 			discoverMesh) discover_mesh ;;
 			applyMesh) apply_mesh "$args" ;;
 			generateChildConfig) generate_child_config "$args" ;;
+			applyVlans) apply_vlans "$args" ;;
+			applyWireless) apply_wireless "$args" ;;
 			*) printf '{"error":"unknown method"}' ;;
 		esac
 		;;

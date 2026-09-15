@@ -23,6 +23,18 @@ var callApplyMesh = rpc.declare({
 		'ap_sync', 'ap_configs', 'channels' ]
 });
 
+var callApplyWireless = rpc.declare({
+	object: 'luci.meshconf',
+	method: 'applyWireless',
+	params: [ 'ap_configs', 'channels' ]
+});
+
+var callApplyVlans = rpc.declare({
+	object: 'luci.meshconf',
+	method: 'applyVlans',
+	params: [ 'vlans' ]
+});
+
 var callGenerateChildConfig = rpc.declare({
 	object: 'luci.meshconf',
 	method: 'generateChildConfig',
@@ -127,6 +139,31 @@ var css = [
 	'.nm-t-link{fill:none;stroke:rgba(26,127,55,.55);stroke-width:2}',
 	'.nm-t-link.mesh{stroke:rgba(130,80,223,.6);stroke-width:2;stroke-dasharray:6 4}',
 	'.nm-t-lq{font-size:9px;fill:var(--nm-muted)}',
+	/* multi-SSID editor */
+	'.nm-ssid-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:12px 0 7px;font-size:12px;font-weight:650;color:var(--nm-muted)}',
+	'.nm-ssid-list{display:flex;flex-direction:column;gap:8px}',
+	'.nm-ssid-row{border:1px solid var(--nm-border);border-radius:9px;background:var(--nm-bg);padding:9px 10px}',
+	'.nm-ssid-row.removed{opacity:.6;border-style:dashed}',
+	'.nm-ssid-top{display:flex;align-items:center;gap:8px}',
+	'.nm-check{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--nm-text);cursor:pointer;white-space:nowrap;flex:0 0 auto}',
+	'.nm-check input{width:15px;height:15px;margin:0}',
+	'.nm-ssid-name{flex:1 1 auto;min-width:0;height:34px;border:1px solid var(--nm-border);border-radius:8px;padding:6px 10px;background:var(--nm-bg);color:var(--nm-text);font-size:13px;box-sizing:border-box;font-family:inherit}',
+	'.nm-ssid-name:focus{outline:none;border-color:var(--nm-blue);box-shadow:0 0 0 3px rgba(9,105,218,.15)}',
+	'.nm-ssid-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}',
+	'.nm-ssid-opts{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:9px;padding-top:8px;border-top:1px dashed var(--nm-border)}',
+	'.nm-ssid-opts .nm-check{font-size:12px;color:var(--nm-muted)}',
+	'.nm-mini{min-height:28px;padding:0 10px;font-size:12px;flex:0 0 auto}',
+	/* VLAN segmentation */
+	'.nm-vlan-list{display:flex;flex-direction:column;gap:10px}',
+	'.nm-vlan-row{border:1px solid var(--nm-border);border-radius:10px;background:var(--nm-soft);padding:11px 12px}',
+	'.nm-vlan-row.removed{opacity:.6;border-style:dashed}',
+	'.nm-vlan-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px}',
+	'.nm-vlan-title{font-size:13px;font-weight:650;margin-right:auto}',
+	'.nm-tag{display:inline-flex;align-items:center;height:19px;padding:0 7px;border-radius:5px;font-size:11px;font-weight:650;background:rgba(130,80,223,.12);color:var(--nm-purple)}',
+	'.nm-vlan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:9px}',
+	'.nm-ports{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px;padding-top:9px;border-top:1px dashed var(--nm-border)}',
+	'.nm-port-item{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--nm-muted)}',
+	'.nm-port-item select{min-height:28px;border:1px solid var(--nm-border);border-radius:7px;padding:3px 6px;background:var(--nm-bg);color:var(--nm-text);font-size:12px;font-family:inherit}',
 	'@media(max-width:900px){.nm-choices{grid-template-columns:1fr}.nm-choices.two{grid-template-columns:1fr}}',
 	'@media(max-width:760px){.nm-form,.nm-ap-radio .nm-form{grid-template-columns:1fr}}'
 ].join('\n');
@@ -339,9 +376,15 @@ return view.extend({
 		this.discovery = data[1] || {};
 
 		var status = this.status;
+		// VLAN / interface inventory: the SSID rows bind against these, and
+		// the VLAN section edits them.
+		this.networks = status.networks || [];
+		this.vlans = status.vlans || [];
+		this.bridgePorts = (status.bridge && status.bridge.ports) || [];
+
 		var root = E('div', { 'class': 'cbi-map meshconf-page' }, [
 			E('h2', {}, _('Mesh 组网')),
-			E('p', { 'class': 'nm-lede' }, _('选择组网方式与主从角色，逐 radio 配置无线覆盖，再一键下发；同一组网内所有节点保持一致即可自动成网。')),
+			E('p', { 'class': 'nm-lede' }, _('先规划 VLAN 与网络分段，再按“组网方式 → 主从关系 → 回程链路 → 无线覆盖”四步配置；同一组网内所有节点保持一致即可自动成网。')),
 		]);
 
 		if (status.error)
@@ -356,6 +399,7 @@ return view.extend({
 			this.statusBox
 		]));
 
+		root.appendChild(this.renderVlanSection(status));
 		root.appendChild(this.renderMeshSection(status));
 		root.appendChild(this.renderTopologySection(status));
 
@@ -441,7 +485,7 @@ return view.extend({
 
 		/* ---- step 4: per-radio coverage ---- */
 		this.apConfigInputs = apConfigs.map(L.bind(function(config) {
-			return this.buildApCard(config, mesh);
+			return this.buildApCard(config, this.networks);
 		}, this));
 
 		this.apSyncInput = E('input', { 'type': 'checkbox' });
@@ -478,12 +522,16 @@ return view.extend({
 
 		this.coverageGroup = E('div', { 'class': 'nm-group' }, [
 			E('div', { 'class': 'nm-group-head' }, [ E('span', { 'class': 'nm-step' }, '4'), _('无线覆盖（SSID）') ]),
-			E('p', { 'class': 'nm-group-desc' }, _('逐 radio 配置：各 radio 的 SSID、加密方式与密码相互独立，2.4G / 5G / 6G 可分别命名（如 ImmortalWrt-2.4G、-5G、-6G）。多台 AP 之间同频段的频道错开由“生成子节点配置”按节点序号自动完成。')),
+			E('p', { 'class': 'nm-group-desc' }, _('每个 radio 可承载多个 SSID：点“添加 SSID”叠加，各 SSID 独立设置名称、加密方式与密码，并绑定到规划好的网络（VLAN 子接口）。跨机漫游只需保证多台 AP 上同名 SSID 的设置一致；多台 AP 之间同频段的频道错开由“生成子节点配置”按节点序号自动完成。')),
 			this.apCards,
 			this.coverageAlert,
-			E('p', { 'class': 'nm-hint' }, _('密码留空表示沿用该 radio 的当前密钥；跨机漫游要求多台 AP 上同名 SSID 的加密方式与密码一致。')),
+			E('p', { 'class': 'nm-hint' }, _('密码留空表示沿用该 SSID 的当前密钥。“绑定网络”的选项来自 /etc/config/network，新增 VLAN 应用后会自动出现在列表里。802.11k / BSS Transition / WNM Sleep 是漫游辅助选项，建议保持开启。')),
 			E('div', { 'class': 'nm-field inline', 'style': 'margin-top:12px' }, [
 				E('label', {}, [ this.apSyncInput, _('下发上述各 radio 的无线配置（取消则保留各 radio 当前 AP 设置）') ])
+			]),
+			E('div', { 'class': 'nm-actions', 'style': 'margin-top:10px;padding-top:10px;border-top:1px dashed var(--nm-border)' }, [
+				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.createHandlerFn(this, 'confirmApplyCoverage') },
+					_('仅应用无线覆盖（不改动 Mesh）'))
 			])
 		]);
 
@@ -534,6 +582,377 @@ return view.extend({
 		]);
 	},
 
+	// Everything that has to be fixed before any wireless config is written.
+	coverageErrors: function() {
+		var errors = [];
+		(this.apConfigInputs || []).forEach(function(card) {
+			card.ssids.forEach(function(row) {
+				if (row.removed || !row.enabled.checked) return;
+				if (!(row.ssid.value || '').trim())
+					errors.push(_('%s 上有启用的 SSID 未填写名称').format(radioTitle(card)));
+			});
+		});
+		return errors.concat(this.coverageBlockers());
+	},
+
+	confirmApplyCoverage: function() {
+		var errors = this.coverageErrors();
+		if (errors.length) {
+			ui.addNotification(null, E('p', _('无线覆盖配置有问题：%s。').format(errors.join('；'))));
+			return;
+		}
+
+		var lines = (this.apConfigInputs || []).map(function(card) {
+			var names = card.ssids.filter(function(r) {
+				return !r.removed && r.enabled.checked;
+			}).map(function(r) {
+				return (r.ssid.value || '').trim() + ' → ' + r.network.value;
+			});
+			return _('%s：%s').format(radioTitle(card),
+				names.length ? names.join('、') : _('（无启用的 SSID）'));
+		});
+
+		return ui.showModal(_('确认应用无线覆盖'), [
+			E('p', {}, _('只修改 /etc/config/wireless 并重载 Wi-Fi，不会创建或修改 batman-adv、网络与 DHCP 配置。')),
+			E('div', { 'class': 'nm-alert' }, lines.join('；')),
+			E('p', { 'class': 'nm-muted' }, _('重载期间 Wi-Fi 会短暂中断，若管理口走无线请留意。')),
+			E('div', { 'class': 'right' }, [
+				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': ui.createHandlerFn(this, 'applyCoverage') }, _('确认应用')),
+				' ',
+				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.hideModal }, _('取消'))
+			])
+		]);
+	},
+
+	applyCoverage: function() {
+		ui.hideModal();
+		var errors = this.coverageErrors();
+		if (errors.length) {
+			ui.addNotification(null, E('p', _('无线覆盖配置有问题：%s。').format(errors.join('；'))));
+			return;
+		}
+		var self = this;
+		return callApplyWireless(
+			JSON.stringify(this.collectApEntries()),
+			JSON.stringify(this.collectChannels())
+		).then(function(res) {
+			if (!res || !res.success) {
+				ui.addNotification(null, E('p', (res && res.error) || _('应用无线覆盖失败')));
+				return;
+			}
+			ui.addNotification(null, E('p', _('无线覆盖已应用，Wi-Fi 正在重载。')));
+			return self.refreshWireless();
+		}).catch(function(e) {
+			ui.addNotification(null, E('p', e.message || _('应用无线覆盖失败')));
+		});
+	},
+
+	// Rebuild just the radio cards from a fresh status: newly created
+	// interfaces come back with their real section names, so a follow-up
+	// edit updates them instead of creating duplicates.
+	refreshWireless: function() {
+		var self = this;
+		return callGetStatus().then(function(res) {
+			self.status = res || {};
+			self.networks = (res && res.networks) || [];
+			self.apConfigInputs = (((res && res.mesh) || {}).ap_configs || []).map(function(c) {
+				return self.buildApCard(c, self.networks);
+			});
+			if (self.apCards) {
+				self.apCards.innerHTML = '';
+				self.apConfigInputs.forEach(function(c) { self.apCards.appendChild(c.view); });
+			}
+			self.updateMeshState();
+		}).catch(function() {});
+	},
+
+	renderVlanSection: function() {
+		this.vlanBox = E('div', {}, []);
+		this.vlanBox.appendChild(this.buildVlanList(this.vlans, this.bridgePorts));
+
+		return E('div', { 'class': 'nm-section' }, [
+			E('div', { 'class': 'nm-title' }, [
+				E('span', {}, _('VLAN 与网络分段')),
+				E('span', { 'class': 'nm-muted' }, _('br-lan 上的 802.1Q 分段'))
+			]),
+			E('p', { 'class': 'nm-subtitle' }, _('每个 VLAN 在 br-lan 上建立一个 bridge-vlan，并生成 br-lan.<ID> 子接口；SSID 通过“绑定网络”挂到对应网段。VLAN 1 是管理网段，不允许删除。')),
+			this.vlanBox
+		]);
+	},
+
+	buildVlanList: function(vlans, ports) {
+		var self = this;
+		this.vlanRows = (vlans && vlans.length)
+			? vlans.map(function(v) { return self.buildVlanRow(v, ports); })
+			: [];
+
+		var list = E('div', { 'class': 'nm-vlan-list' }, this.vlanRows.map(function(r) { return r.view; }));
+
+		var addBtn = E('button', { 'class': 'cbi-button cbi-button-neutral' }, _('+ 添加 VLAN'));
+		addBtn.addEventListener('click', function() {
+			var row = self.buildVlanRow({}, self.bridgePorts);
+			self.vlanRows.push(row);
+			list.appendChild(row.view);
+		});
+
+		return E('div', {}, [
+			list,
+			E('p', { 'class': 'nm-hint' }, _('端口列中 U = untagged（出口剥离标签，接终端 / AP），T = tagged（保留标签，接上行交换机）；未选择的端口不加入该 VLAN。当一个端口从所有 VLAN 里都移除后，它也会自动从 br-lan 的成员中摘除。')),
+			E('div', { 'class': 'nm-actions' }, [
+				addBtn,
+				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': ui.createHandlerFn(this, 'confirmApplyVlans') }, _('应用 VLAN 配置'))
+			])
+		]);
+	},
+
+	buildVlanRow: function(v, ports) {
+		var self = this;
+		v = v || {};
+		var isMgmt = String(v.vlan || '') === '1';
+
+		var vlanId = E('input', { 'type': 'number', 'min': '1', 'max': '4094', 'value': v.vlan || '' });
+		var iface = E('input', { 'type': 'text', 'value': v.iface || '', 'maxlength': '15',
+			'placeholder': v.vlan ? 'lan' + v.vlan : 'lan2' });
+		var ipaddr = E('input', { 'type': 'text', 'value': v.ipaddr || '', 'placeholder': '10.10.20.251' });
+		var netmask = E('input', { 'type': 'text', 'value': v.netmask || '255.255.255.0' });
+		var gateway = E('input', { 'type': 'text', 'value': v.gateway || '' });
+		var dns = E('input', { 'type': 'text', 'value': v.dns || '' });
+		var dhcp = E('input', { 'type': 'checkbox' });
+		dhcp.checked = false;
+
+		var untagged = String(v.untagged || '').split(/\s+/).filter(Boolean);
+		var tagged = String(v.tagged || '').split(/\s+/).filter(Boolean);
+
+		var portCells = (ports || []).map(function(p) {
+			var sel = E('select', {}, [
+				E('option', { 'value': '' }, _('未加入')),
+				E('option', { 'value': 'u' }, 'U'),
+				E('option', { 'value': 't' }, 'T')
+			]);
+			sel.value = untagged.indexOf(p) >= 0 ? 'u' : (tagged.indexOf(p) >= 0 ? 't' : '');
+			return { port: p, select: sel };
+		});
+
+		var removeBtn = E('button', { 'class': 'cbi-button cbi-button-negative nm-mini' }, _('删除'));
+		var titleEl = E('span', { 'class': 'nm-vlan-title' },
+			isMgmt ? _('VLAN %s · 管理网段').format(v.vlan) : _('VLAN %s').format(v.vlan || '—'));
+
+		var view = E('div', { 'class': 'nm-vlan-row' }, [
+			E('div', { 'class': 'nm-vlan-head' }, [
+				titleEl,
+				isMgmt ? E('span', { 'class': 'nm-tag' }, _('管理')) : '',
+				isMgmt ? '' : removeBtn
+			]),
+			E('div', { 'class': 'nm-vlan-grid' }, [
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('VLAN ID')), vlanId ]),
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('接口名')), iface ]),
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('IP 地址')), ipaddr ]),
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('子网掩码')), netmask ]),
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('网关')), gateway ]),
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('DNS')), dns ]),
+				E('div', { 'class': 'nm-field inline' }, [
+					E('label', { 'class': 'nm-check' }, [ dhcp, _('在该网段启用 DHCP 服务器') ])
+				])
+			]),
+			portCells.length
+				? E('div', { 'class': 'nm-ports' }, portCells.map(function(c) {
+					return E('span', { 'class': 'nm-port-item' }, [ c.port, c.select ]);
+				}))
+				: E('p', { 'class': 'nm-hint' }, _('未在 br-lan 上发现成员端口，请先在网络 → 接口中把物理端口加入 br-lan。'))
+		]);
+
+		var row = {
+			section: v.section || '',
+			vlan: vlanId,
+			iface: iface,
+			ipaddr: ipaddr,
+			netmask: netmask,
+			gateway: gateway,
+			dns: dns,
+			dhcp: dhcp,
+			ports: portCells,
+			// ports this VLAN owned when the page was rendered; needed to
+			// work out which ones stop being VLAN members altogether
+			initPorts: untagged.concat(tagged),
+			removed: false,
+			view: view
+		};
+
+		if (!isMgmt) {
+			removeBtn.addEventListener('click', function() {
+				if (row.section) {
+					row.removed = !row.removed;
+					view.classList.toggle('removed', row.removed);
+					removeBtn.textContent = row.removed ? _('恢复') : _('删除');
+				} else {
+					var i = self.vlanRows.indexOf(row);
+					if (i >= 0) self.vlanRows.splice(i, 1);
+					if (view.parentNode) view.parentNode.removeChild(view);
+				}
+			});
+		}
+
+		vlanId.addEventListener('input', function() {
+			titleEl.textContent = _('VLAN %s').format(vlanId.value || '—');
+			iface.placeholder = 'lan' + (vlanId.value || '');
+		});
+
+		return row;
+	},
+
+	collectVlans: function() {
+		return (this.vlanRows || []).map(function(r) {
+			var untagged = [], tagged = [];
+			r.ports.forEach(function(c) {
+				if (c.select.value === 'u') untagged.push(c.port);
+				else if (c.select.value === 't') tagged.push(c.port);
+			});
+			return {
+				section: r.section || '',
+				vlan: (r.vlan.value || '').trim(),
+				iface: (r.iface.value || '').trim(),
+				ipaddr: (r.ipaddr.value || '').trim(),
+				netmask: (r.netmask.value || '').trim(),
+				gateway: (r.gateway.value || '').trim(),
+				dns: (r.dns.value || '').trim(),
+				untagged: untagged.join(' '),
+				tagged: tagged.join(' '),
+				dhcp: r.dhcp.checked ? 1 : 0,
+				remove: r.removed ? 1 : 0
+			};
+		}).filter(function(v) { return v.vlan !== ''; });
+	},
+
+	vlanErrors: function() {
+		var vlans = this.collectVlans();
+		if (!vlans.length)
+			return [ _('没有需要应用的 VLAN 配置。') ];
+
+		var bad = vlans.filter(function(v) {
+			return !/^[0-9]+$/.test(v.vlan) || +v.vlan < 1 || +v.vlan > 4094;
+		});
+		if (bad.length)
+			return [ _('VLAN ID 必须是 1-4094 之间的数字。') ];
+
+		var seen = {}, dupHit = false;
+		vlans.forEach(function(v) {
+			if (v.remove) return;
+			if (seen[v.vlan]) dupHit = true;
+			seen[v.vlan] = 1;
+		});
+		if (dupHit)
+			return [ _('存在重复的 VLAN ID，请合并后再应用。') ];
+
+		return [];
+	},
+
+	// Ports that were VLAN members when the page loaded but are now in none
+	// of them. The backend detaches those from br-lan too, which can take
+	// the uplink (or the management address) down, so surface it first.
+	prunedPorts: function() {
+		var before = {}, after = {};
+		(this.vlanRows || []).forEach(function(r) {
+			(r.initPorts || []).forEach(function(p) { before[p] = 1; });
+			if (r.removed) return;
+			r.ports.forEach(function(c) {
+				if (c.select.value) after[c.port] = 1;
+			});
+		});
+		return Object.keys(before).filter(function(p) { return !after[p]; });
+	},
+
+	confirmApplyVlans: function() {
+		var errors = this.vlanErrors();
+		if (errors.length) {
+			ui.addNotification(null, E('p', errors.join('；')));
+			return;
+		}
+
+		var vlans = this.collectVlans();
+		var added = vlans.filter(function(v) { return !v.section && !v.remove; });
+		var removed = vlans.filter(function(v) { return v.remove; });
+		var pruned = this.prunedPorts();
+
+		var lines = [ _('共下发 %d 个 VLAN 配置。').format(vlans.length) ];
+		if (added.length)
+			lines.push(_('新增 VLAN：%s').format(added.map(function(v) { return v.vlan; }).join('、')));
+		if (removed.length)
+			lines.push(_('删除 VLAN：%s').format(removed.map(function(v) { return v.vlan; }).join('、')));
+
+		return ui.showModal(_('确认应用 VLAN 配置'), [
+			E('p', {}, _('将修改 /etc/config/network、dhcp、firewall 并重载网络。')),
+			E('div', { 'class': 'nm-alert' }, lines.join('；')),
+			pruned.length
+				? E('div', { 'class': 'nm-alert' }, [
+					E('strong', {}, _('以下端口已不属于任何 VLAN，将同时从 br-lan 成员中摘除：')),
+					E('div', {}, pruned.join('、')),
+					E('div', { 'class': 'nm-muted' }, _('若管理地址或上行链路正走这些端口，应用后会断开连接。'))
+				])
+				: '',
+			E('div', { 'class': 'right' }, [
+				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': ui.createHandlerFn(this, 'applyVlans') }, _('确认应用')),
+				' ',
+				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.hideModal }, _('取消'))
+			])
+		]);
+	},
+
+	applyVlans: function() {
+		ui.hideModal();
+		var self = this;
+		var errors = this.vlanErrors();
+		if (errors.length) {
+			ui.addNotification(null, E('p', errors.join('；')));
+			return;
+		}
+		var vlans = this.collectVlans();
+
+		return callApplyVlans(JSON.stringify(vlans)).then(function(res) {
+			if (!res || !res.success) {
+				ui.addNotification(null, E('p', (res && res.error) || _('应用 VLAN 失败')));
+				return;
+			}
+			ui.addNotification(null, E('p', _('VLAN 配置已应用（%d 项），网络正在重载。').format(res.changed || 0)));
+			return self.refreshNetworkOptions();
+		}).catch(function(e) {
+			ui.addNotification(null, E('p', e.message || _('应用 VLAN 失败')));
+		});
+	},
+
+	// After VLANs change the set of bindable networks changes too, so pull a
+	// fresh status and rebuild the SSID dropdowns (and the VLAN list) in
+	// place instead of re-rendering the whole page and losing edits.
+	refreshNetworkOptions: function() {
+		var self = this;
+		return callGetStatus().then(function(res) {
+			self.status = res || {};
+			self.networks = (res && res.networks) || [];
+			self.vlans = (res && res.vlans) || [];
+			self.bridgePorts = (res && res.bridge && res.bridge.ports) || [];
+			(self.apConfigInputs || []).forEach(function(card) {
+				card.ssids.forEach(function(row) {
+					self.fillNetworkSelect(row.network, self.networks);
+				});
+			});
+			if (self.vlanBox) {
+				self.vlanBox.innerHTML = '';
+				self.vlanBox.appendChild(self.buildVlanList(self.vlans, self.bridgePorts));
+			}
+			self.updateCoverageAlert();
+		}).catch(function() {});
+	},
+
+	fillNetworkSelect: function(sel, networks) {
+		var current = sel.value;
+		sel.innerHTML = '';
+		(networks || []).forEach(function(n) {
+			sel.appendChild(E('option', { 'value': n.name }, n.ipaddr ? n.name + ' · ' + n.ipaddr : n.name));
+		});
+		if (current && !(networks || []).some(function(n) { return n.name === current; }))
+			sel.appendChild(E('option', { 'value': current }, current));
+		sel.value = current;
+	},
+
 	backhaulCard: function(value, title, desc, active) {
 		var self = this;
 		var input = E('input', { 'type': 'radio', 'name': 'nm-backhaul', 'value': value });
@@ -573,21 +992,28 @@ return view.extend({
 		});
 	},
 
-	buildApCard: function(config) {
+	buildApCard: function(config, networks) {
 		var self = this;
-		var enabled = E('input', { 'type': 'checkbox' });
-		var ssid = E('input', { 'type': 'text', 'value': config.ssid || '', 'maxlength': '32', 'placeholder': _('例如 XR1710G') });
-		var encryption = encryptionSelect(config.encryption);
-		var key = E('input', { 'type': 'password', 'autocomplete': 'new-password' });
-		key.placeholder = config.has_key ? _('留空沿用当前密钥') : _('请输入 8-63 位密钥');
 		var channel = E('select', {}, [ E('option', { 'value': 'auto' }, _('自动')) ].concat(
 			channelList(config.band, config.channel).map(function(ch) {
 				return E('option', { 'value': ch }, ch);
 			})));
 		channel.value = config.channel || 'auto';
-		enabled.checked = config.enabled !== false;
 
 		var bandTag = bandLabel(config.band);
+		var ssidList = E('div', { 'class': 'nm-ssid-list' });
+
+		// A radio without any AP interface still gets one empty row so the
+		// operator has something to fill in.
+		var entries = (config.aps && config.aps.length) ? config.aps : [ {} ];
+		var ssids = entries.map(function(ap) {
+			var row = self.buildSsidRow(ap, networks);
+			ssidList.appendChild(row.view);
+			return row;
+		});
+
+		var addBtn = E('button', { 'class': 'cbi-button cbi-button-neutral nm-mini' }, _('+ 添加 SSID'));
+		var countEl = E('span', {}, _('SSID 列表（%d 个）').format(ssids.length));
 
 		var view = E('div', { 'class': 'nm-ap-radio' }, [
 			E('div', { 'class': 'nm-ap-radio-title' }, [
@@ -599,31 +1025,147 @@ return view.extend({
 				config.htmode ? _(' / %s').format(config.htmode) : ''
 			]),
 			E('div', { 'class': 'nm-form' }, [
-				E('div', { 'class': 'nm-field wide' }, [ E('label', {}, _('SSID')), ssid ]),
-				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('加密方式')), encryption ]),
-				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('无线密码')), key ]),
 				E('div', { 'class': 'nm-field wide' }, [ E('label', {}, _('频道号（本机）')), channel ])
 			]),
-			E('div', { 'class': 'nm-field inline', 'style': 'margin-top:9px' }, [
-				E('label', {}, [ enabled, _('启用该 radio 的 AP') ])
+			E('div', { 'class': 'nm-ssid-head' }, [ countEl, addBtn ]),
+			ssidList
+		]);
+
+		var card = {
+			radio: config.radio,
+			band: config.band,
+			channel: channel,
+			ssids: ssids,
+			ssidList: ssidList,
+			countEl: countEl,
+			view: view
+		};
+
+		addBtn.addEventListener('click', function() {
+			var row = self.buildSsidRow({}, self.networks);
+			card.ssids.push(row);
+			ssidList.appendChild(row.view);
+			self.updateCoverage();
+		});
+		channel.addEventListener('change', L.bind(self.updateCoverage, self));
+
+		return card;
+	},
+
+	buildSsidRow: function(ap, networks) {
+		var self = this;
+		ap = ap || {};
+
+		var enabled = E('input', { 'type': 'checkbox' });
+		enabled.checked = ap.enabled !== false;
+
+		var ssid = E('input', {
+			'class': 'nm-ssid-name', 'type': 'text', 'value': ap.ssid || '',
+			'maxlength': '32', 'aria-label': _('SSID'),
+			'placeholder': _('SSID 名称，例如 USHOME')
+		});
+		var encryption = encryptionSelect(ap.encryption);
+		var key = E('input', { 'type': 'password', 'autocomplete': 'new-password' });
+		key.placeholder = ap.has_key ? _('留空沿用当前密钥') : _('8-63 位');
+
+		var netName = ap.network || 'lan';
+		var network = E('select', {}, (networks || []).map(function(n) {
+			return E('option', { 'value': n.name }, n.ipaddr ? n.name + ' · ' + n.ipaddr : n.name);
+		}));
+		if (!(networks || []).some(function(n) { return n.name === netName; }))
+			network.appendChild(E('option', { 'value': netName }, netName));
+		network.value = netName;
+
+		function flag(value, fallback) {
+			var el = E('input', { 'type': 'checkbox' });
+			el.checked = value === undefined ? !!fallback : (value === true || value === 'true' || value === 1);
+			return el;
+		}
+
+		var ieee80211k = flag(ap.ieee80211k, true);
+		var bssTransition = flag(ap.bss_transition, true);
+		var wnmSleep = flag(ap.wnm_sleep_mode, false);
+		var proxyArp = flag(ap.proxy_arp, false);
+		var isolate = flag(ap.isolate, false);
+
+		var removeBtn = E('button', { 'class': 'cbi-button cbi-button-negative nm-mini' }, _('删除'));
+
+		var view = E('div', { 'class': 'nm-ssid-row' }, [
+			E('div', { 'class': 'nm-ssid-top' }, [
+				E('label', { 'class': 'nm-check' }, [ enabled, _('启用') ]),
+				ssid,
+				removeBtn
+			]),
+			E('div', { 'class': 'nm-ssid-grid' }, [
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('加密方式')), encryption ]),
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('无线密码')), key ]),
+				E('div', { 'class': 'nm-field wide' }, [ E('label', {}, _('绑定网络（VLAN）')), network ])
+			]),
+			E('div', { 'class': 'nm-ssid-opts' }, [
+				E('label', { 'class': 'nm-check', 'title': _('802.11k 邻居报告，帮助终端快速发现邻近 AP') },
+					[ ieee80211k, _('802.11k') ]),
+				E('label', { 'class': 'nm-check', 'title': _('802.11v BSS Transition，AP 主动引导终端切换') },
+					[ bssTransition, _('BSS Transition') ]),
+				E('label', { 'class': 'nm-check', 'title': _('WNM 睡眠模式，省电终端可短暂休眠') },
+					[ wnmSleep, _('WNM Sleep') ]),
+				E('label', { 'class': 'nm-check', 'title': _('代理 ARP，桥接网段下改善三层互通') },
+					[ proxyArp, _('Proxy ARP') ]),
+				E('label', { 'class': 'nm-check', 'title': _('客户端隔离，同一 SSID 内终端互不通信') },
+					[ isolate, _('客户端隔离') ])
 			])
 		]);
 
-		[ ssid, encryption, key, channel, enabled ].forEach(function(el) {
-			el.addEventListener('change', L.bind(self.updateCoverage, self));
-			el.addEventListener('input', L.bind(self.updateCoverage, self));
-		});
-
-		return {
-			radio: config.radio,
-			band: config.band,
+		var row = {
+			section: ap.section || '',
 			enabled: enabled,
 			ssid: ssid,
 			encryption: encryption,
 			key: key,
-			channel: channel,
+			network: network,
+			ieee80211k: ieee80211k,
+			bss_transition: bssTransition,
+			wnm_sleep_mode: wnmSleep,
+			proxy_arp: proxyArp,
+			isolate: isolate,
+			removed: false,
 			view: view
 		};
+
+		removeBtn.addEventListener('click', function() {
+			if (row.section) {
+				// an existing interface is only marked for deletion so a
+				// misclick can be undone before applying
+				row.removed = !row.removed;
+				view.classList.toggle('removed', row.removed);
+				removeBtn.textContent = row.removed ? _('恢复') : _('删除');
+			} else {
+				self.removeSsidRow(row);
+			}
+			self.updateCoverage();
+		});
+
+		[ enabled, ssid, encryption, key, network ].forEach(function(el) {
+			el.addEventListener('change', L.bind(self.updateCoverage, self));
+			el.addEventListener('input', L.bind(self.updateCoverage, self));
+		});
+
+		return row;
+	},
+
+	removeSsidRow: function(row) {
+		var self = this;
+		(this.apConfigInputs || []).forEach(function(card) {
+			var i = card.ssids.indexOf(row);
+			if (i < 0) return;
+			card.ssids.splice(i, 1);
+			if (row.view.parentNode)
+				row.view.parentNode.removeChild(row.view);
+			if (!card.ssids.length) {
+				var fresh = self.buildSsidRow({}, self.networks);
+				card.ssids.push(fresh);
+				card.ssidList.appendChild(fresh.view);
+			}
+		});
 	},
 
 	backhaul: function() {
@@ -657,14 +1199,25 @@ return view.extend({
 		this.slaveIpInput.parentNode.parentNode.classList.toggle('hidden', role !== 'slave');
 		this.gwSelClassInput.parentNode.parentNode.classList.toggle('hidden', role !== 'slave');
 
-		// coverage is configured per radio: a disabled radio keeps its
+		// coverage is configured per SSID: a disabled radio keeps its
 		// current AP settings until it is switched back on
-		this.apConfigInputs.forEach(function(config) {
-			var on = config.enabled.checked && this.apSyncInput.checked;
-			config.ssid.disabled = !on;
-			config.encryption.disabled = !on;
-			config.key.disabled = !on || config.encryption.value === 'none';
-			config.channel.disabled = !on;
+		this.apConfigInputs.forEach(function(card) {
+			var sync = this.apSyncInput.checked;
+			card.channel.disabled = !sync;
+			if (card.countEl)
+				card.countEl.textContent = _('SSID 列表（%d 个）').format(card.ssids.length);
+			card.ssids.forEach(function(row) {
+				var on = sync && !row.removed && row.enabled.checked;
+				row.enabled.disabled = !sync || row.removed;
+				row.ssid.disabled = !on;
+				row.encryption.disabled = !on;
+				row.key.disabled = !on || row.encryption.value === 'none';
+				row.network.disabled = !on;
+				[ row.ieee80211k, row.bss_transition, row.wnm_sleep_mode,
+					row.proxy_arp, row.isolate ].forEach(function(el) {
+					el.disabled = !on;
+				});
+			});
 		}, this);
 
 		this.updateCoverageAlert();
@@ -679,9 +1232,40 @@ return view.extend({
 	// needs the same SSID on several APs to share encryption and key, which the
 	// "generate child config" step takes care of. The one thing worth flagging
 	// here is two radios of the same band sitting on the same channel.
+	// A radio only counts as "in use" when at least one of its SSIDs is
+	// enabled and not marked for deletion.
+	radioActive: function(card) {
+		return (card.ssids || []).some(function(row) {
+			return row.enabled.checked && !row.removed;
+		});
+	},
+
+	// Blocking mistakes: the resulting config would be ambiguous or plainly
+	// wrong, so applying is refused until they are fixed.
+	coverageBlockers: function() {
+		var blockers = [];
+
+		(this.apConfigInputs || []).forEach(function(card) {
+			var names = {};
+			card.ssids.forEach(function(row) {
+				if (row.removed || !row.enabled.checked) return;
+				var name = (row.ssid.value || '').trim();
+				if (!name) return;
+				if (names[name]) {
+					blockers.push(_('%s 上有重复的 SSID「%s」').format(radioTitle(card), name));
+					return;
+				}
+				names[name] = 1;
+			});
+		});
+
+		return blockers;
+	},
+
 	coverageProblems: function() {
-		var active = (this.apConfigInputs || []).filter(function(c) { return c.enabled.checked; });
-		var problems = [];
+		var self = this;
+		var active = (this.apConfigInputs || []).filter(this.radioActive);
+		var problems = this.coverageBlockers();
 		var seen = {};
 
 		active.forEach(function(c) {
@@ -697,6 +1281,19 @@ return view.extend({
 			seen[k] = 1;
 		});
 
+		// an SSID bound to a network that no longer exists would leave the
+		// interface unbridged after a reload
+		var known = (this.networks || []).map(function(n) { return n.name; });
+		(this.apConfigInputs || []).forEach(function(card) {
+			card.ssids.forEach(function(row) {
+				if (row.removed || !row.enabled.checked) return;
+				var net = row.network.value;
+				if (net && known.length && known.indexOf(net) < 0)
+					problems.push(_('SSID「%s」绑定的网络 %s 已不存在').format(
+						(row.ssid.value || '').trim() || '?', net));
+			});
+		});
+
 		return problems;
 	},
 
@@ -708,15 +1305,43 @@ return view.extend({
 		this.coverageAlert.classList.toggle('hidden', !problems.length);
 		if (!problems.length) return;
 
-		this.coverageAlert.appendChild(E('strong', {}, _('频道冲突提醒')));
+		this.coverageAlert.appendChild(E('strong', {}, _('无线覆盖配置提醒')));
 		this.coverageAlert.appendChild(E('div', {}, problems.join('；') + '。'));
-		this.coverageAlert.appendChild(E('div', {}, _('各 radio 的 SSID、加密方式与密码相互独立；只需保证多台 AP 上同名 SSID 的设置一致即可漫游。')));
+		this.coverageAlert.appendChild(E('div', {}, _('各 SSID 的名称、加密方式与密码相互独立；跨机漫游只需保证多台 AP 上同名 SSID 的设置一致。')));
 	},
 
 	collectChannels: function() {
 		return this.apConfigInputs.map(function(config) {
 			return { radio: config.radio, channel: config.channel.value };
 		});
+	},
+
+	// Flatten every radio's SSID rows into the list the backend expects.
+	// A brand new row that is deleted again is dropped outright; an existing
+	// interface is sent with remove=1 so the backend deletes it.
+	collectApEntries: function() {
+		var out = [];
+		this.apConfigInputs.forEach(function(card) {
+			card.ssids.forEach(function(row) {
+				if (!row.section && row.removed) return;
+				out.push({
+					radio: card.radio,
+					section: row.section || '',
+					remove: row.removed ? 1 : 0,
+					enabled: row.enabled.checked ? 1 : 0,
+					ssid: (row.ssid.value || '').trim(),
+					encryption: row.encryption.value || 'sae-mixed',
+					key: row.key.value || '',
+					network: row.network.value || 'lan',
+					ieee80211k: row.ieee80211k.checked ? 1 : 0,
+					bss_transition: row.bss_transition.checked ? 1 : 0,
+					wnm_sleep_mode: row.wnm_sleep_mode.checked ? 1 : 0,
+					proxy_arp: row.proxy_arp.checked ? 1 : 0,
+					isolate: row.isolate.checked ? 1 : 0
+				});
+			});
+		});
+		return out;
 	},
 
 	confirmMesh: function() {
@@ -734,12 +1359,9 @@ return view.extend({
 			return;
 		}
 		if (this.apSyncInput.checked) {
-			var missing = this.apConfigInputs.filter(function(c) {
-				return c.enabled.checked && !(c.ssid.value || '').trim();
-			});
-			if (missing.length) {
-				ui.addNotification(null, E('p', _('请为启用的 radio 填写 SSID：%s').format(
-					missing.map(function(c) { return c.radio; }).join('、'))));
+			var errors = this.coverageErrors();
+			if (errors.length) {
+				ui.addNotification(null, E('p', _('无线覆盖配置有问题：%s。').format(errors.join('；'))));
 				return;
 			}
 		}
@@ -764,7 +1386,8 @@ return view.extend({
 			E('p', {}, wiredText),
 			E('p', {}, wirelessText),
 			E('p', {}, this.apSyncInput.checked
-				? _('无线覆盖：按各 radio 的设置下发，2.4G / 5G / 6G 可分别命名，频道号各自独立。')
+				? _('无线覆盖：按各 SSID 的设置下发，共 %d 个 SSID，各 SSID 绑定到各自的网络（VLAN），频道号按 radio 下发。')
+					.format(this.collectApEntries().filter(function(e) { return !e.remove; }).length)
 				: _('无线覆盖：不下发，各 radio 保留当前 AP 配置。')),
 			E('div', { 'class': 'right' }, [
 				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': ui.createHandlerFn(this, 'applyMesh') }, _('确认应用')),
@@ -810,15 +1433,7 @@ return view.extend({
 			'sae-mixed',
 			'',
 			syncAp === false ? '0' : (this.apSyncInput.checked ? '1' : '0'),
-			JSON.stringify(this.apConfigInputs.map(function(config) {
-				return {
-					radio: config.radio,
-					enabled: config.enabled.checked,
-					ssid: (config.ssid.value || '').trim(),
-					encryption: config.encryption.value || 'sae-mixed',
-					key: config.key.value || ''
-				};
-			})),
+			JSON.stringify(this.collectApEntries()),
 			JSON.stringify(this.collectChannels())
 		).then(L.bind(this.afterApply, this)).catch(function(e) {
 			ui.addNotification(null, E('p', e.message || _('应用失败')));

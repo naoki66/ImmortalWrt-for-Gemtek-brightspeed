@@ -1,0 +1,44 @@
+#!/bin/sh /etc/rc.common
+
+# Runs right before rpcd (START=12). rpcd enumerates /usr/libexec/rpcd only
+# once at startup, so the plugin must already be CR-free and executable by
+# then, otherwise every luci.meshconf call fails with -32000 "Object not
+# found" until someone repairs it by hand.
+
+START=11
+STOP=99
+
+PLUGIN=/usr/libexec/rpcd/luci.meshconf
+VIEW=/www/luci-static/resources/view/meshconf/meshconf.js
+
+repair() {
+	local tmp="/tmp/.meshconf-fix.$$"
+	local changed=0
+
+	[ -f "$PLUGIN" ] || return 0
+
+	cp -f "$PLUGIN" "$tmp" 2>/dev/null
+	sed -i 's/\r$//' "$PLUGIN" 2>/dev/null
+	chmod 0755 "$PLUGIN" 2>/dev/null
+	cmp -s "$PLUGIN" "$tmp" || changed=1
+	rm -f "$tmp"
+
+	if [ -f "$VIEW" ]; then
+		sed -i 's/\r$//' "$VIEW" 2>/dev/null
+		chmod 0644 "$VIEW" 2>/dev/null
+	fi
+
+	if [ "$changed" -eq 1 ]; then
+		logger -t meshconf-fix "stripped CR from $PLUGIN"
+	fi
+
+	return 0
+}
+
+start() {
+	repair
+}
+
+boot() {
+	repair
+}

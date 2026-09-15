@@ -8,7 +8,7 @@
 		},
 		"write": {
 			"ubus": {
-				"luci.meshconf": [ "applyMesh", "generateChildConfig" ]
+				"luci.meshconf": [ "applyMesh", "generateChildConfig", "applyVlans", "applyWireless" ]
 			}
 		}
 	}
