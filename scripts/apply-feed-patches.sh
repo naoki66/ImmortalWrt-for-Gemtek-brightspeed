@@ -16,6 +16,10 @@
 # `./scripts/feeds update -a` / `install -a`; include/feed-patches.mk hooks it
 # into every make invocation, so a normal build does this automatically.
 #
+# A feed that has not been fetched yet is skipped with a warning rather than
+# treated as an error, because the patched package is not in the tree either.
+# Set FEED_PATCHES_STRICT=1 to turn that into a failure.
+#
 # The patch is fed to git on stdin rather than by path: `git -C <feed> apply`
 # resolves a path argument relative to the feed directory, and building an
 # absolute one from $PWD is not portable ($PWD is an MSYS path under Git Bash
@@ -35,15 +39,27 @@ fi
 
 applied=0
 skipped=0
+absent=0
 
 while IFS= read -r -d '' patch_file; do
 	feed_path="${patch_file#patches/feeds/}"
 	feed_name="${feed_path%%/*}"
 	feed_dir="feeds/$feed_name"
 
+	# A feed that has not been fetched yet is not a build error: the patched
+	# package is not in the tree either, so there is nothing to patch. This
+	# happens on a fresh checkout, where this script (a prerequisite of
+	# prepare-tmpinfo) runs before prepare-tmpinfo's own recipe creates feeds/.
+	# Fail loudly only when CI asks for strictness, or when a feed that *is*
+	# present refuses the patch -- that one means real breakage.
 	if [[ ! -d "$feed_dir" ]]; then
-		echo "feed directory not found for patch: $patch_file" >&2
-		exit 1
+		echo "Feed patch skipped, feed '$feed_name' is not present: $patch_file" >&2
+		echo "  -> run './scripts/feeds update -a && ./scripts/feeds install -a' first" >&2
+		if [[ "${FEED_PATCHES_STRICT:-0}" == "1" ]]; then
+			exit 1
+		fi
+		absent=$((absent + 1))
+		continue
 	fi
 
 	if git -C "$feed_dir" apply --check < "$patch_file" 2>/dev/null; then
@@ -60,4 +76,4 @@ while IFS= read -r -d '' patch_file; do
 	fi
 done < <(find patches/feeds -type f -name '*.patch' -print0 | sort -z)
 
-echo "Feed patches: $applied applied, $skipped already present."
+echo "Feed patches: $applied applied, $skipped already present, $absent skipped (feed absent)."

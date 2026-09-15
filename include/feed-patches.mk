@@ -21,6 +21,15 @@
 # and is skipped), so the steady-state cost is one `git apply --check` per
 # patch file.
 #
+# A feed that has not been fetched yet is skipped with a warning, not an error:
+# this target runs *before* prepare-tmpinfo's own recipe, which is what creates
+# feeds/ in the first place, so on a fresh checkout the feed is legitimately
+# absent and the patched package is not in the tree either. Failing here would
+# break `make menuconfig` on a clean tree. The CI and remote-build-worker
+# entry points, which always fetch feeds first, export FEED_PATCHES_STRICT=1 to
+# get the opposite behaviour: a missing feed there means the feed layout moved
+# and the patch would silently stop being applied.
+#
 # Invoked through bash on purpose: scripts/apply-feed-patches.sh is committed
 # as 100644, like the other scripts/*.sh in this tree, so it carries no
 # executable bit.
