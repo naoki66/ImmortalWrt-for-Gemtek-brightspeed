@@ -13,24 +13,34 @@ VIEW=/www/luci-static/resources/view/meshconf/meshconf.js
 
 repair() {
 	local tmp="/tmp/.meshconf-fix.$$"
-	local changed=0
+	local changed=0 mode=""
 
 	[ -f "$PLUGIN" ] || return 0
 
+	# Two independent ways rpcd drops the plugin, both of which answer
+	# -32000 "Object not found" at call time:
+	#   1. a CRLF shebang ("/bin/sh\r") - fixed by the sed below
+	#   2. a missing exec bit      - fixed by the chmod below
+	# The chmod is unconditional on purpose: the packaging step used to ship
+	# the plugin 0664 (see the Makefile), and a repair that only ran when the
+	# content changed would have left that untouched.
 	cp -f "$PLUGIN" "$tmp" 2>/dev/null
 	sed -i 's/\r$//' "$PLUGIN" 2>/dev/null
-	chmod 0755 "$PLUGIN" 2>/dev/null
 	cmp -s "$PLUGIN" "$tmp" || changed=1
 	rm -f "$tmp"
 
+	mode="$(ls -l "$PLUGIN" 2>/dev/null | awk '{ print $1 }')"
+	[ -x "$PLUGIN" ] || chmod 0755 "$PLUGIN" 2>/dev/null
+
 	if [ -f "$VIEW" ]; then
 		sed -i 's/\r$//' "$VIEW" 2>/dev/null
-		chmod 0644 "$VIEW" 2>/dev/null
+		[ -r "$VIEW" ] || chmod 0644 "$VIEW" 2>/dev/null
 	fi
 
 	if [ "$changed" -eq 1 ]; then
 		logger -t meshconf-fix "stripped CR from $PLUGIN"
 	fi
+	[ -x "$PLUGIN" ] || logger -t meshconf-fix "still not executable: $PLUGIN ($mode)"
 
 	return 0
 }

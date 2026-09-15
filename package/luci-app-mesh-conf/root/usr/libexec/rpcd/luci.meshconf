@@ -4,9 +4,32 @@
 # wireless), master/slave roles, unified wireless coverage and mesh topology
 # discovery. Switching the upstream WAN mode (AP / DHCP / PPPoE) lives in the
 # separate luci-app-netmode package.
+#
+# rpcd contract, worth stating once because breaking it produces a completely
+# misleading error message: rpcd runs this script as
+#
+#     /usr/libexec/rpcd/luci.meshconf call <method>
+#
+# and parses all of stdout as a single JSON object. If stdout is empty, or is
+# not valid JSON, or the process never exits, rpcd answers the caller with
+#
+#     -32000 Object not found
+#
+# which looks like a missing plugin even when the plugin is installed and the
+# real failure was something else entirely. So every path through this script
+# has to end in a valid JSON object - hence the "|| return 1" sites below
+# pairing with a printed error, and the die_json helper for bail-outs.
 
 set -f
 . /usr/share/libubox/jshn.sh
+
+# Emit a JSON error object and stop. Used by the argument-validation paths that
+# used to "return 1" silently, which surfaced as -32000 instead of a reason.
+die_json()
+{
+	printf '{"success":false,"error":"%s"}' "$(json_escape "$1")"
+	exit 0
+}
 
 MAX_WIFI_MESH=8
 # One radio may carry several AP interfaces (multi-SSID), so the per-SSID
@@ -82,14 +105,35 @@ uci_bool01()
 	esac
 }
 
+# rpcd launches plugins with a trimmed environment and does not guarantee the
+# usual PATH, so "command -v batctl" answered "not found" on a router that
+# demonstrably ships /usr/sbin/batctl - the UI then claimed batctl and iw were
+# missing on a fully provisioned image. Probe the known binary locations
+# first and fall back to PATH only if none of them exist.
+have_command()
+{
+	local name="$1" dir
+	case "$name" in
+		batctl) dir="/usr/sbin /sbin /usr/bin /bin" ;;
+		iw) dir="/usr/sbin /sbin /usr/bin /bin" ;;
+		wpa_supplicant|hostapd) dir="/usr/sbin /sbin" ;;
+		board_name|hostname|iw) dir="/usr/sbin /sbin /usr/bin /bin" ;;
+		*) dir="/usr/sbin /sbin /usr/bin /bin" ;;
+	esac
+	for dir in $dir; do
+		[ -x "$dir/$name" ] && return 0
+	done
+	command -v "$name" >/dev/null 2>&1
+}
+
 command_flag()
 {
-	command -v "$1" >/dev/null 2>&1 && printf 1 || printf 0
+	have_command "$1" && printf 1 || printf 0
 }
 
 board_name_safe()
 {
-	if command -v board_name >/dev/null 2>&1; then
+	if have_command board_name; then
 		board_name 2>/dev/null
 	elif [ -r /tmp/sysinfo/board_name ]; then
 		cat /tmp/sysinfo/board_name
@@ -283,8 +327,19 @@ radio_is_mesh_backhaul()
 # way (mac80211.sh: wpa_supplicant -vmesh).
 wpad_mesh_support()
 {
-	command -v wpa_supplicant >/dev/null 2>&1 || return 1
-	wpa_supplicant -vmesh >/dev/null 2>&1
+	have_command wpa_supplicant || return 1
+	# Run it by absolute path: the probe itself must not depend on PATH.
+	"$(command_path wpa_supplicant)" -vmesh >/dev/null 2>&1
+}
+
+# Resolve a binary to an absolute path without relying on PATH.
+command_path()
+{
+	local name="$1" dir
+	for dir in /usr/sbin /sbin /usr/bin /bin; do
+		[ -x "$dir/$name" ] && { printf '%s' "$dir/$name"; return 0; }
+	done
+	command -v "$name" 2>/dev/null
 }
 
 wpad_variant()
@@ -305,9 +360,15 @@ wpad_variant()
 # only exists in the iw-full build.
 iw_full_support()
 {
-	command -v iw >/dev/null 2>&1 || return 1
+	local bin
 	[ -f /usr/lib/opkg/info/iw-full.control ] && return 0
-	iw help 2>&1 | grep -q 'plink_action'
+	have_command iw || return 1
+	bin="$(command_path iw)"
+	[ -n "$bin" ] || return 1
+	# Read the help into a variable first: piping straight into "grep -q"
+	# makes iw die of SIGPIPE once grep exits early, and some shells surface
+	# that as a failed pipeline that can take the whole RPC call down.
+	"$bin" help 2>&1 | grep 'plink_action' >/dev/null 2>&1
 }
 
 # A foreign 802.11s interface (hand written or owned by mesh11sd) is not
@@ -2743,18 +2804,37 @@ case "$1" in
 		;;
 	call)
 		args="$(cat)"
+		# rpcd parses stdout as one JSON object; an empty stdout is reported to
+		# the caller as "-32000 Object not found", which reads like a missing
+		# plugin rather than a failed call. So capture whatever the method
+		# prints and guarantee a JSON object comes out either way.
+		rc_out=""
 		case "$2" in
-			getStatus) get_status ;;
-			discoverMesh) discover_mesh ;;
-			getMeshDiag) get_mesh_diag ;;
-			listBackups) printf '{"backups":'; list_backups; printf '}' ;;
-			restoreBackup) restore_backup "$args" ;;
-			blockMeshPeer) block_mesh_peer "$args" ;;
-			applyMesh) apply_mesh "$args" ;;
-			generateChildConfig) generate_child_config "$args" ;;
-			applyVlans) apply_vlans "$args" ;;
-			applyWireless) apply_wireless "$args" ;;
-			*) printf '{"error":"unknown method"}' ;;
+			getStatus) rc_out="$(get_status)" ;;
+			discoverMesh) rc_out="$(discover_mesh)" ;;
+			getMeshDiag) rc_out="$(get_mesh_diag)" ;;
+			listBackups) rc_out="{\"backups\":$(list_backups)}" ;;
+			restoreBackup) rc_out="$(restore_backup "$args")" ;;
+			blockMeshPeer) rc_out="$(block_mesh_peer "$args")" ;;
+			applyMesh) rc_out="$(apply_mesh "$args")" ;;
+			generateChildConfig) rc_out="$(generate_child_config "$args")" ;;
+			applyVlans) rc_out="$(apply_vlans "$args")" ;;
+			applyWireless) rc_out="$(apply_wireless "$args")" ;;
+			*) rc_out='{"success":false,"error":"unknown method"}' ;;
 		esac
+		rc_rc=$?
+		case "$rc_out" in
+			\{*) printf '%s' "$rc_out" ;;
+			*)
+				# Nothing usable on stdout. Report a real reason instead of
+				# letting rpcd turn the silence into -32000.
+				printf '{"success":false,"error":"backend produced no JSON output (method=%s, rc=%s)","raw":"%s"}' \
+					"$(json_escape "${2:-}")" "$rc_rc" \
+					"$(printf '%s' "$rc_out" | tr -d '\r\n' | cut -c1-200 | sed 's/\\/\\\\/g; s/"/\\"/g')"
+				;;
+		esac
+		# Always exit 0: a non-zero status makes rpcd report the call as
+		# failed even when a perfectly good error object was printed.
+		exit 0
 		;;
 esac

@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 LUCI_NAME:=luci-app-mesh-conf
 PKG_VERSION:=0.1.0
-PKG_RELEASE:=7
+PKG_RELEASE:=8
 
 PKG_MAINTAINER:=XR1710G Maintainer
 PKG_LICENSE:=GPL-2.0-or-later
@@ -18,31 +18,45 @@ LUCI_PKGARCH:=all
 
 include $(TOPDIR)/feeds/luci/luci.mk
 
+# mesh-conf installs every file as
+#   [ -f ./src ] && tr -d '\r' < ./src | install -m <mode> /dev/stdin <dst>
+#
+# - install -m <mode> is what $(INSTALL_DATA)/$(INSTALL_BIN) expand to anyway
+#   (rules.mk:332/335). It replaced "tr > dst; chmod dst" because a standalone
+#   chmod on the ipkg-install path (which expands with a doubled slash) did not
+#   stick during fakeroot packaging: the rpcd plugin shipped mode 0664, had no
+#   exec bit, rpcd dropped it on startup, and every call answered -32000
+#   "Object not found". install(1) sets the mode on the file it creates.
+# - The [ -f ] test keeps the existence check $(INSTALL_DATA) used to give us:
+#   the shell reports only a pipeline's last status, so without it a missing
+#   source would let install write a 0-byte file and the recipe would still pass.
+# - The CR strip is belt and braces. .gitattributes already pins
+#   package/luci-app-mesh-conf/** to LF, so a CRLF shebang should not reach the
+#   tree - but this package has shipped a dead rpcd plugin twice, and a CRLF
+#   shebang fails exactly like the missing exec bit did.
+#
+# Deliberately NOT applied to the other luci-app packages: they have no such
+# history and keep the plain INSTALL_DATA/INSTALL_BIN form.
 define Package/$(LUCI_NAME)/install
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/meshconf
-	tr -d '\r' < ./htdocs/luci-static/resources/view/meshconf/meshconf.js \
-		> $(1)/www/luci-static/resources/view/meshconf/meshconf.js
-	chmod 0644 $(1)/www/luci-static/resources/view/meshconf/meshconf.js
+	[ -f ./htdocs/luci-static/resources/view/meshconf/meshconf.js ] && tr -d '\r' < ./htdocs/luci-static/resources/view/meshconf/meshconf.js \
+		| install -m 0644 /dev/stdin $(1)/www/luci-static/resources/view/meshconf/meshconf.js
 
 	$(INSTALL_DIR) $(1)/usr/libexec/rpcd
-	tr -d '\r' < ./root/usr/libexec/rpcd/luci.meshconf \
-		> $(1)/usr/libexec/rpcd/luci.meshconf
-	chmod 0755 $(1)/usr/libexec/rpcd/luci.meshconf
+	[ -f ./root/usr/libexec/rpcd/luci.meshconf ] && tr -d '\r' < ./root/usr/libexec/rpcd/luci.meshconf \
+		| install -m 0755 /dev/stdin $(1)/usr/libexec/rpcd/luci.meshconf
 
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
-	tr -d '\r' < ./root/usr/share/luci/menu.d/luci-app-mesh-conf.json \
-		> $(1)/usr/share/luci/menu.d/luci-app-mesh-conf.json
-	chmod 0644 $(1)/usr/share/luci/menu.d/luci-app-mesh-conf.json
+	[ -f ./root/usr/share/luci/menu.d/luci-app-mesh-conf.json ] && tr -d '\r' < ./root/usr/share/luci/menu.d/luci-app-mesh-conf.json \
+		| install -m 0644 /dev/stdin $(1)/usr/share/luci/menu.d/luci-app-mesh-conf.json
 
 	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
-	tr -d '\r' < ./root/usr/share/rpcd/acl.d/luci-app-mesh-conf.json \
-		> $(1)/usr/share/rpcd/acl.d/luci-app-mesh-conf.json
-	chmod 0644 $(1)/usr/share/rpcd/acl.d/luci-app-mesh-conf.json
+	[ -f ./root/usr/share/rpcd/acl.d/luci-app-mesh-conf.json ] && tr -d '\r' < ./root/usr/share/rpcd/acl.d/luci-app-mesh-conf.json \
+		| install -m 0644 /dev/stdin $(1)/usr/share/rpcd/acl.d/luci-app-mesh-conf.json
 
 	$(INSTALL_DIR) $(1)/etc/init.d
-	tr -d '\r' < ./root/etc/init.d/meshconf-fix \
-		> $(1)/etc/init.d/meshconf-fix
-	chmod 0755 $(1)/etc/init.d/meshconf-fix
+	[ -f ./root/etc/init.d/meshconf-fix ] && tr -d '\r' < ./root/etc/init.d/meshconf-fix \
+		| install -m 0755 /dev/stdin $(1)/etc/init.d/meshconf-fix
 
 	# The package is usually built into the image (=y), so postinst runs with
 	# IPKG_INSTROOT set and bails out before it can enable the service.
