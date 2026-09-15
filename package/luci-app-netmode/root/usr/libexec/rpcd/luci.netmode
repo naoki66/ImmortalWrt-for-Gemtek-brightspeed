@@ -447,6 +447,36 @@ apply_mode()
 	printf '}'
 }
 
+# Is the "wan" netdev a member of the LAN bridge?  That is the AP topology:
+# the WAN port is handed to br-lan instead of being a routed interface of its
+# own, which is what this package's own "ap" mode produces (apply_mode calls
+# ensure_bridge_port br-lan wan).
+#
+# Membership has to be looked up in two places.  A plain bridge keeps its
+# members on the bridge device itself, but as soon as the bridge is
+# VLAN-aware the members move into the bridge-vlan sections and the device's
+# own ports list may no longer be what carries them.  Note that the entries
+# there carry egress flags, so "wan" has to be compared against the part
+# before the colon ("wan", "wan:u*" and "wan:t" all count).
+wan_is_bridge_member()
+{
+	local sec vsec port
+
+	sec="$(find_bridge_section br-lan)"
+	[ -n "$sec" ] || return 1
+
+	bridge_has_port "$sec" wan && return 0
+
+	for vsec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=bridge-vlan$/\1/p'); do
+		[ "$(uci -q get network."$vsec".device 2>/dev/null)" = "br-lan" ] || continue
+		for port in $(uci -q get network."$vsec".ports 2>/dev/null); do
+			[ "${port%%:*}" = "wan" ] && return 0
+		done
+	done
+
+	return 1
+}
+
 detect_mode()
 {
 	local wan_proto lan_proto dhcp_ignore
@@ -459,6 +489,18 @@ detect_mode()
 		printf pppoe
 	elif [ "$wan_proto" = "dhcp" ]; then
 		printf dhcp
+	elif [ -n "$wan_proto" ]; then
+		# A "wan" interface exists but uses some other proto (static, none).
+		# It is a routed interface, not a bridged one, so none of the three
+		# modes above apply.
+		printf unknown
+	elif wan_is_bridge_member; then
+		# No "wan" interface at all and its netdev is bridged into br-lan:
+		# the WAN port is part of the LAN bridge, i.e. this box is an AP.
+		# This is also the state an AP left behind when netifd's lan.proto
+		# is not (or no longer) dhcp, which is why the first test alone
+		# reports "unknown" on such a unit.
+		printf ap
 	else
 		printf unknown
 	fi
