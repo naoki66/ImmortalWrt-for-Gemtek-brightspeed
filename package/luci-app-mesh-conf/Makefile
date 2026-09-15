@@ -2,13 +2,17 @@ include $(TOPDIR)/rules.mk
 
 LUCI_NAME:=luci-app-mesh-conf
 PKG_VERSION:=0.1.0
-PKG_RELEASE:=5
+PKG_RELEASE:=7
 
 PKG_MAINTAINER:=XR1710G Maintainer
 PKG_LICENSE:=GPL-2.0-or-later
 
 LUCI_TITLE:=LuCI batman-adv Mesh Configuration
-LUCI_DESCRIPTION:=Wired or wireless 802.11s mesh backhaul (one link at a time), master/slave roles, multi-SSID per radio with VLAN binding and 802.11k/v roaming options, bridge-vlan network segmentation and mesh topology discovery. Upstream WAN mode (AP / DHCP / PPPoE) is handled by luci-app-netmode.
+LUCI_DESCRIPTION:=Wired or wireless 802.11s mesh backhaul (one link at a time), batman-adv or HWMP routing, master/slave roles, multi-SSID per radio with VLAN binding and 802.11k/v/r roaming options, bridge-vlan network segmentation, 802.11s link diagnostics, config backup/rollback and mesh topology discovery. Upstream WAN mode (AP / DHCP / PPPoE) is handled by luci-app-netmode.
+# iw-full is deliberately NOT a dependency: it conflicts with the plain iw
+# build (both provide /usr/sbin/iw). Only "iw station set <mac> plink_action"
+# needs it, so the diagnostics page reports the feature as unavailable and
+# tells the operator to swap the package by hand.
 LUCI_DEPENDS:=+luci-base +rpcd +jsonfilter +iw +iwinfo +ip-full +kmod-batman-adv +batctl-full +wpad-mesh-mbedtls
 LUCI_PKGARCH:=all
 

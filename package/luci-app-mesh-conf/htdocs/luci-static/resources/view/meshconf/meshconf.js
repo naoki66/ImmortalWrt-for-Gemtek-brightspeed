@@ -14,13 +14,36 @@ var callDiscoverMesh = rpc.declare({
 	method: 'discoverMesh'
 });
 
+var callGetMeshDiag = rpc.declare({
+	object: 'luci.meshconf',
+	method: 'getMeshDiag'
+});
+
+var callListBackups = rpc.declare({
+	object: 'luci.meshconf',
+	method: 'listBackups'
+});
+
+var callRestoreBackup = rpc.declare({
+	object: 'luci.meshconf',
+	method: 'restoreBackup',
+	params: [ 'name' ]
+});
+
+var callBlockMeshPeer = rpc.declare({
+	object: 'luci.meshconf',
+	method: 'blockMeshPeer',
+	params: [ 'iface', 'mac', 'action' ]
+});
+
 var callApplyMesh = rpc.declare({
 	object: 'luci.meshconf',
 	method: 'applyMesh',
 	params: [ 'backhaul', 'role', 'wired', 'wireless',
-		'mesh_radio', 'mesh_id', 'mesh_key', 'gateway', 'gw_bandwidth',
+		'mesh_radio', 'mesh_id', 'mesh_key', 'gateway', 'gw_bandwidth', 'gw_sel_class',
 		'slave_ip_suffix', 'unified', 'unified_ssid', 'unified_encryption', 'unified_key',
-		'ap_sync', 'ap_configs', 'channels' ]
+		'ap_sync', 'ap_configs', 'channels',
+		'mesh_proto', 'mesh_params', 'bat_algo', 'bat_advanced' ]
 });
 
 var callApplyWireless = rpc.declare({
@@ -81,6 +104,8 @@ var css = [
 	'.nm-choice:hover{border-color:rgba(9,105,218,.45)}',
 	'.nm-choice.active{border-color:var(--nm-blue);background:rgba(9,105,218,.06);box-shadow:0 0 0 1px var(--nm-blue)}',
 	'.nm-choice:focus-within{outline:2px solid var(--nm-blue);outline-offset:2px}',
+	'.nm-choice.disabled{opacity:.5;cursor:not-allowed}',
+	'.nm-choice.disabled:hover{border-color:var(--nm-border)}',
 	'.nm-choice-title{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:650}',
 	'.nm-choice-desc{display:block;margin-top:4px;color:var(--nm-muted);font-size:12px;line-height:1.5}',
 	'.nm-choice-dot{width:8px;height:8px;border-radius:50%;background:var(--nm-border);flex:0 0 auto}',
@@ -164,6 +189,37 @@ var css = [
 	'.nm-ports{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px;padding-top:9px;border-top:1px dashed var(--nm-border)}',
 	'.nm-port-item{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--nm-muted)}',
 	'.nm-port-item select{min-height:28px;border:1px solid var(--nm-border);border-radius:7px;padding:3px 6px;background:var(--nm-bg);color:var(--nm-text);font-size:12px;font-family:inherit}',
+	/* warnings / banners */
+	'.nm-banner{display:flex;gap:8px;align-items:flex-start;margin:12px 0 0;padding:9px 12px;border-radius:9px;font-size:12px;line-height:1.6;border:1px solid rgba(188,76,0,.35);background:rgba(188,76,0,.07);color:var(--nm-orange)}',
+	'.nm-banner.bad{border-color:rgba(207,34,46,.4);background:rgba(207,34,46,.08);color:var(--nm-red)}',
+	'.nm-banner.info{border-color:rgba(9,105,218,.35);background:rgba(9,105,218,.07);color:var(--nm-blue)}',
+	'.nm-banner strong{display:block;margin-bottom:2px}',
+	'.nm-banner.hidden{display:none}',
+	/* 802.11s / batman diagnostics */
+	'.nm-details{margin-top:12px;border:1px solid var(--nm-border);border-radius:10px;background:var(--nm-soft);overflow:hidden}',
+	'.nm-details>summary{cursor:pointer;padding:9px 12px;font-size:12.5px;font-weight:650;list-style:none}',
+	'.nm-details>summary::-webkit-details-marker{display:none}',
+	'.nm-details>summary::before{content:"▸";display:inline-block;margin-right:8px;transition:transform .15s}',
+	'.nm-details[open]>summary::before{content:"▾"}',
+	'.nm-details[open]>summary{border-bottom:1px dashed var(--nm-border)}',
+	'.nm-details .nm-form{margin:0;padding:12px}',
+	'.nm-table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px}',
+	'.nm-table th,.nm-table td{border:1px solid var(--nm-border);padding:5px 8px;text-align:left;vertical-align:top;word-break:break-all}',
+	'.nm-table th{background:var(--nm-soft);font-weight:650;color:var(--nm-muted);white-space:nowrap}',
+	'.nm-table td.num{text-align:right;white-space:nowrap}',
+	'.nm-mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px}',
+	'.nm-state{display:inline-flex;align-items:center;height:19px;padding:0 7px;border-radius:5px;font-size:11px;font-weight:650;background:var(--nm-soft);color:var(--nm-muted)}',
+	'.nm-state.estab{background:rgba(26,127,55,.12);color:var(--nm-green)}',
+	'.nm-state.listen{background:rgba(188,76,0,.12);color:var(--nm-orange)}',
+	'.nm-state.blocked{background:rgba(207,34,46,.12);color:var(--nm-red)}',
+	'.nm-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:6px;margin-top:10px}',
+	'.nm-kv-item{display:flex;justify-content:space-between;gap:10px;border:1px solid var(--nm-border);border-radius:7px;background:var(--nm-soft);padding:4px 9px;font-size:12px}',
+	'.nm-kv-item span:last-child{font-weight:650}',
+	/* rollback */
+	'.nm-backups{display:flex;flex-direction:column;gap:6px;margin-top:10px}',
+	'.nm-backup{display:flex;align-items:center;gap:10px;justify-content:space-between;border:1px solid var(--nm-border);border-radius:8px;background:var(--nm-soft);padding:6px 10px;font-size:12px}',
+	'.nm-backup .nm-mono{flex:1 1 auto}',
+	'.nm-scroll{max-height:280px;overflow:auto}',
 	'@media(max-width:900px){.nm-choices{grid-template-columns:1fr}.nm-choices.two{grid-template-columns:1fr}}',
 	'@media(max-width:760px){.nm-form,.nm-ap-radio .nm-form{grid-template-columns:1fr}}'
 ].join('\n');
@@ -244,6 +300,84 @@ function channelList(band, current) {
 	return list;
 }
 
+// Channel widths offered per radio. Mixed generation hardware (802.11ax
+// peering with 802.11ac only peers) has to use the same width on both ends,
+// so this is editable instead of being inherited from the board defaults.
+var HTMODES = [ 'auto', 'NOHT', 'HT20', 'HT40', 'VHT20', 'VHT40', 'VHT80', 'VHT80_80', 'VHT160',
+	'HE20', 'HE40', 'HE80', 'HE80_80', 'HE160', 'EHT20', 'EHT40', 'EHT80', 'EHT160' ];
+
+// Backhaul L2 routing: batman-adv (B.A.T.M.A.N. IV / V, supports the gateway
+// role used by master/slave) or plain 802.11s HWMP (kernel built in, no
+// batman-adv at all).
+var MESH_PROTOS = [
+	[ 'batman', _('batman-adv（推荐）'), _('自带网关选举与环路避免，支持主/从节点的出口统一管理') ],
+	[ 'hwmp', _('802.11s HWMP'), _('纯内核路由、开销最小，但没有网关选举，适合纯桥接或已另有出口网关') ]
+];
+
+var BATMAN_ALGOS = [
+	[ 'BATMAN_IV', 'BATMAN IV', _('兼容性最好，旧设备默认算法') ],
+	[ 'BATMAN_V', 'BATMAN V', _('基于吞吐量的判优，新设备推荐') ]
+];
+
+// batman-adv tunables surfaced in the advanced block. Anything left empty
+// falls back to the default shown here on the device.
+var BATMAN_ADV_FIELDS = [
+	[ 'hop_penalty', '0-255', 30, _('每跳惩罚') ],
+	[ 'orig_interval', '1-100000', 1000, _('OGM 间隔 (ms)') ],
+	[ 'multicast_fanout', '1-64', 16, _('组播扇出') ],
+	[ 'log_level', '0-15', 0, _('日志级别') ]
+];
+
+// 802.11s operating parameters, exactly as netifd's mac80211.sh declares
+// them (MP_CONFIG_INT / _BOOL / _STRING). The upstream typo
+// mesh_sync_offset_max_neighor is kept so the generated UCI matches.
+// An empty field removes the option and restores the kernel default.
+var MESH_PARAM_FIELDS = [
+	[ 'mesh_ttl', 'int', _('Mesh TTL'), _('HWMP 报文生存跳数') ],
+	[ 'mesh_element_ttl', 'int', _('元素 TTL (跳)'), _('网内广播元素的生存跳数') ],
+	[ 'mesh_plink_timeout', 'int', _('邻居链路超时 (s)'), _('超过该时间无活动则断开 peer link') ],
+	[ 'mesh_max_peer_links', 'int', _('最大邻居数'), _('本接口允许建立的 peer link 上限') ],
+	[ 'mesh_max_retries', 'int', _('最大重试次数'), _('peer link 建立过程中的重试上限') ],
+	[ 'mesh_retry_timeout', 'int', _('重试超时 (ms)'), '' ],
+	[ 'mesh_confirm_timeout', 'int', _('确认超时 (ms)'), '' ],
+	[ 'mesh_holding_timeout', 'int', _('保持超时 (ms)'), '' ],
+	[ 'mesh_hwmp_max_preq_retries', 'int', _('HWMP PREQ 重试'), '' ],
+	[ 'mesh_path_refresh_time', 'int', _('路径刷新时间 (ms)'), '' ],
+	[ 'mesh_min_discovery_timeout', 'int', _('最小发现超时 (ms)'), '' ],
+	[ 'mesh_hwmp_active_path_timeout', 'int', _('活跃路径超时 (ms)'), '' ],
+	[ 'mesh_hwmp_preq_min_interval', 'int', _('PREQ 最小间隔 (ms)'), '' ],
+	[ 'mesh_hwmp_net_diameter_traversal_time', 'int', _('网络直径遍历时间 (ms)'), '' ],
+	[ 'mesh_hwmp_root_interval', 'int', _('Root 间隔 (ms)'), '' ],
+	[ 'mesh_hwmp_rann_interval', 'int', _('RANN 间隔 (ms)'), _('根节点公告间隔') ],
+	[ 'mesh_hwmp_confirmation_interval', 'int', _('HWMP 确认间隔 (ms)'), '' ],
+	[ 'mesh_hwmp_active_path_to_root_timeout', 'int', _('到根路径超时 (ms)'), '' ],
+	[ 'mesh_gate_announcements', 'int', _('网关公告 (0/1)'), _('是否向外通告本节点可作为出口') ],
+	[ 'mesh_hwmp_rootmode', 'int', _('根节点模式 (0-4)'), _('0 关闭 / 其余数值对应不同的根通告强度') ],
+	[ 'mesh_sync_offset_max_neighor', 'int', _('同步偏移最大邻居数'), _('上游拼写如此，保持与 netifd 一致') ],
+	[ 'mesh_rssi_threshold', 'int', _('RSSI 门限 (dBm)'), _('低于该信号强度不建立 peer link，通常为负值') ],
+	[ 'mesh_awake_window', 'int', _('唤醒窗口 (ms)'), _('省电模式的 awake window') ],
+	[ 'mesh_auto_open_plinks', 'bool', _('自动建立 peer link'), _('关闭后需手工放行邻居') ],
+	[ 'mesh_fwding', 'bool', _('Mesh 转发'), _('允许本节点为其它节点转发报文') ],
+	[ 'mesh_nolearn', 'bool', _('不学习路径'), _('仅 ucode 版 netifd 支持') ],
+	[ 'mesh_power_mode', 'string', _('省电模式'), _('active / light / deep') ]
+];
+
+// Channel widths a radio can actually run. Offering HE/EHT on a 2.4G radio
+// only produces a config netifd/hostapd rejects, so the list is band aware.
+function htmodeList(band, current) {
+	var list = [ 'auto' ];
+	if (band === '2g')
+		list = list.concat([ 'NOHT', 'HT20', 'HT40' ]);
+	else if (band === '6g')
+		list = list.concat([ 'HE20', 'HE40', 'HE80', 'HE80_80', 'HE160',
+			'EHT20', 'EHT40', 'EHT80', 'EHT160' ]);
+	else
+		list = list.concat(HTMODES.filter(function(m) { return m !== 'auto'; }));
+	if (current && list.indexOf(current) < 0)
+		list.push(current);
+	return list;
+}
+
 var ENCRYPTIONS = [
 	[ 'sae-mixed', _('WPA2/WPA3 混合') ],
 	[ 'psk2', _('WPA2-PSK') ],
@@ -293,6 +427,43 @@ function modeLabel(mode) {
 		dhcp: _('DHCP 路由'),
 		pppoe: _('PPPoE 拨号')
 	})[mode] || _('未知模式');
+}
+
+function dataTable(headers, rows, emptyText) {
+	if (!rows.length)
+		return E('p', { 'class': 'nm-hint' }, emptyText || _('无记录'));
+	return E('table', { 'class': 'nm-table' }, [
+		E('thead', {}, E('tr', {}, headers.map(function(h) { return E('th', {}, h); }))),
+		E('tbody', {}, rows.map(function(r) {
+			return E('tr', {}, r.map(function(c) { return E('td', {}, c); }));
+		}))
+	]);
+}
+
+function kvGrid(obj) {
+	var keys = Object.keys(obj || {});
+	if (!keys.length)
+		return E('p', { 'class': 'nm-hint' }, _('无'));
+	return E('div', { 'class': 'nm-kv' }, keys.map(function(k) {
+		return E('div', { 'class': 'nm-kv-item' }, [
+			E('span', { 'class': 'nm-mono' }, k),
+			E('span', {}, String(obj[k]))
+		]);
+	}));
+}
+
+// 802.11s peer link states: ESTAB is a working link, the OPN_*/CNF_* ones
+// mean the handshake is still in progress, BLOCKED means one side refuses.
+function plinkStateEl(state) {
+	var s = String(state || '').toUpperCase();
+	var cls = '';
+	if (s.indexOf('ESTAB') === 0)
+		cls = 'estab';
+	else if (s.indexOf('BLOCK') >= 0)
+		cls = 'blocked';
+	else if (s)
+		cls = 'listen';
+	return E('span', { 'class': 'nm-state ' + cls }, String(state || '—'));
 }
 
 function infoCard(label, value, sub) {
@@ -362,6 +533,147 @@ function statusPills(status) {
 	]);
 }
 
+// Advisories that have to be seen before anything is applied.
+//
+// The wpad check is the important one: wpad-basic-* ships hostapd and
+// wpa_supplicant too, so "the binaries exist" says nothing about 802.11s.
+// The backend probes the binary the way netifd does (wpa_supplicant -vmesh).
+function warningBanners(status) {
+	var out = [];
+	var deps = status.deps || {};
+	var m11 = status.mesh11sd || {};
+	var foreign = status.foreign_mesh || [];
+
+	if (!deps.batctl)
+		out.push(E('div', { 'class': 'nm-banner bad' }, [
+			E('strong', {}, _('缺少 batctl')),
+			E('div', {}, _('batman-adv 无法查询，拓扑与链路诊断会不完整。请安装 batctl-full。'))
+		]));
+
+	if (!deps.iw)
+		out.push(E('div', { 'class': 'nm-banner' }, [
+			E('strong', {}, _('缺少 iw')),
+			E('div', {}, _('802.11s 链路诊断（peer link / mpath / mesh_param）不可用。'))
+		]));
+
+	if (deps.wpad === false)
+		out.push(E('div', { 'class': 'nm-banner bad' }, [
+			E('strong', {}, _('未找到 wpad')),
+			E('div', {}, _('既没有 hostapd 也没有 wpa_supplicant，无法配置任何无线接口。'))
+		]));
+	else if (deps.wpad_mesh === false)
+		out.push(E('div', { 'class': 'nm-banner bad' }, [
+			E('strong', {}, _('当前 wpad 不支持 802.11s')),
+			E('div', {}, _('检测到 %s：它带有 hostapd / wpa_supplicant，但未编译 mesh 支持，无线回程永远建立不了 peer link。请安装 wpad-mesh-mbedtls（或 wpad-mesh-openssl、完整 wpad）。')
+				.format(status.wpad_variant || _('未知 wpad 变体')))
+		]));
+
+	if (m11.installed === true || m11.enabled === true)
+		out.push(E('div', { 'class': 'nm-banner' + (m11.enabled ? ' bad' : '') }, [
+			E('strong', {}, m11.enabled ? _('mesh11sd 已启用，与本页冲突') : _('已安装 mesh11sd（未启用）')),
+			E('div', {}, m11.enabled
+				? _('mesh11sd 会在运行时接管并改写 mesh 接口与本页写入的 UCI 配置，两者只能选一个。请先停用 mesh11sd（/etc/init.d/mesh11sd disable && stop）再使用本页。')
+				: _('mesh11sd 未启用，与本页无冲突；一旦启用它会接管回程配置。'))
+		]));
+
+	if (foreign.length)
+		out.push(E('div', { 'class': 'nm-banner' }, [
+			E('strong', {}, _('存在本页未管理的 mesh 接口')),
+			E('div', {}, _('以下 wifi-iface 处于 mesh 模式但不是本页创建的，本页不会修改也不会删除它们：%s。请确认它们不会与本页的回程抢同一个 radio。')
+				.format(foreign.join('、')))
+		]));
+
+	return out;
+}
+
+// Once a bridge-vlan exists netifd enables 802.1Q filtering on br-lan, and a
+// port that is not a member of any VLAN stops forwarding. bat0 is the mesh
+// backhaul port, so it silently goes dead unless it is added (tagged) to the
+// VLANs that have to cross the mesh. $2 is the view object, needed by the
+// "carry everything" shortcut to reach the per VLAN checkboxes.
+function bat0VlanBanner(status, view) {
+	var mesh = status.mesh || {};
+	var bridge = status.bridge || {};
+	var vlans = status.vlans || [];
+
+	if (!mesh.enabled) return '';
+	var ports = bridge.ports || [];
+	if (ports.indexOf('bat0') < 0) return '';
+	if (!vlans.length) return '';
+
+	var bat0Vlans = String(bridge.trunk_vlans || '').split(',').filter(Boolean);
+	if (bat0Vlans.length >= vlans.length) return '';
+
+	var missing = vlans.map(function(v) { return String(v.vlan); })
+		.filter(function(id) { return bat0Vlans.indexOf(id) < 0; });
+
+	var fixBtn = E('button', { 'class': 'cbi-button cbi-button-neutral nm-mini' }, _('全部透传'));
+	fixBtn.addEventListener('click', function() {
+		((view && view.vlanRows) || []).forEach(function(r) {
+			if (r.trunk) r.trunk.checked = true;
+		});
+	});
+
+	return E('div', { 'class': 'nm-banner' }, [
+		E('strong', {}, _('bat0 未加入全部 VLAN，这些网段不会跨节点')),
+		E('div', {}, _('br-lan 已开启 802.1Q 过滤，不在任何 VLAN 里的端口不再转发流量。以下 VLAN 没有承载 bat0，流量只留在本机：%s。')
+			.format(missing.join('、'))),
+		E('div', { 'class': 'nm-muted' }, _('勾选下方各 VLAN 的「经 Mesh 回程透传」，或点下面按钮一次勾齐后再应用。')),
+		E('div', { 'class': 'nm-actions' }, [ fixBtn ])
+	]);
+}
+
+// br-lan runs in one of two L2 modes and every node has to be in the same
+// one. Flat: no bridge-vlan, bat0 is an ordinary member, the whole deployment
+// shares a subnet. Filtered: bridge-vlan exists, 802.1Q filtering is on and
+// bat0 only carries the VLANs it is a tagged member of.
+//
+// A flat node and a filtered node cannot exchange a single frame even though
+// bat0 stays up on both, so the mismatch looks like a healthy mesh that
+// carries no traffic at all.
+function bridgeModeBanner(status) {
+	var mesh = status.mesh || {};
+	var bridge = status.bridge || {};
+	if (!mesh.enabled) return '';
+
+	var trunk = String(bridge.trunk_vlans || '').split(',').filter(Boolean);
+
+	if ((bridge.mode || 'flat') === 'flat')
+		return E('div', { 'class': 'nm-banner info' }, [
+			E('strong', {}, _('扁平模式：全网一个二层、一个子网')),
+			E('div', {}, _('br-lan 上没有 bridge-vlan，802.1Q 过滤未开启，bat0 直接作为普通成员承载全部流量。')),
+			E('div', { 'class': 'nm-muted' }, _('所有节点必须同样保持扁平。任何一台节点一旦建立 bridge-vlan 就切换成分段模式，它与扁平节点之间将完全不通。'))
+		]);
+
+	return E('div', { 'class': 'nm-banner info' }, [
+		E('strong', {}, _('分段模式：br-lan 已开启 802.1Q 过滤')),
+		E('div', {}, trunk.length
+			? _('经 Mesh 回程承载的 VLAN：%s；其余 VLAN 只存在于本机。').format(trunk.join('、'))
+			: _('当前没有任何 VLAN 承载 bat0，Mesh 回程上不通任何流量。')),
+		E('div', { 'class': 'nm-muted' }, _('所有节点必须同为分段模式且承载的 VLAN 集合一致；子节点配置会整份复制本节点的 bridge-vlan，勾选一致即可自动成网。'))
+	]);
+}
+
+function childConfigText(res) {
+	var files = (res && res.files) || {};
+	return [ 'network', 'wireless', 'dhcp', 'firewall' ].map(function(name) {
+		return '### /etc/config/' + name + '\n' + (files[name] || '');
+	}).join('\n\n');
+}
+
+// navigator.clipboard is unavailable on plain http, so fall back to the
+// legacy selection based copy on a textarea.
+function copyElementText(el) {
+	if (!el) return;
+	if (navigator.clipboard && navigator.clipboard.writeText) {
+		navigator.clipboard.writeText(el.value || '');
+		return;
+	}
+	el.focus();
+	el.select();
+	try { document.execCommand('copy'); } catch (e) {}
+}
+
 return view.extend({
 	load: function() {
 		return Promise.all([
@@ -391,17 +703,21 @@ return view.extend({
 			root.appendChild(E('p', { 'class': 'alert-message error' }, _('读取状态失败: %s').format(status.error)));
 
 		this.statusBox = E('div', {}, statusPills(status));
+		this.bannerBox = E('div', {}, warningBanners(status));
 		root.appendChild(E('div', { 'class': 'nm-section' }, [
 			E('div', { 'class': 'nm-title' }, [
 				E('span', {}, _('当前状态')),
 				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.createHandlerFn(this, 'refresh') }, _('刷新'))
 			]),
-			this.statusBox
+			this.statusBox,
+			this.bannerBox
 		]));
 
 		root.appendChild(this.renderVlanSection(status));
 		root.appendChild(this.renderMeshSection(status));
+		root.appendChild(this.renderDiagSection());
 		root.appendChild(this.renderTopologySection(status));
+		root.appendChild(this.renderRollbackSection(status));
 
 		this.updateMeshState();
 		this.updateTopology();
@@ -441,15 +757,21 @@ return view.extend({
 		// Only one backhaul at a time: a second parallel link is not offered,
 		// so a node is either wired or wireless. Wired wins when both are
 		// somehow configured (e.g. left over from an older build).
+		// Without 802.11s capable wpad a wireless backhaul can only produce
+		// a config that never peers, so the choice is offered but locked.
+		this.noMeshWpad = !!(status.deps && status.deps.wpad_mesh === false);
+
 		var initialBackhaul = (mesh.enabled && !mesh.wired && (mesh.wireless_count || 0) > 0)
 			? 'wireless' : 'wired';
+		if (this.noMeshWpad) initialBackhaul = 'wired';
 
 		var initialRole = mesh.enabled ? (mesh.role || 'peer') : 'master';
 
 		/* ---- step 1: backhaul (exactly one link) ---- */
 		this.backhaulCards = [
 			this.backhaulCard('wired', _('有线组网'), _('网线互联，全屋同一子网；稳定性最好，推荐作为主回程。'), initialBackhaul === 'wired'),
-			this.backhaulCard('wireless', _('无线组网'), _('802.11s 无线回程，免布线；需要选择用于回程的 5G / 6G radio。'), initialBackhaul === 'wireless')
+			this.backhaulCard('wireless', _('无线组网'), _('802.11s 无线回程，免布线；需要选择用于回程的 5G / 6G radio。'),
+				initialBackhaul === 'wireless', this.noMeshWpad)
 		];
 
 		/* ---- step 2: master / slave role ---- */
@@ -483,6 +805,75 @@ return view.extend({
 		this.meshIdInput = E('input', { 'type': 'text', 'value': mesh.mesh_id || 'XR1710G-MESH', 'maxlength': '32' });
 		this.meshKeyInput = E('input', { 'type': 'password', 'value': '', 'autocomplete': 'new-password', 'placeholder': _('8-63 位，全网一致') });
 
+		/* ---- backhaul L2 routing protocol ---- */
+		this.meshProtoInput = E('select', {}, MESH_PROTOS.map(function(p) {
+			return E('option', { 'value': p[0], 'title': p[2] }, p[1]);
+		}));
+		this.meshProtoInput.value = mesh.proto || 'batman';
+		this.meshProtoInput.addEventListener('change', L.bind(this.updateMeshState, this));
+
+		/* ---- 802.11s / batman-adv advanced knobs ---- */
+		this.meshParamInputs = {};
+		var meshParams = mesh.params || {};
+		var paramFields = MESH_PARAM_FIELDS.map(L.bind(function(f) {
+			var name = f[0], type = f[1], el;
+			if (type === 'bool') {
+				el = E('select', {}, [
+					E('option', { 'value': '' }, _('默认')),
+					E('option', { 'value': '1' }, _('开启')),
+					E('option', { 'value': '0' }, _('关闭'))
+				]);
+			} else if (type === 'string') {
+				el = E('select', {}, [
+					E('option', { 'value': '' }, _('默认')),
+					E('option', { 'value': 'active' }, 'active'),
+					E('option', { 'value': 'light' }, 'light'),
+					E('option', { 'value': 'deep' }, 'deep')
+				]);
+			} else {
+				el = E('input', { 'type': 'number' });
+			}
+			el.value = (meshParams[name] === undefined || meshParams[name] === null)
+				? '' : String(meshParams[name]);
+			this.meshParamInputs[name] = el;
+			return E('div', { 'class': 'nm-field' }, [
+				E('label', { 'title': f[3] || '' }, f[2]),
+				el
+			]);
+		}, this));
+
+		var bat = mesh.batman || {};
+		this.batAlgoInput = E('select', {}, BATMAN_ALGOS.map(function(a) {
+			return E('option', { 'value': a[0], 'title': a[2] }, a[1]);
+		}));
+		this.batAlgoInput.value = bat.routing_algo || 'BATMAN_IV';
+		this.batAdvInputs = {};
+		var batFields = BATMAN_ADV_FIELDS.map(L.bind(function(f) {
+			var el = E('input', { 'type': 'number' });
+			el.placeholder = String(f[2]);
+			el.value = (bat[f[0]] === undefined || bat[f[0]] === null) ? '' : String(bat[f[0]]);
+			this.batAdvInputs[f[0]] = el;
+			return E('div', { 'class': 'nm-field' }, [
+				E('label', {}, _('%s（%s）').format(f[3], f[1])),
+				el
+			]);
+		}, this));
+
+		this.meshAdvanced = E('details', { 'class': 'nm-details' }, [
+			E('summary', {}, _('802.11s 高级参数（留空 = 内核默认值）')),
+			E('div', { 'class': 'nm-form' }, paramFields),
+			E('p', { 'class': 'nm-hint', 'style': 'padding:0 12px 12px' },
+				_('这些参数直接对应 netifd 的 mesh_param_list。回程只需要 mesh_ttl / mesh_fwding 等少数几项，其余一般保持默认；清空后应用即可恢复默认值。'))
+		]);
+		this.batAdvanced = E('details', { 'class': 'nm-details' }, [
+			E('summary', {}, _('batman-adv 高级参数')),
+			E('div', { 'class': 'nm-form' }, [
+				E('div', { 'class': 'nm-field wide' }, [ E('label', {}, _('路由算法')), this.batAlgoInput ])
+			].concat(batFields)),
+			E('p', { 'class': 'nm-hint', 'style': 'padding:0 12px 12px' },
+				_('BATMAN V 按吞吐量选路，新硬件推荐；改为 IV/V 会让 bat0 重建并短暂断网。范围外的取值会被设备侧自动收敛到合法值。'))
+		]);
+
 		/* ---- step 4: per-radio coverage ---- */
 		this.apConfigInputs = apConfigs.map(L.bind(function(config) {
 			return this.buildApCard(config, this.networks);
@@ -500,8 +891,11 @@ return view.extend({
 			E('div', { 'class': 'nm-form' }, [
 				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('回程 radio')), this.meshRadioInput ]),
 				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('Mesh ID')), this.meshIdInput ]),
-				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('Mesh 密钥')), this.meshKeyInput ])
-			])
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('Mesh 密钥')), this.meshKeyInput ]),
+				E('div', { 'class': 'nm-field wide' }, [ E('label', {}, _('回程路由协议')), this.meshProtoInput ])
+			]),
+			this.meshAdvanced,
+			this.batAdvanced
 		]);
 
 		this.roleFields = E('div', { 'class': 'nm-form' }, [
@@ -580,6 +974,256 @@ return view.extend({
 				E('span', {}, [ E('i', { 'class': 'k-lan' }, _('端')), _('局域网终端') ])
 			])
 		]);
+	},
+
+	/* ------------------------------------------------------------------
+	 * 802.11s / batman-adv link diagnostics.
+	 *
+	 * batctl only reports what batman-adv knows. On a plain HWMP backhaul
+	 * - or when the peer link never comes up - the kernel is the only
+	 * source of truth, so this reads iw station dump / mpath dump /
+	 * get mesh_param directly.
+	 * ------------------------------------------------------------------ */
+	renderDiagSection: function() {
+		this.diagBox = E('div', { 'class': 'nm-empty' }, _('点“刷新诊断”读取 802.11s 链路状态。'));
+
+		return E('div', { 'class': 'nm-section' }, [
+			E('div', { 'class': 'nm-title' }, [
+				E('span', {}, _('Mesh 链路诊断')),
+				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.createHandlerFn(this, 'loadDiag') }, _('刷新诊断'))
+			]),
+			E('p', { 'class': 'nm-subtitle' }, _('直接读取内核的 peer link、HWMP 路径表与 batman-adv 状态，不依赖本页是否创建过 mesh 接口。')),
+			this.diagBox
+		]);
+	},
+
+	loadDiag: function() {
+		var self = this;
+		if (!this.diagBox) return Promise.resolve();
+		this.diagBox.innerHTML = '';
+		this.diagBox.className = '';
+		this.diagBox.appendChild(E('div', {}, _('读取中…')));
+		return callGetMeshDiag().then(function(res) {
+			self.renderDiag(res || {});
+		}).catch(function(e) {
+			self.diagBox.innerHTML = '';
+			self.diagBox.appendChild(E('div', { 'class': 'nm-banner bad' },
+				_('读取诊断失败：%s').format(e.message || String(e))));
+		});
+	},
+
+	renderDiag: function(diag) {
+		var self = this;
+		if (!this.diagBox) return;
+		this.diagBox.innerHTML = '';
+		this.diagBox.className = '';
+
+		var ifaces = diag.ifaces || [];
+		var bat = diag.batman || {};
+
+		if (!ifaces.length && !bat.present)
+			this.diagBox.appendChild(E('p', { 'class': 'nm-hint' },
+				_('当前没有运行中的 mesh 接口，也没有 bat0。启用 Mesh 并重载网络后再刷新。')));
+
+		ifaces.forEach(function(f) {
+			var info = f.info || {};
+			var peers = f.peers || [];
+			var mpath = f.mpath || [];
+			var estab = peers.filter(function(p) {
+				return String(p.plink || '').toUpperCase().indexOf('ESTAB') === 0;
+			}).length;
+
+			var meta = [ _('Mesh ID %s').format(f.mesh_id || '—') ];
+			if (info.channel) meta.push(_('频道 %s').format(info.channel));
+			if (info.width) meta.push(String(info.width));
+			if (info.phy) meta.push(String(info.phy));
+			if (info.mesh_point === false) meta.push(_('该接口不是 mesh point'));
+
+			var canBlock = diag.iw_full === true;
+
+			self.diagBox.appendChild(E('div', { 'class': 'nm-ap-radio' }, [
+				E('div', { 'class': 'nm-ap-radio-title' }, [
+					E('span', {}, f.iface),
+					E('span', { 'class': 'nm-band' }, _('%d 邻居 / %d 已建立').format(peers.length, estab))
+				]),
+				E('div', { 'class': 'nm-ap-radio-meta' }, meta.join(' · ')),
+				E('div', { 'class': 'nm-ssid-head' }, [ E('span', {}, _('Peer link（iw station dump）')) ]),
+				dataTable(
+					[ _('MAC'), _('plink'), _('信号'), _('发送速率'), _('metric'), _('空闲'), _('操作') ],
+					peers.map(function(p) {
+						return [
+							E('span', { 'class': 'nm-mono' }, p.mac || ''),
+							plinkStateEl(p.plink),
+							p.signal || '—',
+							p.tx_bitrate || '—',
+							p.metric || '—',
+							p.inactive || '—',
+							canBlock
+								? E('span', {}, [
+									E('button', {
+										'class': 'cbi-button cbi-button-neutral nm-mini',
+										'click': ui.createHandlerFn(self, function() {
+											return self.blockPeer(f.iface, p.mac, 'block');
+										})
+									}, _('阻塞')),
+									' ',
+									E('button', {
+										'class': 'cbi-button cbi-button-neutral nm-mini',
+										'click': ui.createHandlerFn(self, function() {
+											return self.blockPeer(f.iface, p.mac, 'open');
+										})
+									}, _('放行'))
+								])
+								: E('span', { 'class': 'nm-muted' }, _('需 iw-full'))
+						];
+					}),
+					_('没有发现任何 peer link。802.11s 要求两端的 Mesh ID、密钥、频道三者完全一致，请先核对这三项。')),
+				E('div', { 'class': 'nm-ssid-head' }, [ E('span', {}, _('HWMP 路径表（iw mpath dump）')) ]),
+				dataTable(
+					[ _('目的'), _('下一跳'), _('接口'), _('metric'), _('队列'), _('标志') ],
+					mpath.map(function(m) {
+						return [
+							E('span', { 'class': 'nm-mono' }, m.dst || ''),
+							E('span', { 'class': 'nm-mono' }, m.next_hop || ''),
+							m.iface || '', m.metric || '', m.qlen || '', m.flags || ''
+						];
+					}),
+					_('路径表为空：尚未学习到任何远端节点，或本机就是唯一的 mesh 节点。')),
+				E('div', { 'class': 'nm-ssid-head' }, [ E('span', {}, _('生效中的 mesh 参数')) ]),
+				kvGrid(f.params)
+			]));
+		}, this);
+
+		if (bat.present) {
+			var gws = bat.gateways || [];
+			var hardifs = bat.hardifs || [];
+			this.diagBox.appendChild(E('div', { 'class': 'nm-ap-radio' }, [
+				E('div', { 'class': 'nm-ap-radio-title' }, [
+					E('span', {}, 'bat0'),
+					E('span', { 'class': 'nm-band' }, bat.routing_algo || 'BATMAN_IV')
+				]),
+				E('div', { 'class': 'nm-ap-radio-meta' }, [
+					_('网关角色 %s').format(bat.gw_mode || '—'),
+					_(' · 源节点 %d').format(bat.originators || 0),
+					_(' · 转发表 %d').format(bat.translations || 0)
+				].join('')),
+				E('div', { 'class': 'nm-ssid-head' }, [ E('span', {}, _('网关列表（batctl gwl）')) ]),
+				dataTable(
+					[ _('MAC'), _('TQ'), _('带宽'), _('状态') ],
+					gws.map(function(g) {
+						return [
+							E('span', { 'class': 'nm-mono' }, g.mac || ''),
+							g.tq || '—', g.bandwidth || '—',
+							g.selected ? _('已选中') : _('候选')
+						];
+					}),
+					_('没有候选网关：本机不在 client 模式，或网内没有节点发布网关。')),
+				E('div', { 'class': 'nm-ssid-head' }, [ E('span', {}, _('batman-adv 接口（batctl if）')) ]),
+				dataTable(
+					[ _('接口'), _('状态') ],
+					hardifs.map(function(h) { return [ h.iface || '', h.status || '' ]; }),
+					_('bat0 上没有绑定任何 hardif。'))
+			]));
+		}
+	},
+
+	blockPeer: function(iface, mac, action) {
+		var self = this;
+		return callBlockMeshPeer(iface, mac, action).then(function(res) {
+			if (!res || !res.success) {
+				ui.addNotification(null, E('p', (res && res.error) || _('操作失败')));
+				return;
+			}
+			ui.addNotification(null, E('p', action === 'block'
+				? _('已阻塞邻居 %s').format(mac)
+				: _('已放行邻居 %s').format(mac)));
+			return self.loadDiag();
+		}).catch(function(e) {
+			ui.addNotification(null, E('p', e.message || _('操作失败')));
+		});
+	},
+
+	/* ------------------------------------------------------------------
+	 * Configuration rollback. Every apply backs the four config files up
+	 * first, so a mistake that moves the management address can be undone
+	 * without serial access.
+	 * ------------------------------------------------------------------ */
+	renderRollbackSection: function() {
+		this.backupBox = E('div', {}, []);
+		this.loadBackups();
+		return E('div', { 'class': 'nm-section' }, [
+			E('div', { 'class': 'nm-title' }, [
+				E('span', {}, _('配置备份与回滚')),
+				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.createHandlerFn(this, 'loadBackups') }, _('刷新列表'))
+			]),
+			E('p', { 'class': 'nm-subtitle' }, _('每次应用 Mesh / 无线 / VLAN 前都会自动备份 network、wireless、dhcp、firewall，最多保留最近 8 份。')),
+			this.backupBox
+		]);
+	},
+
+	loadBackups: function() {
+		var self = this;
+		if (!this.backupBox) return Promise.resolve();
+		return callListBackups().then(function(res) {
+			self.renderBackups((res && res.backups) || []);
+		}).catch(function(e) {
+			self.backupBox.innerHTML = '';
+			self.backupBox.appendChild(E('div', { 'class': 'nm-banner' },
+				_('读取备份列表失败：%s').format(e.message || String(e))));
+		});
+	},
+
+	renderBackups: function(backups) {
+		var self = this;
+		if (!this.backupBox) return;
+		this.backupBox.innerHTML = '';
+		if (!backups.length) {
+			this.backupBox.appendChild(E('p', { 'class': 'nm-hint' }, _('还没有任何备份；应用一次配置后会自动生成。')));
+			return;
+		}
+		this.backupBox.appendChild(E('div', { 'class': 'nm-backups nm-scroll' }, backups.map(function(b) {
+			return E('div', { 'class': 'nm-backup' }, [
+				E('span', { 'class': 'nm-mono' }, b.name),
+				E('span', { 'class': 'nm-muted' }, b.time || ''),
+				E('button', {
+					'class': 'cbi-button cbi-button-neutral nm-mini',
+					'click': ui.createHandlerFn(self, function() { return self.confirmRestore(b.name); })
+				}, _('回滚到此处'))
+			]);
+		})));
+	},
+
+	confirmRestore: function(name) {
+		return ui.showModal(_('确认回滚配置'), [
+			E('p', {}, _('将用备份 %s 覆盖当前的 /etc/config/network、wireless、dhcp、firewall，然后重载网络。').format(name)),
+			E('div', { 'class': 'nm-alert' }, [
+				E('strong', {}, _('管理地址可能随之改变。')),
+				E('div', {}, _('如果备份里的 LAN 地址与现在不同，回滚后需要用新地址重新登录。当前配置会先自动另存一份再覆盖。'))
+			]),
+			E('div', { 'class': 'right' }, [
+				E('button', {
+					'class': 'cbi-button cbi-button-apply',
+					'click': ui.createHandlerFn(this, function() { return this.restoreBackup(name); })
+				}, _('确认回滚')),
+				' ',
+				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.hideModal }, _('取消'))
+			])
+		]);
+	},
+
+	restoreBackup: function(name) {
+		ui.hideModal();
+		var self = this;
+		return callRestoreBackup(name).then(function(res) {
+			if (!res || !res.success) {
+				ui.addNotification(null, E('p', (res && res.error) || _('回滚失败')));
+				return;
+			}
+			ui.addNotification(null, E('p', _('已回滚到 %s，网络正在重载。').format(name)));
+			return self.loadBackups();
+		}).catch(function(e) {
+			ui.addNotification(null, E('p', e.message || _('回滚失败')));
+		});
 	},
 
 	// Everything that has to be fixed before any wireless config is written.
@@ -666,9 +1310,11 @@ return view.extend({
 		}).catch(function() {});
 	},
 
-	renderVlanSection: function() {
+	renderVlanSection: function(status) {
 		this.vlanBox = E('div', {}, []);
 		this.vlanBox.appendChild(this.buildVlanList(this.vlans, this.bridgePorts));
+		this.vlanBannerBox = E('div', {}, []);
+		this.renderVlanBanners(status);
 
 		return E('div', { 'class': 'nm-section' }, [
 			E('div', { 'class': 'nm-title' }, [
@@ -676,30 +1322,55 @@ return view.extend({
 				E('span', { 'class': 'nm-muted' }, _('br-lan 上的 802.1Q 分段'))
 			]),
 			E('p', { 'class': 'nm-subtitle' }, _('每个 VLAN 在 br-lan 上建立一个 bridge-vlan，并生成 br-lan.<ID> 子接口；SSID 通过“绑定网络”挂到对应网段。VLAN 1 是管理网段，不允许删除。')),
+			this.vlanBannerBox,
 			this.vlanBox
 		]);
 	},
 
+	// Applying VLANs can flip br-lan from flat to filtered, so the mode and
+	// the set of carried VLANs have to be re-derived from fresh state.
+	renderVlanBanners: function(status) {
+		if (!this.vlanBannerBox) return;
+		this.vlanBannerBox.innerHTML = '';
+		[ bridgeModeBanner(status), bat0VlanBanner(status, this) ].forEach(function(b) {
+			if (b && b.nodeType) this.vlanBannerBox.appendChild(b);
+		}, this);
+	},
+
 	buildVlanList: function(vlans, ports) {
 		var self = this;
+		// bat0 is the mesh backhaul and is driven by the "carry over the
+		// mesh" flag instead of the per port U/T grid - showing it in both
+		// places would let the two fight over the same option.
+		var gridPorts = (ports || []).filter(function(p) { return p !== 'bat0'; });
+
 		this.vlanRows = (vlans && vlans.length)
-			? vlans.map(function(v) { return self.buildVlanRow(v, ports); })
+			? vlans.map(function(v) { return self.buildVlanRow(v, gridPorts); })
 			: [];
 
 		var list = E('div', { 'class': 'nm-vlan-list' }, this.vlanRows.map(function(r) { return r.view; }));
 
 		var addBtn = E('button', { 'class': 'cbi-button cbi-button-neutral' }, _('+ 添加 VLAN'));
 		addBtn.addEventListener('click', function() {
-			var row = self.buildVlanRow({}, self.bridgePorts);
+			var row = self.buildVlanRow({}, gridPorts);
 			self.vlanRows.push(row);
 			list.appendChild(row.view);
 		});
 
+		var trunkAll = E('button', { 'class': 'cbi-button cbi-button-neutral' }, _('全部透传（bat0 加入所有 VLAN）'));
+		trunkAll.addEventListener('click', function() {
+			self.vlanRows.forEach(function(r) {
+				if (r.trunk) r.trunk.checked = true;
+			});
+		});
+
 		return E('div', {}, [
 			list,
-			E('p', { 'class': 'nm-hint' }, _('端口列中 U = untagged（出口剥离标签，接终端 / AP），T = tagged（保留标签，接上行交换机）；未选择的端口不加入该 VLAN。当一个端口从所有 VLAN 里都移除后，它也会自动从 br-lan 的成员中摘除。')),
+			E('p', { 'class': 'nm-hint' }, _('端口列中 U = untagged（出口剥离标签，接终端 / AP），T = tagged（保留标签，接上行交换机）；未选择的端口不加入该 VLAN。当一个端口从所有 VLAN 里都移除后，它也会自动从 br-lan 的成员中摘除。bat0 是 Mesh 回程端口，不在此列，由下方的「经 Mesh 回程透传」控制。')),
+			E('p', { 'class': 'nm-hint' }, _('Mesh 回程上的 VLAN：br-lan 一旦建立 bridge-vlan，netifd 就会开启 802.1Q 过滤，此时“不在任何 VLAN 里的端口”不再转发流量。需要哪个 VLAN 跨节点，就勾选该 VLAN 的「经 Mesh 回程透传」——后端会把 bat0 以 tagged 成员写入该 bridge-vlan；不勾则该网段只存在于本机。mesh_* 无线回程接口由 Mesh 自行管理，不在此处配置。')),
 			E('div', { 'class': 'nm-actions' }, [
 				addBtn,
+				trunkAll,
 				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': ui.createHandlerFn(this, 'confirmApplyVlans') }, _('应用 VLAN 配置'))
 			])
 		]);
@@ -719,6 +1390,13 @@ return view.extend({
 		var dns = E('input', { 'type': 'text', 'value': v.dns || '' });
 		var dhcp = E('input', { 'type': 'checkbox' });
 		dhcp.checked = false;
+
+		// Carrying a VLAN across the mesh means making bat0 a tagged member
+		// of it. New segments default to carried: an operator who planned a
+		// segment expects it on every node, and a segment that is silently
+		// not carried just looks like a broken mesh.
+		var trunk = E('input', { 'type': 'checkbox' });
+		trunk.checked = (v.trunk === undefined || v.trunk === null) ? true : !!v.trunk;
 
 		var untagged = String(v.untagged || '').split(/\s+/).filter(Boolean);
 		var tagged = String(v.tagged || '').split(/\s+/).filter(Boolean);
@@ -752,6 +1430,9 @@ return view.extend({
 				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('DNS')), dns ]),
 				E('div', { 'class': 'nm-field inline' }, [
 					E('label', { 'class': 'nm-check' }, [ dhcp, _('在该网段启用 DHCP 服务器') ])
+				]),
+				E('div', { 'class': 'nm-field inline' }, [
+					E('label', { 'class': 'nm-check' }, [ trunk, _('经 Mesh 回程透传（bat0 加入本 VLAN）') ])
 				])
 			]),
 			portCells.length
@@ -770,6 +1451,7 @@ return view.extend({
 			gateway: gateway,
 			dns: dns,
 			dhcp: dhcp,
+			trunk: trunk,
 			ports: portCells,
 			// ports this VLAN owned when the page was rendered; needed to
 			// work out which ones stop being VLAN members altogether
@@ -818,6 +1500,7 @@ return view.extend({
 				untagged: untagged.join(' '),
 				tagged: tagged.join(' '),
 				dhcp: r.dhcp.checked ? 1 : 0,
+				trunk: (r.trunk && r.trunk.checked) ? 1 : 0,
 				remove: r.removed ? 1 : 0
 			};
 		}).filter(function(v) { return v.vlan !== ''; });
@@ -938,6 +1621,7 @@ return view.extend({
 				self.vlanBox.innerHTML = '';
 				self.vlanBox.appendChild(self.buildVlanList(self.vlans, self.bridgePorts));
 			}
+			self.renderVlanBanners(self.status);
 			self.updateCoverageAlert();
 		}).catch(function() {});
 	},
@@ -953,11 +1637,15 @@ return view.extend({
 		sel.value = current;
 	},
 
-	backhaulCard: function(value, title, desc, active) {
+	backhaulCard: function(value, title, desc, active, disabled) {
 		var self = this;
 		var input = E('input', { 'type': 'radio', 'name': 'nm-backhaul', 'value': value });
 		input.checked = !!active;
-		var card = E('label', { 'class': 'nm-choice' + (active ? ' active' : '') }, [
+		input.disabled = !!disabled;
+		var card = E('label', {
+			'class': 'nm-choice' + (active ? ' active' : '') + (disabled ? ' disabled' : ''),
+			'title': disabled ? _('当前 wpad 不支持 802.11s，无法使用无线回程') : ''
+		}, [
 			input,
 			E('span', { 'class': 'nm-choice-title' }, [ E('span', { 'class': 'nm-choice-dot' }), title ]),
 			E('span', { 'class': 'nm-choice-desc' }, desc)
@@ -1000,6 +1688,14 @@ return view.extend({
 			})));
 		channel.value = config.channel || 'auto';
 
+		// Channel width: an 802.11ax radio peering with an 802.11ac only one
+		// must drop to the older width (e.g. VHT80 on both ends), otherwise
+		// the wireless backhaul never comes up.
+		var htmode = E('select', {}, htmodeList(config.band, config.htmode).map(function(m) {
+			return E('option', { 'value': m }, m === 'auto' ? _('跟随设备默认') : m);
+		}));
+		htmode.value = config.htmode || 'auto';
+
 		var bandTag = bandLabel(config.band);
 		var ssidList = E('div', { 'class': 'nm-ssid-list' });
 
@@ -1025,7 +1721,8 @@ return view.extend({
 				config.htmode ? _(' / %s').format(config.htmode) : ''
 			]),
 			E('div', { 'class': 'nm-form' }, [
-				E('div', { 'class': 'nm-field wide' }, [ E('label', {}, _('频道号（本机）')), channel ])
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('频道号（本机）')), channel ]),
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('频宽 (htmode)')), htmode ])
 			]),
 			E('div', { 'class': 'nm-ssid-head' }, [ countEl, addBtn ]),
 			ssidList
@@ -1035,6 +1732,7 @@ return view.extend({
 			radio: config.radio,
 			band: config.band,
 			channel: channel,
+			htmode: htmode,
 			ssids: ssids,
 			ssidList: ssidList,
 			countEl: countEl,
@@ -1048,6 +1746,7 @@ return view.extend({
 			self.updateCoverage();
 		});
 		channel.addEventListener('change', L.bind(self.updateCoverage, self));
+		htmode.addEventListener('change', L.bind(self.updateCoverage, self));
 
 		return card;
 	},
@@ -1087,6 +1786,57 @@ return view.extend({
 		var wnmSleep = flag(ap.wnm_sleep_mode, false);
 		var proxyArp = flag(ap.proxy_arp, false);
 		var isolate = flag(ap.isolate, false);
+		var ieee80211r = flag(ap.ieee80211r, false);
+
+		// 802.11r (FT): every AP advertising this SSID has to share the same
+		// 4 hex digit mobility domain, so the value already in use on this
+		// device is offered as the default for new SSIDs.
+		var mobilityDomain = E('input', { 'type': 'text', 'maxlength': '4' });
+		mobilityDomain.value = ap.mobility_domain || ((self.status && self.status.ft_domain) || '');
+		mobilityDomain.placeholder = _('4 位十六进制');
+		var reassocDeadline = E('input', { 'type': 'number', 'min': '1', 'max': '65535' });
+		reassocDeadline.value = ap.reassociation_deadline || '';
+		reassocDeadline.placeholder = '1000';
+		var ftOverDs = flag(ap.ft_over_ds, true);
+		var ftPskLocal = flag(ap.ft_psk_generate_local, true);
+		var pmkR1Push = flag(ap.pmk_r1_push, false);
+
+		var ftDetails = E('details', { 'class': 'nm-details' }, [
+			E('summary', {}, _('802.11r 高级设置')),
+			E('div', { 'class': 'nm-form' }, [
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('移动域（4 位十六进制）')), mobilityDomain ]),
+				E('div', { 'class': 'nm-field' }, [ E('label', {}, _('重关联时限（1-65535）')), reassocDeadline ]),
+				E('div', { 'class': 'nm-field inline' }, [
+					E('label', { 'class': 'nm-check', 'title': _('通过分布式系统而非空中接口完成 FT 握手') },
+						[ ftOverDs, _('FT over DS') ])
+				]),
+				E('div', { 'class': 'nm-field inline' }, [
+					E('label', { 'class': 'nm-check', 'title': _('由本机从 PSK 推导 FT 密钥，多 AP 同一密码即可漫游') },
+						[ ftPskLocal, _('本地生成 FT PSK') ])
+				]),
+				E('div', { 'class': 'nm-field inline' }, [
+					E('label', { 'class': 'nm-check', 'title': _('认证后立即把 PMK-R1 推送到邻居 AP') },
+						[ pmkR1Push, _('PMK-R1 推送') ])
+				])
+			]),
+			E('p', { 'class': 'nm-hint', 'style': 'padding:0 12px 12px' },
+				_('同一个 SSID 的所有 AP 必须使用相同的移动域；开放网络与 OWE 不支持 FT。'))
+		]);
+		ftDetails.open = !!ap.ieee80211r;
+
+		// FT sub-fields only matter while FT itself is on
+		function syncFt() {
+			var on = ieee80211r.checked;
+			[ mobilityDomain, reassocDeadline, ftOverDs, ftPskLocal, pmkR1Push ].forEach(function(el) {
+				el.disabled = !on;
+			});
+			if (on) ftDetails.open = true;
+		}
+		syncFt();
+		ieee80211r.addEventListener('change', function() {
+			syncFt();
+			self.updateCoverage();
+		});
 
 		var removeBtn = E('button', { 'class': 'cbi-button cbi-button-negative nm-mini' }, _('删除'));
 
@@ -1111,8 +1861,11 @@ return view.extend({
 				E('label', { 'class': 'nm-check', 'title': _('代理 ARP，桥接网段下改善三层互通') },
 					[ proxyArp, _('Proxy ARP') ]),
 				E('label', { 'class': 'nm-check', 'title': _('客户端隔离，同一 SSID 内终端互不通信') },
-					[ isolate, _('客户端隔离') ])
-			])
+					[ isolate, _('客户端隔离') ]),
+				E('label', { 'class': 'nm-check', 'title': _('802.11r 快速 BSS 切换，跨 AP 漫游无需完整重认证') },
+					[ ieee80211r, _('802.11r FT') ])
+			]),
+			ftDetails
 		]);
 
 		var row = {
@@ -1127,6 +1880,14 @@ return view.extend({
 			wnm_sleep_mode: wnmSleep,
 			proxy_arp: proxyArp,
 			isolate: isolate,
+			ft: {
+				ieee80211r: ieee80211r,
+				mobility_domain: mobilityDomain,
+				reassociation_deadline: reassocDeadline,
+				ft_over_ds: ftOverDs,
+				ft_psk_generate_local: ftPskLocal,
+				pmk_r1_push: pmkR1Push
+			},
 			removed: false,
 			view: view
 		};
@@ -1194,6 +1955,13 @@ return view.extend({
 		this.meshRadioInput.disabled = !useWireless;
 		this.meshIdInput.disabled = !useWireless;
 		this.meshKeyInput.disabled = !useWireless;
+		this.meshProtoInput.disabled = !useWireless;
+
+		// HWMP replaces batman-adv only for the wireless link - a wired
+		// backhaul has no L2 routing of its own and keeps bat0
+		if (this.batAdvanced)
+			this.batAdvanced.classList.toggle('hidden',
+				!(this.meshProtoInput.value !== 'hwmp' || useWired));
 
 		// role specific fields
 		this.slaveIpInput.parentNode.parentNode.classList.toggle('hidden', role !== 'slave');
@@ -1204,6 +1972,7 @@ return view.extend({
 		this.apConfigInputs.forEach(function(card) {
 			var sync = this.apSyncInput.checked;
 			card.channel.disabled = !sync;
+			if (card.htmode) card.htmode.disabled = !sync;
 			if (card.countEl)
 				card.countEl.textContent = _('SSID 列表（%d 个）').format(card.ssids.length);
 			card.ssids.forEach(function(row) {
@@ -1217,6 +1986,14 @@ return view.extend({
 					row.proxy_arp, row.isolate ].forEach(function(el) {
 					el.disabled = !on;
 				});
+				if (row.ft) {
+					row.ft.ieee80211r.disabled = !on;
+					[ row.ft.mobility_domain, row.ft.reassociation_deadline,
+						row.ft.ft_over_ds, row.ft.ft_psk_generate_local,
+						row.ft.pmk_r1_push ].forEach(function(el) {
+						el.disabled = !on || !row.ft.ieee80211r.checked;
+					});
+				}
 			});
 		}, this);
 
@@ -1245,22 +2022,38 @@ return view.extend({
 	coverageBlockers: function() {
 		var blockers = [];
 
-		(this.apConfigInputs || []).forEach(function(card) {
-			var names = {};
-			card.ssids.forEach(function(row) {
-				if (row.removed || !row.enabled.checked) return;
-				var name = (row.ssid.value || '').trim();
-				if (!name) return;
-				if (names[name]) {
-					blockers.push(_('%s 上有重复的 SSID「%s」').format(radioTitle(card), name));
+	(this.apConfigInputs || []).forEach(function(card) {
+		var names = {};
+		card.ssids.forEach(function(row) {
+			if (row.removed || !row.enabled.checked) return;
+			var name = (row.ssid.value || '').trim();
+			if (!name) return;
+			if (names[name]) {
+				blockers.push(_('%s 上有重复的 SSID「%s」').format(radioTitle(card), name));
+				return;
+			}
+			names[name] = 1;
+
+			// 802.11r needs WPA2/WPA3 and a shared 4 hex digit domain
+			if (row.ft && row.ft.ieee80211r.checked) {
+				var enc = row.encryption.value;
+				if (enc === 'none' || enc === 'owe') {
+					blockers.push(_('SSID「%s」启用了 802.11r，但 %s 加密不支持 FT').format(name, enc));
 					return;
 				}
-				names[name] = 1;
-			});
+				if (!/^[0-9a-fA-F]{4}$/.test((row.ft.mobility_domain.value || '').trim())) {
+					blockers.push(_('SSID「%s」的 802.11r 移动域必须是 4 位十六进制字符').format(name));
+					return;
+				}
+				var dl = (row.ft.reassociation_deadline.value || '').trim();
+				if (dl && (!/^[0-9]+$/.test(dl) || +dl < 1 || +dl > 65535))
+					blockers.push(_('SSID「%s」的 802.11r 重关联时限必须在 1-65535 之间').format(name));
+			}
 		});
+	});
 
-		return blockers;
-	},
+	return blockers;
+},
 
 	coverageProblems: function() {
 		var self = this;
@@ -1310,9 +2103,33 @@ return view.extend({
 		this.coverageAlert.appendChild(E('div', {}, _('各 SSID 的名称、加密方式与密码相互独立；跨机漫游只需保证多台 AP 上同名 SSID 的设置一致。')));
 	},
 
+	// Only non-empty values are sent: an empty field means "remove the UCI
+	// option", which restores the kernel / netifd default.
+	collectMeshParams: function() {
+		var out = {}, self = this;
+		Object.keys(this.meshParamInputs || {}).forEach(function(k) {
+			var v = (self.meshParamInputs[k].value || '').trim();
+			if (v !== '') out[k] = v;
+		});
+		return out;
+	},
+
+	collectBatAdvanced: function() {
+		var out = {}, self = this;
+		Object.keys(this.batAdvInputs || {}).forEach(function(k) {
+			var v = (self.batAdvInputs[k].value || '').trim();
+			if (v !== '') out[k] = v;
+		});
+		return out;
+	},
+
 	collectChannels: function() {
 		return this.apConfigInputs.map(function(config) {
-			return { radio: config.radio, channel: config.channel.value };
+			return {
+				radio: config.radio,
+				channel: config.channel.value,
+				htmode: config.htmode ? config.htmode.value : ''
+			};
 		});
 	},
 
@@ -1337,7 +2154,13 @@ return view.extend({
 					bss_transition: row.bss_transition.checked ? 1 : 0,
 					wnm_sleep_mode: row.wnm_sleep_mode.checked ? 1 : 0,
 					proxy_arp: row.proxy_arp.checked ? 1 : 0,
-					isolate: row.isolate.checked ? 1 : 0
+					isolate: row.isolate.checked ? 1 : 0,
+					ieee80211r: (row.ft && row.ft.ieee80211r.checked) ? 1 : 0,
+					mobility_domain: (row.ft ? (row.ft.mobility_domain.value || '').trim() : ''),
+					ft_over_ds: (row.ft && row.ft.ft_over_ds.checked) ? 1 : 0,
+					ft_psk_generate_local: (row.ft && row.ft.ft_psk_generate_local.checked) ? 1 : 0,
+					reassociation_deadline: (row.ft ? (row.ft.reassociation_deadline.value || '').trim() : ''),
+					pmk_r1_push: (row.ft && row.ft.pmk_r1_push.checked) ? 1 : 0
 				});
 			});
 		});
@@ -1426,6 +2249,7 @@ return view.extend({
 			(this.meshIdInput.value || '').trim(),
 			this.meshKeyInput.value || '',
 			'', /* gateway: derived from role on the device */
+			'', /* gw_bandwidth: always announced at maximum on the device */
 			(this.gwSelClassInput.value || '').trim(),
 			(this.slaveIpInput.value || '').trim(),
 			'0', /* unified: coverage is configured per radio */
@@ -1434,7 +2258,11 @@ return view.extend({
 			'',
 			syncAp === false ? '0' : (this.apSyncInput.checked ? '1' : '0'),
 			JSON.stringify(this.collectApEntries()),
-			JSON.stringify(this.collectChannels())
+			JSON.stringify(this.collectChannels()),
+			this.meshProtoInput.value || 'batman',
+			JSON.stringify(this.collectMeshParams()),
+			this.batAlgoInput.value || 'BATMAN_IV',
+			JSON.stringify(this.collectBatAdvanced())
 		).then(L.bind(this.afterApply, this)).catch(function(e) {
 			ui.addNotification(null, E('p', e.message || _('应用失败')));
 		});
@@ -1488,21 +2316,23 @@ return view.extend({
 	},
 
 	showGeneratedConfig: function(res) {
-		var files = res.files || {};
-		var chunks = [ 'network', 'wireless', 'dhcp', 'firewall' ].map(function(name) {
-			return '### /etc/config/' + name + '\n' + (files[name] || '');
-		}).join('\n\n');
-
+		var self = this;
 		var masterAdjLines = (res.master_adjustments || []).map(function(a) {
 			var label = bandLabel(a.band);
 			var from = a.from || 'auto';
-			return _('%s（%s）：%s → %s').format(a.radio, label || a.band, from, a.to);
+			return _('%s（%s）：%s → %s%s').format(a.radio, label || a.band, from, a.to,
+				a.backhaul ? _('（回程，已固定）') : '');
 		});
 
 		var channelLines = (res.channels || []).map(function(c) {
 			var label = bandLabel(c.band);
-			return _('%s（%s）：频道 %s').format(c.radio, label || c.band, c.channel);
+			return _('%s（%s）：频道 %s%s').format(c.radio, label || c.band, c.channel,
+				c.backhaul ? _('（回程，必须沿用主节点）') : '');
 		});
+
+		var preview = E('textarea', {
+			'class': 'nm-config-preview', 'readonly': 'readonly', 'wrap': 'off'
+		}, childConfigText(res));
 
 		return ui.showModal(_('子节点配置已生成'), [
 			E('p', {}, _('把它导入从节点即可复用主节点的 Mesh ID、SSID 与加密方式。设备临时目录: %s').format(res.path || '-')),
@@ -1516,14 +2346,38 @@ return view.extend({
 			channelLines.length
 				? E('div', { 'class': 'nm-alert ok' }, [
 					E('strong', {}, _('该子节点已按节点序号自动错开同频段频道：')),
-					E('div', {}, channelLines.join('；'))
+					E('div', {}, channelLines.join('；')),
+					E('div', { 'class': 'nm-muted' }, _('标记“回程”的 radio 故意与主节点保持同频道：802.11s 只能在同一频道上建立 peer link。'))
 				])
 				: '',
-			E('textarea', { 'class': 'nm-config-preview', 'readonly': 'readonly', 'wrap': 'off' }, chunks),
+			preview,
 			E('div', { 'class': 'right' }, [
+				E('button', {
+					'class': 'cbi-button cbi-button-neutral',
+					'click': function() { self.downloadChildConfig(res); }
+				}, _('下载配置')),
+				' ',
+				E('button', {
+					'class': 'cbi-button cbi-button-neutral',
+					'click': function() { copyElementText(preview); }
+				}, _('复制')),
+				' ',
 				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.hideModal }, _('关闭'))
 			])
 		]);
+	},
+
+	downloadChildConfig: function(res) {
+		var suffix = (this.slaveIpInput && this.slaveIpInput.value || '').trim() || 'node';
+		var blob = new Blob([ childConfigText(res) ], { type: 'text/plain;charset=utf-8' });
+		var url = URL.createObjectURL(blob);
+		var a = document.createElement('a');
+		a.href = url;
+		a.download = 'meshconf-child-' + suffix + '.txt';
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
 	},
 
 	refresh: function() {

@@ -3,12 +3,12 @@
 		"description": "Grant access to the batman-adv mesh configuration wizard",
 		"read": {
 			"ubus": {
-				"luci.meshconf": [ "getStatus", "discoverMesh" ]
+				"luci.meshconf": [ "getStatus", "discoverMesh", "getMeshDiag", "listBackups" ]
 			}
 		},
 		"write": {
 			"ubus": {
-				"luci.meshconf": [ "applyMesh", "generateChildConfig", "applyVlans", "applyWireless" ]
+				"luci.meshconf": [ "applyMesh", "generateChildConfig", "applyVlans", "applyWireless", "restoreBackup", "blockMeshPeer" ]
 			}
 		}
 	}

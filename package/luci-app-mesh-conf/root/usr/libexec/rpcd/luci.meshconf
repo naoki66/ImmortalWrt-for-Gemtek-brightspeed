@@ -18,6 +18,35 @@ MAX_VLANS=32
 # picks it purely on link quality (TQ) instead of a throttled number.
 GW_BANDWIDTH_MAX="10000000/10000000"
 
+# Every 802.11s operating parameter netifd understands. Kept in sync with
+# package/network/config/wifi-scripts:
+#   files/lib/netifd/wireless/mac80211.sh    (MP_CONFIG_INT / _BOOL / _STRING)
+#   files-ucode/lib/netifd/wireless/mac80211.sh (mesh_param_list, adds mesh_nolearn)
+# Note the upstream spelling mistake in mesh_sync_offset_max_neighor - it must
+# be written exactly like that or netifd silently drops the value.
+MESH_PARAM_INT="mesh_retry_timeout mesh_confirm_timeout mesh_holding_timeout mesh_max_peer_links
+	mesh_max_retries mesh_ttl mesh_element_ttl mesh_hwmp_max_preq_retries
+	mesh_path_refresh_time mesh_min_discovery_timeout mesh_hwmp_active_path_timeout
+	mesh_hwmp_preq_min_interval mesh_hwmp_net_diameter_traversal_time mesh_hwmp_rootmode
+	mesh_hwmp_rann_interval mesh_gate_announcements mesh_sync_offset_max_neighor
+	mesh_rssi_threshold mesh_hwmp_active_path_to_root_timeout mesh_hwmp_root_interval
+	mesh_hwmp_confirmation_interval mesh_awake_window mesh_plink_timeout"
+MESH_PARAM_BOOL="mesh_auto_open_plinks mesh_fwding mesh_nolearn"
+MESH_PARAM_STRING="mesh_power_mode"
+
+# Backhaul protocol carried by the 802.11s link.
+#   batman - batman-adv does the L2 routing, HWMP forwarding stays off
+#   hwmp   - plain 802.11s, the kernel HWMP protocol routes, mesh iface is
+#            bridged straight into lan
+MESH_PROTOS="batman hwmp"
+
+# Wireless channel width accepted by netifd/mac80211.
+HTMODES="auto NOHT HT20 HT40 VHT20 VHT40 VHT80 VHT80_80 VHT160
+	HE20 HE40 HE80 HE80_80 HE160 EHT20 EHT40 EHT80 EHT160"
+
+BACKUP_ROOT=/etc/meshconf/backups
+BACKUP_KEEP=8
+
 json_escape()
 {
 	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/	/ /g'
@@ -40,6 +69,17 @@ json_file_string()
 bool()
 {
 	[ "$1" = "1" ] && printf true || printf false
+}
+
+# Write a UCI option as an explicit 0/1 instead of removing it: hostapd
+# options such as ft_over_ds are read back by the UI and an absent option
+# would look like "never configured" rather than "off".
+uci_bool01()
+{
+	case "$2" in
+		1|true|on|yes) uci -q set "$1"='1' ;;
+		*) uci -q set "$1"='0' ;;
+	esac
 }
 
 command_flag()
@@ -189,6 +229,110 @@ valid_netdev_name()
 	[ -d "/sys/class/net/$1" ]
 }
 
+# Signed integer - mesh_rssi_threshold is negative in practice.
+valid_int()
+{
+	case "$1" in
+		''|-|*[^0-9-]*) return 1 ;;
+		-*) [ "${1#-}" != "" ] && printf '%s' "${1#-}" | grep -Eq '^[0-9]+$' ;;
+		*) return 0 ;;
+	esac
+}
+
+valid_hex4()
+{
+	printf '%s' "$1" | grep -Eq '^[0-9A-Fa-f]{4}$'
+}
+
+valid_htmode()
+{
+	local m
+	[ -z "$1" ] && return 0
+	valid_text_value "$1" || return 1
+	for m in $HTMODES; do
+		[ "$m" = "$1" ] && return 0
+	done
+	return 1
+}
+
+# Radios carrying an 802.11s backhaul. 802.11s only peers with nodes that use
+# the same mesh id, key AND channel, so these radios must never be given a
+# different channel than the master when a child config is generated.
+mesh_backhaul_radios()
+{
+	local sec radio out=""
+	for sec in $(uci -q show wireless | sed -n 's/^wireless\.\(meshconf_mesh_[0-9]*\)=wifi-iface$/\1/p'); do
+		radio="$(uci -q get wireless."$sec".device 2>/dev/null)"
+		[ -n "$radio" ] || continue
+		out="${out:+$out }$radio"
+	done
+	printf '%s' "$out"
+}
+
+radio_is_mesh_backhaul()
+{
+	local want="$1" r
+	for r in $(mesh_backhaul_radios); do
+		[ "$r" = "$want" ] && return 0
+	done
+	return 1
+}
+
+# wpad-basic-* ships hostapd/wpa_supplicant too but has no 802.11s support, so
+# mere presence of the binaries says nothing. netifd probes the binary the same
+# way (mac80211.sh: wpa_supplicant -vmesh).
+wpad_mesh_support()
+{
+	command -v wpa_supplicant >/dev/null 2>&1 || return 1
+	wpa_supplicant -vmesh >/dev/null 2>&1
+}
+
+wpad_variant()
+{
+	local p
+	for p in wpad-mesh-mbedtls wpad-mesh-openssl wpad-mesh-wolfssl \
+		wpad-mbedtls wpad-openssl wpad-wolfssl wpad \
+		wpad-basic-mbedtls wpad-basic-openssl wpad-basic-wolfssl wpad-basic wpad-mini; do
+		[ -f "/usr/lib/opkg/info/$p.control" ] && {
+			printf '%s' "$p"
+			return 0
+		}
+	done
+	printf 'unknown'
+}
+
+# Is a full featured iw installed? "iw dev X station set MAC plink_action"
+# only exists in the iw-full build.
+iw_full_support()
+{
+	command -v iw >/dev/null 2>&1 || return 1
+	[ -f /usr/lib/opkg/info/iw-full.control ] && return 0
+	iw help 2>&1 | grep -q 'plink_action'
+}
+
+# A foreign 802.11s interface (hand written or owned by mesh11sd) is not
+# managed by this page, so warn instead of silently ignoring it.
+foreign_mesh_sections()
+{
+	local sec out=""
+	for sec in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-iface$/\1/p'); do
+		case "$sec" in meshconf_mesh_*) continue ;; esac
+		[ "$(uci -q get wireless."$sec".mode 2>/dev/null)" = "mesh" ] || continue
+		out="${out:+$out }$sec"
+	done
+	printf '%s' "$out"
+}
+
+mesh11sd_state()
+{
+	local installed=0 enabled=0
+	[ -x /etc/init.d/mesh11sd ] && installed=1
+	[ -f /usr/lib/opkg/info/mesh11sd.control ] && installed=1
+	[ "$installed" = "1" ] && [ -x /etc/init.d/mesh11sd ] && \
+		/etc/init.d/mesh11sd enabled >/dev/null 2>&1 && enabled=1
+	printf '{"installed":%s,"enabled":%s}' "$(bool "$installed")" "$(bool "$enabled")"
+}
+
 find_bridge_section()
 {
 	local sec name type
@@ -265,12 +409,43 @@ remove_bridge_port()
 	done
 }
 
+# Does this network interface ride the LAN bridge?
+#
+# Only interfaces on br-lan (or one of its 802.1Q sub-interfaces br-lan.N) are
+# carried across the batman-adv fabric, so only those end up in the master's
+# flat subnet and only those have to give up their address authority. A
+# separate bridge - a hand built guest network on br-guest for example - is
+# not bridged into bat0: it stays a per node L2 segment and each node has to
+# keep serving it, otherwise clients there get no address at all.
+#
+# $2 is an optional UCI directory (used when generating a child config).
+iface_on_lan_bridge()
+{
+	local iface="$1" dir="$2" dev
+	[ -n "$iface" ] || return 1
+	if [ -n "$dir" ]; then
+		dev="$(uci -c "$dir" -q get network."$iface".device 2>/dev/null)"
+		[ -n "$dev" ] || dev="$(uci -c "$dir" -q get network."$iface".ifname 2>/dev/null)"
+	else
+		dev="$(uci -q get network."$iface".device 2>/dev/null)"
+		[ -n "$dev" ] || dev="$(uci -q get network."$iface".ifname 2>/dev/null)"
+	fi
+	case "$dev" in
+		br-lan|br-lan.*) return 0 ;;
+		'') [ "$iface" = "lan" ] ;;
+		*) return 1 ;;
+	esac
+}
+
 disable_lan_dhcp_servers()
 {
 	local sec iface
 	for sec in $(uci -q show dhcp | sed -n 's/^dhcp\.\([^=]*\)=dhcp$/\1/p'); do
 		iface="$(uci -q get dhcp."$sec".interface 2>/dev/null)"
-		[ "$iface" = "wan" ] && continue
+		case "$iface" in
+			''|wan|wan6) continue ;;
+		esac
+		iface_on_lan_bridge "$iface" || continue
 		uci -q set dhcp."$sec".ignore='1'
 		uci -q set dhcp."$sec".dynamicdhcp='0'
 		uci -q set dhcp."$sec".dhcpv4='disabled'
@@ -330,6 +505,8 @@ ap_iface_list()
 {
 	local radio="$1" sec ssid encryption disabled network has_key
 	local ieee80211k bss_transition wnm proxy_arp isolate first=1
+	local ieee80211r mobility_domain ft_over_ds ft_psk_generate_local
+	local reassociation_deadline pmk_r1_push
 
 	printf '['
 	for sec in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-iface$/\1/p'); do
@@ -349,14 +526,22 @@ ap_iface_list()
 		wnm="$(uci -q get wireless."$sec".wnm_sleep_mode 2>/dev/null)"
 		proxy_arp="$(uci -q get wireless."$sec".proxy_arp 2>/dev/null)"
 		isolate="$(uci -q get wireless."$sec".isolate 2>/dev/null)"
+		ieee80211r="$(uci -q get wireless."$sec".ieee80211r 2>/dev/null)"
+		mobility_domain="$(uci -q get wireless."$sec".mobility_domain 2>/dev/null)"
+		ft_over_ds="$(uci -q get wireless."$sec".ft_over_ds 2>/dev/null)"
+		ft_psk_generate_local="$(uci -q get wireless."$sec".ft_psk_generate_local 2>/dev/null)"
+		reassociation_deadline="$(uci -q get wireless."$sec".reassociation_deadline 2>/dev/null)"
+		pmk_r1_push="$(uci -q get wireless."$sec".pmk_r1_push 2>/dev/null)"
 		uci -q get wireless."$sec".key >/dev/null 2>&1 && has_key=1 || has_key=0
 		[ "$disabled" = "1" ] && disabled=0 || disabled=1
 
 		[ "$first" = "1" ] || printf ','
-		printf '{"section":"%s","ssid":"%s","encryption":"%s","has_key":%s,"network":"%s","enabled":%s,"ieee80211k":%s,"bss_transition":%s,"wnm_sleep_mode":%s,"proxy_arp":%s,"isolate":%s}' \
+		printf '{"section":"%s","ssid":"%s","encryption":"%s","has_key":%s,"network":"%s","enabled":%s,"ieee80211k":%s,"bss_transition":%s,"wnm_sleep_mode":%s,"proxy_arp":%s,"isolate":%s,"ieee80211r":%s,"mobility_domain":"%s","ft_over_ds":%s,"ft_psk_generate_local":%s,"reassociation_deadline":"%s","pmk_r1_push":%s}' \
 			"$(json_escape "$sec")" "$(json_escape "$ssid")" "$(json_escape "$encryption")" "$(bool "$has_key")" \
 			"$(json_escape "$network")" "$(bool "$disabled")" "$(bool "$ieee80211k")" "$(bool "$bss_transition")" \
-			"$(bool "$wnm")" "$(bool "$proxy_arp")" "$(bool "$isolate")"
+			"$(bool "$wnm")" "$(bool "$proxy_arp")" "$(bool "$isolate")" \
+			"$(bool "$ieee80211r")" "$(json_escape "$mobility_domain")" "$(bool "$ft_over_ds")" \
+			"$(bool "$ft_psk_generate_local")" "$(json_escape "$reassociation_deadline")" "$(bool "$pmk_r1_push")"
 		first=0
 	done
 	printf ']'
@@ -432,16 +617,40 @@ vlan_member_ports()
 	done
 }
 
+# "flat" as long as br-lan carries no bridge-vlan: the bridge does no 802.1Q
+# filtering, bat0 is an ordinary port and the whole deployment shares one
+# broadcast domain. "filtered" from the first bridge-vlan on - bat0 then only
+# carries the VLANs it is a tagged member of.
+#
+# The two modes must not be mixed inside one deployment. A flat node sends
+# untagged frames the filtered side drops, and the filtered side sends tagged
+# frames the flat node cannot deliver, so the pair looks like a perfectly
+# healthy mesh (batctl lists the neighbours) that moves no traffic at all.
+bridge_vlan_mode()
+{
+	local sec dev
+	for sec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=bridge-vlan$/\1/p'); do
+		dev="$(uci -q get network."$sec".device 2>/dev/null)"
+		[ "$dev" = "br-lan" ] && { printf 'filtered'; return 0; }
+	done
+	printf 'flat'
+}
+
 # Drop ports that used to belong to a VLAN but are now in none of them: a
 # port with no VLAN left must not stay enslaved to br-lan.
 #
 # Only ports that were VLAN members beforehand are considered, so a flat
-# (non VLAN filtered) setup and virtual devices such as bat0 - which never
-# appear in a bridge-vlan - are never touched.
+# (non VLAN filtered) setup is never touched.
 vlan_prune_bridge_ports()
 {
 	local port
 	for port in $1; do
+		# bat0 / mesh_* are enslaved to br-lan by the mesh setup, not by
+		# VLAN membership. With bridge-vlan in place bat0 *is* a member
+		# (tagged) of the VLANs that cross the mesh, so unchecking "carry
+		# over the mesh" would otherwise detach it from the bridge and
+		# take the whole fabric down.
+		case "$port" in bat0|mesh_*) continue ;; esac
 		vlan_uses_port "$port" || remove_bridge_port br-lan "$port"
 	done
 	return 0
@@ -487,6 +696,7 @@ bridge_port_list()
 vlan_list()
 {
 	local sec sec2 dev vlan ports iface proto ipaddr netmask gateway dns first=1
+	local trunk p
 
 	printf '['
 	for sec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=bridge-vlan$/\1/p'); do
@@ -494,6 +704,12 @@ vlan_list()
 		vlan="$(uci -q get network."$sec".vlan 2>/dev/null)"
 		ports="$(uci -q get network."$sec".ports 2>/dev/null)"
 		[ -n "$vlan" ] || continue
+		# Does this VLAN ride the mesh backhaul? bat0 is only ever a
+		# tagged member, so its presence is the whole answer.
+		trunk=0
+		for p in $ports; do
+			[ "${p%%:*}" = "bat0" ] && trunk=1
+		done
 		iface=""
 		for sec2 in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=interface$/\1/p'); do
 			[ "$(uci -q get network."$sec2".device 2>/dev/null)" = "${dev}.${vlan}" ] && {
@@ -516,14 +732,34 @@ vlan_list()
 			dns="${dns%% *}"
 		fi
 		[ "$first" = "1" ] || printf ','
-		printf '{"section":"%s","device":"%s","vlan":"%s","iface":"%s","proto":"%s","ipaddr":"%s","netmask":"%s","gateway":"%s","dns":"%s","untagged":"%s","tagged":"%s"}' \
+		printf '{"section":"%s","device":"%s","vlan":"%s","iface":"%s","proto":"%s","ipaddr":"%s","netmask":"%s","gateway":"%s","dns":"%s","untagged":"%s","tagged":"%s","trunk":%s}' \
 			"$(json_escape "$sec")" "$(json_escape "$dev")" "$(json_escape "$vlan")" "$(json_escape "$iface")" \
 			"$(json_escape "$proto")" "$(json_escape "$ipaddr")" "$(json_escape "$netmask")" \
 			"$(json_escape "$gateway")" "$(json_escape "$dns")" \
-			"$(json_escape "$(vlan_ports_of "$ports" u)")" "$(json_escape "$(vlan_ports_of "$ports" t)")"
+			"$(json_escape "$(vlan_ports_of "$ports" u)")" "$(json_escape "$(vlan_ports_of "$ports" t)")" \
+			"$trunk"
 		first=0
 	done
 	printf ']'
+}
+
+# VLAN ids that carry the batman-adv backhaul. Once a bridge-vlan exists
+# netifd turns 802.1Q filtering on and a port belonging to no VLAN forwards
+# nothing at all, so bat0 has to be a member of every VLAN that must cross
+# the mesh.
+bat0_vlan_ids()
+{
+	local sec dev vlan p out=""
+	for sec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=bridge-vlan$/\1/p'); do
+		dev="$(uci -q get network."$sec".device 2>/dev/null)"
+		[ "$dev" = "br-lan" ] || continue
+		vlan="$(uci -q get network."$sec".vlan 2>/dev/null)"
+		[ -n "$vlan" ] || continue
+		for p in $(uci -q get network."$sec".ports 2>/dev/null); do
+			[ "${p%%:*}" = "bat0" ] && { out="${out:+$out,}$vlan"; break; }
+		done
+	done
+	printf '%s' "$out"
 }
 
 firewall_lan_zone()
@@ -555,8 +791,13 @@ apply_ap_configs()
 {
 	local configs="$1" idx=0 radio section enabled ssid encryption key network
 	local ieee80211k bss_transition wnm proxy_arp isolate remove sec n any=0
+	local ieee80211r mobility_domain ft_over_ds ft_psk_generate_local
+	local reassociation_deadline pmk_r1_push
 
-	valid_text_value "$configs" || return 1
+	valid_text_value "$configs" || {
+		printf '{"success":false,"error":"invalid AP settings"}'
+		return 1
+	}
 
 	while [ "$idx" -lt "$MAX_AP_ENTRIES" ]; do
 		radio="$(jsonfilter -s "$configs" -e "@[$idx].radio" 2>/dev/null)"
@@ -584,6 +825,12 @@ apply_ap_configs()
 		wnm="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].wnm_sleep_mode" 2>/dev/null)"
 		proxy_arp="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].proxy_arp" 2>/dev/null)"
 		isolate="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].isolate" 2>/dev/null)"
+		ieee80211r="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].ieee80211r" 2>/dev/null)"
+		mobility_domain="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].mobility_domain" 2>/dev/null)"
+		ft_over_ds="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].ft_over_ds" 2>/dev/null)"
+		ft_psk_generate_local="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].ft_psk_generate_local" 2>/dev/null)"
+		reassociation_deadline="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].reassociation_deadline" 2>/dev/null)"
+		pmk_r1_push="$(jsonfilter -s "$configs" -e "@[$((idx - 1))].pmk_r1_push" 2>/dev/null)"
 
 		case "$remove" in
 			1|true)
@@ -656,6 +903,36 @@ apply_ap_configs()
 			return 1
 		fi
 
+		# 802.11r (FT) hands a roaming client over without a full
+		# re-authentication. Every AP advertising the same SSID has to share
+		# the 4 hex digit mobility domain, and an open/OWE network cannot
+		# do FT at all.
+		case "$ieee80211r" in
+			1|true)
+				case "$encryption" in
+					none|owe)
+						printf '{"success":false,"error":"radio %s: 802.11r 需要 WPA2/WPA3 加密，开放网络不支持"}' "$radio"
+						return 1
+						;;
+				esac
+				valid_hex4 "$mobility_domain" || {
+					printf '{"success":false,"error":"radio %s: 移动域必须是 4 位十六进制字符"}' "$radio"
+					return 1
+				}
+				if [ -n "$reassociation_deadline" ]; then
+					valid_uint "$reassociation_deadline" || {
+						printf '{"success":false,"error":"radio %s: 重关联时限必须是正整数"}' "$radio"
+						return 1
+					}
+					[ "$reassociation_deadline" -ge 1 ] 2>/dev/null && \
+						[ "$reassociation_deadline" -le 65535 ] 2>/dev/null || {
+						printf '{"success":false,"error":"radio %s: 重关联时限范围是 1-65535"}' "$radio"
+						return 1
+					}
+				fi
+				;;
+		esac
+
 		if [ "$enabled" = "1" ]; then
 			uci -q set wireless."$sec".disabled='0'
 		else
@@ -700,10 +977,37 @@ apply_ap_configs()
 			uci -q delete wireless."$sec".isolate 2>/dev/null
 		fi
 
+		# 802.11r fast BSS transition
+		if [ "$ieee80211r" = "1" ] || [ "$ieee80211r" = "true" ]; then
+			uci -q set wireless."$sec".ieee80211r='1'
+			uci -q set wireless."$sec".mobility_domain="$(printf '%s' "$mobility_domain" | tr 'a-f' 'A-F')"
+			uci_bool01 wireless."$sec".ft_over_ds "$ft_over_ds"
+			uci_bool01 wireless."$sec".ft_psk_generate_local "$ft_psk_generate_local"
+			if [ -n "$reassociation_deadline" ]; then
+				uci -q set wireless."$sec".reassociation_deadline="$reassociation_deadline"
+			else
+				uci -q delete wireless."$sec".reassociation_deadline 2>/dev/null
+			fi
+			if [ "$pmk_r1_push" = "1" ] || [ "$pmk_r1_push" = "true" ]; then
+				uci -q set wireless."$sec".pmk_r1_push='1'
+			else
+				uci -q delete wireless."$sec".pmk_r1_push 2>/dev/null
+			fi
+		else
+			for p in ieee80211r mobility_domain ft_over_ds ft_psk_generate_local \
+				reassociation_deadline pmk_r1_push; do
+				uci -q delete wireless."$sec"."$p" 2>/dev/null
+			done
+		fi
+
 		any=$((any + 1))
 	done
 
-	[ "$any" -gt 0 ]
+	if [ "$any" -gt 0 ]; then
+		return 0
+	fi
+	printf '{"success":false,"error":"没有需要应用的 SSID 配置"}'
+	return 1
 }
 
 # Push the per-SSID wireless settings without touching batman-adv. Editing
@@ -730,6 +1034,7 @@ apply_wireless()
 	json_get_var ap_configs ap_configs
 	json_get_var channels channels
 
+	backup_configs "wireless"
 	apply_ap_configs "$ap_configs" || return 1
 	apply_radio_channels "$channels" || {
 		printf '{"success":false,"error":"invalid radio channel settings"}'
@@ -769,10 +1074,80 @@ vlan_delete()
 	return 0
 }
 
+# Ports claimed by any br-lan bridge-vlan, in either egress mode.
+vlan_claimed_ports()
+{
+	local sec p dev
+	for sec in $(uci -q show network | sed -n 's/^network\.\([^=]*\)=bridge-vlan$/\1/p'); do
+		dev="$(uci -q get network."$sec".device 2>/dev/null)"
+		[ "$dev" = "br-lan" ] || continue
+		for p in $(uci -q get network."$sec".ports 2>/dev/null); do
+			printf '%s\n' "${p%%:*}"
+		done
+	done
+}
+
+port_claimed()
+{
+	local want="$1" p
+	for p in $2; do
+		[ "$p" = "$want" ] && return 0
+	done
+	return 1
+}
+
+# Once br-lan carries at least one bridge-vlan netifd turns on VLAN filtering,
+# and an interface attached to the bridge itself (br-lan) stops carrying any
+# traffic - only the br-lan.<id> sub-interfaces do. Leaving the management
+# interface on br-lan therefore blackholes the very connection used to apply
+# the change.
+#
+# VLAN 1 is the management segment this page already reserves, so make sure it
+# exists and point network.lan at br-lan.1.
+vlan_sync_lan_device()
+{
+	local dev claimed p sec
+	dev="$(uci -q get network.lan.device 2>/dev/null)"
+	case "$dev" in
+		''|br-lan) ;;
+		*) return 0 ;;
+	esac
+
+	if [ "$(uci -q get network.meshconf_vlan_1.vlan 2>/dev/null)" = "1" ]; then
+		uci -q set network.lan='interface'
+		uci -q set network.lan.device='br-lan.1'
+		return 0
+	fi
+
+	# No management VLAN and no other VLAN either: this is still a flat,
+	# non filtered bridge, so there is nothing to fix up.
+	claimed="$(vlan_claimed_ports)"
+	[ -n "$claimed" ] || return 0
+
+	uci -q set network.meshconf_vlan_1='bridge-vlan'
+	uci -q set network.meshconf_vlan_1.device='br-lan'
+	uci -q set network.meshconf_vlan_1.vlan='1'
+	uci -q delete network.meshconf_vlan_1.ports 2>/dev/null
+	sec="$(find_bridge_section br-lan)"
+	for p in $(uci -q get network."$sec".ports 2>/dev/null); do
+		p="${p%%:*}"
+		# bat0 / mesh_* are backhaul members, they ride tagged, never as
+		# the untagged management segment
+		case "$p" in bat0|mesh_*) continue ;; esac
+		port_claimed "$p" "$claimed" && continue
+		uci -q add_list network.meshconf_vlan_1.ports="${p}:u*"
+	done
+
+	uci -q set network.lan='interface'
+	uci -q set network.lan.device='br-lan.1'
+	return 0
+}
+
 apply_vlans()
 {
 	local args="$1" vlans idx=0 section vlan iface ipaddr netmask gateway dns
-	local untagged tagged remove dhcp port sec zsec changed=0 before_ports
+	local untagged tagged remove dhcp trunk port sec zsec bsec changed=0 before_ports
+	local keep_lan_addr=0
 
 	json_load "$args" 2>/dev/null || {
 		printf '{"success":false,"error":"bad arguments"}'
@@ -787,6 +1162,8 @@ apply_vlans()
 		printf '{"success":false,"error":"invalid VLAN list"}'
 		return
 	}
+
+	backup_configs "vlans"
 
 	# snapshot taken before the first change: afterwards every port that is
 	# no longer part of any VLAN is detached from br-lan
@@ -816,12 +1193,21 @@ apply_vlans()
 		untagged="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].untagged" 2>/dev/null)"
 		tagged="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].tagged" 2>/dev/null)"
 		dhcp="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].dhcp" 2>/dev/null)"
+		trunk="$(jsonfilter -s "$vlans" -e "@[$((idx - 1))].trunk" 2>/dev/null)"
 
-		[ -n "$iface" ] || iface="lan${vlan}"
+		# VLAN 1 is the management segment and reuses the existing lan
+		# interface - stock OpenWrt keeps lan on br-lan.1 as well, so no
+		# second interface has to be invented for it.
+		if [ -z "$iface" ]; then
+			if [ "$vlan" = "1" ]; then iface="lan"; else iface="lan${vlan}"; fi
+		fi
 		valid_uci_section_name "$iface" || {
 			printf '{"success":false,"error":"invalid interface name %s"}' "$iface"
 			return
 		}
+		# blank fields on the existing lan interface mean "keep what is
+		# there"; wiping them would drop the management address
+		[ "$iface" = "lan" ] && keep_lan_addr=1 || keep_lan_addr=0
 
 		case "$remove" in
 			1|true)
@@ -871,13 +1257,31 @@ apply_vlans()
 		uci -q set network."$sec".vlan="$vlan"
 		uci -q delete network."$sec".ports 2>/dev/null
 		for port in $untagged; do
+			# bat0 / mesh_* are owned by the mesh setup: the "carry over
+			# the mesh" flag below is the single source of truth for
+			# them, so they must never come in through the port lists.
+			case "$port" in bat0|mesh_*) continue ;; esac
 			uci -q add_list network."$sec".ports="${port}:u*"
 			ensure_bridge_port br-lan "$port"
 		done
 		for port in $tagged; do
+			case "$port" in bat0|mesh_*) continue ;; esac
 			uci -q add_list network."$sec".ports="${port}:t"
 			ensure_bridge_port br-lan "$port"
 		done
+		# Which segments cross the mesh is decided here and nowhere else.
+		# bat0 only ever rides tagged, and once 802.1Q filtering is on a
+		# port that belongs to no VLAN forwards nothing at all.
+		#
+		# bat0 is only claimed when it is already enslaved to br-lan. Adding
+		# it here would leave a dangling bridge member on nodes that run no
+		# mesh at all; creating the backhaul port is enable_batman_core's
+		# job, this only decides which VLANs it carries.
+		if [ "$trunk" = "1" ] || [ "$trunk" = "true" ]; then
+			bsec="$(find_bridge_section br-lan)"
+			[ -n "$bsec" ] && bridge_has_port "$bsec" bat0 &&
+				uci -q add_list network."$sec".ports='bat0:t'
+		fi
 
 		uci -q set network."$iface"='interface'
 		uci -q set network."$iface".device="br-lan.${vlan}"
@@ -885,24 +1289,26 @@ apply_vlans()
 		uci -q set network."$iface".delegate='0'
 		if [ -n "$ipaddr" ]; then
 			uci -q set network."$iface".ipaddr="$ipaddr"
-		else
+		elif [ "$keep_lan_addr" = "0" ]; then
 			uci -q delete network."$iface".ipaddr 2>/dev/null
 		fi
 		if [ -n "$netmask" ]; then
 			uci -q set network."$iface".netmask="$netmask"
-		else
+		elif [ "$keep_lan_addr" = "0" ]; then
 			uci -q delete network."$iface".netmask 2>/dev/null
 		fi
 		if [ -n "$gateway" ]; then
 			uci -q set network."$iface".gateway="$gateway"
 			# an AP-side segment must not steal the default route
 			uci -q set network."$iface".defaultroute='0'
-		else
+		elif [ "$keep_lan_addr" = "0" ]; then
 			uci -q delete network."$iface".gateway 2>/dev/null
 			uci -q delete network."$iface".defaultroute 2>/dev/null
 		fi
-		uci -q delete network."$iface".dns 2>/dev/null
-		[ -n "$dns" ] && uci -q add_list network."$iface".dns="$dns"
+		if [ -n "$dns" ] || [ "$keep_lan_addr" = "0" ]; then
+			uci -q delete network."$iface".dns 2>/dev/null
+			[ -n "$dns" ] && uci -q add_list network."$iface".dns="$dns"
+		fi
 
 		uci -q set dhcp."$iface"='dhcp'
 		uci -q set dhcp."$iface".interface="$iface"
@@ -913,7 +1319,7 @@ apply_vlans()
 			uci -q set dhcp."$iface".start='100'
 			uci -q set dhcp."$iface".limit='150'
 			uci -q set dhcp."$iface".leasetime='12h'
-		else
+		elif [ "$keep_lan_addr" = "0" ]; then
 			uci -q set dhcp."$iface".ignore='1'
 			uci -q set dhcp."$iface".dynamicdhcp='0'
 		fi
@@ -927,13 +1333,16 @@ apply_vlans()
 	done
 
 	vlan_prune_bridge_ports "$before_ports"
+	vlan_sync_lan_device
 
 	uci -q commit network
 	uci -q commit dhcp
 	uci -q commit firewall
 	[ "$changed" -gt 0 ] && reload_network_later
 
-	printf '{"success":true,"changed":%d}' "$changed"
+	printf '{"success":true,"changed":%d,"lan_device":"%s","bridge_mode":"%s","bat0_vlans":"%s"}' \
+		"$changed" "$(json_escape "$(uci -q get network.lan.device 2>/dev/null)")" \
+		"$(bridge_vlan_mode)" "$(json_escape "$(bat0_vlan_ids)")"
 }
 
 # ---------------------------------------------------------------------------
@@ -1016,12 +1425,13 @@ apply_unified_ap()
 
 apply_radio_channels()
 {
-	local channels="$1" idx=0 radio channel
+	local channels="$1" idx=0 radio channel htmode
 	[ -n "$channels" ] || return 0
 	valid_text_value "$channels" || return 1
 	while [ "$idx" -le "$MAX_WIFI_MESH" ]; do
 		radio="$(jsonfilter -s "$channels" -e "@[$idx].radio" 2>/dev/null)"
 		channel="$(jsonfilter -s "$channels" -e "@[$idx].channel" 2>/dev/null)"
+		htmode="$(jsonfilter -s "$channels" -e "@[$idx].htmode" 2>/dev/null)"
 		idx=$((idx + 1))
 		[ -n "$radio" ] && [ -n "$channel" ] || continue
 		valid_uci_section_name "$radio" || return 1
@@ -1033,6 +1443,16 @@ apply_radio_channels()
 			[ "$channel" -ge 1 ] 2>/dev/null && [ "$channel" -le 233 ] 2>/dev/null || return 1
 			uci -q set wireless."$radio".channel="$channel"
 		fi
+		# Channel width matters for a wireless backhaul: an 802.11ax radio
+		# peering with an 802.11ac only one has to use the older width
+		# (e.g. VHT80 on both), otherwise the link never comes up.
+		case "$htmode" in
+			''|auto) uci -q delete wireless."$radio".htmode 2>/dev/null ;;
+			*)
+				valid_htmode "$htmode" || return 1
+				uci -q set wireless."$radio".htmode="$htmode"
+				;;
+		esac
 	done
 	return 0
 }
@@ -1083,7 +1503,12 @@ disable_child_dhcp_servers()
 	local dir="$1" sec iface
 	for sec in $(uci -c "$dir" -q show dhcp | sed -n 's/^dhcp\.\([^=]*\)=dhcp$/\1/p'); do
 		iface="$(uci -c "$dir" -q get dhcp."$sec".interface 2>/dev/null)"
-		[ "$iface" = "wan" ] && continue
+		case "$iface" in
+			''|wan|wan6) continue ;;
+		esac
+		# Same rule as disable_lan_dhcp_servers(): only the LAN bridge is
+		# folded into the batman-adv fabric, so only it loses its DHCP server.
+		iface_on_lan_bridge "$iface" "$dir" || continue
 		uci -c "$dir" -q set dhcp."$sec".ignore='1'
 		uci -c "$dir" -q set dhcp."$sec".dynamicdhcp='0'
 		uci -c "$dir" -q set dhcp."$sec".dhcpv4='disabled'
@@ -1153,25 +1578,29 @@ channel_in_pool()
 
 # Pin master radios whose channel is auto or off-pool to slot 0 of their band
 # pool so child nodes (offset >= 1) never share a channel with the master.
+# Backhaul radios are always pinned when they are on "auto": an 802.11s link
+# cannot form on an auto channel because every node has to pick the same one.
 # Only commits when something actually changed; collects the per-radio
 # adjustment JSON in global MASTER_ADJUSTMENTS_JSON.
 master_fix_channels()
 {
-	local radio band cur fixed el
+	local radio band cur fixed el bh
 	MASTER_ADJUSTMENTS_JSON=""
 	for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-device$/\1/p'); do
 		band="$(uci -q get wireless."$radio".band 2>/dev/null)"
 		cur="$(uci -q get wireless."$radio".channel 2>/dev/null)"
+		radio_is_mesh_backhaul "$radio" && bh=1 || bh=0
 		case "$cur" in
 			auto|'') : ;;
-			*) channel_in_pool "$band" "$cur" && continue ;;
+			*) [ "$bh" = "1" ] && continue
+				channel_in_pool "$band" "$cur" && continue ;;
 		esac
 		fixed="$(child_band_channel "$band" 0)" || continue
 		[ "$fixed" = "$cur" ] && continue
 		uci -q set wireless."$radio".channel="$fixed"
-		el="$(printf '{"radio":"%s","band":"%s","from":"%s","to":"%s"}' \
+		el="$(printf '{"radio":"%s","band":"%s","from":"%s","to":"%s","backhaul":%s}' \
 			"$(json_escape "$radio")" "$(json_escape "$band")" \
-			"$(json_escape "$cur")" "$(json_escape "$fixed")")"
+			"$(json_escape "$cur")" "$(json_escape "$fixed")" "$(bool "$bh")")"
 		if [ -n "$MASTER_ADJUSTMENTS_JSON" ]; then
 			MASTER_ADJUSTMENTS_JSON="$MASTER_ADJUSTMENTS_JSON,$el"
 		else
@@ -1182,19 +1611,33 @@ master_fix_channels()
 }
 
 # Rewrite channels in the child config copy so same-band APs never share a
-# channel. Runs in the current shell (uci staging must survive until the
-# caller commits) and returns the "channels":[...] JSON elements in the
-# global CHILD_CHANNEL_JSON.
+# channel.
+#
+# Radios carrying the 802.11s backhaul are deliberately left on the master's
+# channel: 802.11s peers only on a shared channel, so spreading those radios
+# would produce a child that can never establish a peer link.
+#
+# Runs in the current shell (uci staging must survive until the caller
+# commits) and returns the "channels":[...] JSON elements in the global
+# CHILD_CHANNEL_JSON.
 child_spread_channels()
 {
-	local dir="$1" offset="$2" radio band ch el
+	local dir="$1" offset="$2" radio band ch el bh
 	CHILD_CHANNEL_JSON=""
 	for radio in $(uci -c "$dir" -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-device$/\1/p'); do
 		band="$(uci -c "$dir" -q get wireless."$radio".band 2>/dev/null)"
-		ch="$(child_band_channel "$band" "$offset")" || continue
+		if radio_is_mesh_backhaul "$radio"; then
+			bh=1
+			# master_fix_channels already committed the pinned value
+			ch="$(uci -q get wireless."$radio".channel 2>/dev/null)"
+			[ -n "$ch" ] || ch="$(child_band_channel "$band" 0)" || continue
+		else
+			bh=0
+			ch="$(child_band_channel "$band" "$offset")" || continue
+		fi
 		uci -c "$dir" -q set wireless."$radio".channel="$ch"
-		el="$(printf '{"radio":"%s","band":"%s","channel":"%s"}' \
-			"$(json_escape "$radio")" "$(json_escape "$band")" "$(json_escape "$ch")")"
+		el="$(printf '{"radio":"%s","band":"%s","channel":"%s","backhaul":%s}' \
+			"$(json_escape "$radio")" "$(json_escape "$band")" "$(json_escape "$ch")" "$(bool "$bh")")"
 		if [ -n "$CHILD_CHANNEL_JSON" ]; then
 			CHILD_CHANNEL_JSON="$CHILD_CHANNEL_JSON,$el"
 		else
@@ -1275,6 +1718,73 @@ reload_network_later()
 	' </dev/null >/dev/null 2>&1 &
 }
 
+# ---------------------------------------------------------------------------
+# Configuration backups.
+#
+# Applying can move the management address or detach the port carrying it, so
+# the four config files are copied aside beforehand and can be restored from
+# the page without serial access.
+# ---------------------------------------------------------------------------
+backup_configs()
+{
+	local tag="$1" dir f ok=0
+	[ -d "$BACKUP_ROOT" ] || mkdir -p "$BACKUP_ROOT" 2>/dev/null || return 0
+	dir="$BACKUP_ROOT/$(date +%Y%m%d-%H%M%S 2>/dev/null || date +%s)-${tag:-apply}"
+	[ -d "$dir" ] && return 0
+	mkdir -p "$dir" 2>/dev/null || return 0
+	for f in network wireless dhcp firewall; do
+		if [ -f "/etc/config/$f" ]; then
+			cp -p "/etc/config/$f" "$dir/$f" 2>/dev/null && ok=1
+		fi
+	done
+	[ "$ok" = "1" ] || { rmdir "$dir" 2>/dev/null; return 0; }
+	backup_rotate
+	return 0
+}
+
+backup_rotate()
+{
+	local d n=0
+	[ -d "$BACKUP_ROOT" ] || return 0
+	for d in $(ls -1r "$BACKUP_ROOT" 2>/dev/null); do
+		n=$((n + 1))
+		[ "$n" -gt "$BACKUP_KEEP" ] && rm -rf "$BACKUP_ROOT/$d" 2>/dev/null
+	done
+	return 0
+}
+
+list_backups()
+{
+	local d first=1
+	printf '['
+	for d in $(ls -1r "$BACKUP_ROOT" 2>/dev/null); do
+		[ -f "$BACKUP_ROOT/$d/network" ] || continue
+		[ "$first" = "1" ] || printf ','
+		printf '{"name":"%s","time":"%s"}' "$(json_escape "$d")" \
+			"$(json_escape "$(date -r "$BACKUP_ROOT/$d/network" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)")"
+		first=0
+	done
+	printf ']'
+}
+
+restore_backup()
+{
+	local args="$1" name f dir
+	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
+	json_get_var name name
+	case "$name" in
+		''|.*|*/*|*[^A-Za-z0-9_-]*) printf '{"success":false,"error":"invalid backup name"}'; return ;;
+	esac
+	dir="$BACKUP_ROOT/$name"
+	[ -f "$dir/network" ] || { printf '{"success":false,"error":"备份不存在"}'; return; }
+	backup_configs "pre-restore"
+	for f in network wireless dhcp firewall; do
+		[ -f "$dir/$f" ] && cp -p "$dir/$f" "/etc/config/$f" 2>/dev/null
+	done
+	reload_network_later
+	printf '{"success":true,"restored":"%s"}' "$(json_escape "$name")"
+}
+
 delete_mesh_sections()
 {
 	local i
@@ -1285,31 +1795,135 @@ delete_mesh_sections()
 	done
 }
 
+# ---------------------------------------------------------------------------
+# 802.11s operating parameters.
+#
+# netifd supports far more than the handful this page writes by default
+# (mesh_fwding / mesh_ttl / mesh_auto_open_plinks / mcast_rate). Every other
+# parameter is optional: an empty value removes the UCI option so the kernel
+# default applies again. Names are taken verbatim from netifd's
+# mesh_param_list - including the upstream typo mesh_sync_offset_max_neighor.
+# ---------------------------------------------------------------------------
+apply_mesh_params()
+{
+	local sec="$1" params="$2" p v
+
+	# clear first so a field the operator emptied really falls back to the
+	# kernel default instead of keeping a stale value
+	for p in $MESH_PARAM_INT $MESH_PARAM_BOOL $MESH_PARAM_STRING; do
+		uci -q delete wireless."$sec"."$p" 2>/dev/null
+	done
+
+	[ -n "$params" ] || return 0
+	valid_text_value "$params" || return 1
+
+	for p in $MESH_PARAM_INT $MESH_PARAM_BOOL $MESH_PARAM_STRING; do
+		v="$(jsonfilter -s "$params" -e "@.$p" 2>/dev/null)"
+		[ -n "$v" ] || continue
+		case " $MESH_PARAM_INT " in
+			*" $p "*) valid_int "$v" || return 1 ;;
+		esac
+		case " $MESH_PARAM_BOOL " in
+			*" $p "*)
+				case "$v" in 0|1) ;; *) return 1 ;; esac
+				;;
+		esac
+		case " $MESH_PARAM_STRING " in
+			*" $p "*)
+				case "$v" in active|light|deep) ;; *) return 1 ;; esac
+				;;
+		esac
+		uci -q set wireless."$sec"."$p"="$v"
+	done
+	return 0
+}
+
+mesh_param_list_json()
+{
+	local sec="$1" p v first=1
+	printf '{'
+	for p in $MESH_PARAM_INT $MESH_PARAM_BOOL $MESH_PARAM_STRING; do
+		v="$(uci -q get wireless."$sec"."$p" 2>/dev/null)"
+		[ -n "$v" ] || continue
+		[ "$first" = "1" ] || printf ','
+		printf '"%s":"%s"' "$p" "$(json_escape "$v")"
+		first=0
+	done
+	printf '}'
+}
+
+# One batman-adv mesh setting. $3 is the default used when the operator left
+# the field empty or typed something out of range - netifd would reject a bad
+# value at reload time and take the whole interface down, so clamp instead.
+bat_param_value()
+{
+	local key="$1" adv="$2" v
+	v="$(jsonfilter -s "$adv" -e "@.$key" 2>/dev/null)"
+	if [ -n "$v" ]; then
+		case "$key" in
+			hop_penalty)
+				if valid_uint "$v" && [ "$v" -le 255 ] 2>/dev/null; then printf '%s' "$v"; return 0; fi ;;
+			orig_interval)
+				if valid_uint "$v" && [ "$v" -le 100000 ] 2>/dev/null; then printf '%s' "$v"; return 0; fi ;;
+			multicast_fanout)
+				if valid_uint "$v" && [ "$v" -ge 1 ] 2>/dev/null && [ "$v" -le 64 ] 2>/dev/null; then
+					printf '%s' "$v"; return 0; fi ;;
+			log_level)
+				if valid_uint "$v" && [ "$v" -le 15 ] 2>/dev/null; then printf '%s' "$v"; return 0; fi ;;
+			fragmentation|network_coding|bonding|multicast_mode|distributed_arp_table|bridge_loop_avoidance|ap_isolation)
+				case "$v" in 0|1) printf '%s' "$v"; return 0 ;; esac ;;
+		esac
+	fi
+	printf '%s' "$3"
+}
+
 enable_batman_core()
 {
+	local algo="$1" adv="$2"
+	case "$algo" in
+		BATMAN_IV|BATMAN_V) ;;
+		*) algo=BATMAN_IV ;;
+	esac
 	uci -q set network.bat0='interface'
 	uci -q set network.bat0.proto='batadv'
-	uci -q set network.bat0.routing_algo='BATMAN_IV'
+	uci -q set network.bat0.routing_algo="$algo"
 	uci -q set network.bat0.aggregated_ogms='1'
-	uci -q set network.bat0.ap_isolation='0'
-	uci -q set network.bat0.bonding='0'
-	uci -q set network.bat0.bridge_loop_avoidance='1'
-	uci -q set network.bat0.distributed_arp_table='1'
-	uci -q set network.bat0.fragmentation='1'
-	uci -q set network.bat0.hop_penalty='30'
-	uci -q set network.bat0.log_level='0'
-	uci -q set network.bat0.multicast_fanout='16'
-	uci -q set network.bat0.multicast_mode='1'
-	uci -q set network.bat0.network_coding='0'
-	uci -q set network.bat0.orig_interval='1000'
+	uci -q set network.bat0.bridge_loop_avoidance="$(bat_param_value bridge_loop_avoidance "$adv" 1)"
+	uci -q set network.bat0.distributed_arp_table="$(bat_param_value distributed_arp_table "$adv" 1)"
+	uci -q set network.bat0.fragmentation="$(bat_param_value fragmentation "$adv" 1)"
+	uci -q set network.bat0.hop_penalty="$(bat_param_value hop_penalty "$adv" 30)"
+	uci -q set network.bat0.log_level="$(bat_param_value log_level "$adv" 0)"
+	uci -q set network.bat0.multicast_fanout="$(bat_param_value multicast_fanout "$adv" 16)"
+	uci -q set network.bat0.multicast_mode="$(bat_param_value multicast_mode "$adv" 1)"
+	uci -q set network.bat0.network_coding="$(bat_param_value network_coding "$adv" 0)"
+	uci -q set network.bat0.orig_interval="$(bat_param_value orig_interval "$adv" 1000)"
+	uci -q set network.bat0.bonding="$(bat_param_value bonding "$adv" 0)"
+	uci -q set network.bat0.ap_isolation="$(bat_param_value ap_isolation "$adv" 0)"
 	ensure_lan_bridge
 	ensure_bridge_port br-lan bat0
+}
+
+bat_settings_json()
+{
+	local k v first=1
+	printf '{'
+	for k in routing_algo aggregated_ogms bridge_loop_avoidance distributed_arp_table \
+		fragmentation hop_penalty log_level multicast_fanout multicast_mode \
+		network_coding orig_interval bonding ap_isolation gw_mode gw_sel_class gw_bandwidth; do
+		v="$(uci -q get network.bat0."$k" 2>/dev/null)"
+		[ -n "$v" ] || continue
+		[ "$first" = "1" ] || printf ','
+		printf '"%s":"%s"' "$k" "$(json_escape "$v")"
+		first=0
+	done
+	printf '}'
 }
 
 apply_mesh()
 {
 	local args="$1" wired wireless mesh_radios mesh_id mesh_key gateway gw_bandwidth gw_sel_class ap_sync ap_configs radio idx netif ifname
 	local role backhaul unified unified_ssid unified_encryption unified_key channels mesh_radio slave_ip_suffix
+	local mesh_proto mesh_params bat_algo bat_advanced use_batman fwding
 	local old_iface=""
 
 	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
@@ -1341,6 +1955,10 @@ apply_mesh()
 	json_get_var channels channels
 	json_get_var mesh_radio mesh_radio
 	json_get_var slave_ip_suffix slave_ip_suffix
+	json_get_var mesh_proto mesh_proto
+	json_get_var mesh_params mesh_params
+	json_get_var bat_algo bat_algo
+	json_get_var bat_advanced bat_advanced
 
 	# Backhaul mode is the primary switch; the legacy wired/wireless flags
 	# are still accepted when no mode is supplied. Only one link is offered
@@ -1376,6 +1994,19 @@ apply_mesh()
 	gateway="${gateway:-off}"
 	gw_bandwidth=""
 	gw_sel_class="${gw_sel_class:-20}"
+
+	case "$mesh_proto" in
+		''|batman) mesh_proto=batman ;;
+		hwmp) ;;
+		*) printf '{"success":false,"error":"invalid backhaul protocol"}'; return ;;
+	esac
+	# hwmp describes how the *wireless* link routes. A wired backhaul has no
+	# L2 routing protocol of its own, so it keeps batman-adv regardless.
+	use_batman=1
+	if [ "$mesh_proto" = "hwmp" ] && [ "$wired" != "1" ]; then
+		use_batman=0
+	fi
+	if [ "$mesh_proto" = "hwmp" ]; then fwding=1; else fwding=0; fi
 
 	# Wired backhaul always rides br-lan itself: the bridge is the
 	# batman-adv hardif and every LAN/WAN port transparently carries mesh
@@ -1435,21 +2066,30 @@ apply_mesh()
 		[ "$old_iface" = "br-lan" ] && old_iface=""
 	fi
 
+	backup_configs "mesh"
 	delete_mesh_sections
 
 	if [ "$wired" = "1" ] || [ "$wireless" = "1" ]; then
-		enable_batman_core
-		uci -q set network.bat0.gw_mode="$gateway"
-		uci -q set network.bat0.meshconf_ap_sync="$ap_sync"
-		uci -q delete network.bat0.gw_bandwidth 2>/dev/null
-		uci -q delete network.bat0.gw_sel_class 2>/dev/null
-		if [ "$gateway" = "server" ]; then
-			# no UI knob any more: always announce the maximum bandwidth so
-			# gateway selection depends on link quality only
-			[ -n "$gw_bandwidth" ] || gw_bandwidth="$GW_BANDWIDTH_MAX"
-			uci -q set network.bat0.gw_bandwidth="$gw_bandwidth"
-		elif [ "$gateway" = "client" ]; then
-			uci -q set network.bat0.gw_sel_class="$gw_sel_class"
+		if [ "$use_batman" = "1" ]; then
+			enable_batman_core "$bat_algo" "$bat_advanced"
+			uci -q set network.bat0.gw_mode="$gateway"
+			uci -q set network.bat0.meshconf_ap_sync="$ap_sync"
+			uci -q delete network.bat0.gw_bandwidth 2>/dev/null
+			uci -q delete network.bat0.gw_sel_class 2>/dev/null
+			if [ "$gateway" = "server" ]; then
+				# no UI knob any more: always announce the maximum bandwidth so
+				# gateway selection depends on link quality only
+				[ -n "$gw_bandwidth" ] || gw_bandwidth="$GW_BANDWIDTH_MAX"
+				uci -q set network.bat0.gw_bandwidth="$gw_bandwidth"
+			elif [ "$gateway" = "client" ]; then
+				uci -q set network.bat0.gw_sel_class="$gw_sel_class"
+			fi
+		else
+			# plain 802.11s with the kernel HWMP protocol: no batman-adv at
+			# all, the mesh interface is bridged into lan below
+			remove_bridge_port br-lan bat0
+			uci -q delete network.bat0 2>/dev/null
+			ensure_lan_bridge
 		fi
 
 		# master keeps the LAN address authority, a slave hands it over so
@@ -1463,7 +2103,7 @@ apply_mesh()
 		uci -q delete network.bat0 2>/dev/null
 	fi
 
-	if [ "$wired" = "1" ]; then
+	if [ "$wired" = "1" ] && [ "$use_batman" = "1" ]; then
 		# a port previously dedicated to mesh rejoins br-lan before the
 		# whole bridge is used as the hardif
 		if [ -n "$old_iface" ] && [ "$old_iface" != "br-lan" ] && valid_netdev_name "$old_iface"; then
@@ -1494,24 +2134,45 @@ apply_mesh()
 			mesh_radio_selected "$radio" "$mesh_radios" || continue
 			netif="meshconf_wmesh_$idx"
 			ifname="mesh_${radio}"
-			uci -q set network."$netif"='interface'
-			uci -q set network."$netif".proto='batadv_hardif'
-			uci -q set network."$netif".master='bat0'
-			uci -q set network."$netif".device="$ifname"
 			uci -q set wireless.meshconf_mesh_"$idx"='wifi-iface'
 			uci -q set wireless.meshconf_mesh_"$idx".device="$radio"
 			uci -q set wireless.meshconf_mesh_"$idx".ifname="$ifname"
 			uci -q set wireless.meshconf_mesh_"$idx".mode='mesh'
 			uci -q set wireless.meshconf_mesh_"$idx".mesh_id="$mesh_id"
-			uci -q set wireless.meshconf_mesh_"$idx".mesh_fwding='0'
-			uci -q set wireless.meshconf_mesh_"$idx".mesh_ttl='1'
-			uci -q set wireless.meshconf_mesh_"$idx".mesh_auto_open_plinks='0'
 			uci -q set wireless.meshconf_mesh_"$idx".mcast_rate='24000'
 			uci -q set wireless.meshconf_mesh_"$idx".encryption='sae'
 			uci -q set wireless.meshconf_mesh_"$idx".key="$mesh_key"
-			uci -q set wireless.meshconf_mesh_"$idx".network="$netif"
-			uci -q set wireless.meshconf_mesh_"$idx".disabled='0'
-			uci -q set network."$netif".mtu='2304'
+		uci -q set wireless.meshconf_mesh_"$idx".disabled='0'
+		# marker so the page can restore the selected backhaul protocol;
+		# ignored by netifd, which only reads the options it knows
+		uci -q set wireless.meshconf_mesh_"$idx".meshconf_proto="$mesh_proto"
+
+		# optional parameters first, so the defaults below only fill in
+			# what the operator left empty
+			apply_mesh_params "meshconf_mesh_$idx" "$mesh_params" || {
+				printf '{"success":false,"error":"802.11s 参数无效"}'
+				return
+			}
+			[ -n "$(uci -q get wireless.meshconf_mesh_"$idx".mesh_ttl 2>/dev/null)" ] ||
+				uci -q set wireless.meshconf_mesh_"$idx".mesh_ttl='1'
+			[ -n "$(uci -q get wireless.meshconf_mesh_"$idx".mesh_auto_open_plinks 2>/dev/null)" ] ||
+				uci -q set wireless.meshconf_mesh_"$idx".mesh_auto_open_plinks='0'
+			[ -n "$(uci -q get wireless.meshconf_mesh_"$idx".mesh_fwding 2>/dev/null)" ] ||
+				uci -q set wireless.meshconf_mesh_"$idx".mesh_fwding="$fwding"
+
+			if [ "$use_batman" = "1" ]; then
+				uci -q set network."$netif"='interface'
+				uci -q set network."$netif".proto='batadv_hardif'
+				uci -q set network."$netif".master='bat0'
+				uci -q set network."$netif".device="$ifname"
+				uci -q set network."$netif".mtu='2304'
+				uci -q set wireless.meshconf_mesh_"$idx".network="$netif"
+			else
+				# plain 802.11s: HWMP does the routing, so the mesh
+				# interface is bridged straight into the LAN
+				uci -q delete network."$netif" 2>/dev/null
+				uci -q set wireless.meshconf_mesh_"$idx".network='lan'
+			fi
 			idx=$((idx + 1))
 		done
 	fi
@@ -1558,8 +2219,9 @@ apply_mesh()
 		esac
 	}
 
-	printf '{"success":true,"backhaul":"%s","role":"%s","wired":%s,"wireless":%s,"gateway":"%s","radios":%d,"unified":%s,"ap_sync":%s}' \
-		"$(json_escape "$backhaul")" "$(json_escape "$role")" "$(bool "$wired")" "$(bool "$wireless")" "$gateway" "$idx" "$(bool "$unified")" "$(bool "$ap_sync")"
+	printf '{"success":true,"backhaul":"%s","role":"%s","wired":%s,"wireless":%s,"gateway":"%s","radios":%d,"unified":%s,"ap_sync":%s,"mesh_proto":"%s","batman":%s}' \
+		"$(json_escape "$backhaul")" "$(json_escape "$role")" "$(bool "$wired")" "$(bool "$wireless")" "$gateway" "$idx" "$(bool "$unified")" "$(bool "$ap_sync")" \
+		"$(json_escape "$mesh_proto")" "$(bool "$use_batman")"
 }
 
 mesh_wireless_count()
@@ -1611,10 +2273,40 @@ detect_mode()
 	fi
 }
 
+# The 802.11r mobility domain is shared by every AP of an SSID, so the page
+# offers the value already in use as the default for new SSIDs.
+first_mobility_domain()
+{
+	local sec d
+	for sec in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-iface$/\1/p'); do
+		d="$(uci -q get wireless."$sec".mobility_domain 2>/dev/null)"
+		[ -n "$d" ] && {
+			printf '%s' "$d"
+			return 0
+		}
+	done
+	return 0
+}
+
+foreign_mesh_json()
+{
+	local s first=1
+	printf '['
+	for s in $(foreign_mesh_sections); do
+		[ "$first" = "1" ] || printf ','
+		printf '"%s"' "$(json_escape "$s")"
+		first=0
+	done
+	printf ']'
+}
+
 get_status()
 {
 	local mode lan_ip wan_ip wan_proto wan_up mesh_enabled wired wireless_count mesh_id gateway gw_bandwidth gw_sel_class ap_sync ap_configs radio_count bat_up role
 	local dep_batctl dep_iw dep_wpad board host bat_device
+	local dep_wpad_mesh dep_iw_full wpad_var lan_dev mesh_proto
+	local mesh_params_val bat_settings mesh11sd ft_domain
+	local bridge_mode trunk_vlans
 
 	mode="$(detect_mode)"
 	lan_ip="$(first_lan_ip)"
@@ -1646,33 +2338,64 @@ get_status()
 	bat_device="$(ubus call network.interface.bat0 status 2>/dev/null | jsonfilter -e '@.l3_device' 2>/dev/null)"
 	dep_batctl="$(command_flag batctl)"
 	dep_iw="$(command_flag iw)"
-	dep_wpad=0
-	command -v wpa_supplicant >/dev/null 2>&1 && dep_wpad=1
-	command -v hostapd >/dev/null 2>&1 && dep_wpad=1
+	dep_wpad="$(command_flag wpa_supplicant)"
+	# wpad-basic ships the binaries but has no 802.11s; netifd's own probe
+	# (wpa_supplicant -vmesh) is the only trustworthy answer
+	dep_wpad_mesh=0
+	wpad_mesh_support && dep_wpad_mesh=1
+	dep_iw_full=0
+	iw_full_support && dep_iw_full=1
+	wpad_var="$(wpad_variant)"
 	board="$(board_name_safe)"
 	host="$(hostname_safe)"
+	lan_dev="$(uci -q get network.lan.device 2>/dev/null)"
 
-	printf '{"mode":"%s","board":"%s","hostname":"%s","lan_ip":"%s","wan_proto":"%s","wan_up":%s,"wan_ip":"%s",' \
-		"$mode" "$(json_escape "$board")" "$(json_escape "$host")" "$(json_escape "$lan_ip")" "$(json_escape "$wan_proto")" "$wan_up" "$(json_escape "$wan_ip")"
+	# backhaul routing protocol: the marker written by apply_mesh wins,
+	# otherwise derive it from how the mesh interface is attached
+	mesh_proto="$(uci -q get wireless.meshconf_mesh_0.meshconf_proto 2>/dev/null)"
+	case "$mesh_proto" in
+		batman|hwmp) ;;
+		*)
+			mesh_proto=batman
+			if [ "$mesh_enabled" != "1" ] && [ "$wireless_count" -gt 0 ] && \
+				[ "$(uci -q get wireless.meshconf_mesh_0.network 2>/dev/null)" = "lan" ]; then
+				mesh_proto=hwmp
+			fi
+			;;
+	esac
+	mesh_params_val="$(mesh_param_list_json meshconf_mesh_0)"
+	bat_settings="$(bat_settings_json)"
+	mesh11sd="$(mesh11sd_state)"
+	ft_domain="$(first_mobility_domain)"
+
+	printf '{"mode":"%s","board":"%s","hostname":"%s","lan_ip":"%s","wan_proto":"%s","wan_up":%s,"wan_ip":"%s","lan_device":"%s","wpad_variant":"%s","ft_domain":"%s",' \
+		"$mode" "$(json_escape "$board")" "$(json_escape "$host")" "$(json_escape "$lan_ip")" "$(json_escape "$wan_proto")" "$wan_up" "$(json_escape "$wan_ip")" \
+		"$(json_escape "$lan_dev")" "$(json_escape "$wpad_var")" "$(json_escape "$ft_domain")"
 	printf '"mesh":{"enabled":%s,"up":%s,"device":"%s","role":"%s","wired":%s,"wireless_count":%d,"mesh_radios":' \
 		"$(bool "$mesh_enabled")" "$bat_up" "$(json_escape "$bat_device")" "$(json_escape "$role")" \
 		"$(bool "$wired")" "$wireless_count"
 	mesh_radio_list
-	printf ',"mesh_id":"%s","gateway":"%s","gw_bandwidth":"%s","gw_sel_class":"%s","ap_sync":%s,"ap_configs":%s,"radio_count":%d},' \
+	printf ',"mesh_id":"%s","gateway":"%s","gw_bandwidth":"%s","gw_sel_class":"%s","ap_sync":%s,"ap_configs":%s,"radio_count":%d,"proto":"%s","params":%s,"batman":%s},' \
 		"$(json_escape "$mesh_id")" "$(json_escape "$gateway")" \
 		"$(json_escape "$gw_bandwidth")" "$(json_escape "$gw_sel_class")" "$(bool "$ap_sync")" \
-		"$ap_configs" "$radio_count"
+		"$ap_configs" "$radio_count" "$mesh_proto" "$mesh_params_val" "$bat_settings"
 	printf '"addresses":'
 	interface_ipv4_addresses
 	printf ',"networks":'
 	network_option_list
 	printf ',"vlans":'
 	vlan_list
+	bridge_mode="$(bridge_vlan_mode)"
+	trunk_vlans="$(bat0_vlan_ids)"
 	printf ',"bridge":{"name":"br-lan","ports":'
 	bridge_port_list
-	printf '}'
-	printf ',"deps":{"batctl":%s,"iw":%s,"wpad":%s}}' \
-		"$(bool "$dep_batctl")" "$(bool "$dep_iw")" "$(bool "$dep_wpad")"
+	printf ',"mode":"%s","trunk_vlans":"%s"}' "$bridge_mode" "$(json_escape "$trunk_vlans")"
+	printf ',"mesh11sd":%s,"foreign_mesh":%s,' "$mesh11sd" "$(foreign_mesh_json)"
+	printf '"backups":'
+	list_backups
+	printf ',"deps":{"batctl":%s,"iw":%s,"wpad":%s,"wpad_mesh":%s,"iw_full":%s}}' \
+		"$(bool "$dep_batctl")" "$(bool "$dep_iw")" "$(bool "$dep_wpad")" \
+		"$dep_wpad_mesh" "$dep_iw_full"
 }
 
 append_node()
@@ -1810,15 +2533,223 @@ EOF
 	printf '{"nodes":[%s],"links":[%s],"updated":%d}' "$DISC_NODES" "$DISC_LINKS" "$(date +%s 2>/dev/null || echo 0)"
 }
 
+# ---------------------------------------------------------------------------
+# 802.11s link diagnostics.
+#
+# batctl only reports what batman-adv knows. With a plain HWMP backhaul - or
+# when the peer link never comes up - there is no batman-adv at all, so the
+# kernel is the only source of truth:
+#   iw dev X station dump   -> peer link state, signal, rate, per peer metric
+#   iw dev X mpath dump     -> the HWMP path table (next hop, metric, hops)
+#   iw dev X get mesh_param -> the values the driver actually runs with, which
+#                              can differ from UCI when netifd rejected one
+# ---------------------------------------------------------------------------
+valid_mac()
+{
+	printf '%s' "$1" | grep -Eq '^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$'
+}
+
+# Network device names of every mesh interface that is up right now - managed
+# sections as well as hand written or mesh11sd owned ones.
+mesh_runtime_ifaces()
+{
+	local sec ifn out=""
+	for sec in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-iface$/\1/p'); do
+		[ "$(uci -q get wireless."$sec".mode 2>/dev/null)" = "mesh" ] || continue
+		ifn="$(uci -q get wireless."$sec".ifname 2>/dev/null)"
+		[ -n "$ifn" ] || continue
+		[ -d "/sys/class/net/$ifn" ] || continue
+		out="${out:+$out }$ifn"
+	done
+	# no usable ifname in UCI (netifd generated names): ask the kernel
+	if [ -z "$out" ] && command -v iw >/dev/null 2>&1; then
+		out="$(iw dev 2>/dev/null | awk '/^[[:space:]]*Interface / { d = $2 } /type mesh point/ { if (d != "") printf "%s ", d }')"
+	fi
+	printf '%s' "$out"
+}
+
+mesh_iface_info()
+{
+	local ifn="$1"
+	iw dev "$ifn" info 2>/dev/null | awk '
+		/^[[:space:]]*wiphy / { phy = "phy" $2 }
+		/type mesh point/ { mp = 1 }
+		/^[[:space:]]*channel / {
+			line = $0
+			sub(/^[ \t]+/, "", line)
+			ch = line
+			sub(/,.*$/, "", ch)
+			sub(/^channel /, "", ch)
+			if (match(line, /width: [^,]+/)) width = substr(line, RSTART + 7, RLENGTH - 7)
+		}
+		END {
+			printf "{\"phy\":\"%s\",\"channel\":\"%s\",\"width\":\"%s\",\"mesh_point\":%s}", \
+				phy, ch, width, (mp ? "true" : "false")
+		}'
+}
+
+mesh_peer_list()
+{
+	local ifn="$1"
+	iw dev "$ifn" station dump 2>/dev/null | awk '
+		function kv_out(k) { return (k in kv ? kv[k] : "") }
+		function emit() {
+			if (mac == "") return
+			if (n++) printf ","
+			printf "{\"mac\":\"%s\",\"plink\":\"%s\",\"signal\":\"%s\",\"tx_bitrate\":\"%s\"," \
+				"\"rx_bytes\":\"%s\",\"tx_bytes\":\"%s\",\"inactive\":\"%s\",\"metric\":\"%s\"," \
+				"\"airtime\":\"%s\",\"throughput\":\"%s\",\"authorized\":\"%s\"}", \
+				mac, kv_out("mesh plink"), kv_out("signal"), kv_out("tx bitrate"), \
+				kv_out("rx bytes"), kv_out("tx bytes"), kv_out("inactive time"), \
+				kv_out("mesh metric"), kv_out("mesh airtime link metric"), \
+				kv_out("mesh expected throughput"), kv_out("mesh authorized")
+		}
+		/^Station / { emit(); mac = $2; delete kv; next }
+		{
+			line = $0
+			sub(/^[ \t]+/, "", line)
+			p = index(line, ":")
+			if (p == 0) next
+			k = substr(line, 1, p - 1)
+			v = substr(line, p + 1)
+			sub(/[ \t]+$/, "", k)
+			sub(/^[ \t]+/, "", v)
+			kv[k] = v
+		}
+		END { emit(); printf "" }'
+}
+
+mesh_mpath_list()
+{
+	local ifn="$1"
+	iw dev "$ifn" mpath dump 2>/dev/null | awk '
+		$1 ~ /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/ {
+			if (n++) printf ","
+			printf "{\"dst\":\"%s\",\"next_hop\":\"%s\",\"iface\":\"%s\",\"sn\":\"%s\"," \
+				"\"metric\":\"%s\",\"qlen\":\"%s\",\"exptime\":\"%s\",\"flags\":\"%s\"}", \
+				$1, $2, $3, $4, $5, $6, $7, $NF
+		}'
+}
+
+mesh_live_params()
+{
+	local ifn="$1"
+	iw dev "$ifn" get mesh_param 2>/dev/null | awk '
+		{
+			p = index($0, "=")
+			if (p == 0) next
+			k = substr($0, 1, p - 1)
+			v = substr($0, p + 1)
+			gsub(/^[ \t]+|[ \t]+$/, "", k)
+			gsub(/^[ \t]+|[ \t]+$/, "", v)
+			m = split(k, a, /[ \t]+/)
+			k = a[m]
+			if (k == "") next
+			if (n++) printf ","
+			printf "\"%s\":\"%s\"", k, v
+		}'
+}
+
+batman_diag_json()
+{
+	local algo gws ifs ocount tcount
+	[ -d /sys/class/net/bat0 ] || { printf '{"present":false}'; return 0; }
+	algo="$(cat /sys/class/net/bat0/mesh/routing_algo 2>/dev/null)"
+	gws="$(batctl gwl 2>/dev/null | awk '
+		{
+			mac = ""; tq = ""; bw = ""
+			for (i = 1; i <= NF; i++) {
+				if (mac == "" && $i ~ /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/) { mac = $i; continue }
+				if (mac != "" && tq == "" && $i ~ /^\(?[0-9]+\)?$/) { tq = $i; gsub(/[()]/, "", tq); continue }
+				if ($i ~ /^[0-9.]+\/[0-9.]+$/) bw = $i
+			}
+			if (mac == "") next
+			if (n++) printf ","
+			printf "{\"mac\":\"%s\",\"tq\":\"%s\",\"bandwidth\":\"%s\",\"selected\":%s}", \
+				mac, tq, bw, (index($0, "=>") ? "true" : "false")
+		}')"
+	ifs="$(batctl if 2>/dev/null | awk '
+		{
+			p = index($0, ":")
+			if (p == 0) next
+			n = substr($0, 1, p - 1)
+			s = substr($0, p + 1)
+			gsub(/^[ \t]+|[ \t]+$/, "", n)
+			gsub(/^[ \t]+|[ \t]+$/, "", s)
+			if (n == "") next
+			if (c++) printf ","
+			printf "{\"iface\":\"%s\",\"status\":\"%s\"}", n, s
+		}')"
+	ocount="$(batctl o 2>/dev/null | grep -Ec '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}')"
+	tcount="$(batctl tg 2>/dev/null | grep -Ec '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}')"
+	printf '{"present":true,"routing_algo":"%s","gw_mode":"%s","gateways":[%s],"hardifs":[%s],"originators":%d,"translations":%d}' \
+		"$(json_escape "$algo")" "$(json_escape "$(batctl gw_mode 2>/dev/null)")" \
+		"$gws" "$ifs" "${ocount:-0}" "${tcount:-0}"
+}
+
+get_mesh_diag()
+{
+	local ifn sec mesh_id first=1
+	printf '{"ifaces":['
+	for ifn in $(mesh_runtime_ifaces); do
+		[ "$first" = "1" ] || printf ','
+		mesh_id=""
+		for sec in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-iface$/\1/p'); do
+			[ "$(uci -q get wireless."$sec".ifname 2>/dev/null)" = "$ifn" ] || continue
+			mesh_id="$(uci -q get wireless."$sec".mesh_id 2>/dev/null)"
+			break
+		done
+		printf '{"iface":"%s","mesh_id":"%s","info":%s,"peers":[%s],"mpath":[%s],"params":{%s}}' \
+			"$(json_escape "$ifn")" "$(json_escape "$mesh_id")" \
+			"$(mesh_iface_info "$ifn")" "$(mesh_peer_list "$ifn")" \
+			"$(mesh_mpath_list "$ifn")" "$(mesh_live_params "$ifn")"
+		first=0
+	done
+	printf '],"batman":%s,"iw_full":%s,"updated":%d}' \
+		"$(batman_diag_json)" "$(iw_full_support && echo true || echo false)" \
+		"$(date +%s 2>/dev/null || echo 0)"
+}
+
+# Manually blocking a peer is the 802.11s equivalent of a blacklist; it needs
+# "iw ... plink_action", which only the iw-full build carries.
+block_mesh_peer()
+{
+	local args="$1" ifn mac action
+	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
+	json_get_var ifn iface
+	json_get_var mac mac
+	json_get_var action action
+	case "$action" in
+		block|open) ;;
+		*) printf '{"success":false,"error":"invalid action"}'; return ;;
+	esac
+	valid_netdev_name "$ifn" || { printf '{"success":false,"error":"invalid interface"}'; return; }
+	valid_mac "$mac" || { printf '{"success":false,"error":"invalid MAC address"}'; return; }
+	iw_full_support || {
+		printf '{"success":false,"error":"需要 iw-full 才能手动阻塞邻居（opkg install iw-full）"}'
+		return
+	}
+	if iw dev "$ifn" station set "$mac" plink_action "$action" 2>/dev/null; then
+		printf '{"success":true,"iface":"%s","mac":"%s","action":"%s"}' \
+			"$(json_escape "$ifn")" "$(json_escape "$mac")" "$action"
+	else
+		printf '{"success":false,"error":"iw plink_action failed"}'
+	fi
+}
+
 case "$1" in
 	list)
-		printf '{"getStatus":{},"discoverMesh":{},"applyMesh":{"backhaul":"string","role":"string","wired":"string","wireless":"string","mesh_radio":"string","mesh_radios":"string","mesh_id":"string","mesh_key":"string","gateway":"string","gw_bandwidth":"string","gw_sel_class":"string","slave_ip_suffix":"string","unified":"string","unified_ssid":"string","unified_encryption":"string","unified_key":"string","ap_sync":"string","ap_configs":"string","channels":"string"},"generateChildConfig":{"ip_suffix":"string","offset":"string"},"applyVlans":{"vlans":"string"},"applyWireless":{"ap_configs":"string","channels":"string"}}'
+		printf '{"getStatus":{},"discoverMesh":{},"getMeshDiag":{},"listBackups":{},"restoreBackup":{"name":"string"},"blockMeshPeer":{"iface":"string","mac":"string","action":"string"},"applyMesh":{"backhaul":"string","role":"string","wired":"string","wireless":"string","mesh_radio":"string","mesh_radios":"string","mesh_id":"string","mesh_key":"string","gateway":"string","gw_bandwidth":"string","gw_sel_class":"string","slave_ip_suffix":"string","unified":"string","unified_ssid":"string","unified_encryption":"string","unified_key":"string","ap_sync":"string","ap_configs":"string","channels":"string","mesh_proto":"string","mesh_params":"string","bat_algo":"string","bat_advanced":"string"},"generateChildConfig":{"ip_suffix":"string","offset":"string"},"applyVlans":{"vlans":"string"},"applyWireless":{"ap_configs":"string","channels":"string"}}'
 		;;
 	call)
 		args="$(cat)"
 		case "$2" in
 			getStatus) get_status ;;
 			discoverMesh) discover_mesh ;;
+			getMeshDiag) get_mesh_diag ;;
+			listBackups) printf '{"backups":'; list_backups; printf '}' ;;
+			restoreBackup) restore_backup "$args" ;;
+			blockMeshPeer) block_mesh_peer "$args" ;;
 			applyMesh) apply_mesh "$args" ;;
 			generateChildConfig) generate_child_config "$args" ;;
 			applyVlans) apply_vlans "$args" ;;
