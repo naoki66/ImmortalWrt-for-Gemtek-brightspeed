@@ -150,15 +150,50 @@ wifi_rev()
 	printf '%s' "$r"
 }
 
-# Stable 4-hex-digit mobility domain per network: the same network name on
-# every unit yields the same domain, which is what lets a client do an FT
-# transition between them. A domain the operator set by hand is kept.
+# Stable 4-hex-digit mobility domain: the same input on every unit yields the
+# same domain, which is what lets a client do an FT transition between them.
 md_for()
 {
 	local h
 	h="$(printf '%s' "$1" | md5sum 2>/dev/null | cut -c1-4)"
 	case "$h" in ''|*[!0-9a-f]*) h="1111" ;; esac
 	printf '%s' "$h"
+}
+
+# One domain per SSID: every unit (and every band) carrying a given SSID has to
+# land in the same domain for FT to be offered at all, while two different
+# SSIDs must not share one. The SSID is the key because it is the one thing
+# that is identical across units - `network` is only usually so.
+ap_md()
+{
+	local sec="$1" ssid net
+	ssid="$(uci -q get wireless."$sec".ssid 2>/dev/null)"
+	net="$(uci -q get wireless."$sec".network 2>/dev/null)"
+	[ -n "$net" ] || net="lan"
+	if [ -n "$ssid" ]; then md_for "$ssid"; else md_for "$net"; fi
+}
+
+# Fast BSS Transition needs a key to derive PMK-R0/R1 from, so an open or OWE
+# network gets k/v only.
+ft_ok()
+{
+	case "$(uci -q get wireless."$1".encryption 2>/dev/null)" in
+		''|none|owe) return 1 ;;
+	esac
+	return 0
+}
+
+# WPA3 (SAE) and WPA3-mixed do not use a PSK at all, so there is nothing for
+# hostapd to derive a local PMK-R0 from - ft_psk_generate_local has to stay 0
+# on those networks or the R0/R1 keys come out wrong and FT never completes.
+# The wpa3* spellings are what LuCI writes when it is asked for WPA3 in words
+# rather than by its SAE name.
+sae_enc()
+{
+	case "$(uci -q get wireless."$1".encryption 2>/dev/null)" in
+		sae|sae-mixed|wpa3|wpa3-mixed|*sae*) return 0 ;;
+	esac
+	return 1
 }
 
 # ---------------------------------------------------------------------------
@@ -240,7 +275,7 @@ radios_json()
 
 aps_json()
 {
-	local out="" first=1 sec ssid band net enc k v r md
+	local out="" first=1 sec ssid band net enc k v r md mdset
 	for sec in $(ap_sections); do
 		ssid="$(uci -q get wireless."$sec".ssid 2>/dev/null)"
 		band="$(uci -q get wireless."$sec".band 2>/dev/null)"
@@ -249,12 +284,16 @@ aps_json()
 		[ -n "$net" ] || net="lan"
 		enc="$(uci -q get wireless."$sec".encryption 2>/dev/null)"
 		k="$(uci -q get wireless."$sec".ieee80211k 2>/dev/null)"
-		v="$(uci -q get wireless."$sec".ieee80211v 2>/dev/null)"
-		[ "$v" = "1" ] || v="$(uci -q get wireless."$sec".bss_transition 2>/dev/null)"
+		v="$(uci -q get wireless."$sec".wnm_sleep_mode 2>/dev/null)"
+		[ "$v" = "1" ] || v="$(uci -q get wireless."$sec".ieee80211v 2>/dev/null)"
 		r="$(uci -q get wireless."$sec".ieee80211r 2>/dev/null)"
 		md="$(uci -q get wireless."$sec".mobility_domain 2>/dev/null)"
+		mdset=0; [ -n "$md" ] && mdset=1
+		# Show what would be written even before R is switched on, so the
+		# operator can check the grouping instead of guessing it.
+		[ -n "$md" ] || md="$(ap_md "$sec")"
 		[ "$first" = "1" ] || out="$out,"
-		out="$out{\"ssid\":\"$(json_escape "$ssid")\",\"band\":\"$(json_escape "$band")\",\"network\":\"$(json_escape "$net")\",\"encryption\":\"$(json_escape "$enc")\",\"k\":$(bool "$k"),\"v\":$(bool "$v"),\"r\":$(bool "$r"),\"md\":\"$(json_escape "$md")\"}"
+		out="$out{\"section\":\"$(json_escape "$sec")\",\"ssid\":\"$(json_escape "$ssid")\",\"band\":\"$(json_escape "$band")\",\"network\":\"$(json_escape "$net")\",\"encryption\":\"$(json_escape "$enc")\",\"k\":$(bool "$k"),\"v\":$(bool "$v"),\"r\":$(bool "$r"),\"ft_ok\":$(ft_ok "$sec" && echo true || echo false),\"wpa3\":$(sae_enc "$sec" && echo true || echo false),\"md\":\"$(json_escape "$md")\",\"md_set\":$(bool "$mdset")}"
 		first=0
 	done
 	printf '%s' "$out"
@@ -312,21 +351,17 @@ mesh_json()
 
 sync_json()
 {
-	local enabled key port last peer keep running=0
+	local enabled key port last peer mode running=0
 	enabled="$(mc_get sync.enabled 0)"
 	key="$(mc_get sync.key '')"
 	port="$(sync_port)"
 	last="$(mc_get sync.last_sync 0)"
 	peer="$(mc_get sync.last_peer '')"
-	# Default on: mc_get only falls back when the option is missing entirely,
-	# and a unit that has never been configured here must still keep its
-	# channel rather than inherit a stranger's.
-	keep="$(uci -q get meshconf.sync.keep_channel 2>/dev/null)"
-	[ -n "$keep" ] || keep=1
+	if [ "$MESHCONF_LIB" = "1" ]; then mode="$(meshconf_channel_mode)"; else mode=stagger; fi
 	ps w 2>/dev/null | grep -q "[m]eshconf-beacon" && running=1
-	printf '{"enabled":%s,"port":"%s","key_set":%s,"running":%s,"last_sync":%s,"last_peer":"%s","keep_channel":%s,"self_ip":"%s","self_mac":"%s","peers":[%s]}' \
+	printf '{"enabled":%s,"port":"%s","key_set":%s,"running":%s,"last_sync":%s,"last_peer":"%s","channel_mode":"%s","self_ip":"%s","self_mac":"%s","peers":[%s]}' \
 		"$(bool "$enabled")" "$port" "$(bool "$( [ -n "$key" ] && echo 1 )")" \
-		"$(bool "$running")" "${last:-0}" "$(json_escape "$peer")" "$(bool "$keep")" \
+		"$(bool "$running")" "${last:-0}" "$(json_escape "$peer")" "$(json_escape "$mode")" \
 		"$(json_escape "$(self_ip)")" "$(json_escape "$(self_mac)")" \
 		"$(manual_peers_json)"
 }
@@ -353,8 +388,8 @@ roaming_json()
 	for sec in $(ap_sections); do
 		total=$((total + 1))
 		k="$(uci -q get wireless."$sec".ieee80211k 2>/dev/null)"
-		v="$(uci -q get wireless."$sec".ieee80211v 2>/dev/null)"
-		[ "$v" = "1" ] || v="$(uci -q get wireless."$sec".bss_transition 2>/dev/null)"
+		v="$(uci -q get wireless."$sec".wnm_sleep_mode 2>/dev/null)"
+		[ "$v" = "1" ] || v="$(uci -q get wireless."$sec".ieee80211v 2>/dev/null)"
 		r="$(uci -q get wireless."$sec".ieee80211r 2>/dev/null)"
 		[ "$k" = "1" ] && [ "$v" = "1" ] && [ "$r" = "1" ] && ready=$((ready + 1))
 	done
@@ -462,39 +497,53 @@ apply_mesh()
 # ---------------------------------------------------------------------------
 # apply: 802.11k/v/r
 # ---------------------------------------------------------------------------
-ROAM_OPTS="ieee80211k ieee80211v bss_transition wnm_sleep_mode wnm_sleep_mode_no_keys proxy_arp ieee80211r mobility_domain ft_over_ds ft_psk_generate_local"
+# The three feature groups, exactly as the UI exposes them.
+#   k - neighbour + beacon reports, so a client can ask "what else is there"
+#   v - BTM transition and sleep mode, so the AP can tell it "go over there"
+#   r - fast BSS transition, so the move does not drop the session
+ROAM_K="ieee80211k rrm_neighbor_report rrm_beacon_report"
+ROAM_V="ieee80211v bss_transition wnm_sleep_mode wnm_sleep_mode_no_keys proxy_arp"
+ROAM_R="ieee80211r ft_over_ds reassociation_deadline ft_psk_generate_local mobility_domain"
+ROAM_ALL="$ROAM_K $ROAM_V $ROAM_R"
+
+# 802.11r for one interface. ft_over_ds=0 is "Over the Air", which is what
+# practically every client implements; the 20s reassociation deadline is the
+# usual compromise between "wait for a slow client" and "give up".
+#
+# ft_psk_generate_local is the exception: 1 everywhere except WPA3/SAE, where
+# it must be 0 (see sae_enc). It is written last so nothing can overwrite it.
+roam_r_on()
+{
+	local sec="$1"
+	uci -q set wireless."$sec".ieee80211r=1
+	uci -q set wireless."$sec".ft_over_ds=0
+	uci -q set wireless."$sec".reassociation_deadline=20000
+	uci -q set wireless."$sec".mobility_domain="$(ap_md "$sec")"
+	if sae_enc "$sec"; then
+		uci -q set wireless."$sec".ft_psk_generate_local=0
+	else
+		uci -q set wireless."$sec".ft_psk_generate_local=1
+	fi
+}
 
 apply_roaming()
 {
-	local args="$1" enabled sec net enc md opt
+	local args="$1" enabled sec opt
 	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
 	json_get_var enabled enabled
 	ensure_conf
 
 	if [ "$enabled" = "1" ]; then
 		for sec in $(ap_sections); do
-			uci -q set wireless."$sec".ieee80211k=1
-			uci -q set wireless."$sec".ieee80211v=1
-			uci -q set wireless."$sec".bss_transition=1
-			uci -q set wireless."$sec".wnm_sleep_mode=1
-			uci -q set wireless."$sec".wnm_sleep_mode_no_keys=1
-			uci -q set wireless."$sec".proxy_arp=1
-			# Fast BSS Transition needs a key to derive the PMK-R0/R1 from,
-			# so an open or OWE network gets k/v only.
-			enc="$(uci -q get wireless."$sec".encryption 2>/dev/null)"
-			case "$enc" in ''|none|owe) continue ;; esac
-			uci -q set wireless."$sec".ieee80211r=1
-			net="$(uci -q get wireless."$sec".network 2>/dev/null)"
-			[ -n "$net" ] || net="lan"
-			md="$(uci -q get wireless."$sec".mobility_domain 2>/dev/null)"
-			[ -n "$md" ] || uci -q set wireless."$sec".mobility_domain="$(md_for "$net")"
-			uci -q set wireless."$sec".ft_over_ds=0
-			uci -q set wireless."$sec".ft_psk_generate_local=1
+			for opt in $ROAM_K $ROAM_V; do
+				uci -q set wireless."$sec"."$opt"=1
+			done
+			ft_ok "$sec" && roam_r_on "$sec"
 		done
 		uci -q set meshconf.roaming.kvr=1
 	else
 		for sec in $(ap_sections); do
-			for opt in $ROAM_OPTS; do
+			for opt in $ROAM_ALL; do
 				uci -q delete wireless."$sec"."$opt" 2>/dev/null
 			done
 		done
@@ -509,17 +558,119 @@ apply_roaming()
 }
 
 # ---------------------------------------------------------------------------
+# apply: one k/v/r feature on one interface
+# ---------------------------------------------------------------------------
+toggle_roam()
+{
+	local args="$1" sec feat enabled opt
+	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
+	json_get_var sec section
+	json_get_var feat feature
+	json_get_var enabled enabled
+
+	# The section name comes straight from the browser, so it is checked
+	# against the real config instead of being handed to uci: otherwise any
+	# caller could write options into any UCI package.
+	case "$sec" in ''|*[!A-Za-z0-9_-]*) printf '{"success":false,"error":"invalid interface name"}'; return ;; esac
+	[ "$(uci -q get wireless."$sec" 2>/dev/null)" = "wifi-iface" ] || {
+		printf '{"success":false,"error":"interface does not exist"}'; return; }
+	[ "$(uci -q get wireless."$sec".mode 2>/dev/null)" = "ap" ] || {
+		printf '{"success":false,"error":"not an AP interface"}'; return; }
+
+	ensure_conf
+
+	if [ "$enabled" = "1" ]; then
+		case "$feat" in
+			k) for opt in $ROAM_K; do uci -q set wireless."$sec"."$opt"=1; done ;;
+			v) for opt in $ROAM_V; do uci -q set wireless."$sec"."$opt"=1; done ;;
+			r)
+				ft_ok "$sec" || {
+					printf '{"success":false,"error":"开放/OWE 网络无法开启 802.11r：FT 需要密钥来派生 PMK-R0/R1"}'
+					return; }
+				roam_r_on "$sec"
+				;;
+			*) printf '{"success":false,"error":"unknown feature"}'; return ;;
+		esac
+	else
+		case "$feat" in
+			k) for opt in $ROAM_K; do uci -q delete wireless."$sec"."$opt" 2>/dev/null; done ;;
+			v) for opt in $ROAM_V; do uci -q delete wireless."$sec"."$opt" 2>/dev/null; done ;;
+			r) for opt in $ROAM_R; do uci -q delete wireless."$sec"."$opt" 2>/dev/null; done ;;
+			*) printf '{"success":false,"error":"unknown feature"}'; return ;;
+		esac
+	fi
+
+	uci -q commit wireless 2>/dev/null
+	reload_wifi
+
+	printf '{"success":true,"section":"%s","feature":"%s","enabled":%s}' \
+		"$(json_escape "$sec")" "$feat" "$(bool "$enabled")"
+}
+
+# ---------------------------------------------------------------------------
+# apply: mobility domain, by hand
+# ---------------------------------------------------------------------------
+set_md()
+{
+	local args="$1" sec md ssid target n=0 eff
+	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
+	json_get_var sec section
+	json_get_var md md
+
+	# Same guard as toggle_roam: the section name arrives from the browser.
+	case "$sec" in ''|*[!A-Za-z0-9_-]*) printf '{"success":false,"error":"invalid interface name"}'; return ;; esac
+	[ "$(uci -q get wireless."$sec" 2>/dev/null)" = "wifi-iface" ] || {
+		printf '{"success":false,"error":"interface does not exist"}'; return; }
+	[ "$(uci -q get wireless."$sec".mode 2>/dev/null)" = "ap" ] || {
+		printf '{"success":false,"error":"not an AP interface"}'; return; }
+
+	md="$(printf '%s' "$md" | tr -d '	 \r\n' | tr 'A-F' 'a-f')"
+	case "$md" in
+		'') ;;                                                  # clear -> auto
+		*[!0-9a-f]*) printf '{"success":false,"error":"移动域必须是 4 位十六进制字符（0-9 a-f）"}'; return ;;
+		????) ;;
+		*) printf '{"success":false,"error":"移动域必须是 4 位十六进制字符（0-9 a-f）"}'; return ;;
+	esac
+
+	ensure_conf
+	ssid="$(uci -q get wireless."$sec".ssid 2>/dev/null)"
+
+	# Every interface carrying this SSID has to share the domain - otherwise a
+	# client roaming between bands would be handed to an AP whose R0 key holder
+	# it does not know, and FT silently never happens. Editing one row
+	# therefore edits the whole SSID, on this unit at least; syncing carries it
+	# to the rest.
+	for target in $(ap_sections); do
+		[ "$(uci -q get wireless."$target".ssid 2>/dev/null)" = "$ssid" ] || continue
+		if [ -n "$md" ]; then
+			uci -q set wireless."$target".mobility_domain="$md"
+		else
+			uci -q delete wireless."$target".mobility_domain 2>/dev/null
+		fi
+		n=$((n + 1))
+	done
+
+	uci -q commit wireless 2>/dev/null
+	reload_wifi
+
+	eff="$md"
+	[ -n "$eff" ] || eff="$(ap_md "$sec")"
+	printf '{"success":true,"section":"%s","md":"%s","auto":%s,"applied":%d}' \
+		"$(json_escape "$sec")" "$(json_escape "$eff")" "$(bool "$( [ -z "$md" ] && echo 1 )")" "$n"
+}
+
+# ---------------------------------------------------------------------------
 # apply: wired sync service
 # ---------------------------------------------------------------------------
 apply_sync()
 {
-	local args="$1" enabled port key peers keep p ok=1
+	local args="$1" enabled port key peers mode p ok=1
 	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
 	json_get_var enabled enabled
 	json_get_var port port
 	json_get_var key key
 	json_get_var peers peers
-	json_get_var keep keep_channel
+	json_get_var mode channel_mode
 
 	ensure_conf
 
@@ -534,15 +685,16 @@ apply_sync()
 		return
 	}
 
-	# Anything that is not a clear "1" is off. A missing key means the caller
-	# predates the option (or the box is disabled), so it must not silently
-	# flip the unit onto the peer's channel.
-	[ "$keep" = "1" ] || keep=0
+	# Anything that is not a clear "follow" staggers. A unit that ends up on
+	# the peer's channel by accident splits airtime instead of adding to it,
+	# which is the worse way to be wrong.
+	[ "$mode" = "follow" ] || mode=stagger
 
 	uci -q set meshconf.sync.enabled="$enabled"
 	uci -q set meshconf.sync.port="$port"
 	uci -q set meshconf.sync.key="$key"
-	uci -q set meshconf.sync.keep_channel="$keep"
+	uci -q set meshconf.sync.channel_mode="$mode"
+	uci -q delete meshconf.sync.keep_channel 2>/dev/null
 	uci -q delete meshconf.sync.peers 2>/dev/null
 	# Hand added peers: the manual equivalent of handing an AP the controller
 	# address (DHCP option 138 in the TP-Link world) when it is not on this L2.
@@ -724,7 +876,7 @@ http_post_file()
 
 sync_peer()
 {
-	local args="$1" ip dir key port f cfg bytes saved preserved
+	local args="$1" ip dir key port f cfg bytes saved staggered
 	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
 	json_get_var ip ip
 	json_get_var dir direction
@@ -751,12 +903,12 @@ sync_peer()
 		rm -f "$f"
 		[ -s "$cfg" ] || { rm -f "$cfg"; printf '{"success":false,"error":"peer sent no configuration"}'; return; }
 
-		# Two units that are far apart must not be forced onto one channel, so
-		# the local channel wins over the peer's. Whoever receives decides -
-		# the push path applies the same rule on the far end.
-		preserved=0
-		if [ "$MESHCONF_LIB" = "1" ] && meshconf_keep_channel; then
-			meshconf_apply_local_channels "$cfg" && preserved=1
+		# Two units in the same room must not be pushed onto one channel -
+		# they would split airtime instead of adding to it. Whoever receives
+		# decides: the push path applies the same rule on the far end.
+		staggered=0
+		if [ "$MESHCONF_LIB" = "1" ] && meshconf_stagger_enabled; then
+			meshconf_rewrite_channels "$cfg" && staggered=1
 		fi
 
 		mkdir -p /tmp/.meshconf-uci 2>/dev/null
@@ -778,8 +930,8 @@ sync_peer()
 		uci -q commit meshconf 2>/dev/null
 		reload_wifi
 
-		printf '{"success":true,"direction":"pull","peer":"%s","bytes":%s,"backup":true,"keep_channel":%s}' \
-			"$(json_escape "$ip")" "${bytes:-0}" "$(bool "$preserved")"
+		printf '{"success":true,"direction":"pull","peer":"%s","bytes":%s,"backup":true,"staggered":%s}' \
+			"$(json_escape "$ip")" "${bytes:-0}" "$(bool "$staggered")"
 		return
 	fi
 
@@ -811,7 +963,7 @@ sync_peer()
 # ---------------------------------------------------------------------------
 case "$1" in
 	list)
-		printf '{"getStatus":{},"scanPeers":{},"applyMesh":{"enabled":"string","radio":"string","mesh_id":"string","encryption":"string","key":"string","bridge_lan":"string"},"applyRoaming":{"enabled":"string"},"applySync":{"enabled":"string","port":"string","key":"string","peers":"string","keep_channel":"string"},"syncPeer":{"ip":"string","direction":"string"}}'
+		printf '{"getStatus":{},"scanPeers":{},"applyMesh":{"enabled":"string","radio":"string","mesh_id":"string","encryption":"string","key":"string","bridge_lan":"string"},"applyRoaming":{"enabled":"string"},"toggleRoam":{"section":"string","feature":"string","enabled":"string"},"setMd":{"section":"string","md":"string"},"applySync":{"enabled":"string","port":"string","key":"string","peers":"string","channel_mode":"string"},"syncPeer":{"ip":"string","direction":"string"}}'
 		;;
 	call)
 		args="$(cat)"
@@ -824,6 +976,8 @@ case "$1" in
 			scanPeers) rc_out="$(scan_peers)" ;;
 			applyMesh) rc_out="$(apply_mesh "$args")" ;;
 			applyRoaming) rc_out="$(apply_roaming "$args")" ;;
+			toggleRoam) rc_out="$(toggle_roam "$args")" ;;
+			setMd) rc_out="$(set_md "$args")" ;;
 			applySync) rc_out="$(apply_sync "$args")" ;;
 			syncPeer) rc_out="$(sync_peer "$args")" ;;
 			*) rc_out='{"success":false,"error":"unknown method"}' ;;

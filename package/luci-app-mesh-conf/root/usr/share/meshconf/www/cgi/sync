@@ -128,12 +128,12 @@ do_put() {
 	# one: a truncated or mangled upload would leave the radio dead.
 	grep -q 'config wifi-device' "$body" 2>/dev/null || { rm -f "$body"; fail 'upload is not a wireless config'; }
 
-	# Only the receiver can know whether it sits far enough from the sender to
-	# want a different channel, so the rewrite happens here - the sender always
-	# puts its own (already corrected) config on the wire. A failure leaves the
-	# upload untouched; the parse check below still decides if it is usable.
-	if [ "$MESHCONF_LIB" = "1" ] && meshconf_keep_channel; then
-		meshconf_apply_local_channels "$body" && {
+	# Staggering has to happen on the receiving side: only this unit knows what
+	# it is already using, and the sender always puts its own (already
+	# corrected) config on the wire. A failure leaves the upload untouched; the
+	# parse check below still decides if it is usable.
+	if [ "$MESHCONF_LIB" = "1" ] && meshconf_stagger_enabled; then
+		meshconf_rewrite_channels "$body" && {
 			# the rewrite can change the size, and bytes is what gets reported
 			bytes="$(wc -c < "$body" 2>/dev/null | tr -d ' ')"
 			[ -n "$bytes" ] || bytes=0

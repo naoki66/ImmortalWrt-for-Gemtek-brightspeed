@@ -8,7 +8,7 @@
 		},
 		"write": {
 			"ubus": {
-				"luci.meshconf": [ "applyMesh", "applyRoaming", "applySync", "syncPeer" ]
+				"luci.meshconf": [ "applyMesh", "applyRoaming", "toggleRoam", "setMd", "applySync", "syncPeer" ]
 			}
 		}
 	}

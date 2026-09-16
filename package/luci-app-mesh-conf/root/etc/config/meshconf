@@ -21,10 +21,10 @@ config sync 'sync'
 	option key ''
 	option last_sync '0'
 	option last_peer ''
-	# Keep this unit's channel when a config arrives from a peer. Turn it off
-	# when the two units are far apart and you do want them to end up on the
-	# channel the sender picked.
-	option keep_channel '1'
+	# What to do with the channel when a config arrives from a peer:
+	#   stagger (default) - make sure this unit is not on the peer's channel
+	#   follow            - take the peer's channels verbatim
+	option channel_mode 'stagger'
 	# Peers that are not on this L2 (the manual equivalent of handing an AP
 	# the controller address) are added as:
 	#   list peers '192.168.2.1'

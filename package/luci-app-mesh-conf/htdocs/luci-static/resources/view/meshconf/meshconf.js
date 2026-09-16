@@ -25,10 +25,22 @@ var callApplyRoaming = rpc.declare({
 	params: [ 'enabled' ]
 });
 
+var callToggleRoam = rpc.declare({
+	object: 'luci.meshconf',
+	method: 'toggleRoam',
+	params: [ 'section', 'feature', 'enabled' ]
+});
+
+var callSetMd = rpc.declare({
+	object: 'luci.meshconf',
+	method: 'setMd',
+	params: [ 'section', 'md' ]
+});
+
 var callApplySync = rpc.declare({
 	object: 'luci.meshconf',
 	method: 'applySync',
-	params: [ 'enabled', 'port', 'key', 'peers', 'keep_channel' ]
+	params: [ 'enabled', 'port', 'key', 'peers', 'channel_mode' ]
 });
 
 var callSyncPeer = rpc.declare({
@@ -106,6 +118,20 @@ var css = [
 	'.nm-state{display:inline-flex;align-items:center;min-height:19px;padding:0 var(--ds-sp-2);border-radius:var(--ds-r-sm);font-size:var(--ds-fs-xs);font-weight:650;background:var(--ds-surface-sunken);color:var(--ds-text-muted)}',
 	'.nm-state.estab{background:var(--ds-ok-tint);color:var(--ds-ok)}',
 	'.nm-state.off{background:var(--ds-error-tint);color:var(--ds-error)}',
+	'',
+	/* k/v/r switch. :focus only adds the ring - it must not set outline:none,
+	 * because a later :focus-visible rule at equal specificity would then be
+	 * the one that wins the tie and keyboard users would lose the outline. */
+	'.nm-toggle{display:inline-flex;align-items:center;justify-content:center;min-width:3.4em;min-height:22px;padding:0 var(--ds-sp-2);border:1px solid var(--ds-border);border-radius:var(--ds-r-pill);background:var(--ds-surface-sunken);color:var(--ds-text-muted);font-family:inherit;font-size:var(--ds-fs-xs);font-weight:650;line-height:1;cursor:pointer}',
+	'.nm-toggle:hover{border-color:var(--ds-primary);color:var(--ds-primary)}',
+	'.nm-toggle:focus{border-color:var(--ds-primary);box-shadow:0 0 0 3px var(--ds-focus-ring)}',
+	'.nm-toggle.on{border-color:var(--ds-ok-line);background:var(--ds-ok-tint);color:var(--ds-ok)}',
+	'.nm-toggle[disabled]{cursor:progress;opacity:.6}',
+	'.nm-toggle.dim{opacity:.45;cursor:not-allowed}',
+	/* mobility domain cell: a 4-hex-digit field, no wider than it needs to be */
+	'.nm-md{width:4.6em;min-height:24px;padding:0 var(--ds-sp-1);border:1px solid var(--ds-border);border-radius:var(--ds-r-sm);background:var(--ds-surface);color:var(--ds-text);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:var(--ds-fs-xs);text-align:center;box-sizing:border-box}',
+	'.nm-md:focus{border-color:var(--ds-primary);box-shadow:0 0 0 3px var(--ds-focus-ring)}',
+	'.nm-md[disabled]{opacity:.55}',
 	'',
 	/* banners */
 	'.nm-banner{display:flex;gap:var(--ds-sp-2);align-items:flex-start;margin:var(--ds-sp-3) 0 0;padding:var(--ds-sp-2) var(--ds-sp-3);border:1px solid var(--ds-warn-line);border-radius:var(--ds-r-md);background:var(--ds-warn-tint);color:var(--ds-warn);font-size:var(--ds-fs-sm);line-height:1.6}',
@@ -405,8 +431,8 @@ function renderMesh() {
 function peerRow(p) {
 	var selfRev = (statusData.local || {}).wifirev;
 	var same = p.wifirev && p.wifirev === selfRev;
-	var keep = (statusData.sync || {}).keep_channel !== false;
-	var chNote = keep ? '（本机 channel 会保留）' : '（channel 会一起被覆盖）';
+	var chNote = ((statusData.sync || {}).channel_mode !== 'follow')
+		? '（信道会自动错开，本已不同的保持不动）' : '（信道会一起被覆盖）';
 
 	var pullBtn = E('button', { 'class': 'cbi-button cbi-button-action' }, '拉取到本地');
 	pullBtn.addEventListener('click', function() {
@@ -418,7 +444,7 @@ function peerRow(p) {
 
 	var pushBtn = E('button', { 'class': 'cbi-button cbi-button-apply' }, '推送到对端');
 	pushBtn.addEventListener('click', function() {
-		if (!confirm('将用本机的无线配置覆盖 ' + p.ip + '（对端按自身设置决定是否保留 channel），继续？')) return;
+		if (!confirm('将用本机的无线配置覆盖 ' + p.ip + '（对端按自身设置决定是否错开信道），继续？')) return;
 		withButton(pushBtn, '推送中…', function() {
 			return callSyncPeer(p.ip, 'push');
 		});
@@ -448,9 +474,9 @@ function renderSync() {
 	});
 
 	// Default on, including on a unit that has never been configured here:
-	// inheriting a channel chosen for somebody else's surroundings is the
-	// worse failure.
-	var keepBox = checkbox(s.keep_channel !== false, function() {});
+	// two units sharing a channel split airtime instead of adding to it,
+	// which is the worse way to be wrong.
+	var keepBox = checkbox(s.channel_mode !== 'follow', function() {});
 
 	var portInput = textInput(s.port || '7761', { type: 'number' });
 	var keyInput = textInput(s.key || '', { type: 'text', placeholder: '所有设备必须使用同一个密钥' });
@@ -463,7 +489,7 @@ function renderSync() {
 			return;
 		}
 		withButton(saveBtn, '保存中…', function() {
-			return callApplySync(enabledBox.checked ? '1' : '0', portInput.value.trim(), keyInput.value.trim(), peersInput.value, keepBox.checked ? '1' : '0');
+			return callApplySync(enabledBox.checked ? '1' : '0', portInput.value.trim(), keyInput.value.trim(), peersInput.value, keepBox.checked ? 'stagger' : 'follow');
 		});
 	});
 
@@ -527,19 +553,88 @@ function renderSync() {
 			field('端口', portInput),
 			field('共享密钥', keyInput),
 			field('手动添加的设备 IP', peersInput, true),
-			E('div', { 'class': 'nm-field wide' }, [ inlineField('同步时保留本机 channel', keepBox) ]),
+			E('div', { 'class': 'nm-field wide' }, [ inlineField('同步时自动错开信道', keepBox) ]),
 			E('p', { 'class': 'nm-hint' }, '若2个AP距离较远，可选择关闭。')
 		]),
 		warn,
 		E('div', { 'class': 'nm-actions' }, [ saveBtn, scanBtn ]),
 		table,
-		E('p', { 'class': 'nm-hint' }, '同步会把整份 /etc/config/wireless 覆盖到对端；拉取到本地时会自动备份为 /etc/config/wireless.meshconf-bak。不在同一二层（跨三层）的设备请填在"手动添加的设备 IP"里。勾选"保留本机 channel"时，收到配置的一端会把自己每个 radio 的信道改回原值——SSID、密钥与 k/v/r 仍然同步，漫游不受影响。')
+		E('p', { 'class': 'nm-hint' }, '同步会把整份 /etc/config/wireless 覆盖到对端；拉取到本地时会自动备份为 /etc/config/wireless.meshconf-bak。不在同一二层（跨三层）的设备请填在"手动添加的设备 IP"里。勾选"自动错开信道"时，收到配置的一端会在同一频段内挪到与对端不重叠的信道（2.4G 走 1/6/11，5G/6G 按信道宽度跳跃）；本已错开的信道保持不动。SSID、密钥与 k/v/r 照常同步，漫游不受影响。')
 	]);
 }
 
 /* ---------------------------------------------------------------------------
  * 802.11k/v/r
  * ------------------------------------------------------------------------- */
+var ROAM_LABEL = { k: '802.11k 邻居报告', v: '802.11v BTM 过渡', r: '802.11r 快速漫游' };
+
+function roamToggle(ap, feat) {
+	var on = !!ap[feat];
+	// FT derives PMK-R0/R1 from the key, so an open network has no R to give.
+	var blocked = (feat === 'r' && !ap.ft_ok);
+	var title = on ? '点击关闭 ' + ROAM_LABEL[feat] : '点击开启 ' + ROAM_LABEL[feat];
+	if (blocked) {
+		title = '开放 / OWE 网络无法开启 802.11r';
+	} else if (feat === 'r' && ap.wpa3) {
+		// WPA3 has no PSK to derive a local PMK-R0 from; say so up front.
+		title += '（WPA3 网络：ft_psk_generate_local 会置 0）';
+	}
+	var b = E('button', {
+		'class': 'nm-toggle' + (on ? ' on' : '') + (blocked ? ' dim' : ''),
+		'type': 'button',
+		'title': title
+	}, on ? '开' : '关');
+
+	if (blocked) {
+		b.disabled = true;
+		return b;
+	}
+	b.addEventListener('click', function() {
+		withButton(b, '…', function() { return callToggleRoam(ap.section, feat, on ? '0' : '1'); });
+	});
+	return b;
+}
+
+/* Editable mobility domain. Emptying the field drops the option, which puts
+ * the interface back on the SSID-derived value. */
+function mdCell(ap) {
+	var current = (ap.md || '').toLowerCase();
+	var inp = E('input', {
+		'class': 'nm-md',
+		'type': 'text',
+		'maxlength': '4',
+		'spellcheck': 'false',
+		'value': current,
+		'placeholder': '自动',
+		'title': '4 位十六进制（0-9 / a-f）；清空并回车即恢复按 SSID 自动派生。同一 SSID 的所有接口会一起更新。'
+	});
+
+	inp.addEventListener('change', function() {
+		var v = inp.value.trim().toLowerCase();
+		if (v === current) return;
+		inp.disabled = true;
+		callSetMd(ap.section, v).then(function(res) {
+			if (!res || res.success === false) {
+				inp.disabled = false;
+				notify((res && res.error) || '保存失败', 'danger');
+				return;
+			}
+			notify(v
+				? '移动域已设为 ' + res.md + '（同 SSID 的 ' + res.applied + ' 个接口一起更新）。'
+				: '已清空，恢复按 SSID 自动派生（' + res.md + '）。', 'success');
+			return refresh();
+		}, function(e) {
+			inp.disabled = false;
+			notify(e.message || '保存失败', 'danger');
+		});
+	});
+
+	return E('td', { 'class': 'nowrap' }, [
+		inp,
+		ap.md_set ? '' : E('span', { 'class': 'nm-state', 'style': 'margin-left:var(--ds-sp-1)' }, '自动')
+	]);
+}
+
 function renderRoaming() {
 	var r = statusData.roaming || {};
 	var aps = statusData.aps || [];
@@ -561,20 +656,20 @@ function renderRoaming() {
 				E('th', {}, 'SSID'),
 				E('th', {}, '频段'),
 				E('th', {}, '网络'),
-				E('th', {}, 'K'),
-				E('th', {}, 'V'),
-				E('th', {}, 'R'),
-				E('th', {}, 'MD')
+				E('th', { 'title': ROAM_LABEL.k }, 'K'),
+				E('th', { 'title': ROAM_LABEL.v }, 'V'),
+				E('th', { 'title': ROAM_LABEL.r }, 'R'),
+				E('th', {}, '移动域 MD')
 			])),
 			E('tbody', {}, aps.map(function(a) {
 				return E('tr', {}, [
 					E('td', {}, a.ssid || '-'),
 					E('td', {}, a.band || '-'),
 					E('td', {}, a.network || 'lan'),
-					E('td', {}, flag(a.k)),
-					E('td', {}, flag(a.v)),
-					E('td', {}, flag(a.r)),
-					E('td', {}, E('span', { 'class': 'nm-mono' }, a.md || '-'))
+					E('td', {}, roamToggle(a, 'k')),
+					E('td', {}, roamToggle(a, 'v')),
+					E('td', {}, roamToggle(a, 'r')),
+					mdCell(a)
 				]);
 			}))
 		]);
@@ -585,10 +680,14 @@ function renderRoaming() {
 			E('span', {}, '802.11k/v/r 漫游'),
 			E('span', { 'class': 'nm-muted' }, (r.ap_ready || 0) + '/' + (r.ap_total || 0) + ' 个 SSID 已开启')
 		]),
-		E('p', { 'class': 'nm-subtitle' }, '给所有 AP 接口写入 802.11k（邻居报告）、802.11v（BTM 过渡）与 802.11r（快速漫游）参数。mobility domain 按网络名自动生成，同一个网络在所有设备上得到相同的 MD，客户端才能做 FT 切换。'),
+		E('p', { 'class': 'nm-subtitle' }, '表格里的 K / V / R 可以逐个 SSID 单独开关。K 写邻居报告与信标报告，V 写 BTM 过渡与 WNM 睡眠，R 写快速漫游（Over the Air、20s 重关联时限、移动域）。mobility domain 由 SSID 派生：同一个 SSID 在所有设备、所有频段上得到相同的 MD，不同 SSID 自动区分。'),
+		(function() {
+			var w = (aps.filter(function(a) { return a.wpa3; })).length;
+			return w ? E('p', { 'class': 'nm-hint' }, '有 ' + w + ' 个接口使用 WPA3 / WPA3 混合加密：这些接口没有 PSK 可供派生本地 PMK-R0，开启 R 时 ft_psk_generate_local 会强制写 0（其余加密方式写 1）。') : '';
+		})(),
 		E('div', { 'class': 'nm-actions', 'style': 'margin-top:0;border-top:0;padding-top:0' }, [ onBtn, offBtn ]),
 		table,
-		E('p', { 'class': 'nm-hint' }, '开启后配合"有线同步"把配置推到其它设备，整组网才会有一致的 SSID 与 MD。')
+		E('p', { 'class': 'nm-hint' }, '上面两个按钮一次性作用于所有 SSID；表格里的开关只改对应接口。MD 列可直接编辑，填 4 位十六进制（0-9 / a-f），清空即恢复按 SSID 自动派生；改一个接口会把同 SSID 的所有接口一起改掉，否则跨频段漫游时 FT 不会生效。开启后配合"有线同步"把配置推到其它设备，整组网才会有一致的 SSID 与 MD。')
 	]);
 }
 
