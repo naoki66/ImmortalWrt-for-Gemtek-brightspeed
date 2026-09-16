@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 LUCI_NAME:=luci-app-mesh-conf
 PKG_VERSION:=0.2.1
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_MAINTAINER:=XR1710G Maintainer
 PKG_LICENSE:=GPL-2.0-or-later
@@ -17,59 +17,56 @@ LUCI_PKGARCH:=all
 
 include $(TOPDIR)/feeds/luci/luci.mk
 
-# Every file goes in as
-#   [ -f ./src ] && tr -d '\r' < ./src | install -m <mode> /dev/stdin <dst>
+# Files are stripped of CR and installed from a *regular* file, never through
+# `| install -m <mode> /dev/stdin <dst>`. That form shipped
+# /usr/sbin/meshconf-beacon as 0664 on a real device: procd could not exec it,
+# so no instance ever spawned, `ubus call service list {"name":"meshconf"}`
+# answered {} and the page reported "service not running" - with an empty
+# logread, because nothing had failed loudly enough to log.
 #
-# - install -m <mode> is what $(INSTALL_DATA)/$(INSTALL_BIN) expand to anyway
-#   (rules.mk). It replaced "tr > dst; chmod dst" because a standalone chmod on
-#   the ipkg-install path (which expands with a doubled slash) did not stick
-#   during fakeroot packaging: the rpcd plugin shipped mode 0664, had no exec
-#   bit, rpcd dropped it on startup, and every call answered -32000
-#   "Object not found". install(1) sets the mode on the file it creates.
-# - The [ -f ] test keeps the existence check $(INSTALL_DATA) used to give us:
-#   the shell reports only a pipeline's last status, so without it a missing
-#   source would let install write a 0-byte file and the recipe would pass.
-# - The CR strip is belt and braces: .gitattributes already pins this package
-#   to LF, but a CRLF shebang fails exactly like a missing exec bit did, and
-#   this package has shipped a dead rpcd plugin twice before.
+# The exec bit is the only thing keeping this package alive (the postinst
+# chmods do not run when the package is built into the image: IPKG_INSTROOT is
+# set and it exits early), so the recipe verifies it instead of trusting it.
+#
+# The CR strip is belt and braces: .gitattributes already pins this package to
+# LF, but a CRLF shebang fails exactly like a missing exec bit, and this
+# package has shipped a dead rpcd plugin twice before.
+MESHCONF_STAGE:=$(TMP_DIR)/luci-app-mesh-conf
+
+# $(1) source, $(2) destination, $(3) mode
+define MeshConf/install-file
+	$(INSTALL_DIR) $(MESHCONF_STAGE) $(dir $(2))
+	[ -f $(1) ] || { echo "luci-app-mesh-conf: missing source $(1)" >&2; exit 1; }
+	tr -d '\r' < $(1) > $(MESHCONF_STAGE)/$(notdir $(2))
+	install -m $(3) $(MESHCONF_STAGE)/$(notdir $(2)) $(2)
+endef
+
+# $(1) source, $(2) destination - 0755, and fail the build if it does not take
+define MeshConf/install-exec
+	$(call MeshConf/install-file,$(1),$(2),0755)
+	chmod 0755 $(2)
+	[ -x $(2) ] || { \
+		echo "luci-app-mesh-conf: $(2) shipped without the exec bit (mode $$(stat -c '%a' $(2) 2>/dev/null)); procd cannot start it" >&2; \
+		exit 1; \
+	}
+endef
+
 define Package/$(LUCI_NAME)/install
-	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/meshconf
-	[ -f ./htdocs/luci-static/resources/view/meshconf/meshconf.js ] && tr -d '\r' < ./htdocs/luci-static/resources/view/meshconf/meshconf.js \
-		| install -m 0644 /dev/stdin $(1)/www/luci-static/resources/view/meshconf/meshconf.js
-
-	$(INSTALL_DIR) $(1)/usr/libexec/rpcd
-	[ -f ./root/usr/libexec/rpcd/luci.meshconf ] && tr -d '\r' < ./root/usr/libexec/rpcd/luci.meshconf \
-		| install -m 0755 /dev/stdin $(1)/usr/libexec/rpcd/luci.meshconf
-
-	$(INSTALL_DIR) $(1)/usr/sbin
-	[ -f ./root/usr/sbin/meshconf-beacon ] && tr -d '\r' < ./root/usr/sbin/meshconf-beacon \
-		| install -m 0755 /dev/stdin $(1)/usr/sbin/meshconf-beacon
-
-	$(INSTALL_DIR) $(1)/usr/share/meshconf
-	[ -f ./root/usr/share/meshconf/lib.sh ] && tr -d '\r' < ./root/usr/share/meshconf/lib.sh \
-		| install -m 0644 /dev/stdin $(1)/usr/share/meshconf/lib.sh
-
-	$(INSTALL_DIR) $(1)/usr/share/meshconf/www/cgi
-	[ -f ./root/usr/share/meshconf/www/cgi/sync ] && tr -d '\r' < ./root/usr/share/meshconf/www/cgi/sync \
-		| install -m 0755 /dev/stdin $(1)/usr/share/meshconf/www/cgi/sync
-
-	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
-	[ -f ./root/usr/share/luci/menu.d/luci-app-mesh-conf.json ] && tr -d '\r' < ./root/usr/share/luci/menu.d/luci-app-mesh-conf.json \
-		| install -m 0644 /dev/stdin $(1)/usr/share/luci/menu.d/luci-app-mesh-conf.json
-
-	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
-	[ -f ./root/usr/share/rpcd/acl.d/luci-app-mesh-conf.json ] && tr -d '\r' < ./root/usr/share/rpcd/acl.d/luci-app-mesh-conf.json \
-		| install -m 0644 /dev/stdin $(1)/usr/share/rpcd/acl.d/luci-app-mesh-conf.json
-
-	$(INSTALL_DIR) $(1)/etc/init.d
-	[ -f ./root/etc/init.d/meshconf ] && tr -d '\r' < ./root/etc/init.d/meshconf \
-		| install -m 0755 /dev/stdin $(1)/etc/init.d/meshconf
+	$(call MeshConf/install-file,./htdocs/luci-static/resources/view/meshconf/meshconf.js,$(1)/www/luci-static/resources/view/meshconf/meshconf.js,0644)
+	$(call MeshConf/install-exec,./root/usr/libexec/rpcd/luci.meshconf,$(1)/usr/libexec/rpcd/luci.meshconf)
+	$(call MeshConf/install-exec,./root/usr/sbin/meshconf-beacon,$(1)/usr/sbin/meshconf-beacon)
+	$(call MeshConf/install-file,./root/usr/share/meshconf/lib.sh,$(1)/usr/share/meshconf/lib.sh,0644)
+	$(call MeshConf/install-exec,./root/usr/share/meshconf/www/cgi/sync,$(1)/usr/share/meshconf/www/cgi/sync)
+	$(call MeshConf/install-file,./root/usr/share/luci/menu.d/luci-app-mesh-conf.json,$(1)/usr/share/luci/menu.d/luci-app-mesh-conf.json,0644)
+	$(call MeshConf/install-file,./root/usr/share/rpcd/acl.d/luci-app-mesh-conf.json,$(1)/usr/share/rpcd/acl.d/luci-app-mesh-conf.json,0644)
+	$(call MeshConf/install-exec,./root/etc/init.d/meshconf,$(1)/etc/init.d/meshconf)
 
 	# Only a default: an upgrade must not overwrite the sync key the operator
 	# already set. When $(1) is the live rootfs the file exists and is kept.
 	$(INSTALL_DIR) $(1)/etc/config
 	[ -f $(1)/etc/config/meshconf ] || \
-		(tr -d '\r' < ./root/etc/config/meshconf | install -m 0644 /dev/stdin $(1)/etc/config/meshconf)
+		(tr -d '\r' < ./root/etc/config/meshconf > $(MESHCONF_STAGE)/meshconf && \
+		 install -m 0644 $(MESHCONF_STAGE)/meshconf $(1)/etc/config/meshconf)
 
 	# The package is usually built into the image (=y), so postinst runs with
 	# IPKG_INSTROOT set and bails out before it can enable the service.

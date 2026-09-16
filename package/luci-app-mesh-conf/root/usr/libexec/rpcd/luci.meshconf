@@ -113,6 +113,24 @@ wait_for_beacon()
 	return 1
 }
 
+# Reachability of this plugin says nothing about the rest of the package: a
+# build that shipped /usr/sbin/meshconf-beacon without the exec bit leaves the
+# page on "not running" with no way out, because the repair() in
+# /etc/init.d/meshconf only runs after procd has already managed to exec that
+# script. Doing the same chmods from here makes the page's own button the
+# recovery instead of a recompile.
+repair_modes()
+{
+	local f
+	for f in /usr/libexec/rpcd/luci.meshconf /usr/sbin/meshconf-beacon \
+	         /usr/share/meshconf/www/cgi/sync /etc/init.d/meshconf; do
+		[ -f "$f" ] || continue
+		chmod 0755 "$f" 2>/dev/null
+	done
+	[ -e /etc/rc.d/S95meshconf ] || \
+		ln -sf ../init.d/meshconf /etc/rc.d/S95meshconf 2>/dev/null
+}
+
 ensure_conf()
 {
 	# `uci get <pkg>.<section>` answers with the section type, so an empty
@@ -411,11 +429,13 @@ sync_json()
 
 	if [ "$enabled" = "1" ]; then
 		if [ "$initd" != "1" ]; then
-			reason="缺少 /etc/init.d/meshconf：luci-app-mesh-conf 没有装完整，请重新刷写或重装该包。"
+			reason="/etc/init.d/meshconf 缺失或没有执行位：luci-app-mesh-conf 没装完整，请重装该包或点“启动服务”修复。"
 		elif ! have socat; then
 			reason="socat 未安装：二层发现依赖它，请安装 socat 后再点“启动服务”。"
 		elif ! have uhttpd; then
 			reason="uhttpd 未安装：同步端口 $port 由它提供，请安装 uhttpd 后再点“启动服务”。"
+		elif [ ! -x /usr/sbin/meshconf-beacon ]; then
+			reason="/usr/sbin/meshconf-beacon 没有执行位，procd 无法启动它；请点“启动服务”自动修复。"
 		elif [ "$beacon" != "1" ] && [ "$httpd" != "1" ]; then
 			reason="procd 没有拉起服务（连续失败会被放弃），请点“启动服务”。"
 		elif [ "$beacon" != "1" ]; then
@@ -776,6 +796,8 @@ apply_sync()
 
 	uci -q commit meshconf 2>/dev/null
 
+	repair_modes
+
 	# enable is idempotent and near free: the rc.d link is the only thing that
 	# brings the service back after a reboot, and nothing else guarantees it.
 	/etc/init.d/meshconf enable >/dev/null 2>&1
@@ -796,6 +818,8 @@ apply_sync()
 restart_sync()
 {
 	local running=0
+
+	repair_modes
 
 	/etc/init.d/meshconf enable >/dev/null 2>&1
 	/etc/init.d/meshconf restart >/dev/null 2>&1
