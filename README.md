@@ -149,6 +149,9 @@
 
 **构建配置**：仓库根目录的 [config.seed](config.seed) 是完整配置文件，Action 自动执行 `cp config.seed .config && bash scripts/set-build-version.sh .config && make defconfig`。
 构建时会通过 [scripts/set-build-version.sh](scripts/set-build-version.sh) 写入 LuCI 可见的构建日期和 commit hash。
+文件名只保留 `日期-本机commit`（较短），完整的 `日期-本机commit-上游commit` 写在 `CONFIG_VERSION_CODE`，
+可在 LuCI 状态页与 `/etc/openwrt_release` 中查看；需要把 revision 也拼进文件名时设
+`VERSION_CODE_FILENAMES=y bash scripts/set-build-version.sh .config`。
 
 **Release 格式**：
 - Tag：`YYYYMMDD-<short-hash>`
@@ -158,7 +161,7 @@
 ## 下载
 
 - [Releases 页面](https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/releases)
-- 固件文件：`immortalwrt-naoki66-YYYYMMDD-<repo-hash>-<upstream-hash>-airoha-an7581-gemtek_xr1710g-ubi-squashfs-sysupgrade.itb`
+- 固件文件：`immortalwrt-naoki66-YYYYMMDD-<repo-hash>-airoha-an7581-gemtek_xr1710g-ubi-squashfs-sysupgrade.itb`
 - 升级方法：LuCI → 系统 → 备份/升级 → 刷写固件
 
 ### 升级注意事项
