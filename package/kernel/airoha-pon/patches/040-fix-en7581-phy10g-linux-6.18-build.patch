@@ -1,0 +1,99 @@
+Subject: [PATCH] airoha-pon: fix EN7581 PHY build on Linux 6.18
+
+Port the remaining EN7581 10G PHY build issues exposed after the BSP
+helper declarations are fixed: use kernel delay helpers on ARMv8, wrap
+the NG-PON2 kthread entry in the expected void-pointer signature, include
+vmalloc declarations, and return without a value from void helpers.
+
+Signed-off-by: coolsnowwolf <coolsnowwolf@gmail.com>
+---
+--- a/xpon-en757x/xpon_phy_10g/src/en7581.c
++++ b/xpon-en757x/xpon_phy_10g/src/en7581.c
+@@ -7,6 +7,7 @@
+ #include <linux/version.h>
+ #include <linux/kernel.h>
+ #include <linux/slab.h>
++#include <linux/vmalloc.h>
+ #include <linux/delay.h>
+ #include <linux/proc_fs.h>
+ #include <linux/module.h>
+@@ -193,7 +194,8 @@
+ {
+ #ifdef TCSUPPORT_CPU_ARMV8
+ 
+-	delay1ms(ms);
++	mdelay(ms);
++	return;
+ 
+ #else
+ 	volatile uint32 timer_now, timer_last;
+@@ -3095,6 +3097,11 @@
+ 	return PHY_SUCCESS;
+ }
+ 
++static int xfp_trans_ngpon2_kthread(void *data)
++{
++	return xfp_trans_set_ngpon2_chan(&gpPhyPriv->Ngpon2_chan);
++}
++
+ 
+ int en7581_xgpon_phy_dev_init(char* buf)
+ {
+@@ -3180,7 +3187,8 @@
+ 		if(FALSE==phy_ngpon2_task_wait_start)
+ 		{
+ 			phy_ngpon2_task_wait_start=TRUE;
+-			gpPhyPriv->phy_ngpon2_task_wait= kthread_run(xfp_trans_set_ngpon2_chan, NULL, "phy_ngpon2_task_wait"); //julia_20221021 ngpon2
++			gpPhyPriv->phy_ngpon2_task_wait = kthread_run(
++				xfp_trans_ngpon2_kthread, NULL, "phy_ngpon2_task_wait");
+ 			PON_PHY_PRINT(PHY_MSG_ERR,"run phy_ngpon2_task_wait\n");
+ 		}
+ 		else
+@@ -8193,7 +8201,7 @@
+ 	{    				
+ 	    phy_print_time();		
+ 		printk("PRBS Error Counter = %u \n",0xfffffff);		
+-		return 0;    
++		return;
+ 	}
+ 	
+ 	if(duration<100)
+@@ -8695,14 +8703,14 @@
+ 	else
+ 	{
+ 		printk("Alloc data memory size %d error, recommand(1~50000)\n",ncpo_check_cnt) ;
+-		return 0;
++		return;
+ 	}
+ 		
+ 	
+ 	if(!ncpo_arr) 
+ 	{
+ 		printk("Alloc data memory failed\n") ;
+-		return 0;
++		return;
+ 	}
+ 
+ 	memset(ncpo_arr, 0, (sizeof(*ncpo_arr)*ncpo_check_cnt)) ;
+@@ -8742,7 +8750,7 @@
+ 	printk("	ncpo_diff=0x%08x (ncpo_max-ncpo_min)\r\n",(ncpo_max-ncpo_min));
+ 
+ 	vfree(ncpo_arr);
+-	return 0;
++	return;
+ 
+ }
+ 
+ void pma_reg_dump (void)
+--- a/xpon-en757x/xpon_phy_10g/src/en7581_pma.c
++++ b/xpon-en757x/xpon_phy_10g/src/en7581_pma.c
+@@ -35,6 +35,9 @@
+ #include "en7581_pma.h"
+ //#include "en7581_ana.h"
+ 
++extern void phy_delay1ms(int ms);
++void XPON_DIG_ref_release(void);
++
+ 
+ #if EN7581_EFUSE
+ 	#ifdef TCSUPPORT_CPU_EN7581
