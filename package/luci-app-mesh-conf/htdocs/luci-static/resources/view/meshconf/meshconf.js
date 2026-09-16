@@ -559,7 +559,7 @@ function renderSync() {
 		warn,
 		E('div', { 'class': 'nm-actions' }, [ saveBtn, scanBtn ]),
 		table,
-		E('p', { 'class': 'nm-hint' }, '同步会把整份 /etc/config/wireless 覆盖到对端；拉取到本地时会自动备份为 /etc/config/wireless.meshconf-bak。不在同一二层（跨三层）的设备请填在"手动添加的设备 IP"里。勾选"自动错开信道"时，收到配置的一端会在同一频段内挪到与对端不重叠的信道（2.4G 走 1/6/11，5G/6G 按信道宽度跳跃）；本已错开的信道保持不动。SSID、密钥与 k/v/r 照常同步，漫游不受影响。')
+		E('p', { 'class': 'nm-hint' }, '同步会把整份 /etc/config/wireless 覆盖到对端；拉取到本地时会自动备份为 /etc/config/wireless.meshconf-bak。不在同一二层（跨三层）的设备请填在"手动添加的设备 IP"里。勾选"自动错开信道"时，收到配置的一端会在同一频段内挪到与对端不重叠的信道（2.4G 走 1/6/11，5G/6G 按信道宽度跳跃）；本已错开的信道保持不动，承载 802.11s 回程的 radio 也保持与对端一致（mesh 要求同信道）。SSID、密钥与 k/v/r 照常同步，漫游不受影响。')
 	]);
 }
 

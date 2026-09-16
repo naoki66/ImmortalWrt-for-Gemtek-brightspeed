@@ -55,6 +55,12 @@ meshconf_stagger_enabled()
 # local radio with the same band that has not been claimed yet - different
 # firmware revisions do not always number their radios the same way.
 #
+# One radio is exempt: whichever one carries an 802.11s interface (mode=mesh).
+# Mesh points can only associate when they sit on the same channel, so moving
+# that radio would cut the very link the config was synced over - both ends
+# have to stay on the peer's channel for that radio. Detected on both sides,
+# because either config may be the one that has the mesh interface.
+#
 # This is deliberately a textual rewrite and not `uci set; uci commit`: commit
 # rewrites the whole file, drops every comment and reorders every option, which
 # would make the config revision (wifirev, shown in the peer table) change on
@@ -165,19 +171,27 @@ meshconf_rewrite_channels()
 		if (band == "" && key != "") band = lband[key]
 		if (ht == "" && key != "") ht = lht[key]
 
-		gap = gapfor(band, ht)
-		ch = ""
-		if (inc ~ /^[0-9]+$/) {
-			if (loc ~ /^[0-9]+$/) {
-				d = loc - inc
-				if (d < 0) d = -d
-				if (d >= gap) ch = loc
-			}
-			if (ch == "") {
-				ch = pick(inc + 0, gap, band)
-				if (ch == "" && loc != "") ch = loc
-			}
-		} else if (loc != "") ch = loc
+		# 802.11s backhaul: this radio must land on the channel the peer uses,
+		# or the two mesh points lose each other.
+		if ((secname != "" && (secname in lmesh)) || (key != "" && (key in lmesh))) {
+			ch = (inc != "" ? inc : loc)
+		}
+
+		# ch is already set for a mesh radio; only stagger when it is not.
+		if (ch == "") {
+			gap = gapfor(band, ht)
+			if (inc ~ /^[0-9]+$/) {
+				if (loc ~ /^[0-9]+$/) {
+					d = loc - inc
+					if (d < 0) d = -d
+					if (d >= gap) ch = loc
+				}
+				if (ch == "") {
+					ch = pick(inc + 0, gap, band)
+					if (ch == "" && loc != "") ch = loc
+				}
+			} else if (loc != "") ch = loc
+		}
 
 		if (ch == "") {
 			for (i = 1; i <= nbuf; i++) print buf[i]
@@ -212,23 +226,50 @@ meshconf_rewrite_channels()
 	}
 	BEGIN { Q = sprintf("%c", 39); DQ = sprintf("%c", 34); ln = 0; nbuf = 0; insec = 0 }
 
+	# Three passes over three files (local, incoming, incoming). The incoming
+	# file is read twice because a mesh interface can sit below the radio it
+	# belongs to - the radios have to be known before the first one is emitted.
+	FNR == 1 { fno++ }
+
 	# pass 1 - the local config is the reference
-	NR == FNR {
+	fno == 1 {
 		if (isconf($0)) {
 			curname = sectname($0)
 			curdev = isdev($0)
 			if (curdev && curname != "") { lord[++ln] = curname; lseen[curname] = 1 }
 			next
 		}
-		if (!curdev || curname == "") next
-		if (hasopt($0, "channel")) lchan[curname] = optval($0, "channel")
-		else if (hasopt($0, "band")) lband[curname] = optval($0, "band")
-		else if (hasopt($0, "htmode")) lht[curname] = optval($0, "htmode")
+		if (curname == "") next
+		if (curdev) {
+			if (hasopt($0, "channel")) lchan[curname] = optval($0, "channel")
+			else if (hasopt($0, "band")) lband[curname] = optval($0, "band")
+			else if (hasopt($0, "htmode")) lht[curname] = optval($0, "htmode")
+		} else {
+			if (hasopt($0, "device")) idev[curname] = optval($0, "device")
+			else if (hasopt($0, "mode")) imode[curname] = optval($0, "mode")
+		}
 		next
 	}
 
-	# pass 2 - the incoming config, rewritten
-	{
+	# pass 2 - the incoming config, scan only: mark the mesh radios
+	fno == 2 && FNR == 1 {
+		for (s in imode)
+			if (imode[s] == "mesh" && idev[s] != "") lmesh[idev[s]] = 1
+	}
+	fno == 2 {
+		if (isconf($0)) { curname = sectname($0); next }
+		if (curname == "") next
+		if (hasopt($0, "device")) jdev[curname] = optval($0, "device")
+		else if (hasopt($0, "mode")) jmode[curname] = optval($0, "mode")
+		next
+	}
+	fno == 3 && FNR == 1 {
+		for (s in jmode)
+			if (jmode[s] == "mesh" && jdev[s] != "") lmesh[jdev[s]] = 1
+	}
+
+	# pass 3 - the incoming config, rewritten
+	fno == 3 {
 		if (isconf($0)) {
 			flush()
 			nbuf = 0
@@ -242,7 +283,7 @@ meshconf_rewrite_channels()
 		print
 	}
 	END { flush() }
-	' "$loc" "$inc" > "$tmp" 2>/dev/null || { rm -f "$tmp"; return 1; }
+	' "$loc" "$inc" "$inc" > "$tmp" 2>/dev/null || { rm -f "$tmp"; return 1; }
 
 	[ -s "$tmp" ] || { rm -f "$tmp"; return 1; }
 	# Copy contents rather than mv, so the incoming file keeps the mode and
