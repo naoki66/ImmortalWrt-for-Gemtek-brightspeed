@@ -1,0 +1,25 @@
+Subject: [PATCH] airoha-pon: expose SET_FORCE_GPIO32_EN to PHY modules
+
+The SCU BSP exports SET_FORCE_GPIO32_EN(), and the EN7581 PHY calls it
+when switching PON TX power.  The vendor headers omit the prototype,
+which becomes a fatal implicit-declaration error with the Linux 6.18
+toolchain.
+
+Signed-off-by: coolsnowwolf <coolsnowwolf@gmail.com>
+---
+--- a/bsp/include/global_inc/modules/scu/ecnt_scu.h
++++ b/bsp/include/global_inc/modules/scu/ecnt_scu.h
+@@ -229,4 +229,5 @@
+ extern void SET_GPIO_SSR(u32 val);
+ 
+ 
++extern void SET_FORCE_GPIO32_EN(u32 mask, u32 bits);
+ #endif /* ifndef __ECNT_SCU_H__ */
+--- a/bsp/include/scu/ecnt_scu.h
++++ b/bsp/include/scu/ecnt_scu.h
+@@ -224,4 +224,5 @@
+ extern void SET_WAN_CONF(u32 val);
+ 
+ 
++extern void SET_FORCE_GPIO32_EN(u32 mask, u32 bits);
+ #endif /* ifndef __ECNT_SCU_H__ */
