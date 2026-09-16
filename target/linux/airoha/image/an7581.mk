@@ -215,3 +215,30 @@ define Device/nokia_xg-040g-md-ubi
   ARTIFACTS := bl31-uboot.fip preloader.bin
 endef
 TARGET_DEVICES += nokia_xg-040g-md-ubi
+
+define Device/gemtek_xg2010g
+  DEVICE_VENDOR := Gemtek
+  DEVICE_MODEL := XG2010G
+  DEVICE_DTS := an7581-gemtek-xg2010g
+  DEVICE_COMPAT_VERSION := 2.0
+  DEVICE_COMPAT_MESSAGE := Firmware must use the XG2010G UBI layout with \
+       the fit volume inside the ubi partition at 0x00600000. Upgrade only \
+       the ubi partition and keep bootloader, uenv, dsd and reserved_bmt intact.
+  DEVICE_PACKAGES := fitblk kmod-leds-gpio kmod-gpio-button-hotplug \
+	kmod-airoha-xpon-en757x airoha-pon-manager
+  BLOCKSIZE := 128k
+  PAGESIZE := 2048
+  UBINIZE_OPTS := -E 5
+  KERNEL_IN_UBI := 1
+  KERNEL := kernel-bin | gzip
+  KERNEL_INITRAMFS := kernel-bin | lzma | \
+	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd | pad-to 128k
+  KERNEL_INITRAMFS_SUFFIX := -recovery.itb
+  IMAGES := sysupgrade.itb
+  IMAGE/sysupgrade.itb := append-kernel | \
+	fit gzip $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb external-static-with-rootfs | \
+	append-metadata
+  SUPPORTED_DEVICES := gemtek,xg2010g
+  SOC := an7581
+endef
+TARGET_DEVICES += gemtek_xg2010g

@@ -1,0 +1,41 @@
+diff --git a/xpon-en757x/xpon_phy_10g/inc/en7581.h b/xpon-en757x/xpon_phy_10g/inc/en7581.h
+index 49836fd..7ca5868 100644
+--- a/xpon-en757x/xpon_phy_10g/inc/en7581.h
++++ b/xpon-en757x/xpon_phy_10g/inc/en7581.h
+@@ -25,8 +25,8 @@ int en7581_phy_set_epon_ts_continue_mode(uint mode);
+ int en7581_fw_ready(int fwrdy_en);
+ int en7581_disable_pcs_tdc(void);
+ 
+-void en7581_pon_phy_clear_rogueonu(void);
+-void en7581_pon_phy_rogueonu_int_en(unchar rogue_int_en);
++void pon_phy_clear_rogueonu(void);
++void pon_phy_rogueonu_int_en(unchar rogue_int_en);
+ 
+ #if ASIC_SERDES
+ void freq_check (void);	//add by david 20180904
+@@ -38,6 +38,10 @@ void pma_fifo_check (uint ncpo_check_cnt);	//add by ang_20190130
+ void pma_reg_dump (void);
+ void pma_reg_reset(uint start, uint end);
+ void pma_no_los_no_ready_reset(void);
++int pma_dbg_reg_dump(void);
++void normal_rx_bist_check(uint BIST_check_switch, XPON_PMA_RX_Bist_Check_t align_pattern);
++void t2r_rx_bist_check(uint BIST_check_switch, XPON_PMA_RX_Bist_Check_t align_pattern);
++void xpon_rx_bist_recheck_result(uint check_onoff, uint duration);
+ #endif
+ 
+ typedef  union
+diff --git a/xpon-en757x/xpon_phy_10g/src/phy.c b/xpon-en757x/xpon_phy_10g/src/phy.c
+index 555dd08..84f904f 100644
+--- a/xpon-en757x/xpon_phy_10g/src/phy.c
++++ b/xpon-en757x/xpon_phy_10g/src/phy.c
+@@ -1263,8 +1263,8 @@ static ssize_t phy_write_proc(struct file *file, const char __user *buffer,
+ 	{
+ 		PHY_GPON_Delimiter_Guard_t gpon_delimiter_guard = {0};
+ 
+-		gpon_delimiter_guard.delimiter=&hex1;
+-		gpon_delimiter_guard.guard_time=&hex2;
++		gpon_delimiter_guard.delimiter=hex1;
++		gpon_delimiter_guard.guard_time=(unchar)hex2;
+ 		PHY_INTERNAL_SET_API(PON_SET_PHY_GPON_DELIMITER_GUARD,&gpon_delimiter_guard);
+ 	}
+     else if((!strcmp(cmd, "Phy_Rogue_PRBS"))||(!strcmp(cmd, "rogue")))

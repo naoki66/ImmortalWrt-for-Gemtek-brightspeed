@@ -1,8 +1,16 @@
-name: Build XR1710G Firmware
+name: Build Firmware
 
 on:
   workflow_dispatch:
     inputs:
+      config_seed:
+        description: 'Build config'
+        required: true
+        default: '1710.config'
+        type: choice
+        options:
+          - 1710.config
+          - 2010.config
       release_type:
         description: 'Release Type'
         required: true
@@ -70,7 +78,7 @@ jobs:
 
       - name: Configure
         run: |
-          cp config.seed .config
+          cp '${{ inputs.config_seed }}' .config
           BUILD_DATE='${{ steps.version.outputs.date }}' \
           BUILD_ID='${{ steps.version.outputs.build_id }}' \
           REPO_COMMIT='${{ steps.version.outputs.repo_commit }}' \

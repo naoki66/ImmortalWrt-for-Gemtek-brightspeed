@@ -1,0 +1,215 @@
+#!/bin/sh /etc/rc.common
+# SPDX-License-Identifier: GPL-2.0-only
+
+START=19
+STOP=89
+
+USE_PROCD=1
+EXTRA_COMMANDS="apply"
+EXTRA_HELP="	apply	Apply configured GPON/EPON identity and EPON MAC settings"
+
+PRE_XPON_MODULES="
+airoha_ecnt_hook
+airoha_ecnt_scu
+airoha_ecnt_xpon
+airoha_ecnt_pon_phy
+airoha_arht_board
+airoha_arht_serdes
+phy_10g
+"
+
+OPTIONAL_MODULES="
+airoha_ecnt_olt_phy
+airoha_an7583_combo_phy
+"
+
+ensure_node() {
+	local path="$1"
+	local major="$2"
+	local minor="$3"
+
+	[ -c "$path" ] || mknod "$path" c "$major" "$minor"
+	chmod 0600 "$path" 2>/dev/null
+}
+
+mode_to_param() {
+	local mode
+
+	mode="$(printf '%s' "${1:-auto}" | tr 'A-Z_' 'a-z-')"
+	case "$mode" in
+		auto|0) printf '0\n' ;;
+		gpon|1) printf '1\n' ;;
+		epon|2) printf '2\n' ;;
+		10g-1g-epon|3) printf '3\n' ;;
+		10g-10g-epon|4) printf '4\n' ;;
+		1g-1g-epon|5) printf '5\n' ;;
+		xgpon|6) printf '6\n' ;;
+		xgspon|7) printf '7\n' ;;
+		ngpon2-10g-10g|8) printf '8\n' ;;
+		ngpon2-10g-2g|9) printf '9\n' ;;
+		ngpon2-2g-2g|10) printf '10\n' ;;
+		gpon-sym|11) printf '11\n' ;;
+		turbo-epon|12) printf '12\n' ;;
+		*) return 1 ;;
+	esac
+}
+
+config_get_line() {
+	local var="$1"
+	local option="$2"
+	local default="$3"
+
+	config_get "$var" line0 "$option" ""
+	eval "[ -n \"\$$var\" ]" && return 0
+	config_get "$var" global "$option" "$default"
+}
+
+load_one_module() {
+	local mod="$1"
+	local arg="$2"
+
+	grep -q "^$mod " /proc/modules 2>/dev/null && return 0
+	if [ -n "$arg" ]; then
+		modprobe "$mod" "$arg" 2>/dev/null || logger -t pon "unable to load module $mod $arg"
+	else
+		modprobe "$mod" 2>/dev/null || logger -t pon "unable to load module $mod"
+	fi
+}
+
+load_modules() {
+	local mod mode mode_param loaded_mode
+
+	for mod in $PRE_XPON_MODULES; do
+		load_one_module "$mod"
+	done
+
+	for mod in $OPTIONAL_MODULES; do
+		grep -q "^$mod " /proc/modules 2>/dev/null && continue
+		modprobe "$mod" >/dev/null 2>&1 || true
+	done
+
+	config_get_line mode mode auto
+	if ! mode_param="$(mode_to_param "$mode")"; then
+		logger -t pon "unsupported PON mode '$mode', falling back to auto"
+		mode_param=0
+	fi
+
+	if grep -q "^xpon_10g " /proc/modules 2>/dev/null; then
+		loaded_mode="$(cat /sys/module/xpon_10g/parameters/mode 2>/dev/null)"
+		[ -z "$loaded_mode" ] || [ "$loaded_mode" = "$mode_param" ] || \
+			logger -t pon "xpon_10g is already loaded with mode=$loaded_mode, requested mode=$mode_param needs module reload or reboot"
+		return 0
+	fi
+
+	load_one_module xpon_10g "mode=$mode_param"
+}
+
+setup_links() {
+	local dev pon_dev omci_dev oam_dev
+
+	config_get_line pon_dev device pon
+	config_get_line omci_dev omci_device omci
+	config_get_line oam_dev oam_device oam
+
+	for dev in "$pon_dev" pon0 "$omci_dev" "$oam_dev"; do
+		[ -n "$dev" ] || continue
+		ip link show dev "$dev" >/dev/null 2>&1 || continue
+		ip link set dev "$dev" up 2>/dev/null || true
+	done
+}
+
+apply_helper() {
+	local output ret
+
+	output="$(/usr/sbin/ponctl-helper "$@" 2>&1)"
+	ret="$?"
+	[ -z "$output" ] || logger -t pon "$output"
+	return "$ret"
+}
+
+apply_config() {
+	local serial password loid loid_password
+	local password_format
+	local llid_index llid_mask mac epon_loid epon_loid_password
+	local dying_gasp rx_fec tx_fec rate_mode
+
+	config_get serial line0_gpon serial ""
+	config_get password line0_gpon password ""
+	config_get password_format line0_gpon password_format "ascii"
+	config_get loid line0_gpon loid ""
+	config_get loid_password line0_gpon loid_password ""
+
+	if [ -n "$loid" ]; then
+		apply_helper gpon-loid "${serial:-"-"}" "$loid" "$loid_password" || \
+			logger -t pon "failed to apply GPON LOID settings"
+	elif [ -n "$serial$password" ]; then
+		apply_helper gpon-sn "$serial" "$password" "$password_format" || \
+			logger -t pon "failed to apply GPON SN settings"
+	fi
+
+	config_get llid_index line0_epon llid_index "0"
+	config_get llid_mask line0_epon llid_mask ""
+	config_get mac line0_epon mac ""
+	config_get epon_loid line0_epon loid ""
+	config_get epon_loid_password line0_epon loid_password ""
+	config_get dying_gasp line0_epon dying_gasp ""
+	config_get rx_fec line0_epon rx_fec ""
+	config_get tx_fec line0_epon tx_fec ""
+	config_get rate_mode line0_epon rate_mode ""
+
+	[ -z "$epon_loid" ] || apply_helper epon-loid "$epon_loid" "$epon_loid_password" || \
+		logger -t pon "failed to apply EPON LOID settings"
+	[ -z "$llid_mask" ] || apply_helper epon-llid-mask "$llid_mask" || \
+		logger -t pon "failed to apply EPON LLID mask"
+	[ -z "$mac" ] || apply_helper epon-mac "$llid_index" "$mac" || \
+		logger -t pon "failed to apply EPON MAC"
+	[ -z "$rx_fec" ] || apply_helper epon-rx-fec "$llid_index" "$rx_fec" || \
+		logger -t pon "failed to apply EPON RX FEC"
+	[ -z "$tx_fec" ] || apply_helper epon-tx-fec "$llid_index" "$tx_fec" || \
+		logger -t pon "failed to apply EPON TX FEC"
+	[ -z "$dying_gasp" ] || apply_helper epon-dying-gasp "$dying_gasp" || \
+		logger -t pon "failed to apply EPON dying gasp mode"
+	[ -z "$rate_mode" ] || apply_helper epon-rate-mode "$rate_mode" || \
+		logger -t pon "failed to apply EPON rate mode"
+}
+
+start_service() {
+	local auto_start
+
+	config_load pon
+	config_get_bool auto_start line0 auto_start ""
+	[ -n "$auto_start" ] || config_get_bool auto_start global auto_start 1
+	[ "$auto_start" -eq 1 ] || return 0
+
+	ensure_node /dev/pon 190 0
+	ensure_node /dev/epon_mac 221 0
+	load_modules
+	setup_links
+	touch /tmp/.xponconfig
+	apply_config
+}
+
+stop_service() {
+	local dev
+
+	for dev in oam omci pon0 pon; do
+		ip link show dev "$dev" >/dev/null 2>&1 || continue
+		ip link set dev "$dev" down 2>/dev/null || true
+	done
+}
+
+reload_service() {
+	stop_service
+	start_service
+}
+
+apply() {
+	config_load pon
+	ensure_node /dev/pon 190 0
+	ensure_node /dev/epon_mac 221 0
+	apply_config
+}
+
+service_triggers() {
+	procd_add_reload_trigger pon
+}

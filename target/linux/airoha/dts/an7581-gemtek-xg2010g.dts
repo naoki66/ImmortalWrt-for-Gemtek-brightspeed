@@ -1,0 +1,117 @@
+// SPDX-License-Identifier: GPL-2.0-only OR MIT
+
+#include "an7581-nokia_xg-040g-md-common.dtsi"
+
+/ {
+	model = "Gemtek XG2010G";
+	compatible = "gemtek,xg2010g", "airoha,an7581", "airoha,en7581";
+
+	memory@80000000 {
+		reg = <0x0 0x80000000 0x0 0x40000000>;
+	};
+
+	chosen {
+		rootdisk = <&ubi_fit>;
+		bootargs = "sdram_conf=0x00108893 vendor_name=ECONET Technologies Corp. product_name=xPON ONU ubi.mtd=ubi snmp_sysobjid=1.2.3.4.5 country_code=ff ether_gpio=0c power_gpio=1515 dsl_gpio=0b internet_gpio=02 multi_upgrade_gpio=0b020400000000000000000000000000 onu_type=71 qdma_init=69bb console=ttyS0,115200n8 earlycon bootflag=0 serdes_sel=0 serdes_pon=000 serdes_ethernet=411 serdes_wifi1=005 serdes_wifi2=413 serdes_usb1=111 serdes_usb2=000 ubi.block=0,fit root=/dev/fit0 rootwait ramdisk_size=65536 rdinit=/sbin/init";
+	};
+
+	scu@1fb00000 {
+		compatible = "econet,ecnt-scu";
+		reg = <0x0 0x1fb00000 0x0 0x960>,
+		      <0x0 0x1fa20000 0x0 0x360>,
+		      <0x0 0x1fa2ff30 0x0 0x10>;
+		interrupts = <GIC_SPI 47 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	xpon@1fb64000 {
+		compatible = "econet,ecnt-xpon";
+		reg = <0x0 0x1fb64000 0x0 0x3e8>,
+		      <0x0 0x1fb66000 0x0 0x23c>,
+		      <0x0 0x1fb65000 0x0 0xff8>;
+		interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	pon_phy@1faf0000 {
+		compatible = "econet,ecnt-pon_phy";
+		reg = <0x0 0x1faf0000 0x0 0x1fff>,
+		      <0x0 0x1fa2ff24 0x0 0x4>,
+		      <0x0 0x1faf3000 0x0 0xfff>,
+		      <0x0 0x1faf4000 0x0 0xfff>;
+	};
+};
+
+&spi_nand {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		bootloader@0 {
+			label = "bootloader";
+			reg = <0x00000000 0x00200000>;
+			read-only;
+		};
+
+		uenv@200000 {
+			label = "uenv";
+			reg = <0x00200000 0x00200000>;
+			read-only;
+		};
+
+		dsd@400000 {
+			label = "dsd";
+			reg = <0x00400000 0x00200000>;
+			read-only;
+		};
+
+		ubi@600000 {
+			label = "ubi";
+			reg = <0x00600000 0x1b800000>;
+			compatible = "linux,ubi";
+
+			volumes {
+				ubi-volume-bosa {
+					volname = "bosa";
+				};
+
+				ubi-volume-factory {
+					volname = "ri";
+
+					nvmem-layout {
+						compatible = "fixed-layout";
+						#address-cells = <1>;
+						#size-cells = <1>;
+
+						macaddr_factory_3e: macaddr@3e {
+							compatible = "mac-base";
+							reg = <0x3e 0x6>;
+							#nvmem-cell-cells = <1>;
+						};
+					};
+				};
+
+				ubi_fit: ubi-volume-fit {
+					volname = "fit";
+				};
+
+				ubi-volume-fip {
+					volname = "fip";
+				};
+			};
+		};
+
+		reserved-bmt@1be00000 {
+			label = "reserved_bmt";
+			reg = <0x1be00000 0x04200000>;
+			read-only;
+		};
+	};
+};
+
+&pcie0 { status = "disabled"; };
+&pcie1 { status = "disabled"; };
+&pcie2 { status = "disabled"; };
+&usb0 { status = "disabled"; };
+&usb1 { status = "disabled"; };
+&mmc0 { status = "disabled"; };

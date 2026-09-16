@@ -16,6 +16,9 @@ pwsh ./scripts/remote-build.ps1 -Mode kernel -Jobs 4
 
 .EXAMPLE
 pwsh ./scripts/remote-build.ps1 -Mode world -Jobs 4
+
+.EXAMPLE
+pwsh ./scripts/remote-build.ps1 -Mode world -ConfigSeed 2010.config
 #>
 
 [CmdletBinding()]
@@ -31,6 +34,9 @@ param(
 
     [ValidateRange(1, 64)]
     [int]$Jobs = 4,
+
+    [ValidateSet('1710.config', '2010.config')]
+    [string]$ConfigSeed = '1710.config',
 
     [switch]$RefreshFeeds,
 
@@ -234,7 +240,8 @@ try {
         (ConvertTo-ShellLiteral $Mode),
         $Jobs,
         $refreshFeedsFlag,
-        (ConvertTo-ShellLiteral $remoteLog)
+        (ConvertTo-ShellLiteral $remoteLog),
+        (ConvertTo-ShellLiteral $ConfigSeed)
     ) -join ' '
 
     if ($Mode -eq 'upload') {

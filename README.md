@@ -147,7 +147,7 @@
 | [build-firmware.yml](.github/workflows/build-firmware.yml) | 手动 (workflow_dispatch) | 构建固件并发布 Release |
 | [sync-upstream.yml](.github/workflows/sync-upstream.yml) | 每 3 天定时 + 手动 | 同步 ImmortalWrt 上游 |
 
-**构建配置**：仓库根目录的 [config.seed](config.seed) 是完整配置文件，Action 自动执行 `cp config.seed .config && bash scripts/set-build-version.sh .config && make defconfig`。
+**构建配置**：仓库根目录的 [1710.config](1710.config) 和 [2010.config](2010.config) 分别对应 XR1710G 与 XG2010G。Action 默认使用 `1710.config`，也可以在手动触发时选择 `2010.config`；构建流程会执行 `cp <config> .config && bash scripts/set-build-version.sh .config && make defconfig`。
 构建时会通过 [scripts/set-build-version.sh](scripts/set-build-version.sh) 写入 LuCI 可见的构建日期和 commit hash。
 文件名只保留 `日期-本机commit`（较短），完整的 `日期-本机commit-上游commit` 写在 `CONFIG_VERSION_CODE`，
 可在 LuCI 状态页与 `/etc/openwrt_release` 中查看；需要把 revision 也拼进文件名时设
@@ -179,7 +179,7 @@ cd ImmortalWrt-for-Gemtek-XR1710G
 ./scripts/feeds update -a
 ./scripts/feeds install -a
 bash scripts/fix-stale-golang-host.sh
-cp config.seed .config
+cp 1710.config .config
 bash scripts/set-build-version.sh .config
 make defconfig
 make -j$(nproc) world 2>&1 | tee build.log

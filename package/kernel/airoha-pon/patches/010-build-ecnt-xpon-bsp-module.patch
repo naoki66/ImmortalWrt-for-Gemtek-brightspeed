@@ -1,0 +1,22 @@
+--- a/bsp/Makefile
++++ b/bsp/Makefile
+@@ -10,1 +10,3 @@
+ airoha_ecnt_pon_phy-y := core/ecnt_pon_phy.o core/legacy_api.o module/ecnt_pon_phy_meta.o
++obj-m += airoha_ecnt_xpon.o
++airoha_ecnt_xpon-y := core/ecnt_xpon.o module/ecnt_xpon_meta.o
+--- a/bsp/core/ecnt_xpon.c
++++ b/bsp/core/ecnt_xpon.c
+@@ -282,4 +282,4 @@
+-static int ecnt_xpon_drv_remove(struct platform_device *pdev)
++static void ecnt_xpon_drv_remove(struct platform_device *pdev)
+ {
+-    return 0;
++    return;
+ }
+--- /dev/null
++++ b/bsp/module/ecnt_xpon_meta.c
+@@ -0,0 +1,4 @@
++#include <linux/module.h>
++
++MODULE_DESCRIPTION("EcoNet XPON register bridge");
++MODULE_LICENSE("GPL");

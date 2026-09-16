@@ -11,6 +11,7 @@ mode="$1"
 jobs="$2"
 refresh_feeds="$3"
 log_file="$4"
+config_seed="${CONFIG_SEED:-1710.config}"
 
 case "$mode" in
 	kernel|world) ;;
@@ -37,6 +38,12 @@ run_build() {
 	echo "REMOTE_BUILD_COMMIT=$(git rev-parse HEAD)"
 	echo "REMOTE_BUILD_STARTED=$(date --iso-8601=seconds)"
 	echo "REMOTE_BUILD_JOBS=$jobs"
+	echo "REMOTE_BUILD_CONFIG_SEED=$config_seed"
+
+	if [[ ! -f "$config_seed" ]]; then
+		echo "config seed not found: $config_seed" >&2
+		exit 2
+	fi
 
 	if [[ "$refresh_feeds" == "1" ]]; then
 		./scripts/feeds update -a
@@ -47,7 +54,7 @@ run_build() {
 
 	bash scripts/fix-stale-golang-host.sh
 
-	cp config.seed .config
+	cp "$config_seed" .config
 	bash scripts/set-build-version.sh .config
 	make defconfig
 

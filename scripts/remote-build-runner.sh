@@ -2,8 +2,8 @@
 
 set -Eeuo pipefail
 
-if (( $# != 6 )); then
-	echo "usage: $0 <repo> <snapshot-ref> <upload|kernel|world> <jobs> <refresh-feeds:0|1> <log-file>" >&2
+if (( $# != 6 && $# != 7 )); then
+	echo "usage: $0 <repo> <snapshot-ref> <upload|kernel|world> <jobs> <refresh-feeds:0|1> <log-file> [config-seed]" >&2
 	exit 2
 fi
 
@@ -13,6 +13,7 @@ mode="$3"
 jobs="$4"
 refresh_feeds="$5"
 log_file="$6"
+config_seed="${7:-1710.config}"
 
 case "$mode" in
 	upload|kernel|world) ;;
@@ -75,4 +76,4 @@ if [[ "$mode" == "upload" ]]; then
 	exit 0
 fi
 
-bash scripts/remote-build-worker.sh "$mode" "$jobs" "$refresh_feeds" "$log_file"
+CONFIG_SEED="$config_seed" bash scripts/remote-build-worker.sh "$mode" "$jobs" "$refresh_feeds" "$log_file"
