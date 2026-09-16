@@ -9,7 +9,7 @@
 # Wire format: one UDP datagram, one line, pipe separated (chosen over JSON so
 # that a plain shell read can split it without an escaping library):
 #
-#   MESHCONF1|announce|<mac>|<ip>|<hostname>|<model>|<fwver>|<wifirev>|<mesh_id>|<kvr>|<uptime>
+#   MESHCONF1|announce|<mac>|<ip>|<hostname>|<model>|<fwver>|<wifirev>|<mesh_id>|<uptime>
 #   MESHCONF1|discover|<mac>|<ip>
 #
 # Announcements land in /tmp/meshconf-neigh/<ip> (payload + last-seen stamp),
@@ -117,7 +117,9 @@ lan_prefix() {
 build_payload() {
 	SELF_IP="$(self_ip)"
 	SELF_MAC="$(self_mac)"
-	PAYLOAD="MESHCONF1|announce|$SELF_MAC|$SELF_IP|$(field "$(cat /proc/sys/kernel/hostname 2>/dev/null)")|$(field "$(board_model)")|$(field "$(fw_version)")|$(field "$(wifi_rev)")|$(field "$(uci -q get meshconf.mesh.mesh_id 2>/dev/null)")|$(uci -q get meshconf.roaming.kvr 2>/dev/null || echo 0)|$(uptime_s)"
+	# No k/v/r field: with several SSIDs on one radio a single global flag is
+	# wrong more often than it is right, and the peer table stopped showing it.
+	PAYLOAD="MESHCONF1|announce|$SELF_MAC|$SELF_IP|$(field "$(cat /proc/sys/kernel/hostname 2>/dev/null)")|$(field "$(board_model)")|$(field "$(fw_version)")|$(field "$(wifi_rev)")|$(field "$(uci -q get meshconf.mesh.mesh_id 2>/dev/null)")|$(uptime_s)"
 }
 
 # socat does the actual L2 work: -u keeps it one-way (stdin -> socket) so it

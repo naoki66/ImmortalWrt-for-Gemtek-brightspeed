@@ -88,7 +88,9 @@ local_facts() {
 	wifirev="$(md5sum $WIFI 2>/dev/null | cut -c1-8)"
 	[ -n "$wifirev" ] || wifirev="--------"
 	uptime="$(awk '{print int($1)}' /proc/uptime 2>/dev/null || echo 0)"
-	printf '{"success":true,"app":"meshconf","hostname":"%s","model":"%s","fwver":"%s","mac":"%s","lan_ip":"%s","wifirev":"%s","mesh_id":"%s","kvr":%s,"uptime":%s}' \
+	# No kvr: a single global flag cannot describe a radio that carries several
+	# SSIDs with different roaming settings, so the peer list stopped guessing.
+	printf '{"success":true,"app":"meshconf","hostname":"%s","model":"%s","fwver":"%s","mac":"%s","lan_ip":"%s","wifirev":"%s","mesh_id":"%s","uptime":%s}' \
 		"$(json_escape "$(cat /proc/sys/kernel/hostname 2>/dev/null)")" \
 		"$(json_escape "$(cat /tmp/sysinfo/model 2>/dev/null || cat /tmp/sysinfo/board_name 2>/dev/null || echo unknown)")" \
 		"$(json_escape "$(cat /etc/openwrt_version 2>/dev/null || echo unknown)")" \
@@ -96,7 +98,6 @@ local_facts() {
 		"$(json_escape "$(ip -4 addr show dev br-lan 2>/dev/null | awk '/inet /{print $2; exit}' | cut -d/ -f1)")" \
 		"$(json_escape "$wifirev")" \
 		"$(json_escape "$(uci -q get meshconf.mesh.mesh_id 2>/dev/null)")" \
-		"$(uci -q get meshconf.roaming.kvr 2>/dev/null | grep -q '^1$' && echo true || echo false)" \
 		"$uptime"
 }
 

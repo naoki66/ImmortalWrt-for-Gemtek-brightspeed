@@ -402,9 +402,12 @@ mesh_json()
 		fi
 	fi
 
-	printf '{"enabled":%s,"radio":"%s","mesh_id":"%s","encryption":"%s","key_set":%s,"bridge_lan":%s,"iface":"%s","peers":%s,"state":"%s","wpad_mesh":%s,"socat":%s}' \
+	# The key itself goes to the page as well: an operator has to be able to
+	# copy the same one onto the second unit, and a field that only ever says
+	# "已设置" cannot be typed anywhere else. Empty stays empty.
+	printf '{"enabled":%s,"radio":"%s","mesh_id":"%s","encryption":"%s","key_set":%s,"key":"%s","bridge_lan":%s,"iface":"%s","peers":%s,"state":"%s","wpad_mesh":%s,"socat":%s}' \
 		"$(bool "$enabled")" "$(json_escape "$radio")" "$(json_escape "$mesh_id")" \
-		"$(json_escape "$enc")" "$(bool "$( [ -n "$key" ] && echo 1 )")" "$(bool "$bridge")" \
+		"$(json_escape "$enc")" "$(bool "$( [ -n "$key" ] && echo 1 )")" "$(json_escape "$key")" "$(bool "$bridge")" \
 		"$(json_escape "$ifn")" "$peers" "$state" \
 		"$(wpad_mesh_ok && echo true || echo false)" "$(have socat && echo true || echo false)"
 }
@@ -448,8 +451,8 @@ sync_json()
 		[ "$beacon" = "1" ] && [ "$httpd" = "1" ] && running=1
 	fi
 
-	printf '{"enabled":%s,"port":"%s","key_set":%s,"running":%s,"beacon":%s,"httpd":%s,"socat":%s,"initd":%s,"rclink":%s,"reason":"%s","last_sync":%s,"last_peer":"%s","channel_mode":"%s","self_ip":"%s","self_mac":"%s","peers":[%s]}' \
-		"$(bool "$enabled")" "$port" "$(bool "$( [ -n "$key" ] && echo 1 )")" \
+	printf '{"enabled":%s,"port":"%s","key_set":%s,"key":"%s","running":%s,"beacon":%s,"httpd":%s,"socat":%s,"initd":%s,"rclink":%s,"reason":"%s","last_sync":%s,"last_peer":"%s","channel_mode":"%s","self_ip":"%s","self_mac":"%s","peers":[%s]}' \
+		"$(bool "$enabled")" "$port" "$(bool "$( [ -n "$key" ] && echo 1 )")" "$(json_escape "$key")" \
 		"$(bool "$running")" "$(bool "$beacon")" "$(bool "$httpd")" "$(bool "$socat")" \
 		"$(bool "$initd")" "$(bool "$rclink")" "$(json_escape "$reason")" \
 		"${last:-0}" "$(json_escape "$peer")" "$(json_escape "$mode")" \
@@ -538,6 +541,9 @@ apply_mesh()
 		*) printf '{"success":false,"error":"encryption must be none or sae"}'; return ;;
 	esac
 	if [ "$enc" = "sae" ]; then
+		# Same rule as the sync key: the box comes back empty whenever the
+		# page did not change it, and that must not wipe the stored key.
+		[ -n "$key" ] || key="$(mc_get mesh.key '')"
 		if [ "${#key}" -lt 8 ]; then
 			printf '{"success":false,"error":"SAE needs a key of at least 8 characters"}'
 			return
@@ -765,6 +771,15 @@ apply_sync()
 
 	ensure_conf
 
+	# An empty field means "leave it alone". The page renders whatever the
+	# backend sends for the key, so a form that came back empty used to be
+	# saved straight back as an empty key: every peer stops authenticating at
+	# the same moment and the only symptom is a sync that silently does
+	# nothing. Only an explicit value replaces it.
+	if [ -z "$key" ]; then
+		key="$(mc_get sync.key '')"
+	fi
+
 	if [ "$enabled" = "1" ] && ! valid_key "$key"; then
 		printf '{"success":false,"error":"sync key must be 1-64 characters of A-Z a-z 0-9 _ -"}'
 		return
@@ -851,7 +866,11 @@ jf()
 peer_from_hello()
 {
 	local f="$1" ip="$2" source="$3"
-	printf '{"ip":"%s","mac":"%s","hostname":"%s","model":"%s","fwver":"%s","wifirev":"%s","mesh_id":"%s","kvr":%s,"age":0,"source":"%s"}' \
+	# No k/v/r flag here on purpose: with several SSIDs per radio the global
+	# "is roaming on" answer is wrong more often than it is right - one
+	# interface can have it and the next one not. The per-SSID table in the
+	# 802.11k/v/r section is the honest view, so the peer list does not guess.
+	printf '{"ip":"%s","mac":"%s","hostname":"%s","model":"%s","fwver":"%s","wifirev":"%s","mesh_id":"%s","age":0,"source":"%s"}' \
 		"$(json_escape "$ip")" \
 		"$(json_escape "$(jf "$f" '@.mac')")" \
 		"$(json_escape "$(jf "$f" '@.hostname')")" \
@@ -859,7 +878,6 @@ peer_from_hello()
 		"$(json_escape "$(jf "$f" '@.fwver')")" \
 		"$(json_escape "$(jf "$f" '@.wifirev')")" \
 		"$(json_escape "$(jf "$f" '@.mesh_id')")" \
-		"$( [ "$(jf "$f" '@.kvr')" = "true" ] && echo true || echo false )" \
 		"$source"
 }
 
@@ -922,7 +940,7 @@ collect_now()
 scan_peers()
 {
 	local port now f ip stamp line age out="" first=1
-	local mac host model fwver wifirev mesh_id kvr uptime oldifs
+	local mac host model fwver wifirev mesh_id oldifs
 	local seen=" " p
 	port="$(sync_port)"
 	now="$(date +%s 2>/dev/null || echo 0)"
@@ -952,14 +970,13 @@ scan_peers()
 		IFS="$oldifs"
 		[ "$2" = "announce" ] || continue
 		mac="$3"; host="$5"; model="$6"; fwver="$7"; wifirev="$8"; mesh_id="$9"
-		kvr="${10}"; uptime="${11}"
 
 		# Announcements carry the sender's own address, and the file name is
 		# the address it came from - trust the file name, it is the one that
 		# has to be reachable.
 		seen="$seen$ip "
 		[ "$first" = "1" ] || out="$out,"
-		out="$out{\"ip\":\"$(json_escape "$ip")\",\"mac\":\"$(json_escape "$mac")\",\"hostname\":\"$(json_escape "$host")\",\"model\":\"$(json_escape "$model")\",\"fwver\":\"$(json_escape "$fwver")\",\"wifirev\":\"$(json_escape "$wifirev")\",\"mesh_id\":\"$(json_escape "$mesh_id")\",\"kvr\":$(bool "$kvr"),\"age\":$age,\"source\":\"lan\"}"
+		out="$out{\"ip\":\"$(json_escape "$ip")\",\"mac\":\"$(json_escape "$mac")\",\"hostname\":\"$(json_escape "$host")\",\"model\":\"$(json_escape "$model")\",\"fwver\":\"$(json_escape "$fwver")\",\"wifirev\":\"$(json_escape "$wifirev")\",\"mesh_id\":\"$(json_escape "$mesh_id")\",\"age\":$age,\"source\":\"lan\"}"
 		first=0
 	done
 

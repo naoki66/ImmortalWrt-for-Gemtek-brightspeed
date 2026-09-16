@@ -220,10 +220,6 @@ function info(label, value, sub) {
 	]);
 }
 
-function flag(on) {
-	return E('span', { 'class': 'nm-state ' + (on ? 'estab' : 'off') }, on ? '开' : '关');
-}
-
 function notify(msg, kind) {
 	ui.addNotification(null, E('p', msg), kind || 'info');
 }
@@ -354,7 +350,9 @@ function renderMesh() {
 	], m.encryption || 'sae', function() {
 		keyField.style.display = (encSel.value === 'sae') ? '' : 'none';
 	});
-	var keyInput = textInput(m.key_set ? '' : '', { type: 'password', placeholder: m.key_set ? '留空表示不修改' : '至少 8 位' });
+	// `m.key_set ? '' : ''` was a typo: both branches were empty, so the box
+	// was always blank and every save stored an empty key. Send the value.
+	var keyInput = textInput(m.key || '', { type: 'password', placeholder: m.key_set ? '留空表示不修改' : '至少 8 位' });
 	var keyField = field('Mesh 密钥', keyInput);
 	keyField.style.display = (m.encryption === 'none') ? 'none' : '';
 
@@ -465,7 +463,6 @@ function peerRow(p) {
 			E('span', { 'class': 'nm-mono' }, p.wifirev || '-'),
 			same ? E('span', { 'class': 'nm-state estab', 'style': 'margin-left:var(--ds-sp-1)' }, '与本机一致') : ''
 		]),
-		E('td', {}, flag(!!p.kvr)),
 		E('td', { 'class': 'nowrap' }, p.source === 'manual' ? '手动添加' : '二层发现'),
 		E('td', { 'class': 'nowrap' }, [ pullBtn, ' ', pushBtn ])
 	]);
@@ -484,12 +481,18 @@ function renderSync() {
 	var keepBox = checkbox(s.channel_mode !== 'follow', function() {});
 
 	var portInput = textInput(s.port || '7761', { type: 'number' });
-	var keyInput = textInput(s.key || '', { type: 'text', placeholder: '所有设备必须使用同一个密钥' });
+	// The backend now hands the stored key back, so the box is filled in on
+	// load and can be copied onto the other unit. It used to render empty
+	// (only key_set was sent) and one save later the stored key was gone.
+	var keyInput = textInput(s.key || '', { type: 'text', placeholder: s.key_set ? '留空表示不修改' : '所有设备必须使用同一个密钥' });
 	var peersInput = textInput(((s.peers) || []).join(', '), { placeholder: '例如 192.168.2.1, 192.168.3.10' });
 
 	var saveBtn = E('button', { 'class': 'cbi-button cbi-button-apply' }, '保存并应用');
 	saveBtn.addEventListener('click', function() {
-		if (enabledBox.checked && !keyInput.value.trim()) {
+		// Only a pair that has never had a key needs one typed in; on a
+		// configured pair the box is prefilled and an empty value means
+		// "keep it", which is what the backend does with it too.
+		if (enabledBox.checked && !s.key_set && !keyInput.value.trim()) {
 			notify('请设置共享密钥：所有设备必须一致，否则无法同步。', 'danger');
 			return;
 		}
@@ -530,7 +533,6 @@ function renderSync() {
 					E('th', {}, '设备'),
 					E('th', {}, 'IP'),
 					E('th', {}, '配置版本'),
-					E('th', {}, 'k/v/r'),
 					E('th', {}, '来源'),
 					E('th', {}, '同步')
 				])),
