@@ -9,5 +9,16 @@
 		"depends": {
 			"acl": [ "luci-app-mesh-conf" ]
 		}
+	},
+	"admin/network/meshconf/steering": {
+		"title": "AP 与客户端",
+		"order": 1,
+		"action": {
+			"type": "view",
+			"path": "meshconf/steering"
+		},
+		"depends": {
+			"acl": [ "luci-app-mesh-conf" ]
+		}
 	}
 }

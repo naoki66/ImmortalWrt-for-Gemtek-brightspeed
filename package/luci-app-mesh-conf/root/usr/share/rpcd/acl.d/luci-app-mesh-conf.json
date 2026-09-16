@@ -3,12 +3,14 @@
 		"description": "Grant access to the mesh configuration page",
 		"read": {
 			"ubus": {
-				"luci.meshconf": [ "getStatus", "scanPeers" ]
+				"luci.meshconf": [ "getStatus", "scanPeers" ],
+				"dawn": [ "get_network", "get_hearing_map" ],
+				"luci-rpc": [ "getHostHints" ]
 			}
 		},
 		"write": {
 			"ubus": {
-				"luci.meshconf": [ "applyMesh", "applyRoaming", "toggleRoam", "setMd", "applySync", "restartSync", "syncPeer" ]
+				"luci.meshconf": [ "applyMesh", "applyRoaming", "toggleRoam", "setMd", "applySync", "restartSync", "syncPeer", "applySteer", "steerService" ]
 			}
 		}
 	}

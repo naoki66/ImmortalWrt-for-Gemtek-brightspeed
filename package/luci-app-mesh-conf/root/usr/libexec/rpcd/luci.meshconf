@@ -139,6 +139,7 @@ ensure_conf()
 	[ -n "$(uci -q get meshconf.mesh 2>/dev/null)" ] || uci -q set meshconf.mesh=mesh
 	[ -n "$(uci -q get meshconf.sync 2>/dev/null)" ] || uci -q set meshconf.sync=sync
 	[ -n "$(uci -q get meshconf.roaming 2>/dev/null)" ] || uci -q set meshconf.roaming=roaming
+	[ -n "$(uci -q get meshconf.steering 2>/dev/null)" ] || uci -q set meshconf.steering=steering
 }
 
 mc_get()
@@ -491,6 +492,375 @@ roaming_json()
 		"$(bool "$(mc_get roaming.kvr 0)")" "$total" "$ready"
 }
 
+# ---------------------------------------------------------------------------
+# DAWN - the layer above 802.11k/v
+# ---------------------------------------------------------------------------
+# Writing ieee80211k/v only publishes information: the AP can answer "what
+# else is out there" and a client may act on it if it feels like it. DAWN is
+# the part that decides a client *should* move - it collects every unit's view
+# of every client, scores the alternatives and asks the current AP to hand the
+# client over with a BSS transition request. Two units broadcasting one SSID
+# without anything steering between them simply keep their clients until the
+# signal dies, which is what most "my mesh does not roam" reports really are.
+#
+# Two fields of DAWN's own config are the reason setups go wrong, and both are
+# computed here rather than inherited from its stock file:
+DAWN_CONF=/etc/config/dawn
+DAWN_BIN=/usr/sbin/dawn
+DAWN_INIT=/etc/init.d/dawn
+# The 6 GHz section is not upstream: it exists because this package patches
+# DAWN to know about a third band (see patches/feeds/packages/net/dawn). An
+# unpatched DAWN ignores it, which is harmless - a 6 GHz radio then falls back
+# to the 802_11a numbers, exactly like it does without the section.
+DAWN_BANDS="802_11g 802_11a 802_11a_6g"
+
+dawn_installed() { [ -x "$DAWN_BIN" ] && [ -x "$DAWN_INIT" ]; }
+
+dawn_rclink()
+{
+	local f
+	set +f
+	for f in /etc/rc.d/S??dawn; do
+		[ -e "$f" ] || continue
+		set -f
+		return 0
+	done
+	set -f
+	return 1
+}
+
+dawn_ubus() { ubus list dawn >/dev/null 2>&1; }
+
+#   broadcast_ip is shipped as 10.0.0.255 - wrong for every LAN but one, and
+#     wrong silently (no peer is ever discovered, nothing lands in the log);
+#   shared_key / iv have to match on every node and are meant to be typed by
+#     hand on every node, which is how they drift apart.
+# Both are answered from what this pair already agrees on.
+dawn_suggested_bcast()
+{
+	if [ "$MESHCONF_LIB" = "1" ]; then
+		meshconf_lan_bcast 2>/dev/null
+	fi
+}
+
+# One secret per pair, typed nowhere: DAWN's key and IV are stretched from the
+# sync key instead of becoming a second secret nobody remembers to copy. A
+# node with no sync key yet gets no answer, and the page asks for one.
+dawn_derive()
+{
+	local k
+	k="$(mc_get sync.key '')"
+	[ -n "$k" ] || return 1
+	printf '%s%s' "$k" "$1" | md5sum 2>/dev/null | cut -c1-16
+}
+
+# Anonymous sections are addressed by type - dawn.@network[0].option - and the
+# plugin-wide noglob is exactly what keeps that [0] from being expanded.
+dawn_get()
+{
+	local v
+	v="$(uci -q get dawn.@"$1"[0]."$2" 2>/dev/null)"
+	[ -n "$v" ] || v="$3"
+	printf '%s' "$v"
+}
+
+dawn_set() { uci -q set dawn.@"$1"[0]."$2"="$3" 2>/dev/null; }
+
+# `uci set` on an anonymous section that does not exist yet is a no-op, which
+# would leave DAWN on its defaults while the page reports a saved config.
+dawn_ensure_section()
+{
+	uci -q get dawn.@"$1"[0] >/dev/null 2>&1 || uci -q add dawn "$1" >/dev/null 2>&1
+}
+
+# Named metric sections are written directly; a set on a missing section is
+# silently dropped, so every write goes through the ensure above.
+dawn_set_metric()
+{
+	dawn_ensure_metric "$1"
+	uci -q set dawn."$1"."$2"="$3" 2>/dev/null
+}
+
+# Named metric sections: global, 802_11g, ... Missing section and missing
+# option both fall back to the default, which is also what DAWN does.
+dawn_metric()
+{
+	local v
+	v="$(uci -q get dawn."$1"."$2" 2>/dev/null)"
+	[ -n "$v" ] || v="$3"
+	printf '%s' "$v"
+}
+
+# An integer or leave what is there: a mangled field must not become a 0 that
+# quietly changes how every client is scored.
+num_or()
+{
+	case "$1" in
+		''|-) printf '%s' "$2" ;;
+		-*[!0-9]*) printf '%s' "$2" ;;
+		-*) printf '%s' "$1" ;;
+		*[!0-9]*) printf '%s' "$2" ;;
+		*) printf '%s' "$1" ;;
+	esac
+}
+
+has_6g_radio()
+{
+	local sec
+	for sec in $(radio_sections); do
+		[ "$(uci -q get wireless."$sec".band 2>/dev/null)" = "6g" ] && return 0
+	done
+	return 1
+}
+
+dawn_band_json()
+{
+	printf '{"name":"%s","initial_score":"%s","ht_support":"%s","vht_support":"%s","rssi":"%s","low_rssi":"%s","rssi_val":"%s","low_rssi_val":"%s","chan_util":"%s","chan_util_val":"%s","max_chan_util":"%s","max_chan_util_val":"%s","rssi_weight":"%s","rssi_center":"%s","present":%s}' \
+		"$1" \
+		"$(json_escape "$(dawn_metric "$1" initial_score 100)")" \
+		"$(json_escape "$(dawn_metric "$1" ht_support 5)")" \
+		"$(json_escape "$(dawn_metric "$1" vht_support 5)")" \
+		"$(json_escape "$(dawn_metric "$1" rssi 15)")" \
+		"$(json_escape "$(dawn_metric "$1" low_rssi -15)")" \
+		"$(json_escape "$(dawn_metric "$1" rssi_val -60)")" \
+		"$(json_escape "$(dawn_metric "$1" low_rssi_val -80)")" \
+		"$(json_escape "$(dawn_metric "$1" chan_util 0)")" \
+		"$(json_escape "$(dawn_metric "$1" chan_util_val 140)")" \
+		"$(json_escape "$(dawn_metric "$1" max_chan_util -15)")" \
+		"$(json_escape "$(dawn_metric "$1" max_chan_util_val 170)")" \
+		"$(json_escape "$(dawn_metric "$1" rssi_weight 0)")" \
+		"$(json_escape "$(dawn_metric "$1" rssi_center -70)")" \
+		"$(uci -q get dawn."$1" >/dev/null 2>&1 && echo true || echo false)"
+}
+
+dawn_bands_json()
+{
+	local out="" first=1 b
+	for b in $DAWN_BANDS; do
+		[ "$first" = "1" ] || out="$out,"
+		out="$out$(dawn_band_json "$b")"
+		first=0
+	done
+	printf '%s' "$out"
+}
+
+steer_json()
+{
+	local enabled ins initd rc run ubus_ok umdns has6 bcast dkey div reason
+
+	ensure_conf
+	enabled="$(mc_get steering.enabled 0)"
+	dawn_installed && ins=1 || ins=0
+	[ -x "$DAWN_INIT" ] && initd=1 || initd=0
+	dawn_rclink && rc=1 || rc=0
+	proc_running "$DAWN_BIN" && run=1 || run=0
+	dawn_ubus && ubus_ok=1 || ubus_ok=0
+	proc_running umdns && umdns=1 || umdns=0
+	has_6g_radio && has6=1 || has6=0
+
+	bcast="$(dawn_suggested_bcast)"
+	dkey="$(dawn_derive -key)"
+	div="$(dawn_derive -iv)"
+
+	reason=""
+	if [ "$ins" != "1" ]; then
+		reason="dawn 没有安装（本包已经声明依赖，通常是固件没有编进去）：请安装 dawn 与 umdns 后重试。"
+	elif [ "$initd" != "1" ]; then
+		reason="/etc/init.d/dawn 不存在或没有执行位：请重装 dawn 包。"
+	elif [ "$umdns" != "1" ]; then
+		reason="umdns 没有运行：network_option 2 靠它发现邻居。请启动 umdns；旧版本上还可能需要先 mv /etc/seccomp/umdns.json /etc/seccomp/umdns.json.disable。"
+	elif [ "$run" != "1" ]; then
+		reason="dawn 进程没有运行，请点下方按钮启动。"
+	elif [ "$ubus_ok" != "1" ]; then
+		reason="dawn 已经在跑，但还没有向 ubus 注册对象：稍等片刻或重启服务。"
+	fi
+
+	printf '{"enabled":%s,"installed":%s,"initd":%s,"rclink":%s,"running":%s,"ubus":%s,"umdns":%s,"reason":"%s","suggest_bcast":"%s","sync_key_set":%s,"derived_key":"%s","derived_iv":"%s","has_6g_radio":%s,"network":%s,"metric":%s,"bands":[%s]}' \
+		"$(bool "$enabled")" "$ins" "$initd" "$rc" "$run" "$ubus_ok" "$umdns" \
+		"$(json_escape "$reason")" "$(json_escape "$bcast")" \
+		"$(bool "$( [ -n "$(mc_get sync.key '')" ] && echo 1 )")" \
+		"$(json_escape "$dkey")" "$(json_escape "$div")" "$has6" \
+		"{\"broadcast_ip\":\"$(json_escape "$(dawn_get network broadcast_ip "")")\",\"broadcast_port\":\"$(json_escape "$(dawn_get network broadcast_port 1025)")\",\"tcp_port\":\"$(json_escape "$(dawn_get network tcp_port 1026)")\",\"network_option\":\"$(json_escape "$(dawn_get network network_option 2)")\",\"use_symm_enc\":\"$(json_escape "$(dawn_get network use_symm_enc 0)")\",\"key_set\":$(bool "$( [ -n "$(dawn_get network shared_key '')" ] && echo 1 )")}" \
+		"{\"kicking\":\"$(json_escape "$(dawn_metric global kicking 1)")\",\"kicking_threshold\":\"$(json_escape "$(dawn_metric global kicking_threshold 20)")\",\"min_number_to_kick\":\"$(json_escape "$(dawn_metric global min_number_to_kick 3)")\",\"min_probe_count\":\"$(json_escape "$(dawn_metric global min_probe_count 3)")\",\"chan_util_avg_period\":\"$(json_escape "$(dawn_metric global chan_util_avg_period 3)")\",\"set_hostapd_nr\":\"$(json_escape "$(dawn_metric global set_hostapd_nr 0)")\"}" \
+		"$(dawn_bands_json)"
+}
+
+# procd forks asynchronously, so `restart` returns before dawn exists; without
+# waiting, the page immediately reports a service that is one second old.
+wait_for_dawn()
+{
+	local i=0 n="${1:-5}"
+	while [ "$i" -lt "$n" ]; do
+		proc_running "$DAWN_BIN" && return 0
+		sleep 1
+		i=$((i + 1))
+	done
+	return 1
+}
+
+apply_steer()
+{
+	local args="$1" enabled netopt bcast bport tport keymode useenc kicking kt mntk mpc cap snr \
+	      g_score g_rval g_low g_rw g_rc a_score a_rval a_low a_rw a_rc x_score x_rval x_low x_rw x_rc \
+	      band score rval low rw rc running=0 ok=1 key="" iv="" dkey="" div=""
+
+	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
+	json_get_var enabled enabled
+	json_get_var netopt network_option
+	json_get_var bcast broadcast_ip
+	json_get_var bport broadcast_port
+	json_get_var tport tcp_port
+	json_get_var keymode key_mode
+	json_get_var useenc use_symm_enc
+	json_get_var kicking kicking
+	json_get_var kt kicking_threshold
+	json_get_var mntk min_number_to_kick
+	json_get_var mpc min_probe_count
+	json_get_var cap chan_util_avg_period
+	json_get_var snr set_hostapd_nr
+	json_get_var g_score g_initial_score
+	json_get_var g_rval g_rssi_val
+	json_get_var g_low g_low_rssi_val
+	json_get_var g_rw g_rssi_weight
+	json_get_var g_rc g_rssi_center
+	json_get_var a_score a_initial_score
+	json_get_var a_rval a_rssi_val
+	json_get_var a_low a_low_rssi_val
+	json_get_var a_rw a_rssi_weight
+	json_get_var a_rc a_rssi_center
+	json_get_var x_score x_initial_score
+	json_get_var x_rval x_rssi_val
+	json_get_var x_low x_low_rssi_val
+	json_get_var x_rw x_rssi_weight
+	json_get_var x_rc x_rssi_center
+
+	ensure_conf
+
+	if [ "$enabled" != "1" ]; then
+		uci -q set meshconf.steering.enabled=0
+		uci -q commit meshconf 2>/dev/null
+		[ -x "$DAWN_INIT" ] && {
+			"$DAWN_INIT" stop >/dev/null 2>&1
+			"$DAWN_INIT" disable >/dev/null 2>&1
+		}
+		printf '{"success":true,"enabled":false,"running":false}'
+		return
+	fi
+
+	dawn_installed || {
+		printf '{"success":false,"error":"dawn 没有安装：请安装 dawn（含 umdns）后再启用漫游引导"}'
+		return
+	}
+	[ -r "$DAWN_CONF" ] || touch "$DAWN_CONF" 2>/dev/null
+	[ -r "$DAWN_CONF" ] || {
+		printf '{"success":false,"error":"无法创建 /etc/config/dawn"}'
+		return
+	}
+
+	# The shared secrets. "derived" and "keep" both land on the same key so
+	# that a pair set up either way still talks to each other; only an
+	# explicit typed value replaces what is already stored.
+	dkey="$(dawn_derive -key)"
+	div="$(dawn_derive -iv)"
+	key="$(dawn_get network shared_key '')"
+	iv="$(dawn_get network iv '')"
+	if [ "$keymode" = "derived" ] || [ -z "$key" ]; then
+		[ -n "$dkey" ] || {
+			printf '{"success":false,"error":"请先在“有线同步”里设置共享密钥：DAWN 的密钥由它派生，否则两台设备无法互相解密"}'
+			return
+		}
+		key="$dkey"
+		iv="$div"
+	fi
+
+	dawn_ensure_section network
+	dawn_ensure_section local
+	dawn_ensure_section hostapd
+	dawn_ensure_section times
+	dawn_ensure_metric global
+
+	case "$netopt" in 0|1|2|3) ;; *) netopt="$(dawn_get network network_option 2)" ;; esac
+	case "$useenc" in 0|1) ;; *) useenc="$(dawn_get network use_symm_enc 0)" ;; esac
+	case "$snr" in 0|1|2) ;; *) snr="$(dawn_metric global set_hostapd_nr 0)" ;; esac
+
+	[ -n "$bcast" ] || bcast="$(dawn_suggested_bcast)"
+	[ -n "$bcast" ] || bcast="$(dawn_get network broadcast_ip 10.0.0.255)"
+	case "$bcast" in ''|*[!0-9.]*) printf '{"success":false,"error":"广播地址格式不正确"}'; return ;; esac
+
+	dawn_set network broadcast_ip "$bcast"
+	dawn_set network broadcast_port "$(num_or "$bport" "$(dawn_get network broadcast_port 1025)")"
+	dawn_set network tcp_port "$(num_or "$tport" "$(dawn_get network tcp_port 1026)")"
+	dawn_set network network_option "$netopt"
+	dawn_set network shared_key "$key"
+	[ -n "$iv" ] && dawn_set network iv "$iv"
+	dawn_set network use_symm_enc "$useenc"
+
+	# Kick method 1 (RSSI comparison) rather than the upstream default of 3:
+	# "both" also kicks on an absolute threshold, and it keeps doing that even
+	# when no better AP exists - a client gets handed off into nothing.
+	dawn_set_metric global kicking "$(num_or "$kicking" "$(dawn_metric global kicking 1)")"
+	dawn_set_metric global kicking_threshold "$(num_or "$kt" "$(dawn_metric global kicking_threshold 20)")"
+	dawn_set_metric global min_number_to_kick "$(num_or "$mntk" "$(dawn_metric global min_number_to_kick 3)")"
+	dawn_set_metric global min_probe_count "$(num_or "$mpc" "$(dawn_metric global min_probe_count 3)")"
+	dawn_set_metric global chan_util_avg_period "$(num_or "$cap" "$(dawn_metric global chan_util_avg_period 3)")"
+	dawn_set_metric global set_hostapd_nr "$snr"
+
+	for band in $DAWN_BANDS; do
+		case "$band" in
+			802_11g) score="$g_score"; rval="$g_rval"; low="$g_low"; rw="$g_rw"; rc="$g_rc" ;;
+			802_11a) score="$a_score"; rval="$a_rval"; low="$a_low"; rw="$a_rw"; rc="$a_rc" ;;
+			*) score="$x_score"; rval="$x_rval"; low="$x_low"; rw="$x_rw"; rc="$x_rc" ;;
+		esac
+		dawn_ensure_metric "$band"
+		uci -q set dawn."$band".initial_score="$(num_or "$score" "$(dawn_metric "$band" initial_score 100)")"
+		uci -q set dawn."$band".rssi_val="$(num_or "$rval" "$(dawn_metric "$band" rssi_val -60)")"
+		uci -q set dawn."$band".low_rssi_val="$(num_or "$low" "$(dawn_metric "$band" low_rssi_val -80)")"
+		uci -q set dawn."$band".rssi_weight="$(num_or "$rw" "$(dawn_metric "$band" rssi_weight 0)")"
+		uci -q set dawn."$band".rssi_center="$(num_or "$rc" "$(dawn_metric "$band" rssi_center -70)")"
+	done
+
+	uci -q commit dawn 2>/dev/null
+
+	uci -q set meshconf.steering.enabled=1
+	uci -q commit meshconf 2>/dev/null
+
+	# network_option 2 finds its peers through mDNS; without umdns DAWN runs
+	# and sees nobody, which looks exactly like a broken wireless config.
+	if [ -x /etc/init.d/umdns ]; then
+		/etc/init.d/umdns enable >/dev/null 2>&1
+		/etc/init.d/umdns restart >/dev/null 2>&1
+	fi
+
+	"$DAWN_INIT" enable >/dev/null 2>&1
+	"$DAWN_INIT" restart >/dev/null 2>&1 || ok=0
+	wait_for_dawn 5 || ok=0
+	proc_running "$DAWN_BIN" && running=1
+
+	printf '{"success":true,"enabled":true,"running":%s,"restarted":%s,"broadcast_ip":"%s","key_derived":%s}' \
+		"$(bool "$running")" "$(bool "$ok")" "$(json_escape "$bcast")" \
+		"$(bool "$( [ "$keymode" = "derived" ] && echo 1 )")"
+}
+
+steer_service()
+{
+	local running=0
+
+	dawn_installed || {
+		printf '{"success":false,"error":"dawn 没有安装，无法启动"}'
+		return
+	}
+	if [ -x /etc/init.d/umdns ]; then
+		/etc/init.d/umdns enable >/dev/null 2>&1
+		/etc/init.d/umdns restart >/dev/null 2>&1
+	fi
+	"$DAWN_INIT" enable >/dev/null 2>&1
+	"$DAWN_INIT" restart >/dev/null 2>&1
+	wait_for_dawn 5
+	proc_running "$DAWN_BIN" && running=1
+
+	printf '{"success":true,"running":%s}' "$(bool "$running")"
+}
+
 get_status()
 {
 	local radios aps
@@ -499,9 +869,9 @@ get_status()
 	phy_map_done
 	aps="$(aps_json)"
 
-	printf '{"local":%s,"radios":[%s],"mesh":%s,"sync":%s,"roaming":%s,"aps":[%s]}' \
+	printf '{"local":%s,"radios":[%s],"mesh":%s,"sync":%s,"roaming":%s,"steering":%s,"aps":[%s]}' \
 		"{\"hostname\":\"$(json_escape "$(cat /proc/sys/kernel/hostname 2>/dev/null)")\",\"model\":\"$(json_escape "$(board_model)")\",\"lan_ip\":\"$(json_escape "$(self_ip)")\",\"mac\":\"$(json_escape "$(self_mac)")\",\"wifirev\":\"$(json_escape "$(wifi_rev)")\",\"fwver\":\"$(json_escape "$(cat /etc/openwrt_version 2>/dev/null || echo unknown)")\"}" \
-		"$radios" "$(mesh_json)" "$(sync_json)" "$(roaming_json)" "$aps"
+		"$radios" "$(mesh_json)" "$(sync_json)" "$(roaming_json)" "$(steer_json)" "$aps"
 }
 
 # ---------------------------------------------------------------------------
@@ -1010,6 +1380,51 @@ http_post_file()
 	return 1
 }
 
+# DAWN's config rides along with the wireless one, and the peer may be an
+# older build that has never heard of these actions - "unknown action" is not
+# a failure, it just means that unit keeps whatever DAWN settings it has.
+# Reported as a word rather than a boolean because "unavailable" and "failed"
+# are answers the page should show differently.
+sync_dawn_pull()
+{
+	local ip="$1" key="$2" port="$3" f d
+	[ -x /etc/init.d/dawn ] || { printf 'skipped'; return; }
+
+	f=/tmp/.meshconf-dawnget.$$
+	d=/tmp/.meshconf-dawncfg.$$
+	uclient-fetch -q -O "$f" -T 10 "http://$ip:$port/cgi/sync?action=dawn-get&key=$key" >/dev/null 2>&1 || {
+		rm -f "$f"
+		printf 'failed'
+		return
+	}
+	jsonfilter -i "$f" -e '@.config' > "$d" 2>/dev/null
+	rm -f "$f"
+	[ -s "$d" ] || { rm -f "$d"; printf 'unavailable'; return; }
+
+	cp -f /etc/config/dawn /etc/config/dawn.meshconf-bak 2>/dev/null
+	cp -f "$d" /etc/config/dawn 2>/dev/null
+	rm -f "$d"
+	(/etc/init.d/dawn restart >/dev/null 2>&1 &) 2>/dev/null
+	printf 'true'
+}
+
+sync_dawn_push()
+{
+	local ip="$1" key="$2" port="$3" f
+	[ -x /etc/init.d/dawn ] || { printf 'skipped'; return; }
+	[ -r /etc/config/dawn ] || { printf 'skipped'; return; }
+
+	f=/tmp/.meshconf-dawnput.$$
+	if ! http_post_file "http://$ip:$port/cgi/sync?action=dawn-put&key=$key" /etc/config/dawn "$f"; then
+		rm -f "$f"
+		printf 'failed'
+		return
+	fi
+	grep -q '"success":true' "$f" 2>/dev/null || { rm -f "$f"; printf 'unavailable'; return; }
+	rm -f "$f"
+	printf 'true'
+}
+
 sync_peer()
 {
 	local args="$1" ip dir key port f cfg bytes saved staggered
@@ -1066,8 +1481,9 @@ sync_peer()
 		uci -q commit meshconf 2>/dev/null
 		reload_wifi
 
-		printf '{"success":true,"direction":"pull","peer":"%s","bytes":%s,"backup":true,"staggered":%s}' \
-			"$(json_escape "$ip")" "${bytes:-0}" "$(bool "$staggered")"
+		printf '{"success":true,"direction":"pull","peer":"%s","bytes":%s,"backup":true,"staggered":%s,"dawn":"%s"}' \
+			"$(json_escape "$ip")" "${bytes:-0}" "$(bool "$staggered")" \
+			"$(sync_dawn_pull "$ip" "$key" "$port")"
 		return
 	fi
 
@@ -1091,7 +1507,8 @@ sync_peer()
 	uci -q set meshconf.sync.last_peer="$ip"
 	uci -q commit meshconf 2>/dev/null
 
-	printf '{"success":true,"direction":"push","peer":"%s","backup":false}' "$(json_escape "$ip")"
+	printf '{"success":true,"direction":"push","peer":"%s","backup":false,"dawn":"%s"}' \
+		"$(json_escape "$ip")" "$(sync_dawn_push "$ip" "$key" "$port")"
 }
 
 # ---------------------------------------------------------------------------
@@ -1099,7 +1516,7 @@ sync_peer()
 # ---------------------------------------------------------------------------
 case "$1" in
 	list)
-		printf '{"getStatus":{},"scanPeers":{},"applyMesh":{"enabled":"string","radio":"string","mesh_id":"string","encryption":"string","key":"string","bridge_lan":"string"},"applyRoaming":{"enabled":"string"},"toggleRoam":{"section":"string","feature":"string","enabled":"string"},"setMd":{"section":"string","md":"string"},"applySync":{"enabled":"string","port":"string","key":"string","peers":"string","channel_mode":"string"},"restartSync":{},"syncPeer":{"ip":"string","direction":"string"}}'
+		printf '{"getStatus":{},"scanPeers":{},"applyMesh":{"enabled":"string","radio":"string","mesh_id":"string","encryption":"string","key":"string","bridge_lan":"string"},"applyRoaming":{"enabled":"string"},"toggleRoam":{"section":"string","feature":"string","enabled":"string"},"setMd":{"section":"string","md":"string"},"applySync":{"enabled":"string","port":"string","key":"string","peers":"string","channel_mode":"string"},"restartSync":{},"syncPeer":{"ip":"string","direction":"string"},"steerService":{},"applySteer":{"enabled":"string","network_option":"string","broadcast_ip":"string","broadcast_port":"string","tcp_port":"string","key_mode":"string","use_symm_enc":"string","kicking":"string","kicking_threshold":"string","min_number_to_kick":"string","min_probe_count":"string","chan_util_avg_period":"string","set_hostapd_nr":"string","g_initial_score":"string","g_rssi_val":"string","g_low_rssi_val":"string","g_rssi_weight":"string","g_rssi_center":"string","a_initial_score":"string","a_rssi_val":"string","a_low_rssi_val":"string","a_rssi_weight":"string","a_rssi_center":"string","x_initial_score":"string","x_rssi_val":"string","x_low_rssi_val":"string","x_rssi_weight":"string","x_rssi_center":"string"}}'
 		;;
 	call)
 		args="$(cat)"
@@ -1117,6 +1534,8 @@ case "$1" in
 			applySync) rc_out="$(apply_sync "$args")" ;;
 			restartSync) rc_out="$(restart_sync)" ;;
 			syncPeer) rc_out="$(sync_peer "$args")" ;;
+			applySteer) rc_out="$(apply_steer "$args")" ;;
+			steerService) rc_out="$(steer_service)" ;;
 			*) rc_out='{"success":false,"error":"unknown method"}' ;;
 		esac
 		rc_rc=$?

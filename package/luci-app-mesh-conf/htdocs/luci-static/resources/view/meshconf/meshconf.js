@@ -54,6 +54,28 @@ var callSyncPeer = rpc.declare({
 	params: [ 'ip', 'direction' ]
 });
 
+/* The parameter list mirrors the UCI fields the backend writes; anything left
+ * empty there means "keep what is already configured", so the page can send a
+ * partially filled form without wiping the rest. */
+var callApplySteer = rpc.declare({
+	object: 'luci.meshconf',
+	method: 'applySteer',
+	params: [
+		'enabled', 'network_option', 'broadcast_ip', 'broadcast_port', 'tcp_port',
+		'key_mode', 'use_symm_enc',
+		'kicking', 'kicking_threshold', 'min_number_to_kick', 'min_probe_count',
+		'chan_util_avg_period', 'set_hostapd_nr',
+		'g_initial_score', 'g_rssi_val', 'g_low_rssi_val', 'g_rssi_weight', 'g_rssi_center',
+		'a_initial_score', 'a_rssi_val', 'a_low_rssi_val', 'a_rssi_weight', 'a_rssi_center',
+		'x_initial_score', 'x_rssi_val', 'x_low_rssi_val', 'x_rssi_weight', 'x_rssi_center'
+	]
+});
+
+var callSteerService = rpc.declare({
+	object: 'luci.meshconf',
+	method: 'steerService'
+});
+
 /* ---------------------------------------------------------------------------
  * Shared design tokens.
  *
@@ -255,6 +277,7 @@ function render() {
 	pageBody.appendChild(renderMesh());
 	pageBody.appendChild(renderSync());
 	pageBody.appendChild(renderRoaming());
+	pageBody.appendChild(renderSteer());
 }
 
 function withButton(btn, busyLabel, fn) {
@@ -314,7 +337,7 @@ function renderStatus() {
 			E('span', { 'class': 'nm-muted' }, l.hostname || '')
 		]),
 		E('div', { 'class': 'nm-status', 'style': 'margin-top:var(--ds-sp-3)' }, [
-			meshPill(), roamPill(), syncPill()
+			meshPill(), roamPill(), syncPill(), steerPill()
 		]),
 		E('div', { 'class': 'nm-infogrid' }, [
 			info('型号', l.model || '-'),
@@ -715,6 +738,243 @@ function renderRoaming() {
 		E('div', { 'class': 'nm-actions', 'style': 'margin-top:0;border-top:0;padding-top:0' }, [ onBtn, offBtn ]),
 		table,
 		E('p', { 'class': 'nm-hint' }, '上面两个按钮一次性作用于所有 SSID；表格里的开关只改对应接口。MD 列可直接编辑，填 4 位十六进制（0-9 / a-f），清空即恢复按 SSID 自动派生；改一个接口会把同 SSID 的所有接口一起改掉，否则跨频段漫游时 FT 不会生效。开启后配合"有线同步"把配置推到其它设备，整组网才会有一致的 SSID 与 MD。')
+	]);
+}
+
+/* ---------------------------------------------------------------------------
+ * DAWN - the steering layer above 802.11k/v
+ * ------------------------------------------------------------------------- */
+/* One metric section per band. 6 GHz is the odd one out: upstream DAWN knows
+ * only two, so unless this build carries patches/feeds/packages/net/dawn the
+ * section is written and never read. The banner below says so when that is
+ * what the numbers mean. */
+var STEER_BANDS = [
+	{ pfx: 'g', name: '802_11g', label: '2.4 GHz' },
+	{ pfx: 'a', name: '802_11a', label: '5 GHz' },
+	{ pfx: 'x', name: '802_11a_6g', label: '6 GHz' }
+];
+
+var STEER_KEYS = [ 'initial_score', 'rssi_val', 'low_rssi_val', 'rssi_weight', 'rssi_center' ];
+
+function steerPill() {
+	var s = statusData.steering || {};
+	if (!s.installed) return pill('', '漫游引导：DAWN 未安装');
+	if (!s.enabled) return pill('', '漫游引导：未启用');
+	if (!s.running) return pill('warn', '漫游引导：服务未运行');
+	if (!s.ubus) return pill('warn', '漫游引导：未连上 ubus');
+	return pill('ok', '漫游引导：已启用');
+}
+
+function bandConf(name) {
+	var bands = (statusData.steering || {}).bands || [];
+	for (var i = 0; i < bands.length; i++)
+		if (bands[i].name === name) return bands[i];
+	return {};
+}
+
+/* Same tokens and focus rules as the mobility-domain field, just wide enough
+ * for a negative RSSI threshold. Values are validated in the backend: a field
+ * that is not an integer keeps whatever DAWN is already using rather than
+ * silently becoming a zero. */
+function numCell(value) {
+	var el = E('input', {
+		'class': 'nm-md', 'type': 'text', 'spellcheck': 'false',
+		'inputmode': 'numeric', 'style': 'width:5.2em'
+	});
+	el.value = (value === null || value === undefined) ? '' : String(value);
+	return el;
+}
+
+function renderSteer() {
+	var s = statusData.steering || {};
+	var net = s.network || {};
+	var met = s.metric || {};
+	var enabled = !!s.enabled;
+
+	var enabledBox = checkbox(enabled, function() { setSteerFields(enabledBox.checked); });
+
+	/* Stock DAWN ships 10.0.0.255, which reaches nobody on this LAN. This is
+	 * the address the neighbour discovery already uses, computed the same way. */
+	var bcastInput = textInput(net.broadcast_ip || s.suggest_bcast || '', {
+		placeholder: s.suggest_bcast || '例如 192.168.1.255'
+	});
+
+	var netSel = select([
+		{ value: '2', label: 'umdns + TCP（推荐）' },
+		{ value: '0', label: 'UDP 广播' },
+		{ value: '1', label: 'UDP 组播' },
+		{ value: '3', label: 'TCP（不自动发现）' }
+	], net.network_option || '2');
+
+	var bportInput = textInput(net.broadcast_port || '1025', { type: 'number' });
+	var tportInput = textInput(net.tcp_port || '1026', { type: 'number' });
+
+	/* Every node needs the same key, and typing a hex string on every node is
+	 * how they stop being the same. The pair already agrees on one for the
+	 * wired sync, so DAWN's is stretched from that instead. */
+	var keySel = select([
+		{ value: 'derived', label: '派生自“有线同步”共享密钥（推荐）' },
+		{ value: 'keep', label: '保持当前密钥不变' }
+	], 'derived');
+	if (!net.key_set) keySel.value = 'derived';
+
+	var useEncBox = checkbox(net.use_symm_enc === '1', function() {});
+
+	/* Upstream defaults to 3 ("both"), which also kicks on an absolute
+	 * threshold - even when there is no better AP to hand the client to. */
+	var kickSel = select([
+		{ value: '1', label: 'RSSI 比较（推荐）' },
+		{ value: '2', label: '绝对 RSSI' },
+		{ value: '3', label: '两者都要' },
+		{ value: '0', label: '不动客户端' }
+	], met.kicking || '1');
+
+	var ktInput = numCell(met.kicking_threshold);
+	var nkInput = numCell(met.min_number_to_kick);
+	var pcInput = numCell(met.min_probe_count);
+	var capInput = numCell(met.chan_util_avg_period);
+	var nrSel = select([
+		{ value: '0', label: '关闭' },
+		{ value: '1', label: '静态（全网 AP）' },
+		{ value: '2', label: '动态（按客户端听到的邻居）' }
+	], met.set_hostapd_nr || '0');
+
+	var bandInputs = {};
+	var bandRows = STEER_BANDS.map(function(b) {
+		var c = bandConf(b.name), cells = {};
+		STEER_KEYS.forEach(function(k) { cells[k] = numCell(c[k]); });
+		bandInputs[b.pfx] = cells;
+		return E('tr', {}, [
+			E('td', { 'class': 'nowrap' }, b.label),
+			E('td', {}, cells.initial_score),
+			E('td', {}, cells.rssi_val),
+			E('td', {}, cells.low_rssi_val),
+			E('td', {}, cells.rssi_weight),
+			E('td', {}, cells.rssi_center)
+		]);
+	});
+
+	function setSteerFields(on) {
+		[ bcastInput, netSel, bportInput, tportInput, keySel, useEncBox,
+		  kickSel, ktInput, nkInput, pcInput, capInput, nrSel ].forEach(function(el) {
+			el.disabled = !on;
+		});
+		STEER_BANDS.forEach(function(b) {
+			STEER_KEYS.forEach(function(k) { bandInputs[b.pfx][k].disabled = !on; });
+		});
+	}
+	setSteerFields(enabled);
+
+	var saveBtn = E('button', { 'class': 'cbi-button cbi-button-apply' }, '保存并应用');
+	saveBtn.addEventListener('click', function() {
+		if (enabledBox.checked && keySel.value === 'derived' && !s.sync_key_set) {
+			notify('请先在“有线同步”里设置共享密钥：DAWN 的密钥由它派生，否则两台设备无法互相解密。', 'danger');
+			return;
+		}
+		withButton(saveBtn, '保存中…', function() {
+			var band = function(pfx, k) { return bandInputs[pfx][k].value; };
+			return callApplySteer(
+				enabledBox.checked ? '1' : '0',
+				netSel.value, bcastInput.value.trim(), bportInput.value.trim(), tportInput.value.trim(),
+				keySel.value, useEncBox.checked ? '1' : '0',
+				kickSel.value, ktInput.value, nkInput.value, pcInput.value, capInput.value, nrSel.value,
+				band('g', 'initial_score'), band('g', 'rssi_val'), band('g', 'low_rssi_val'), band('g', 'rssi_weight'), band('g', 'rssi_center'),
+				band('a', 'initial_score'), band('a', 'rssi_val'), band('a', 'low_rssi_val'), band('a', 'rssi_weight'), band('a', 'rssi_center'),
+				band('x', 'initial_score'), band('x', 'rssi_val'), band('x', 'low_rssi_val'), band('x', 'rssi_weight'), band('x', 'rssi_center')
+			);
+		});
+	});
+
+	var startBtn = E('button', { 'class': 'cbi-button cbi-button-action' }, '启动服务');
+	startBtn.addEventListener('click', function() {
+		var self = startBtn, orig = self.textContent;
+		self.disabled = true;
+		self.textContent = '启动中…';
+		var done = function() { self.disabled = false; self.textContent = orig; };
+		callSteerService().then(function(res) {
+			done();
+			if (res && res.running) notify('漫游引导服务已启动。', 'success');
+			else notify('服务仍然没有起来，请 SSH 执行 logread -e dawn 查看原因。', 'danger');
+			return refresh();
+		}, function(e) {
+			done();
+			notify(e.message || '启动失败', 'danger');
+		});
+	});
+
+	/* Banners, worst first. */
+	var banners = [];
+	if (!s.installed) {
+		banners.push(E('div', { 'class': 'nm-banner bad' }, [
+			E('strong', {}, '没有安装 DAWN'),
+			E('div', {}, '本包已经把 dawn 声明为依赖：如果这台机器的固件是在加入依赖之前编出来的，请用 opkg install dawn 补装（会带上 umdns），然后刷新页面。在此之前，802.11k/v/r 仍然生效，只是没有人来做"该换 AP 了"这一步决定。')
+		]));
+	} else if (s.enabled && s.reason) {
+		banners.push(E('div', { 'class': 'nm-banner bad' }, [
+			E('strong', {}, '漫游引导没有正常工作'),
+			E('div', {}, s.reason)
+		]));
+	}
+
+	var r = statusData.roaming || {};
+	if (s.enabled && r.ap_total > 0 && r.ap_ready < r.ap_total) {
+		banners.push(E('div', { 'class': 'nm-banner' }, [
+			E('strong', {}, '有 ' + (r.ap_total - r.ap_ready) + ' 个 SSID 还没有开启 k/v'),
+			E('div', {}, 'DAWN 靠 802.11v 的 BSS Transition 把客户端交出去，802.11k 让它知道该交给谁。请在上面的表格里把这些 SSID 的 K 与 V 打开。')
+		]));
+	}
+
+	if (s.has_6g_radio) {
+		var six = bandConf('802_11a_6g');
+		if (!six.present) {
+			banners.push(E('div', { 'class': 'nm-banner info' }, [
+				E('strong', {}, '这台设备有 6 GHz 射频，但当前 DAWN 不认识 6G 配置段'),
+				E('div', {}, '没有打 6 GHz 补丁的 DAWN 只有 802_11g 与 802_11a 两组参数，6G 会被判成最后一组（802_11a）共用同样的分数。下面的 6 GHz 行可以照常填写并参与同步，但只有带 patches/feeds/packages/net/dawn 补丁的固件才会真正读它。')
+			]));
+		}
+	}
+
+	return E('div', { 'class': 'nm-section' }, [
+		E('div', { 'class': 'nm-title' }, [
+			E('span', {}, '漫游引导（DAWN）'),
+			E('span', { 'class': 'nm-muted' }, s.installed ? (enabled ? '已启用' : '未启用') : 'DAWN 未安装')
+		]),
+		E('p', { 'class': 'nm-subtitle' }, '802.11k/v/r 只是把信息发出去：AP 能回答"还有谁"，客户端也可以自己问。DAWN 负责的是另一半 —— 它汇总所有设备看到的每个客户端，给候选 AP 打分，再让当前 AP 用 BSS Transition 把客户端交到更好的那一个上。两台设备同一个 SSID 而没有任何东西做这个决定，客户端就会一直粘在原 AP 上直到信号彻底断掉。'),
+		E('div', { 'class': 'nm-form' }, [
+			E('div', { 'class': 'nm-field wide' }, [ inlineField('启用漫游引导（DAWN）', enabledBox) ]),
+			field('发现方式', netSel),
+			field('广播地址', bcastInput),
+			field('广播端口', bportInput),
+			field('TCP 端口', tportInput),
+			field('DAWN 密钥', keySel),
+			E('div', { 'class': 'nm-field wide' }, [ inlineField('加密相邻设备之间的报文（所有设备必须一致）', useEncBox) ])
+		]),
+		E('div', { 'class': 'nm-subtitle', 'style': 'margin-top:var(--ds-sp-4)' }, '什么时候把客户端交出去'),
+		E('div', { 'class': 'nm-form' }, [
+			field('踢人策略', kickSel),
+			field('分数差阈值', ktInput),
+			field('连续判定次数', nkInput),
+			field('最少 probe 次数', pcInput),
+			field('信道利用率平均周期', capInput),
+			field('下发邻居报告', nrSel)
+		]),
+		E('div', { 'class': 'nm-subtitle', 'style': 'margin-top:var(--ds-sp-4)' }, '每个频段的评分'),
+		E('table', { 'class': 'nm-table' }, [
+			E('thead', {}, E('tr', {}, [
+				E('th', {}, '频段'),
+				E('th', { 'title': '该频段 AP 的基础分：2.4G 一般比 5G/6G 低一些' }, '基础分'),
+				E('th', { 'title': '信号好于此值时加分' }, '好信号阈值'),
+				E('th', { 'title': '信号差于此值时减分' }, '差信号阈值'),
+				E('th', { 'title': '每偏离中点 1 dB 的加减分；设为非 0 后下面两项会被弱化，评分主要跟着信号强 弱走' }, 'RSSI 权重'),
+				E('th', { 'title': '评分围绕的信号中点' }, 'RSSI 中点')
+			])),
+			E('tbody', {}, bandRows)
+		]),
+		banners,
+		E('p', { 'class': 'nm-hint' }, '想让评分完全跟着信号强弱走（DAWN 文档推荐的做法）：把三档的"RSSI 权重"设为 2、"RSSI 中点"设为 -20，并把该档的好/差信号加分与信道利用率加减分都设为 0，评分就简化为 基础分 + (RSSI − 中点) × 权重 —— 两台 AP 挨得很近、信号差 20 dB 时也会选出更好的那一个，而不是落进同一个区间得到同样的分数。'),
+		E('div', { 'class': 'nm-actions' }, [ saveBtn, startBtn ]),
+		E('p', { 'class': 'nm-hint' }, '这里的配置会通过"有线同步"连同 /etc/config/wireless 一起搬到对端，所以两台设备的评分规则也是一致的；对端是旧版本固件时会自动跳过这一步。SAVE 之后 DAWN 会重启一次，正在进行的换 AP 决策会中断但客户端不会掉线。'),
+		E('p', { 'class': 'nm-hint' }, '看各 AP 上连了谁、谁在谁的覆盖范围内：' , E('a', { 'href': L.url('admin/network/meshconf/steering') }, 'AP 与客户端'))
 	]);
 }
 

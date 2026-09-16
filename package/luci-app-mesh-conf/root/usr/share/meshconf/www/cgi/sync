@@ -18,6 +18,7 @@
 
 WIFI=/etc/config/wireless
 BAK="$WIFI.meshconf-bak"
+DAWN_CONF=/etc/config/dawn
 TMPDIR_SYNC=/tmp/meshconf-sync
 
 # uhttpd hands the CGI a minimal environment; without this, uci/head/sed can
@@ -161,6 +162,50 @@ do_put() {
 	out_json "{\"success\":true,\"bytes\":$bytes,\"reloading\":true}"
 }
 
+# /etc/config/dawn rides along with the wireless config: without it a peer
+# gets the same SSIDs and the same mobility domain but none of the numbers
+# that decide *where* a client goes, so half of the roaming setup stays local.
+do_dawn_get() {
+	check_key "$1"
+	[ -r "$DAWN_CONF" ] || fail 'no dawn config to hand out'
+	out_json "{\"success\":true,\"config\":$(config_as_json_string "$DAWN_CONF")}"
+}
+
+do_dawn_put() {
+	local len="$CONTENT_LENGTH" body
+	check_key "$1"
+
+	case "$len" in
+		''|*[!0-9]*) fail 'missing or invalid Content-Length' ;;
+	esac
+	[ "$len" -gt 0 ] 2>/dev/null || fail 'empty upload'
+	[ "$len" -le 262144 ] || fail 'upload too large'
+
+	mkdir -p "$TMPDIR_SYNC" 2>/dev/null
+	body="$TMPDIR_SYNC/dawn.$$"
+	head -c "$len" > "$body" 2>/dev/null
+
+	# Same shape check as the wireless upload: anything that is not a DAWN
+	# config must not become one.
+	grep -q 'config metric' "$body" 2>/dev/null || { rm -f "$body"; fail 'upload is not a dawn config'; }
+
+	mkdir -p "$TMPDIR_SYNC/ucidawn" 2>/dev/null
+	cp -f "$body" "$TMPDIR_SYNC/ucidawn/dawn" 2>/dev/null
+	uci -c "$TMPDIR_SYNC/ucidawn" show dawn >/dev/null 2>&1 || { rm -f "$body"; fail 'upload does not parse as UCI'; }
+
+	cp -f "$DAWN_CONF" "$DAWN_CONF.meshconf-bak" 2>/dev/null
+	cp -f "$body" "$DAWN_CONF" 2>/dev/null || { rm -f "$body"; fail 'could not write the dawn config'; }
+	rm -f "$body"
+
+	# DAWN reads its config once, at startup - restarting it has to happen
+	# asynchronously or the caller waits through a restart it did not ask for.
+	if [ -x /etc/init.d/dawn ]; then
+		(/etc/init.d/dawn restart >/dev/null 2>&1 &) 2>/dev/null
+	fi
+
+	out_json "{\"success\":true,\"reloading\":true}"
+}
+
 main() {
 	local action key
 	action="$(qs_get action)"
@@ -169,9 +214,14 @@ main() {
 	case "$action" in
 		hello) do_hello ;;
 		get) do_get "$key" ;;
+		dawn-get) do_dawn_get "$key" ;;
 		put)
 			[ "${REQUEST_METHOD:-GET}" = "POST" ] || fail 'put requires POST'
 			do_put "$key"
+			;;
+		dawn-put)
+			[ "${REQUEST_METHOD:-GET}" = "POST" ] || fail 'put requires POST'
+			do_dawn_put "$key"
 			;;
 		*) fail 'unknown action' ;;
 	esac

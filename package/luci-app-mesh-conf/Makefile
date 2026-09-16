@@ -1,18 +1,25 @@
 include $(TOPDIR)/rules.mk
 
 LUCI_NAME:=luci-app-mesh-conf
-PKG_VERSION:=0.2.1
-PKG_RELEASE:=3
+# 0.3.0 - adds the steering layer on top of 802.11k/v/r: the DAWN daemon makes
+# the roaming decisions, this package generates its config (including the
+# derived broadcast address and shared key), ships it to the peer and shows
+# what the whole network sees.
+PKG_VERSION:=0.3.0
+PKG_RELEASE:=1
 
 PKG_MAINTAINER:=XR1710G Maintainer
 PKG_LICENSE:=GPL-2.0-or-later
 
 LUCI_TITLE:=LuCI Mesh Configuration
-LUCI_DESCRIPTION:=Join two XR1710G units: native 802.11s wireless mesh, or wired sync over the LAN (L2 neighbour discovery plus push/pull of /etc/config/wireless behind a shared key) with one-click 802.11k/v/r roaming.
+LUCI_DESCRIPTION:=Join two XR1710G units: native 802.11s wireless mesh, or wired sync over the LAN (L2 neighbour discovery plus push/pull of /etc/config/wireless behind a shared key) with one-click 802.11k/v/r roaming, DAWN-driven client steering and a shared view of every AP and client in the network.
 # wpad-mesh-* replaces wpad-basic: 802.11s needs a hostapd built with mesh
 # support. socat carries the L2 discovery datagrams; uhttpd serves the sync
 # endpoint and uclient-fetch is the http client used to push a config.
-LUCI_DEPENDS:=+luci-base +rpcd +jsonfilter +iw +uhttpd +uclient-fetch +socat +wpad-mesh-mbedtls
+# dawn is the steering daemon: 802.11k/v only tells a client where it could
+# go, DAWN is what decides that it should. It talks to the same hostapd whose
+# ubus support the mesh wpad already brings, and needs umdns (its own dep).
+LUCI_DEPENDS:=+luci-base +rpcd +jsonfilter +iw +uhttpd +uclient-fetch +socat +wpad-mesh-mbedtls +dawn
 LUCI_PKGARCH:=all
 
 include $(TOPDIR)/feeds/luci/luci.mk
@@ -53,6 +60,7 @@ endef
 
 define Package/$(LUCI_NAME)/install
 	$(call MeshConf/install-file,./htdocs/luci-static/resources/view/meshconf/meshconf.js,$(1)/www/luci-static/resources/view/meshconf/meshconf.js,0644)
+	$(call MeshConf/install-file,./htdocs/luci-static/resources/view/meshconf/steering.js,$(1)/www/luci-static/resources/view/meshconf/steering.js,0644)
 	$(call MeshConf/install-exec,./root/usr/libexec/rpcd/luci.meshconf,$(1)/usr/libexec/rpcd/luci.meshconf)
 	$(call MeshConf/install-exec,./root/usr/sbin/meshconf-beacon,$(1)/usr/sbin/meshconf-beacon)
 	$(call MeshConf/install-file,./root/usr/share/meshconf/lib.sh,$(1)/usr/share/meshconf/lib.sh,0644)
@@ -92,6 +100,7 @@ chmod 0755 /usr/libexec/rpcd/luci.meshconf 2>/dev/null
 chmod 0755 /usr/sbin/meshconf-beacon 2>/dev/null
 chmod 0755 /usr/share/meshconf/www/cgi/sync 2>/dev/null
 sed -i 's/\r$$//' /www/luci-static/resources/view/meshconf/meshconf.js 2>/dev/null
+sed -i 's/\r$$//' /www/luci-static/resources/view/meshconf/steering.js 2>/dev/null
 
 /etc/init.d/meshconf enable 2>/dev/null
 /etc/init.d/meshconf restart 2>/dev/null

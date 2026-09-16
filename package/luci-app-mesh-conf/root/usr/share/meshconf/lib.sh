@@ -292,3 +292,47 @@ meshconf_rewrite_channels()
 	rm -f "$tmp"
 	return 0
 }
+
+# ---------------------------------------------------------------------------
+# LAN directed broadcast - shared with the DAWN layer
+# ---------------------------------------------------------------------------
+# DAWN ships option broadcast_ip '10.0.0.255' in its stock config, which is
+# wrong for every LAN but one: changing it is step one of every DAWN how-to,
+# and getting it wrong fails silently - no peer is ever discovered and the
+# dashboard stays empty with nothing in the log.
+#
+# 255.255.255.255 is deliberately not used: the kernel sends it out whatever
+# interface holds the default route, which on a router is the WAN side.
+meshconf_broadcast_addr()
+{
+	local ip="$1" prefix="$2"
+	[ -n "$ip" ] && [ -n "$prefix" ] || return 1
+	case "$prefix" in ''|*[!0-9]*) return 1 ;; esac
+	awk -v ip="$ip" -v p="$prefix" 'BEGIN {
+		split(ip, o, ".")
+		v = ((o[1] * 256 + o[2]) * 256 + o[3]) * 256 + o[4]
+		if (p <= 0 || p >= 31) exit 1
+		size = 2 ^ (32 - p)
+		b = int(v / size) * size + size - 1
+		printf "%d.%d.%d.%d\n", int(b / 16777216) % 256, int(b / 65536) % 256, int(b / 256) % 256, b % 256
+	}'
+}
+
+# The same address taken from whichever interface this package calls LAN, so
+# that DAWN announces itself exactly where the beacon already does. Callers
+# are expected to have sourced /lib/functions/network.sh.
+meshconf_lan_bcast()
+{
+	local ip="" pfx="" subnet=""
+	network_get_ipaddr ip lan 2>/dev/null
+	[ -n "$ip" ] || ip="$(ip -4 addr show dev br-lan 2>/dev/null | awk '/inet /{print $2; exit}' | cut -d/ -f1)"
+	[ -n "$ip" ] || return 1
+
+	if network_get_subnet subnet lan 2>/dev/null; then
+		pfx="${subnet#*/}"
+	fi
+	[ -n "$pfx" ] || pfx="$(ip -4 route show dev br-lan proto kernel scope link 2>/dev/null | awk '{print $1; exit}' | cut -d/ -f2)"
+	[ -n "$pfx" ] || pfx=24
+
+	meshconf_broadcast_addr "$ip" "$pfx"
+}

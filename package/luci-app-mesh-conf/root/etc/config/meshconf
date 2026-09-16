@@ -31,3 +31,9 @@ config sync 'sync'
 
 config roaming 'roaming'
 	option kvr '0'
+
+# steering - whether the DAWN daemon is in charge of deciding that a client
+#   should move to another AP. Its own settings live in /etc/config/dawn;
+#   this switch is this package's, so the page has one place to look.
+config steering 'steering'
+	option enabled '0'
