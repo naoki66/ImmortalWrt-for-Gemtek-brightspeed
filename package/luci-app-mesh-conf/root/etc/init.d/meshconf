@@ -24,6 +24,7 @@ USE_PROCD=1
 PLUGIN=/usr/libexec/rpcd/luci.meshconf
 VIEW=/www/luci-static/resources/view/meshconf/meshconf.js
 BEACON=/usr/sbin/meshconf-beacon
+CGI=/usr/share/meshconf/www/cgi/sync
 DOCROOT=/usr/share/meshconf/www
 SYNC_PORT_DEFAULT=7761
 
@@ -43,6 +44,23 @@ repair()
 	chmod 0755 "$PLUGIN" 2>/dev/null
 
 	[ -f "$VIEW" ] && sed -i 's/\r$//' "$VIEW" 2>/dev/null
+
+	# Same class of failure as the plugin: procd cannot exec a script without
+	# the exec bit or with a CRLF shebang, and it gives up after a handful of
+	# retries, leaving discovery dead until somebody restarts the service by
+	# hand. Fixing it here costs two chmods.
+	for f in "$BEACON" "$CGI"; do
+		[ -f "$f" ] || continue
+		cp -f "$f" "$tmp" 2>/dev/null
+		sed -i 's/\r$//' "$f" 2>/dev/null
+		cmp -s "$f" "$tmp" || changed=1
+		rm -f "$tmp"
+		chmod 0755 "$f" 2>/dev/null
+	done
+
+	# Missing here means nothing restarts us after a reboot, which is easier
+	# to fix here than to recognise later.
+	[ -e /etc/rc.d/S95meshconf ] || ln -sf ../init.d/meshconf /etc/rc.d/S95meshconf 2>/dev/null
 
 	if [ "$changed" = "1" ]; then
 		logger -t meshconf "stripped CR from $PLUGIN"
@@ -70,7 +88,12 @@ start_service()
 	repair
 
 	enabled="$(uci -q get meshconf.sync.enabled 2>/dev/null)"
-	[ "$enabled" = "1" ] || return 0
+	# Say why nothing starts: "not running" with an empty log is the one state
+	# nobody can debug.
+	if [ "$enabled" != "1" ]; then
+		logger -t meshconf "sync is disabled in /etc/config/meshconf, no instances started"
+		return 0
+	fi
 
 	port="$(sync_port)"
 
@@ -78,17 +101,22 @@ start_service()
 		logger -t meshconf "socat is missing: L2 discovery disabled, only manually added peers will be found"
 	fi
 
+	# Retry count 0 = unlimited. With the default 5, one bad start is enough
+	# for procd to give up for good, and the page then reports a dead service
+	# that only a manual restart revives.
 	procd_open_instance beacon
 	procd_set_param command "$BEACON"
-	procd_set_param respawn 3600 5 5
+	procd_set_param respawn 3600 5 0
 	procd_set_param file /etc/config/meshconf
 	procd_close_instance
 
 	procd_open_instance httpd
 	procd_set_param command /usr/sbin/uhttpd -f -p "0.0.0.0:$port" -h "$DOCROOT" -x /cgi -t 30 -n 2
-	procd_set_param respawn 3600 5 5
+	procd_set_param respawn 3600 5 0
 	procd_set_param file /etc/config/meshconf
 	procd_close_instance
+
+	logger -t meshconf "starting beacon and sync endpoint on port $port"
 }
 
 service_triggers()

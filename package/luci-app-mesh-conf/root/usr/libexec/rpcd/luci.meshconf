@@ -71,6 +71,48 @@ have()
 	command -v "$name" >/dev/null 2>&1
 }
 
+# "Is this still alive?" without going through ps: busybox and procps disagree
+# on option spelling, and busybox truncates the COMMAND column when stdout is
+# not a terminal - which is exactly how rpcd runs this file, so a perfectly
+# running beacon could read as dead from here.
+proc_running()
+{
+	local pat="$1" f
+	set +f
+	for f in /proc/[0-9]*/cmdline; do
+		[ -r "$f" ] || continue
+		tr '\0' ' ' < "$f" 2>/dev/null | grep -q -- "$pat" && { set -f; return 0; }
+	done
+	set -f
+	return 1
+}
+
+# The whole plugin runs noglob (`set -f` above) so that a value coming from the
+# browser can never expand into a path. The neighbour directory only ever holds
+# names we validated ourselves, so globbing is switched back on for the listing
+# and immediately off again.
+list_files()
+{
+	local dir="$1"
+	set +f
+	printf '%s\n' "$dir"/*
+	set -f
+}
+
+# procd forks its instances asynchronously: `restart` returns before the child
+# exists. Without waiting, the page refreshes into a "service not running"
+# warning that disappears a second later, which reads like a broken service.
+wait_for_beacon()
+{
+	local i=0 n="${1:-8}"
+	while [ "$i" -lt "$n" ]; do
+		proc_running meshconf-beacon && return 0
+		sleep 1
+		i=$((i + 1))
+	done
+	return 1
+}
+
 ensure_conf()
 {
 	# `uci get <pkg>.<section>` answers with the section type, so an empty
@@ -351,17 +393,46 @@ mesh_json()
 
 sync_json()
 {
-	local enabled key port last peer mode running=0
+	local enabled key port last peer mode running=0 beacon=0 httpd=0 socat=0 initd=0 rclink=0 reason=""
 	enabled="$(mc_get sync.enabled 0)"
 	key="$(mc_get sync.key '')"
 	port="$(sync_port)"
 	last="$(mc_get sync.last_sync 0)"
 	peer="$(mc_get sync.last_peer '')"
 	if [ "$MESHCONF_LIB" = "1" ]; then mode="$(meshconf_channel_mode)"; else mode=stagger; fi
-	ps w 2>/dev/null | grep -q "[m]eshconf-beacon" && running=1
-	printf '{"enabled":%s,"port":"%s","key_set":%s,"running":%s,"last_sync":%s,"last_peer":"%s","channel_mode":"%s","self_ip":"%s","self_mac":"%s","peers":[%s]}' \
+
+	proc_running meshconf-beacon && beacon=1
+	# The private uhttpd that serves /cgi/sync: same feature, second moving
+	# part. A peer can be discovered and still refuse to answer without it.
+	proc_running meshconf/www && httpd=1
+	have socat && socat=1
+	[ -x /etc/init.d/meshconf ] && initd=1
+	[ -e /etc/rc.d/S95meshconf ] && rclink=1
+
+	if [ "$enabled" = "1" ]; then
+		if [ "$initd" != "1" ]; then
+			reason="缺少 /etc/init.d/meshconf：luci-app-mesh-conf 没有装完整，请重新刷写或重装该包。"
+		elif ! have socat; then
+			reason="socat 未安装：二层发现依赖它，请安装 socat 后再点“启动服务”。"
+		elif ! have uhttpd; then
+			reason="uhttpd 未安装：同步端口 $port 由它提供，请安装 uhttpd 后再点“启动服务”。"
+		elif [ "$beacon" != "1" ] && [ "$httpd" != "1" ]; then
+			reason="procd 没有拉起服务（连续失败会被放弃），请点“启动服务”。"
+		elif [ "$beacon" != "1" ]; then
+			reason="发现进程 meshconf-beacon 没有运行，请点“启动服务”。"
+		elif [ "$httpd" != "1" ]; then
+			reason="同步端口 $port 的 uhttpd 没有运行：检查端口是否被占用。"
+		elif [ "$rclink" != "1" ]; then
+			reason="服务在运行，但开机自启链接 /etc/rc.d/S95meshconf 缺失，重启后不会再自动起来。"
+		fi
+		[ "$beacon" = "1" ] && [ "$httpd" = "1" ] && running=1
+	fi
+
+	printf '{"enabled":%s,"port":"%s","key_set":%s,"running":%s,"beacon":%s,"httpd":%s,"socat":%s,"initd":%s,"rclink":%s,"reason":"%s","last_sync":%s,"last_peer":"%s","channel_mode":"%s","self_ip":"%s","self_mac":"%s","peers":[%s]}' \
 		"$(bool "$enabled")" "$port" "$(bool "$( [ -n "$key" ] && echo 1 )")" \
-		"$(bool "$running")" "${last:-0}" "$(json_escape "$peer")" "$(json_escape "$mode")" \
+		"$(bool "$running")" "$(bool "$beacon")" "$(bool "$httpd")" "$(bool "$socat")" \
+		"$(bool "$initd")" "$(bool "$rclink")" "$(json_escape "$reason")" \
+		"${last:-0}" "$(json_escape "$peer")" "$(json_escape "$mode")" \
 		"$(json_escape "$(self_ip)")" "$(json_escape "$(self_mac)")" \
 		"$(manual_peers_json)"
 }
@@ -664,7 +735,7 @@ set_md()
 # ---------------------------------------------------------------------------
 apply_sync()
 {
-	local args="$1" enabled port key peers mode p ok=1
+	local args="$1" enabled port key peers mode p ok=1 running=0
 	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
 	json_get_var enabled enabled
 	json_get_var port port
@@ -704,10 +775,34 @@ apply_sync()
 	done
 
 	uci -q commit meshconf 2>/dev/null
+
+	# enable is idempotent and near free: the rc.d link is the only thing that
+	# brings the service back after a reboot, and nothing else guarantees it.
+	/etc/init.d/meshconf enable >/dev/null 2>&1
 	/etc/init.d/meshconf restart >/dev/null 2>&1 || ok=0
 
-	printf '{"success":true,"enabled":%s,"port":"%s","restarted":%s}' \
-		"$(bool "$enabled")" "$port" "$(bool "$ok")"
+	# Wait for procd to actually fork the beacon, otherwise the page that
+	# refreshes right after this reports a service that is one second old.
+	running=0
+	if [ "$enabled" = "1" ]; then
+		wait_for_beacon 5 || ok=0
+		proc_running meshconf-beacon && running=1
+	fi
+
+	printf '{"success":true,"enabled":%s,"port":"%s","restarted":%s,"running":%s}' \
+		"$(bool "$enabled")" "$port" "$(bool "$ok")" "$(bool "$running")"
+}
+
+restart_sync()
+{
+	local running=0
+
+	/etc/init.d/meshconf enable >/dev/null 2>&1
+	/etc/init.d/meshconf restart >/dev/null 2>&1
+	wait_for_beacon 5
+	proc_running meshconf-beacon && running=1
+
+	printf '{"success":true,"running":%s}' "$(bool "$running")"
 }
 
 # ---------------------------------------------------------------------------
@@ -766,7 +861,7 @@ store_announce()
 
 beacon_running()
 {
-	ps w 2>/dev/null | grep -q "[m]eshconf-beacon"
+	proc_running meshconf-beacon
 }
 
 # No beacon service running (sync disabled, or it just died): listen for a few
@@ -817,7 +912,7 @@ scan_peers()
 		have socat && collect_now "$port"
 	fi
 
-	for f in "$NEIGH_DIR"/*; do
+	for f in $(list_files "$NEIGH_DIR"); do
 		[ -f "$f" ] || continue
 		ip="${f##*/}"
 		case "$ip" in ''|*[!0-9.]*) continue ;; esac
@@ -963,7 +1058,7 @@ sync_peer()
 # ---------------------------------------------------------------------------
 case "$1" in
 	list)
-		printf '{"getStatus":{},"scanPeers":{},"applyMesh":{"enabled":"string","radio":"string","mesh_id":"string","encryption":"string","key":"string","bridge_lan":"string"},"applyRoaming":{"enabled":"string"},"toggleRoam":{"section":"string","feature":"string","enabled":"string"},"setMd":{"section":"string","md":"string"},"applySync":{"enabled":"string","port":"string","key":"string","peers":"string","channel_mode":"string"},"syncPeer":{"ip":"string","direction":"string"}}'
+		printf '{"getStatus":{},"scanPeers":{},"applyMesh":{"enabled":"string","radio":"string","mesh_id":"string","encryption":"string","key":"string","bridge_lan":"string"},"applyRoaming":{"enabled":"string"},"toggleRoam":{"section":"string","feature":"string","enabled":"string"},"setMd":{"section":"string","md":"string"},"applySync":{"enabled":"string","port":"string","key":"string","peers":"string","channel_mode":"string"},"restartSync":{},"syncPeer":{"ip":"string","direction":"string"}}'
 		;;
 	call)
 		args="$(cat)"
@@ -979,6 +1074,7 @@ case "$1" in
 			toggleRoam) rc_out="$(toggle_roam "$args")" ;;
 			setMd) rc_out="$(set_md "$args")" ;;
 			applySync) rc_out="$(apply_sync "$args")" ;;
+			restartSync) rc_out="$(restart_sync)" ;;
 			syncPeer) rc_out="$(sync_peer "$args")" ;;
 			*) rc_out='{"success":false,"error":"unknown method"}' ;;
 		esac

@@ -43,6 +43,11 @@ var callApplySync = rpc.declare({
 	params: [ 'enabled', 'port', 'key', 'peers', 'channel_mode' ]
 });
 
+var callRestartSync = rpc.declare({
+	object: 'luci.meshconf',
+	method: 'restartSync'
+});
+
 var callSyncPeer = rpc.declare({
 	object: 'luci.meshconf',
 	method: 'syncPeer',
@@ -536,9 +541,29 @@ function renderSync() {
 
 	var warn = '';
 	if (s.enabled && !s.running) {
+		var startBtn = E('button', { 'class': 'cbi-button cbi-button-apply' }, '启动服务');
+		startBtn.addEventListener('click', function() {
+			var self = startBtn, orig = self.textContent;
+			self.disabled = true;
+			self.textContent = '启动中…';
+			var done = function() {
+				self.disabled = false;
+				self.textContent = orig;
+			};
+			callRestartSync().then(function(res) {
+				done();
+				if (res && res.running) notify('同步服务已启动。', 'success');
+				else notify('服务仍然没有起来，请 SSH 执行 logread -e meshconf 查看原因。', 'danger');
+				return refresh();
+			}, function(e) {
+				done();
+				notify(e.message || '启动失败', 'danger');
+			});
+		});
 		warn = E('div', { 'class': 'nm-banner bad' }, [
 			E('strong', {}, '同步服务没有运行'),
-			E('div', {}, '保存后服务应自动启动；若仍未运行，请检查 socat 是否已安装（跨二层发现依赖它）。')
+			E('div', {}, s.reason || '服务进程不存在。保存后应自动启动，也可以直接点下面按钮手动拉起。'),
+			E('div', { 'style': 'margin-top:.5em' }, [ startBtn ])
 		]);
 	}
 

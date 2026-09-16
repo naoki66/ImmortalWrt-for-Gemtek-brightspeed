@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 LUCI_NAME:=luci-app-mesh-conf
-PKG_VERSION:=0.2.0
+PKG_VERSION:=0.2.1
 PKG_RELEASE:=1
 
 PKG_MAINTAINER:=XR1710G Maintainer
