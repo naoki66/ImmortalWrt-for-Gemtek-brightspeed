@@ -19,6 +19,7 @@ platform_check_image() {
 		nand_do_platform_check "$board" "$1"
 		return $?
 		;;
+	gemtek,xg2010g-ubi|\
 	gemtek,xg2010g|\
 	nokia,xg-040g-md-ubi)
 		fit_check_image "$1"
@@ -33,6 +34,7 @@ platform_do_upgrade() {
 	local board=$(board_name)
 
 	case "$board" in
+		gemtek,xg2010g-ubi|\
 		gemtek,xg2010g|\
 		gemtek,w1700k-ubi|\
 		gemtek,xr1710g-ubi|\
