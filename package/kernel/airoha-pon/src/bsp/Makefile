@@ -1,7 +1,9 @@
 ccflags-y += $(AIROHA_PON_CFLAGS)
 
 obj-m += airoha_ecnt_hook.o
-airoha_ecnt_hook-y := core/ecnt_hook.o module/ecnt_hook_meta.o
+airoha_ecnt_hook-y := core/ecnt_hook.o module/ecnt_hook_meta.o \
+	module/xpon_legacy_hooks.o module/xpon_net_compat.o \
+	module/foe_compat.o module/tcwdog_compat.o
 
 obj-m += airoha_ecnt_scu.o
 airoha_ecnt_scu-y := core/ecnt_scu.o module/ecnt_scu_meta.o

@@ -591,7 +591,7 @@ int pwan_net_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
     if((gpPonSysData->sysLinkStatus == PON_LINK_STATUS_GPON) && (GPON_CURR_STATE == GPON_STATE_O5)) {
         ret = gwan_prepare_tx_message(&txBmMsg, pNetPriv->netIdx, skb, &xpon_info);
-		gemport=skb->gem_port;
+		gemport=XPON_SKB_CB(skb)->gem_port;
     } else if(gpPonSysData->sysLinkStatus == PON_LINK_STATUS_EPON) {
         ret = ewan_prepare_tx_message(&txBmMsg, pNetPriv->netIdx, skb, &xpon_info);
     } else {
@@ -744,9 +744,9 @@ int gpon_ds_transmit_packet(struct sk_buff* skb)
 	    dev_p=dev_get_by_name(&init_net,name);
         if(dev_p != NULL)
         {
-            skb->original_dev = skb->dev;
+			xpon_skb_preserve_ingress_dev(skb);
 			skb->dev = dev_p;
-    		skb->pon_vlan_flag |= PON_PKT_FROM_WAN;
+			XPON_SKB_CB(skb)->pon_vlan_flag |= PON_PKT_FROM_WAN;
 		    dev_queue_xmit(skb);    
             PON_MSG(MSG_ERR,"%s mapping success packet send to %s\n",__FUNCTION__,name);
             return 0;
@@ -1624,4 +1624,3 @@ int pwan_init(void)
     PON_MSG(MSG_TRACE, "PON WAN interface initialization done\n") ;
 	return 0 ;
 }
-

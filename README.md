@@ -126,7 +126,7 @@
 - `kmod-br-netfilter` / `kmod-tcp-bbr`（桥接 Netfilter / BBR 拥塞控制）
 - `kmod-wireguard`（WireGuard 内核支持）
 - `kmod-hwmon-nct7802`（NCT7802 温度传感器）
-- `kmod-i2c-an7581` / `kmod-leds-gpio` / `kmod-gpio-button-hotplug`
+- `kmod-airoha-i2c` / `kmod-leds-gpio` / `kmod-gpio-button-hotplug`
 - `kmod-phy-realtek` / `kmod-mt76-connac` / `kmod-mt76-core`
 - `rtl826x-firmware`（RTL8261BE PHY 固件）
 

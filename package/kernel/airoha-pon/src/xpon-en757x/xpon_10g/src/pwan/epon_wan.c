@@ -113,7 +113,7 @@ int ewan_prepare_tx_message(PWAN_FETxMsg_T *pTxMsg, unchar netIdx, struct sk_buf
 			epon_mapping_hook(skb);
 		}
 #endif
-		idx = skb->v_if ;
+		idx = XPON_SKB_CB(skb)->v_if ;
 		if(idx >= EPON_LLID_MAX_NUM) {
 			return -1 ;
 		}else if(!gpWanPriv->epon.llid[idx].info.valid) {
@@ -152,8 +152,8 @@ int ewan_prepare_tx_message(PWAN_FETxMsg_T *pTxMsg, unchar netIdx, struct sk_buf
 		} 
 
 		pTxMsg->raw.oam = 0 ;
-		pTxMsg->raw.channel = skb->v_if ;
-		pTxMsg->raw.nboq = skb->v_if ;
+		pTxMsg->raw.channel = XPON_SKB_CB(skb)->v_if ;
+		pTxMsg->raw.nboq = XPON_SKB_CB(skb)->v_if ;
 		
         FE_API_GET_METER_IDX(skb, UP_STREAM, &tsid, 0);
 
@@ -226,7 +226,7 @@ int ewan_process_rx_message(PWAN_FERxMsg_T *pRxMsg, struct sk_buff *skb, uint pk
 		//__dump_skb(skb, pktLens) ;
 	PON_MSG(MSG_ERR, "%s %d receive data packet.\n",__FUNCTION__,__LINE__) ;
 		if(gpWanPriv->epon.llid[idx].info.valid) {
-			skb->v_if = pRxMsg->raw.channel ;
+			XPON_SKB_CB(skb)->v_if = pRxMsg->raw.channel ;
 			
 			if(gpWanPriv->epon.llid[idx].info.rxDrop) {
 				gpWanPriv->epon.llid[idx].stats.rx_dropped++ ;

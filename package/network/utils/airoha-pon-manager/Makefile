@@ -25,6 +25,10 @@ define Build/Compile
 		-Wall -Wextra \
 		-o $(PKG_BUILD_DIR)/ponctl-helper \
 		$(CURDIR)/src/ponctl-helper.c
+	$(TARGET_CC) $(TARGET_CFLAGS) $(TARGET_CPPFLAGS) $(TARGET_LDFLAGS) \
+		-Wall -Wextra \
+		-o $(PKG_BUILD_DIR)/dsdctl \
+		$(CURDIR)/src/dsdctl.c
 endef
 
 define Package/airoha-pon-manager/install
@@ -35,6 +39,7 @@ define Package/airoha-pon-manager/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) ./files/usr/sbin/ponctl $(1)/usr/sbin/ponctl
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ponctl-helper $(1)/usr/sbin/ponctl-helper
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/dsdctl $(1)/usr/sbin/dsdctl
 endef
 
 $(eval $(call BuildPackage,airoha-pon-manager))

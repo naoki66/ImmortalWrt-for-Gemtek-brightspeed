@@ -5,8 +5,9 @@ START=19
 STOP=89
 
 USE_PROCD=1
-EXTRA_COMMANDS="apply"
-EXTRA_HELP="	apply	Apply configured GPON/EPON identity and EPON MAC settings"
+EXTRA_COMMANDS="apply mode"
+EXTRA_HELP="	apply	Apply configured GPON/EPON identity and EPON MAC settings
+	mode <mode>	Switch PON mode without reboot"
 
 PRE_XPON_MODULES="
 airoha_ecnt_hook
@@ -70,17 +71,27 @@ load_one_module() {
 
 	grep -q "^$mod " /proc/modules 2>/dev/null && return 0
 	if [ -n "$arg" ]; then
-		modprobe "$mod" "$arg" 2>/dev/null || logger -t pon "unable to load module $mod $arg"
+		modprobe "$mod" "$arg" 2>/dev/null || {
+			logger -t pon "unable to load module $mod $arg"
+			return 1
+		}
 	else
-		modprobe "$mod" 2>/dev/null || logger -t pon "unable to load module $mod"
+		modprobe "$mod" 2>/dev/null || {
+			logger -t pon "unable to load module $mod"
+			return 1
+		}
 	fi
+
+	return 0
 }
 
 load_modules() {
-	local mod mode mode_param loaded_mode
+	local mod mode mode_param loaded_mode requested_mode
+
+	requested_mode="$1"
 
 	for mod in $PRE_XPON_MODULES; do
-		load_one_module "$mod"
+		load_one_module "$mod" || return 1
 	done
 
 	for mod in $OPTIONAL_MODULES; do
@@ -88,7 +99,11 @@ load_modules() {
 		modprobe "$mod" >/dev/null 2>&1 || true
 	done
 
-	config_get_line mode mode auto
+	if [ -n "$requested_mode" ]; then
+		mode="$requested_mode"
+	else
+		config_get_line mode mode auto
+	fi
 	if ! mode_param="$(mode_to_param "$mode")"; then
 		logger -t pon "unsupported PON mode '$mode', falling back to auto"
 		mode_param=0
@@ -96,8 +111,12 @@ load_modules() {
 
 	if grep -q "^xpon_10g " /proc/modules 2>/dev/null; then
 		loaded_mode="$(cat /sys/module/xpon_10g/parameters/mode 2>/dev/null)"
-		[ -z "$loaded_mode" ] || [ "$loaded_mode" = "$mode_param" ] || \
-			logger -t pon "xpon_10g is already loaded with mode=$loaded_mode, requested mode=$mode_param needs module reload or reboot"
+		[ -z "$loaded_mode" ] || [ "$loaded_mode" = "$mode_param" ] || {
+			apply_helper mode "$mode_param" || {
+				logger -t pon "failed to switch xpon_10g from mode=$loaded_mode to mode=$mode_param"
+				return 1
+			}
+		}
 		return 0
 	fi
 
@@ -118,6 +137,15 @@ setup_links() {
 	done
 }
 
+setup_lan_links() {
+	local dev
+
+	for dev in lan1 lan2 lan3 lan4; do
+		ip link show dev "$dev" >/dev/null 2>&1 || continue
+		ip link set dev "$dev" up 2>/dev/null || true
+	done
+}
+
 apply_helper() {
 	local output ret
 
@@ -125,6 +153,20 @@ apply_helper() {
 	ret="$?"
 	[ -z "$output" ] || logger -t pon "$output"
 	return "$ret"
+}
+
+load_dsd_env() {
+	local env_file=/tmp/dsd.env
+
+	[ -x /usr/sbin/dsdctl ] || return 0
+	[ -r /dev/mtdblock2 ] || return 0
+	if /usr/sbin/dsdctl env > "$env_file" 2>/dev/null; then
+		chmod 0600 "$env_file"
+		# The helper emits shell-quoted assignments from a read-only source.
+		. "$env_file"
+	else
+		rm -f "$env_file"
+	fi
 }
 
 apply_config() {
@@ -138,6 +180,9 @@ apply_config() {
 	config_get password_format line0_gpon password_format "ascii"
 	config_get loid line0_gpon loid ""
 	config_get loid_password line0_gpon loid_password ""
+	# Reuse factory FSAN only when the user supplied the password; this
+	# avoids inventing an incomplete credential pair from DSD alone.
+	[ -n "$serial" ] || [ -z "$password" ] || serial="${fsan:-}"
 
 	if [ -n "$loid" ]; then
 		apply_helper gpon-loid "${serial:-"-"}" "$loid" "$loid_password" || \
@@ -183,8 +228,10 @@ start_service() {
 
 	ensure_node /dev/pon 190 0
 	ensure_node /dev/epon_mac 221 0
-	load_modules
+	load_dsd_env
+	load_modules || return 1
 	setup_links
+	setup_lan_links
 	touch /tmp/.xponconfig
 	apply_config
 }
@@ -208,6 +255,35 @@ apply() {
 	ensure_node /dev/pon 190 0
 	ensure_node /dev/epon_mac 221 0
 	apply_config
+}
+
+mode() {
+	local requested normalized
+
+	requested="$2"
+	[ -n "$requested" ] || {
+		logger -t pon "usage: /etc/init.d/pon mode <mode>"
+		return 1
+	}
+
+	if ! mode_to_param "$requested" >/dev/null; then
+		logger -t pon "unsupported PON mode '$requested'"
+		return 1
+	fi
+
+	normalized="$(printf '%s' "$requested" | tr 'A-Z_' 'a-z-')"
+	config_load pon
+	ensure_node /dev/pon 190 0
+	ensure_node /dev/epon_mac 221 0
+	load_dsd_env
+	load_modules "$normalized" || return 1
+	setup_links
+	setup_lan_links
+	apply_config
+
+	uci -q set "pon.line0.mode=$normalized" || return 1
+	uci -q commit pon || return 1
+	logger -t pon "PON mode active: $normalized"
 }
 
 service_triggers() {

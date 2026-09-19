@@ -351,7 +351,7 @@ int pwan_net_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		{
 			GOTO_DROP(2);
 		}
-		gemport=skb->gem_port;
+		gemport=XPON_SKB_CB(skb)->gem_port;
 	} else 
 #endif /* TCSUPPORT_WAN_GPON */
 #ifdef TCSUPPORT_WAN_EPON

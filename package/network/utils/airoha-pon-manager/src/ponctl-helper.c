@@ -18,6 +18,11 @@
 #define EPON_IOCTL_SET_DYING_GASP_MODE 29
 #define EPON_IOCTL_SET_EPON_MODE 40
 
+#define PON_IOCTL_WAN_LINK_START     0x4000da20UL
+#define PON_IOCTL_WAN_DETECTION_MODE 0x4000da21UL
+#define PON_IOCTL_WAN_LINK_CONFIG    0x8000da22UL
+#define PON_WAN_MODE_MAX             12U
+
 #define LINK_MODE_EPON "2"
 #define STATIC_ASSERT(cond, name) typedef char static_assert_##name[(cond) ? 1 : -1]
 
@@ -36,6 +41,15 @@ STATIC_ASSERT(offsetof(struct epon_mac_ioctl, param2) == 4, epon_param2_offset);
 STATIC_ASSERT(offsetof(struct epon_mac_ioctl, info) == 8, epon_info_offset);
 STATIC_ASSERT(sizeof(struct epon_mac_ioctl) == 136, epon_ioctl_size);
 
+/* Matches the SDK WAN_LINKCFG_t / XMCS_WanLinkConfig_S ABI. */
+struct pon_wan_link_config {
+	uint32_t link_start;
+	uint32_t detect_mode;
+	uint32_t link_status;
+};
+
+STATIC_ASSERT(sizeof(struct pon_wan_link_config) == 12, pon_wan_link_config_size);
+
 static void usage(void)
 {
 	fprintf(stderr,
@@ -48,7 +62,8 @@ static void usage(void)
 		"  ponctl-helper epon-tx-fec <llid-index> <0|1>\n"
 		"  ponctl-helper epon-rx-fec <llid-index> <0|1>\n"
 		"  ponctl-helper epon-dying-gasp <0|1>\n"
-		"  ponctl-helper epon-rate-mode <0|1|2>\n");
+		"  ponctl-helper epon-rate-mode <0|1|2>\n"
+		"  ponctl-helper mode <0..12>\n");
 }
 
 static int run_path(const char *path, char *const argv[])
@@ -185,6 +200,106 @@ static int epon_ioctl(unsigned int cmd, struct epon_mac_ioctl *data)
 
 	close(fd);
 	return ret == 0 ? 0 : 1;
+}
+
+static int pon_ioctl_value(int fd, unsigned long cmd, uint32_t value,
+			   const char *name)
+{
+	if (ioctl(fd, cmd, (unsigned long)value) < 0) {
+		fprintf(stderr, "%s ioctl failed: %s\n", name, strerror(errno));
+		return -1;
+	}
+
+	return 0;
+}
+
+static int pon_get_link_config(int fd, struct pon_wan_link_config *config)
+{
+	memset(config, 0, sizeof(*config));
+	if (ioctl(fd, PON_IOCTL_WAN_LINK_CONFIG, config) < 0) {
+		fprintf(stderr, "WAN_LINK_CONFIG ioctl failed: %s\n", strerror(errno));
+		return -1;
+	}
+
+	return 0;
+}
+
+static void pon_restore_link(int fd, const struct pon_wan_link_config *old)
+{
+	(void)pon_ioctl_value(fd, PON_IOCTL_WAN_LINK_START, 0, "WAN_LINK_START");
+	if (old->detect_mode <= PON_WAN_MODE_MAX)
+		(void)pon_ioctl_value(fd, PON_IOCTL_WAN_DETECTION_MODE,
+				      old->detect_mode, "WAN_DETECTION_MODE");
+	(void)pon_ioctl_value(fd, PON_IOCTL_WAN_LINK_START,
+			      old->link_start ? 1U : 0U, "WAN_LINK_START");
+}
+
+static int cmd_pon_mode(int argc, char **argv)
+{
+	struct pon_wan_link_config old_config;
+	struct pon_wan_link_config new_config = { 0 };
+	uint32_t desired_mode;
+	int fd;
+	int old_started;
+	int ret = 1;
+
+	if (argc != 3 || parse_u32(argv[2], &desired_mode) ||
+	    desired_mode > PON_WAN_MODE_MAX) {
+		usage();
+		return 1;
+	}
+
+	fd = open("/dev/pon", O_RDWR);
+	if (fd < 0) {
+		perror("/dev/pon");
+		return 1;
+	}
+
+	if (pon_get_link_config(fd, &old_config))
+		goto out;
+
+	old_started = old_config.link_start == 1U;
+	if (old_started && old_config.detect_mode == desired_mode) {
+		printf("PON mode already active: mode=%u link_start=%u link_status=%u\n",
+		       old_config.detect_mode, old_config.link_start,
+		       old_config.link_status);
+		ret = 0;
+		goto out;
+	}
+
+	/* The SDK ignores detection changes while sysStartup is PON_WAN_START. */
+	if (pon_ioctl_value(fd, PON_IOCTL_WAN_LINK_START, 0,
+			    "WAN_LINK_START"))
+		goto out;
+	if (pon_ioctl_value(fd, PON_IOCTL_WAN_DETECTION_MODE, desired_mode,
+			    "WAN_DETECTION_MODE")) {
+		pon_restore_link(fd, &old_config);
+		goto out;
+	}
+	if (pon_ioctl_value(fd, PON_IOCTL_WAN_LINK_START, 1,
+			    "WAN_LINK_START")) {
+		pon_restore_link(fd, &old_config);
+		goto out;
+	}
+
+	if (pon_get_link_config(fd, &new_config) ||
+	    new_config.detect_mode != desired_mode ||
+	    new_config.link_start != 1U) {
+		fprintf(stderr,
+			"PON mode verification failed: requested=%u got_mode=%u link_start=%u\n",
+			desired_mode, new_config.detect_mode, new_config.link_start);
+		pon_restore_link(fd, &old_config);
+		goto out;
+	}
+
+	printf("PON mode switched: mode=%u link_start=%u link_status=%u\n",
+	       new_config.detect_mode, new_config.link_start,
+	       new_config.link_status);
+	ret = 0;
+
+out:
+	close(fd);
+	return ret;
 }
 
 static int gpon_sn(const char *serial, const char *password, const char *format)
@@ -338,6 +453,8 @@ int main(int argc, char **argv)
 		return cmd_epon_param0(argc, argv, EPON_IOCTL_SET_DYING_GASP_MODE);
 	if (strcmp(argv[1], "epon-rate-mode") == 0)
 		return cmd_epon_param0(argc, argv, EPON_IOCTL_SET_EPON_MODE);
+	if (strcmp(argv[1], "mode") == 0)
+		return cmd_pon_mode(argc, argv);
 
 	usage();
 	return 1;

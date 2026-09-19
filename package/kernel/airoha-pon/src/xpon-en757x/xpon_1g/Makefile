@@ -14,6 +14,7 @@ endif
 endif
 endif
 EXTRA_CFLAGS += -I$(XPON_BSP_MODULES_XPON_DRIVER)/$(INCDIR)  -I$(XPON_BSP_GLOBAL_INC_PRIVATE) -I$(XPON_BSP_GLOBAL_INC_PUBLIC) -I$(XPON_BSP_ECNT_HOOK_DIR)/include
+EXTRA_CFLAGS += -include $(XPON_BSP_ECNT_HOOK_DIR)/include/linux/xpon_skb.h
 ifeq ($(strip $(TCSUPPORT_3_18_21_KERNEL) $(TCSUPPORT_4_4_KERNEL)),)
 EXTRA_CFLAGS += -O0 
 #-save-temps
@@ -88,5 +89,4 @@ all:
 clean:
 	# cd $(FILESYSTEM_DIR)/lib/modules/ && rm -f xpon.ko
 	$(MAKE) -C $(KERNELDIR) M=`pwd` clean
-
 

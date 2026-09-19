@@ -41,6 +41,18 @@
 	};
 };
 
+&i2c0 {
+	compatible = "airoha,airoha-i2c";
+	clock-frequency = <400000>;
+	status = "okay";
+};
+
+&i2c1 {
+	compatible = "airoha,airoha-i2c";
+	clock-frequency = <400000>;
+	status = "okay";
+};
+
 &spi_nand {
 	partitions {
 		compatible = "fixed-partitions";
@@ -115,3 +127,11 @@
 &usb0 { status = "disabled"; };
 &usb1 { status = "disabled"; };
 &mmc0 { status = "disabled"; };
+
+/* XG2010G stock firmware also starts the generic EN7581 NPU. */
+&npu { status = "okay"; };
+
+/* Let the mainline Ethernet owner expose the legacy PON register ABI. */
+&eth {
+	airoha,pon-compat;
+};

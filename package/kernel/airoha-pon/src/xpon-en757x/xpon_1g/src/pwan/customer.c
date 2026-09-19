@@ -473,7 +473,7 @@ static int fhnet_gwan_vlan_mapping_proc(struct sk_buff *skb)
 	}
 	PON_MSG(MSG_ERR, "mapping result gem %d, allocid %d, queue %d, dropflag %d\n",
 		mappingRet.gemportId,mappingRet.allocId,mappingRet.queueId, mappingRet.dropFlag);
-	skb->gem_port = mappingRet.gemportId;//mappingRet.gemportId;
+	XPON_SKB_CB(skb)->gem_port = mappingRet.gemportId;//mappingRet.gemportId;
 	skb->mark = skb->mark |((mappingRet.queueId & 0x07) << 11); //((mappingRet.queueId & 0x07) << 10);	
 	
 	return RETURN_RET_SUCCESS;
@@ -2332,6 +2332,5 @@ void customer_proc_remove(void)
     }
     remove_proc_entry("qos",NULL);
 }
-
 
 

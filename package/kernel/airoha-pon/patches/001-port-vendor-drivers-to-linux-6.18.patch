@@ -331,7 +331,7 @@ Signed-off-by: coolsnowwolf <coolsnowwolf@gmail.com>
 +int (*ra_sw_nat_hook_clean_table)(void);
 +EXPORT_SYMBOL(ra_sw_nat_hook_clean_table);
 +
-+void (*ra_sw_nat_hook_clean_entry_by_channel)(int channel);
++int (*ra_sw_nat_hook_clean_entry_by_channel)(int channel);
 +EXPORT_SYMBOL(ra_sw_nat_hook_clean_entry_by_channel);
 +
 +void ledTurnOn(uint8 led_no)
@@ -871,55 +871,18 @@ Signed-off-by: coolsnowwolf <coolsnowwolf@gmail.com>
  	uint data = get_xpon_data(reg) ;
 --- a/xpon-en757x/xpon_10g/inc/common/xpon_compat.h
 +++ b/xpon-en757x/xpon_10g/inc/common/xpon_compat.h
-@@ -0,0 +1,63 @@
+@@ -0,0 +1,26 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _XPON_COMPAT_H_
 +#define _XPON_COMPAT_H_
 +
-+#include <linux/skbuff.h>
++#include <linux/xpon_skb.h>
++#include <linux/foe_hook.h>
 +#include <linux/types.h>
 +#include <linux/version.h>
 +
-+struct xpon_skb_cb {
-+	u32 pon_mark;
-+	u32 mark2;
-+	u16 gem_port;
-+	u16 lan_vlan_tci;
-+	u8 gem_type;
-+	u8 v_if;
-+	u8 lan_vlan_tci_valid;
-+	u8 pon_mac_filter_flag;
-+	u8 pon_tag_num;
-+	u8 pon_vlan_flag;
-+	u8 qosEnque;
-+};
-+
-+#define XPON_SKB_CB(skb) ((struct xpon_skb_cb *)((skb)->cb))
-+
-+struct port_info {
-+	u32 magic;
-+	u32 stag;
-+	u32 channel;
-+	u32 nbq;
-+	u32 txq;
-+	u32 txq_is_valid;
-+	u32 tsid;
-+	u32 fast;
-+};
-+
-+extern void (*ra_sw_nat_hook_clean_entry_by_channel)(int channel);
-+
 +#ifndef QOS_FILTER_MARK
 +#define QOS_FILTER_MARK 0xf0
-+#endif
-+#ifndef QOS_TSE_MARK
-+#define QOS_TSE_MARK BIT(8)
-+#endif
-+#ifndef QOS_TSID_MARK
-+#define QOS_TSID_MARK GENMASK(7, 0)
-+#endif
-+#ifndef DS_PKT_FORM_WAN
-+#define DS_PKT_FORM_WAN BIT(0)
 +#endif
 +#ifndef SKBUF_COPYTOLAN
 +#define SKBUF_COPYTOLAN BIT(24)
@@ -1581,6 +1544,12 @@ Signed-off-by: coolsnowwolf <coolsnowwolf@gmail.com>
  				gpWanPriv->epon.llid[idx].stats.rx_dropped++ ;
 --- a/xpon-en757x/xpon_10g/src/pwan/gpon_wan.c
 +++ b/xpon-en757x/xpon_10g/src/pwan/gpon_wan.c
+@@ -43,4 +43,5 @@
+ #include <linux/netdevice.h>
+ #include <linux/version.h>
+ #include <linux/skbuff.h>
++#include <linux/foe_hook.h>
+ #include "common/xpon_global.h"
 @@ -953,7 +953,7 @@
  	} else {
  

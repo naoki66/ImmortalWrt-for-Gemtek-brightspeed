@@ -1,0 +1,202 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+#ifndef _LINUX_LIBCOMPILEOPTION_H
+#define _LINUX_LIBCOMPILEOPTION_H
+
+/*
+ * The vendor kernel exposes these values through global bitfield arrays.
+ * OpenWrt builds one fixed feature set, so keep the same call sites without
+ * adding a runtime dependency on the vendor libcompileoption provider.
+ */
+#ifdef TCSUPPORT_ALPHION_PON
+#define TCSUPPORT_ALPHION_PON_VAL 1
+#else
+#define TCSUPPORT_ALPHION_PON_VAL 0
+#endif
+
+#ifdef TCSUPPORT_BBF_247
+#define TCSUPPORT_BBF_247_VAL 1
+#else
+#define TCSUPPORT_BBF_247_VAL 0
+#endif
+
+#ifdef TCSUPPORT_C1_MS
+#define TCSUPPORT_C1_MS_VAL 1
+#else
+#define TCSUPPORT_C1_MS_VAL 0
+#endif
+
+#ifdef TCSUPPORT_CCA
+#define TCSUPPORT_CCA_VAL 1
+#else
+#define TCSUPPORT_CCA_VAL 0
+#endif
+
+#ifdef TCSUPPORT_CDS
+#define TCSUPPORT_CDS_VAL 1
+#else
+#define TCSUPPORT_CDS_VAL 0
+#endif
+
+#ifdef TCSUPPORT_CF_JOYMEV2_PON
+#define TCSUPPORT_CF_JOYMEV2_PON_VAL 1
+#else
+#define TCSUPPORT_CF_JOYMEV2_PON_VAL 0
+#endif
+
+#ifdef TCSUPPORT_CHS
+#define TCSUPPORT_CHS_VAL 1
+#else
+#define TCSUPPORT_CHS_VAL 0
+#endif
+
+#ifdef TCSUPPORT_CMCCV2
+#define TCSUPPORT_CMCCV2_VAL 1
+#else
+#define TCSUPPORT_CMCCV2_VAL 0
+#endif
+
+#if defined(TCSUPPORT_CPU_EN7512) || defined(TCSUPPORT_CPU_EN7521)
+#define TCSUPPORT_CPU_EN75XX_VAL 1
+#else
+#define TCSUPPORT_CPU_EN75XX_VAL 0
+#endif
+
+#ifdef TCSUPPORT_CT_C5_HEN_SFU
+#define TCSUPPORT_CT_C5_HEN_SFU_VAL 1
+#else
+#define TCSUPPORT_CT_C5_HEN_SFU_VAL 0
+#endif
+
+#ifdef TCSUPPORT_CT_PON_SN
+#define TCSUPPORT_CT_PON_SN_VAL 1
+#else
+#define TCSUPPORT_CT_PON_SN_VAL 0
+#endif
+
+#ifdef TCSUPPORT_CT_PON
+#define TCSUPPORT_CT_PON_VAL 1
+#else
+#define TCSUPPORT_CT_PON_VAL 0
+#endif
+
+#ifdef TCSUPPORT_CT_SFU_SX
+#define TCSUPPORT_CT_SFU_SX_VAL 1
+#else
+#define TCSUPPORT_CT_SFU_SX_VAL 0
+#endif
+
+#ifdef TCSUPPORT_CUC
+#define TCSUPPORT_CUC_VAL 1
+#else
+#define TCSUPPORT_CUC_VAL 0
+#endif
+
+#ifdef TCSUPPORT_CY_PON
+#define TCSUPPORT_CY_PON_VAL 1
+#else
+#define TCSUPPORT_CY_PON_VAL 0
+#endif
+
+#ifdef TCSUPPORT_GOOGLE_FIBER
+#define TCSUPPORT_GOOGLE_FIBER_VAL 1
+#else
+#define TCSUPPORT_GOOGLE_FIBER_VAL 0
+#endif
+
+#ifdef TCSUPPORT_MULTI_SWITCH_EXT
+#define TCSUPPORT_MULTI_SWITCH_EXT_VAL 1
+#else
+#define TCSUPPORT_MULTI_SWITCH_EXT_VAL 0
+#endif
+
+#ifdef TCSUPPORT_MULTI_USER_ITF
+#define TCSUPPORT_MULTI_USER_ITF_VAL 1
+#else
+#define TCSUPPORT_MULTI_USER_ITF_VAL 0
+#endif
+
+#ifdef TCSUPPORT_MULTICAST_SPEED
+#define TCSUPPORT_MULTICAST_SPEED_VAL 1
+#else
+#define TCSUPPORT_MULTICAST_SPEED_VAL 0
+#endif
+
+#ifdef TCSUPPORT_PON_IP_HOST
+#define TCSUPPORT_PON_IP_HOST_VAL 1
+#else
+#define TCSUPPORT_PON_IP_HOST_VAL 0
+#endif
+
+#ifdef TCSUPPORT_PON_SFU_HGU_HYBRID
+#define TCSUPPORT_PON_SFU_HGU_HYBRID_VAL 1
+#else
+#define TCSUPPORT_PON_SFU_HGU_HYBRID_VAL 0
+#endif
+
+#ifdef TCSUPPORT_PON_VLAN_FILTER
+#define TCSUPPORT_PON_VLAN_FILTER_VAL 1
+#else
+#define TCSUPPORT_PON_VLAN_FILTER_VAL 0
+#endif
+
+#ifdef TCSUPPORT_PON_VLAN
+#define TCSUPPORT_PON_VLAN_VAL 1
+#else
+#define TCSUPPORT_PON_VLAN_VAL 0
+#endif
+
+#ifdef TCSUPPORT_RA_HWNAT_ENHANCE_HOOK
+#define TCSUPPORT_RA_HWNAT_ENHANCE_HOOK_VAL 1
+#else
+#define TCSUPPORT_RA_HWNAT_ENHANCE_HOOK_VAL 0
+#endif
+
+#ifdef TCSUPPORT_RA_HWNAT
+#define TCSUPPORT_RA_HWNAT_VAL 1
+#else
+#define TCSUPPORT_RA_HWNAT_VAL 0
+#endif
+
+#ifdef TCSUPPORT_TLS
+#define TCSUPPORT_TLS_VAL 1
+#else
+#define TCSUPPORT_TLS_VAL 0
+#endif
+
+#ifdef TCSUPPORT_UPSTREAM_VLAN_POLICER
+#define TCSUPPORT_UPSTREAM_VLAN_POLICER_VAL 1
+#else
+#define TCSUPPORT_UPSTREAM_VLAN_POLICER_VAL 0
+#endif
+
+#ifdef TCSUPPORT_VLAN_ACCESS_TRUNK
+#define TCSUPPORT_VLAN_ACCESS_TRUNK_VAL 1
+#else
+#define TCSUPPORT_VLAN_ACCESS_TRUNK_VAL 0
+#endif
+
+#ifdef TCSUPPORT_VLAN_TAG
+#define TCSUPPORT_VLAN_TAG_VAL 1
+#else
+#define TCSUPPORT_VLAN_TAG_VAL 0
+#endif
+
+#ifdef TCSUPPORT_VNPTT
+#define TCSUPPORT_VNPTT_VAL 1
+#else
+#define TCSUPPORT_VNPTT_VAL 0
+#endif
+
+#ifdef TCSUPPORT_XPON_IGMP_CHT
+#define TCSUPPORT_XPON_IGMP_CHT_VAL 1
+#else
+#define TCSUPPORT_XPON_IGMP_CHT_VAL 0
+#endif
+
+#ifdef TCSUPPORT_XPON_IGMP
+#define TCSUPPORT_XPON_IGMP_VAL 1
+#else
+#define TCSUPPORT_XPON_IGMP_VAL 0
+#endif
+
+#endif

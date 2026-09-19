@@ -227,7 +227,7 @@ static int get_valid_data_gemIdx(struct sk_buff * skb, int dir)
 	int gemIdx = 0 ;
 
 	/* Just for FPGA Verification. the default gem port msut use default interface or dropped. */
-	gemIdx = (skb->gem_port) ? (gpWanPriv->gpon.gemIdToIndex[skb->gem_port] & GPON_GEM_IDX_MASK) : GPON_GEMPORT_MAX_NUM ;
+	gemIdx = (XPON_SKB_CB(skb)->gem_port) ? (gpWanPriv->gpon.gemIdToIndex[XPON_SKB_CB(skb)->gem_port] & GPON_GEM_IDX_MASK) : GPON_GEMPORT_MAX_NUM ;
 	if(dir == XPON_WAN_TX_DIR){
 		if(gemIdx>=GPON_GEMPORT_MAX_NUM || !gpWanPriv->gpon.gemPort[gemIdx].info.valid 
 			|| (gpWanPriv->gpon.gemPort[gemIdx].info.channel==GPON_MULTICAST_CHANNEL 
@@ -251,7 +251,7 @@ static int get_valid_data_gemIdx(struct sk_buff * skb, int dir)
 		return -1 ;
 	}
 
-	skb->v_if = gpWanPriv->gpon.gemPort[gemIdx].info.ani ;
+	XPON_SKB_CB(skb)->v_if = gpWanPriv->gpon.gemPort[gemIdx].info.ani ;
 	return gemIdx;
 }
 
@@ -271,7 +271,7 @@ static int gpon_ani_vlan_filter(struct sk_buff * skb, int igmp_handle)
 	if (!igmp_handle)
 	{
 
-		skb->pon_vlan_flag |= PON_PKT_SEND_TO_WAN;
+		XPON_SKB_CB(skb)->pon_vlan_flag |= PON_PKT_SEND_TO_WAN;
 		if(pon_insert_tag_hook)
 		{
 			if(pon_insert_tag_hook(&skb) == -1){
@@ -287,7 +287,7 @@ static int gpon_ani_vlan_filter(struct sk_buff * skb, int igmp_handle)
 static int gpon_mac_filter(struct sk_buff * skb)
 {
 #ifdef TCSUPPORT_PON_MAC_FILTER
-		skb->pon_mac_filter_flag |= PKT_SEND_TO_WAN;
+		XPON_SKB_CB(skb)->pon_mac_filter_flag |= PKT_SEND_TO_WAN;
 		if(pon_check_mac_hook)
 		{
 			if(pon_check_mac_hook(skb) == -1){
@@ -389,7 +389,7 @@ int gwan_prepare_tx_message(PWAN_FETxMsg_T *pTxMsg, unchar netIdx, struct sk_buf
 	else {
 		
 #if defined(TCSUPPORT_PON_VLAN)		
-		skb->pon_vlan_flag |= PON_VLAN_TX_CALL_HOOK;		
+		XPON_SKB_CB(skb)->pon_vlan_flag |= PON_VLAN_TX_CALL_HOOK;
 		if(pon_insert_tag_hook)		
 		{			
 			if(pon_insert_tag_hook(&skb) == -1){				
@@ -533,12 +533,12 @@ static void gwan_rx_set_igmp_pkt_vlan_flag(struct sk_buff *skb)
 	if(!isMulticastPkt(mac))
 	{
 	#ifdef TCSUPPORT_VLAN_TAG
-		skb->vlan_tag_flag |= VLAN_TAG_INSERT_FLAG;
-		skb->vlan_tag_flag |= VLAN_TAG_FROM_INDEV;
+		XPON_SKB_CB(skb)->vlan_tag_flag |= VLAN_TAG_INSERT_FLAG;
+		XPON_SKB_CB(skb)->vlan_tag_flag |= VLAN_TAG_FROM_INDEV;
 	#endif
 
 	#ifdef TCSUPPORT_PON_VLAN
-		skb->pon_vlan_flag |= PON_PKT_INSERT_FLAG;
+		XPON_SKB_CB(skb)->pon_vlan_flag |= PON_PKT_INSERT_FLAG;
 	#endif
 	}
 #endif
@@ -597,7 +597,7 @@ int gwan_process_rx_message(PWAN_FERxMsg_T *pRxMsg, struct sk_buff *skb, uint pk
 		}
 	} else {
 		netIdx = PWAN_IF_DATA ;		
-		skb->gem_port = pRxMsg->raw.gem ;
+		XPON_SKB_CB(skb)->gem_port = pRxMsg->raw.gem ;
 		gemIdx = get_valid_data_gemIdx(skb, XPON_WAN_RX_DIR);
 		if(gemIdx == -1){
 			XPON_DROP_PRINT;
@@ -606,12 +606,12 @@ int gwan_process_rx_message(PWAN_FERxMsg_T *pRxMsg, struct sk_buff *skb, uint pk
 
 		gwan_rx_gem_statistic_update(gemIdx, pktLens);
         if(GPON_MULTICAST_CHANNEL == gpWanPriv->gpon.gemPort[gemIdx].info.channel){
-            skb->gem_type = GPON_MULTICAST_GEM ;
+			XPON_SKB_CB(skb)->gem_type = GPON_MULTICAST_GEM ;
         }else{
-            skb->gem_type = GPON_UNICAST_GEM ;           
+			XPON_SKB_CB(skb)->gem_type = GPON_UNICAST_GEM ;
         }
 
-		skb->pon_mark |= DS_PKT_FORM_WAN;
+		XPON_SKB_CB(skb)->pon_mark |= DS_PKT_FORM_WAN;
 
 		if(gwan_rx_loopback_per_gem(gemIdx)){
 			*pFlag = 1;

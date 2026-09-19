@@ -1,0 +1,269 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Sat, 19 Sep 2026 00:00:00 +0800
+Subject: [PATCH] net: airoha: export shared FE/QDMA register API for xPON
+
+The vendor EN7581 xPON modules still use the legacy
+get_frame_engine_data()/set_frame_engine_data() ABI. The mainline Ethernet
+driver already owns the FE and both QDMA mappings and their interrupts, so
+provide a narrow compatibility API from that owner instead of adding a
+second frame-engine platform driver.
+
+The switch window is mapped only when the board marks the Ethernet node with
+airoha,pon-compat. No IRQ is requested by this compatibility layer.
+
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
+index 433a646..d474b26 100644
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -17,6 +17,19 @@
+ #include "airoha_regs.h"
+ #include "airoha_eth.h"
+ 
++#define AIROHA_PON_FE_BASE		0x1fb50000
++#define AIROHA_PON_FE_SIZE		0x00002600
++#define AIROHA_PON_QDMA0_BASE		0x1fb54000
++#define AIROHA_PON_QDMA_SIZE		0x00002000
++#define AIROHA_PON_QDMA1_BASE		0x1fb56000
++#define AIROHA_PON_SWITCH_BASE		0x1fb58000
++#define AIROHA_PON_SWITCH_SIZE		0x00008000
++
++static struct airoha_eth *airoha_pon_eth;
++static phys_addr_t airoha_pon_qdma_lan_buffer_base;
++static phys_addr_t airoha_pon_qdma_wan_buffer_base;
++static phys_addr_t airoha_pon_ppe_buffer_base;
++
+ u32 airoha_rr(void __iomem *base, u32 offset)
+ {
+ 	return readl(base + offset);
+@@ -1345,6 +1358,166 @@ static int airoha_qdma_init_irq_banks(struct platform_device *pdev,
+ 	return 0;
+ }
+ 
++static void __iomem *airoha_pon_reg_base(struct airoha_eth *eth,
++						 u32 reg, u32 *offset)
++{
++	u32 reg_phy = reg;
++
++	if (reg_phy > 0xa0000000)
++		reg_phy &= 0x1fffffff;
++
++	if (reg_phy & 0x3)
++		return NULL;
++
++	if (reg_phy >= AIROHA_PON_FE_BASE &&
++	    reg_phy < AIROHA_PON_FE_BASE + AIROHA_PON_FE_SIZE) {
++		*offset = reg_phy - AIROHA_PON_FE_BASE;
++		return eth->fe_regs;
++	}
++
++	if (reg_phy >= AIROHA_PON_QDMA0_BASE &&
++	    reg_phy < AIROHA_PON_QDMA0_BASE + AIROHA_PON_QDMA_SIZE) {
++		*offset = reg_phy - AIROHA_PON_QDMA0_BASE;
++		return eth->qdma[0].regs;
++	}
++
++	if (reg_phy >= AIROHA_PON_QDMA1_BASE &&
++	    reg_phy < AIROHA_PON_QDMA1_BASE + AIROHA_PON_QDMA_SIZE) {
++		*offset = reg_phy - AIROHA_PON_QDMA1_BASE;
++		return eth->qdma[1].regs;
++	}
++
++	if (reg_phy >= AIROHA_PON_SWITCH_BASE &&
++	    reg_phy < AIROHA_PON_SWITCH_BASE + AIROHA_PON_SWITCH_SIZE &&
++	    eth->pon_switch_regs) {
++		*offset = reg_phy - AIROHA_PON_SWITCH_BASE;
++		return eth->pon_switch_regs;
++	}
++
++	return NULL;
++}
++
++u32 get_frame_engine_data(u32 reg)
++{
++	struct airoha_eth *eth = READ_ONCE(airoha_pon_eth);
++	void __iomem *base;
++	u32 offset;
++
++	if (!eth)
++		return 0;
++
++	base = airoha_pon_reg_base(eth, reg, &offset);
++	if (!base)
++		return 0;
++
++	return airoha_rr(base, offset);
++}
++EXPORT_SYMBOL(get_frame_engine_data);
++
++void set_frame_engine_data(u32 reg, u32 val)
++{
++	struct airoha_eth *eth = READ_ONCE(airoha_pon_eth);
++	void __iomem *base;
++	u32 offset;
++
++	if (!eth)
++		return;
++
++	base = airoha_pon_reg_base(eth, reg, &offset);
++	if (base)
++		airoha_wr(base, offset, val);
++}
++EXPORT_SYMBOL(set_frame_engine_data);
++
++struct device *get_frame_engine_dev(void)
++{
++	struct airoha_eth *eth = READ_ONCE(airoha_pon_eth);
++
++	return eth ? eth->dev : NULL;
++}
++EXPORT_SYMBOL(get_frame_engine_dev);
++
++int get_qdma_lan_irq(int index)
++{
++	struct airoha_eth *eth = READ_ONCE(airoha_pon_eth);
++
++	if (!eth || index < 0 || index >= ARRAY_SIZE(eth->qdma[0].irq_banks))
++		return -ENODEV;
++
++	return eth->qdma[0].irq_banks[index].irq;
++}
++EXPORT_SYMBOL(get_qdma_lan_irq);
++
++int get_qdma_wan_irq(int index)
++{
++	struct airoha_eth *eth = READ_ONCE(airoha_pon_eth);
++
++	if (!eth || index < 0 || index >= ARRAY_SIZE(eth->qdma[1].irq_banks))
++		return -ENODEV;
++
++	return eth->qdma[1].irq_banks[index].irq;
++}
++EXPORT_SYMBOL(get_qdma_wan_irq);
++
++int get_fe_irq(void)
++{
++	struct airoha_eth *eth = READ_ONCE(airoha_pon_eth);
++
++	return eth ? eth->fe_irq : -ENODEV;
++}
++EXPORT_SYMBOL(get_fe_irq);
++
++int get_pdma_irq(void)
++{
++	struct airoha_eth *eth = READ_ONCE(airoha_pon_eth);
++
++	return eth ? eth->pdma_irq : -ENODEV;
++}
++EXPORT_SYMBOL(get_pdma_irq);
++
++int get_tdma_irq(int index)
++{
++	(void)index;
++	return -ENODEV;
++}
++EXPORT_SYMBOL(get_tdma_irq);
++
++void ecnt_qdma_lan_set_buffer_base(phys_addr_t buffer_base)
++{
++	airoha_pon_qdma_lan_buffer_base = buffer_base;
++}
++EXPORT_SYMBOL(ecnt_qdma_lan_set_buffer_base);
++
++unsigned int ecnt_qdma_lan_get_buffer_base(void)
++{
++	return (unsigned int)airoha_pon_qdma_lan_buffer_base;
++}
++EXPORT_SYMBOL(ecnt_qdma_lan_get_buffer_base);
++
++void ecnt_qdma_wan_set_buffer_base(phys_addr_t buffer_base)
++{
++	airoha_pon_qdma_wan_buffer_base = buffer_base;
++}
++EXPORT_SYMBOL(ecnt_qdma_wan_set_buffer_base);
++
++unsigned int ecnt_qdma_wan_get_buffer_base(void)
++{
++	return (unsigned int)airoha_pon_qdma_wan_buffer_base;
++}
++EXPORT_SYMBOL(ecnt_qdma_wan_get_buffer_base);
++
++void ecnt_ppe_set_buffer_base(phys_addr_t buffer_base)
++{
++	airoha_pon_ppe_buffer_base = buffer_base;
++}
++EXPORT_SYMBOL(ecnt_ppe_set_buffer_base);
++
++unsigned int ecnt_ppe_get_buffer_base(void)
++{
++	return (unsigned int)airoha_pon_ppe_buffer_base;
++}
++EXPORT_SYMBOL(ecnt_ppe_get_buffer_base);
++
+ static int airoha_qdma_init(struct platform_device *pdev,
+ 			    struct airoha_eth *eth,
+ 			    struct airoha_qdma *qdma)
+@@ -2920,6 +3093,7 @@ static int airoha_probe(struct platform_device *pdev)
+ 	struct device_node *np;
+ 	struct airoha_eth *eth;
+ 	int i, err;
++	bool pon_compat;
+ 
+ 	eth = devm_kzalloc(&pdev->dev, sizeof(*eth), GFP_KERNEL);
+ 	if (!eth)
+@@ -2938,6 +3112,19 @@ static int airoha_probe(struct platform_device *pdev)
+ 		return dev_err_probe(eth->dev, PTR_ERR(eth->fe_regs),
+ 				     "failed to iomap fe regs\n");
+ 
++	pon_compat = of_property_read_bool(pdev->dev.of_node,
++						  "airoha,pon-compat");
++	if (pon_compat) {
++		eth->pon_switch_regs = devm_ioremap(eth->dev,
++						    AIROHA_PON_SWITCH_BASE,
++						    AIROHA_PON_SWITCH_SIZE);
++		if (!eth->pon_switch_regs)
++			return -ENOMEM;
++	}
++
++	eth->fe_irq = platform_get_irq_optional(pdev, 8);
++	eth->pdma_irq = platform_get_irq_optional(pdev, 9);
++
+ 	eth->rsts[0].id = "fe";
+ 	eth->rsts[1].id = "pdma";
+ 	eth->rsts[2].id = "qdma";
+@@ -2993,6 +3180,8 @@ static int airoha_probe(struct platform_device *pdev)
+ 		}
+ 	}
+ 
++	WRITE_ONCE(airoha_pon_eth, eth);
++
+ 	return 0;
+ 
+ error_napi_stop:
+@@ -3022,6 +3211,8 @@ static void airoha_remove(struct platform_device *pdev)
+ 	struct airoha_eth *eth = platform_get_drvdata(pdev);
+ 	int i;
+ 
++	WRITE_ONCE(airoha_pon_eth, NULL);
++
+ 	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++) {
+ 		airoha_qdma_stop_napi(&eth->qdma[i]);
+ 		airoha_hw_cleanup(&eth->qdma[i]);
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
+index cd13c1c..1ee1496 100644
+--- a/drivers/net/ethernet/airoha/airoha_eth.h
++++ b/drivers/net/ethernet/airoha/airoha_eth.h
+@@ -580,6 +580,11 @@ struct airoha_eth {
+ 
+ 	struct airoha_qdma qdma[AIROHA_MAX_NUM_QDMA];
+ 	struct airoha_gdm_port *ports[AIROHA_MAX_NUM_GDM_PORTS];
++
++	/* Optional legacy xPON register/IRQ compatibility view. */
++	void __iomem *pon_switch_regs;
++	int fe_irq;
++	int pdma_irq;
+ };
+ 
+ u32 airoha_rr(void __iomem *base, u32 offset);
+--
+2.47.0

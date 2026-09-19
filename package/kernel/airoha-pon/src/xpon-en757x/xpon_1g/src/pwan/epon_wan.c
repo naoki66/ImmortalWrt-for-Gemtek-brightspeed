@@ -112,7 +112,7 @@ int ewan_config_tx_msg(struct sk_buff * skb,PWAN_FETxMsg_T *pTxMsg, uint8_t netI
 	}
 	else 
 	{
-		channel = skb->v_if;
+		channel = XPON_SKB_CB(skb)->v_if;
 		pTxMsg->raw.oam = 0 ;
 		pTxMsg->raw.channel = channel ;
 #ifdef TCSUPPORT_CPU_EN7580
@@ -132,8 +132,8 @@ int ewan_config_tx_msg(struct sk_buff * skb,PWAN_FETxMsg_T *pTxMsg, uint8_t netI
 		pTxMsg->raw.acnt_g0 = acnt_g0;
 		pTxMsg->raw.acnt_g1 = acnt_g1;
 #else
-		pTxMsg->raw.tse = (skb->pon_mark & QOS_TSE_MARK) ? 1 : 0 ;
-		pTxMsg->raw.tsid = (pTxMsg->raw.tse) ? (skb->pon_mark & QOS_TSID_MARK) : 0 ;	
+		pTxMsg->raw.tse = (XPON_SKB_CB(skb)->pon_mark & QOS_TSE_MARK) ? 1 : 0 ;
+		pTxMsg->raw.tsid = (pTxMsg->raw.tse) ? (XPON_SKB_CB(skb)->pon_mark & QOS_TSID_MARK) : 0 ;
 #endif
 	}
 
@@ -178,7 +178,7 @@ int ewan_prepare_tx_message(PWAN_FETxMsg_T *pTxMsg, unchar netIdx, struct sk_buf
 			epon_mapping_hook(skb);
 		}
 #endif
-		idx = skb->v_if ;
+		idx = XPON_SKB_CB(skb)->v_if ;
 		if(idx>=EPON_1G_MAX_LLID_NUM ||
 			!gpWanPriv->epon.llid[idx].info.valid)
 		{
@@ -433,7 +433,7 @@ int ewan_process_rx_message(PWAN_FERxMsg_T *pRxMsg, struct sk_buff *skb, uint pk
 			return -1;
 		}
 		if(gpWanPriv->epon.llid[idx].info.valid) {
-			skb->v_if = pRxMsg->raw.channel ;
+			XPON_SKB_CB(skb)->v_if = pRxMsg->raw.channel ;
 			
 			if(gpWanPriv->epon.llid[idx].info.rxDrop) {
 				gpWanPriv->epon.llid[idx].stats.rx_dropped++ ;

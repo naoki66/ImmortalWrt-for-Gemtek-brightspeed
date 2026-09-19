@@ -16,7 +16,7 @@ xpon_10g
 
 usage() {
 	cat <<'EOF'
-Usage: ponctl <status|config|mode-map|modules|devices|links|procs|nodes|apply|start|stop|reload>
+Usage: ponctl <status|config|mode-map|modules|devices|links|procs|nodes|dsd|mode|apply|start|stop|reload>
 EOF
 }
 
@@ -205,6 +205,14 @@ show_procs() {
 	show_proc_dir /proc/pon_phy
 }
 
+show_dsd() {
+	if [ -x /usr/sbin/dsdctl ]; then
+		/usr/sbin/dsdctl status
+	else
+		printf 'dsdctl missing\n'
+	fi
+}
+
 create_nodes() {
 	[ -c /dev/pon ] || mknod /dev/pon c 190 0
 	[ -c /dev/epon_mac ] || mknod /dev/epon_mac c 221 0
@@ -246,8 +254,18 @@ case "$1" in
 	apply|start|stop|reload)
 		"/etc/init.d/pon" "$1"
 		;;
+	mode)
+		[ -n "$2" ] && [ -z "$3" ] || {
+			usage >&2
+			exit 1
+		}
+		"/etc/init.d/pon" mode "$2"
+		;;
 	procs)
 		show_procs
+		;;
+	dsd)
+		show_dsd
 		;;
 	*)
 		usage >&2
