@@ -50,13 +50,14 @@ done
 
 if grep -qx 'CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xr1710g-ubi=y' "$config_file"; then
 	profile="xr1710g"
-	forbidden_packages='(airoha-pon-firmware|airoha-pon-manager|kmod-airoha-(xpon-en757x|pon-plugins|pon-dataplane|xpon-igmp|gpon-igmp|tod))'
+	forbidden_packages='(airoha-pon-firmware|airoha-pon-manager|kmod-airoha-(xpon-en757x|pon-plugins|pon-dataplane|xpon-igmp|gpon-igmp|tod|en7581-pcm-spi))'
 	required_packages=(
 		airoha-an7581-mt7996-board
 		airoha-en7581-mt7996-npu-firmware
 		kmod-mt7996-firmware
 		kmod-mt7996e
 	)
+	manifest_required_packages=("${required_packages[@]}")
 	forbidden_kernel='CONFIG_(AIROHA_PON_COMPAT|PTP_1588_CLOCK_AIROHA_TOD)=(y|m)'
 	required_kernel='CONFIG_NET_AIROHA_NPU=y'
 elif grep -qx 'CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi=y' "$config_file"; then
@@ -70,8 +71,9 @@ elif grep -qx 'CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi=y' "$config
 		kmod-airoha-pon-dataplane
 		kmod-airoha-xpon-igmp
 		kmod-airoha-gpon-igmp
-		kmod-airoha-tod
+		kmod-airoha-en7581-pcm-spi
 	)
+	manifest_required_packages=("${required_packages[@]}" kmod-airoha-tod)
 	forbidden_kernel='CONFIG_MT(76|7996).*=(y|m)'
 	required_kernel='CONFIG_AIROHA_PON_COMPAT=y|CONFIG_PTP_1588_CLOCK_AIROHA_TOD=m'
 else
@@ -114,7 +116,7 @@ for manifest in "${manifests[@]}"; do
 		failed=1
 	fi
 
-	for package in "${required_packages[@]}"; do
+	for package in "${manifest_required_packages[@]}"; do
 		if ! grep -Eq "^${package}([[:space:]]|$)" "$manifest"; then
 			echo "$profile manifest is missing required package $package: $manifest" >&2
 			failed=1

@@ -46,6 +46,28 @@
 		interrupts = <GIC_SPI 78 IRQ_TYPE_LEVEL_HIGH>;
 		status = "okay";
 	};
+
+	pcm_spi: pcm-spi@1fbc0000 {
+		compatible = "airoha,en7581-pcm-spi-si32192";
+		reg = <0x0 0x1fbc0000 0x0 0x30>,
+		      <0x0 0x1fbd0000 0x0 0x5000>;
+		reg-names = "spi", "pcm";
+		airoha,chip-scu = <&chip_scu>;
+		airoha,np-scu = <&scuclk>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pcm_spi_pins>;
+		status = "okay";
+	};
+};
+
+&en7581_pinctrl {
+	pcm_spi_pins: pcm-spi-pins {
+		mux {
+			function = "pcm_spi";
+			groups = "pcm_spi", "pcm_spi_int", "pcm_spi_rst",
+				 "pcm_spi_cs1";
+		};
+	};
 };
 
 &i2c0 {
