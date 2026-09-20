@@ -258,15 +258,15 @@ Signed-off-by: Chad Monroe <chad@monroe.io>
  static int rtl822x_read_mmd(struct phy_device *phydev, int devnum, u16 regnum)
  {
  	int ret = rtlgen_read_mmd(phydev, devnum, regnum);
-@@ -3008,6 +3231,11 @@ static struct phy_driver realtek_drvs[]
- 		.soft_reset		= genphy_c45_pma_soft_reset,
- 		.suspend		= genphy_c45_pma_suspend,
- 		.resume			= genphy_c45_pma_resume,
+@@ -3791,6 +4014,11 @@ static struct phy_driver realtek_drvs[]
+		.soft_reset		= genphy_c45_pma_soft_reset,
+		.suspend		= genphy_c45_pma_suspend,
+		.resume			= genphy_c45_pma_resume,
 +		.led_hw_is_supported	= rtl8261c_led_hw_is_supported,
 +		.led_hw_control_get 	= rtl8261c_led_hw_control_get,
 +		.led_hw_control_set 	= rtl8261c_led_hw_control_set,
 +		.led_brightness_set 	= rtl8261c_led_brightness_set,
 +		.led_polarity_set	= rtl8261c_led_polarity_set,
- 	},
- };
- 
+	}, {
+		.name           = "RTL8251L 5Gbps PHY",
+		.config_init    = rtl826x_config_init,

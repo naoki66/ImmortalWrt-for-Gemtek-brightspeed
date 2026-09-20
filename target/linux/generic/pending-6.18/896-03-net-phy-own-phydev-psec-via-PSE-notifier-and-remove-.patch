@@ -88,15 +88,12 @@ Tested-by: Aleksander Jan Bajkowski <olek2@wp.pl>
 
 --- a/drivers/net/mdio/fwnode_mdio.c
 +++ b/drivers/net/mdio/fwnode_mdio.c
-@@ -13,7 +13,6 @@
- #include <linux/gpio/consumer.h>
+@@ -11,33 +11,11 @@
+ #include <linux/fwnode_mdio.h>
  #include <linux/of.h>
  #include <linux/phy.h>
 -#include <linux/pse-pd/pse.h>
  
- MODULE_AUTHOR("Calvin Johnson <calvin.johnson@oss.nxp.com>");
- MODULE_LICENSE("GPL");
-@@ -18,27 +17,6 @@
  MODULE_AUTHOR("Calvin Johnson <calvin.johnson@oss.nxp.com>");
  MODULE_LICENSE("GPL");
  MODULE_DESCRIPTION("FWNODE MDIO bus (Ethernet PHY) accessors");
@@ -122,7 +119,8 @@ Tested-by: Aleksander Jan Bajkowski <olek2@wp.pl>
 -	return psec;
 -}
 -
- static int fwnode_mdiobus_reset_phy_before_id_read(struct fwnode_handle *fwnode)
+ static struct mii_timestamper *
+ fwnode_find_mii_timestamper(struct fwnode_handle *fwnode)
  {
 @@ -123,7 +101,6 @@ int fwnode_mdiobus_register_phy(struct m
  				struct fwnode_handle *child, u32 addr)
