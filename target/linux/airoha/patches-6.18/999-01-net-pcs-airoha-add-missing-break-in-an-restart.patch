@@ -1,0 +1,17 @@
+From: w1700k lan2 investigation
+Subject: [PATCH] net: pcs: airoha: add the missing break in airoha_pcs_an_restart()
+
+The PHY_INTERFACE_MODE_USXGMII case falls through into "default: return".
+Both paths leave the switch, so there is no functional change, but the
+fallthrough is unannotated and reads as an accident rather than intent.
+
+--- a/drivers/net/pcs/airoha/pcs-airoha-common.c
++++ b/drivers/net/pcs/airoha/pcs-airoha-common.c
+@@ -735,6 +735,7 @@
+ 		udelay(3);
+ 		regmap_clear_bits(maps->usxgmii_pcs, AIROHA_PCS_USXGMII_PCS_AN_CONTROL_0,
+ 				  AIROHA_PCS_USXGMII_AN_RESTART);
++		break;
+ 	default:
+ 		return;
+ 	}

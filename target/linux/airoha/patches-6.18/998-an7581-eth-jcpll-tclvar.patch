@@ -1,0 +1,122 @@
+From: w1700k lan2 investigation
+Subject: [PATCH] net: pcs: airoha: re-run JCPLL VCO calibration on the AN7581 ETH lane
+
+an7581_pcs_jcpll_bringup() programs JCPLL_VCO_TCLVAR before it enables the
+PLL, so the VCO band search never re-runs with the PLL up. On the ETH lane
+of an AN7581 that leaves the transmitter unlockable by the link partner:
+the RTL8261N system-side SerDes never reaches block lock (SDS page 5 reg 0
+reads 0x000c instead of 0x100d), USXGMII in-band AN never completes and the
+port stays down across any number of re-inits.
+
+Writing TCLVAR again once the lane is fully configured forces the search to
+run again and the lane locks immediately. A write of the same value does
+nothing, so the value has to change; the code pulses 0x3 -> 0x5.
+
+Verified on a Gemtek W1700K: 5/5 link-ups at 10G with traffic flowing,
+where before the port never came up.
+
+--- a/drivers/net/pcs/airoha/pcs-an7581.c
++++ b/drivers/net/pcs/airoha/pcs-an7581.c
+@@ -756,7 +756,13 @@
+ 	regmap_field_write(pcs_ana_fields[AN7581_PCS_JCPLL_VCO_CFIX], 0x1);
+ 	regmap_field_write(pcs_ana_fields[AN7581_PCS_JCPLL_VCO_VCOVAR_BIAS_L], 0x0);
+ 	regmap_field_write(pcs_ana_fields[AN7581_PCS_JCPLL_VCO_VCOVAR_BIAS_H], 0x3);
+-	regmap_field_write(pcs_ana_fields[AN7581_PCS_JCPLL_VCO_TCLVAR], 0x3);
++	/* The vendor bootloader programs 0x5 on the ETH lane (pcs_ana+0x30 =
++	 * 0x0000301d) and 0x3 on the PON lane. Keep that split; note that on
++	 * its own the value is not what makes the ETH lane work, see
++	 * an7581_pcs_jcpll_recal().
++	 */
++	regmap_field_write(pcs_ana_fields[AN7581_PCS_JCPLL_VCO_TCLVAR],
++			   priv->data->port_type == AIROHA_PCS_ETH ? 0x5 : 0x3);
+ 
+ 	/* Setup PCW */
+ 	regmap_update_bits(pcs_pma, AIROHA_PCS_PMA_PXP_JCPLL_SDM_PCW,
+@@ -1935,6 +1941,34 @@
+ 	return an7581_pcs_phya_bringup(priv, index, interface);
+ }
+ 
++/* The JCPLL VCO band search only re-runs when the TCLVAR field is written
++ * while the PLL is already enabled. an7581_pcs_jcpll_bringup() programs
++ * TCLVAR before its "Enable PLL" step, so on the ETH lane the search settles
++ * on a code that leaves the lane transmitting a signal the link partner
++ * cannot lock onto: the PHY system-side SerDes never reaches block lock and
++ * USXGMII in-band AN never completes, leaving the port down forever.
++ *
++ * Re-writing TCLVAR once the lane is fully configured makes the search run
++ * again, this time with the PLL up, and the lane locks. A write of the same
++ * value has no effect, so pulse through a different code first.
++ *
++ * Observed on a Gemtek W1700K (AN7581 + RTL8261N): without this the 10G ETH
++ * port never links; with it, it links at 10G on every attempt.
++ */
++void an7581_pcs_jcpll_recal(struct airoha_pcs_priv *priv, int index,
++			    phy_interface_t interface)
++{
++	struct regmap_field **pcs_ana_fields = priv->pcs_ana_fields[index];
++
++	if (interface != PHY_INTERFACE_MODE_USXGMII &&
++	    interface != PHY_INTERFACE_MODE_10GBASER)
++		return;
++
++	regmap_field_write(pcs_ana_fields[AN7581_PCS_JCPLL_VCO_TCLVAR], 0x3);
++	usleep_range(1000, 2000);
++	regmap_field_write(pcs_ana_fields[AN7581_PCS_JCPLL_VCO_TCLVAR], 0x5);
++}
++
+ int an7581_pcs_usb_bringup(struct airoha_pcs_priv *priv,
+ 			   int index, phy_interface_t interface)
+ {
+--- a/drivers/net/pcs/airoha/pcs-airoha.h
++++ b/drivers/net/pcs/airoha/pcs-airoha.h
+@@ -1683,6 +1683,8 @@
+ 		       int index, phy_interface_t interface);
+ 	void (*link_up)(struct airoha_pcs_priv *priv, int index);
+ 	int (*rxlock_workaround)(struct airoha_pcs_priv *priv, int index);
++	void (*post_config)(struct airoha_pcs_priv *priv, int index,
++			    phy_interface_t interface);
+ };
+ 
+ #define to_airoha_pcs_port(n) container_of(n, struct airoha_pcs_port, pcs)
+@@ -1697,6 +1699,8 @@
+ 
+ void an7581_pcs_phya_link_up(struct airoha_pcs_priv *priv, int index);
+ int an7581_pcs_rxlock_workaround(struct airoha_pcs_priv *priv, int index);
++void an7581_pcs_jcpll_recal(struct airoha_pcs_priv *priv, int index,
++			    phy_interface_t interface);
+ #else
+ static inline int an7581_pcs_alloc_regmap_fields(struct airoha_pcs_priv *priv)
+ {
+@@ -1730,6 +1734,11 @@
+ {
+ 	return 0;
+ }
++
++static inline void an7581_pcs_jcpll_recal(struct airoha_pcs_priv *priv,
++					  int index, phy_interface_t interface)
++{
++}
+ #endif
+ 
+ #ifdef CONFIG_PCS_AIROHA_AN7583
+--- a/drivers/net/pcs/airoha/pcs-airoha-common.c
++++ b/drivers/net/pcs/airoha/pcs-airoha-common.c
+@@ -704,6 +704,10 @@
+ 				AIROHA_PCS_XFI_TX_FC_EN | AIROHA_PCS_XFI_RX_FC_EN :
+ 				0);
+ 
++	/* Anything that has to run after the lane is fully configured */
++	if (data->post_config)
++		data->post_config(priv, index, interface);
++
+ 	return 0;
+ }
+ 
+@@ -1393,6 +1397,7 @@
+ 	.bringup = an7581_pcs_bringup,
+ 	.link_up = an7581_pcs_phya_link_up,
+ 	.rxlock_workaround = an7581_pcs_rxlock_workaround,
++	.post_config = an7581_pcs_jcpll_recal,
+ };
+ 
+ static const struct airoha_pcs_match_data an7581_pcs_pon = {

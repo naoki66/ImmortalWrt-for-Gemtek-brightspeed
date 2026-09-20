@@ -1,0 +1,123 @@
+From: w1700k lan2 investigation
+Subject: [PATCH] net: pcs: airoha: track the interface per port, not per priv
+
+struct airoha_pcs_priv holds a single "interface" field, written by
+airoha_pcs_config() and read back by airoha_pcs_an_restart(). That is
+wrong whenever one priv serves more than one port: an7581_pcs_pcie has
+num_port = 2, so an AN restart on one port can act on the interface last
+configured for the other. Move the field to struct airoha_pcs_port.
+
+With priv->interface gone, an7581_pcs_rxlock_workaround() can no longer
+reach the interface, which it needs for the CDR reset. It currently hides
+that by passing PHY_INTERFACE_MODE_NA:
+
+	an7581_pcs_cdr_reset(priv, index, PHY_INTERFACE_MODE_NA, false);
+
+That is harmless today only because calibrate is false, so cdr_reset()
+never reaches an7581_pcs_rx_prcal() -- which would take its "default:
+return" on PHY_INTERFACE_MODE_NA and silently skip the calibration. Pass
+the interface into the workaround from airoha_pcs_get_state_usxgmii(),
+which has it in state->interface, and hand the real value to cdr_reset().
+
+No functional change on the ETH and PON PCS, both of which have
+num_port = 1 and call the workaround with calibrate = false.
+
+--- a/drivers/net/pcs/airoha/pcs-airoha-common.c
++++ b/drivers/net/pcs/airoha/pcs-airoha-common.c
+@@ -409,7 +409,8 @@
+ 	/* Trigger HW workaround if needed. If an error is reported,
+ 	 * consider link down and test again later.
+ 	 */
+-	if (data->rxlock_workaround && data->rxlock_workaround(priv, index)) {
++	if (data->rxlock_workaround &&
++	    data->rxlock_workaround(priv, index, state->interface)) {
+ 		state->link = false;
+ 		return;
+ 	}
+@@ -505,7 +506,7 @@
+ 	int ret;
+ 
+ 	maps = &priv->maps[port->index];
+-	priv->interface = interface;
++	port->interface = interface;
+ 	data = priv->data;
+ 
+ 	/* Apply Analog and Digital configuration for PCS */
+@@ -719,7 +720,7 @@
+ 
+ 	maps = &priv->maps[port->index];
+ 
+-	switch (priv->interface) {
++	switch (port->interface) {
+ 	case PHY_INTERFACE_MODE_SGMII:
+ 	case PHY_INTERFACE_MODE_1000BASEX:
+ 	case PHY_INTERFACE_MODE_2500BASEX:
+--- a/drivers/net/pcs/airoha/pcs-an7581.c
++++ b/drivers/net/pcs/airoha/pcs-an7581.c
+@@ -2101,7 +2101,8 @@
+ 	return count >= 4;
+ }
+ 
+-int an7581_pcs_rxlock_workaround(struct airoha_pcs_priv *priv, int index)
++int an7581_pcs_rxlock_workaround(struct airoha_pcs_priv *priv, int index,
++				 phy_interface_t interface)
+ {
+ 	struct airoha_pcs_maps *maps = &priv->maps[index];
+ 	u32 val;
+@@ -2118,7 +2119,7 @@
+ 	/* If PCS is down but RX SigDet module detected signal,
+ 	 * trigger CDR reset.
+ 	 */
+-	an7581_pcs_cdr_reset(priv, index, PHY_INTERFACE_MODE_NA, false);
++	an7581_pcs_cdr_reset(priv, index, interface, false);
+ 
+ 	/* Report there is an error with Link Detection and we
+ 	 * should test again later.
+--- a/drivers/net/pcs/airoha/pcs-airoha.h
++++ b/drivers/net/pcs/airoha/pcs-airoha.h
+@@ -1642,7 +1642,6 @@
+ struct airoha_pcs_priv {
+ 	struct device *dev;
+ 	const struct airoha_pcs_match_data *data;
+-	phy_interface_t interface;
+ 
+ 	struct airoha_pcs_port *ports;
+ 
+@@ -1665,6 +1665,7 @@
+ struct airoha_pcs_port {
+ 	struct airoha_pcs_priv *priv;
+ 	int index;
++	phy_interface_t interface;
+ 
+ 	struct phylink_pcs pcs;
+ };
+@@ -1682,7 +1682,8 @@
+ 	int (*bringup)(struct airoha_pcs_priv *priv,
+ 		       int index, phy_interface_t interface);
+ 	void (*link_up)(struct airoha_pcs_priv *priv, int index);
+-	int (*rxlock_workaround)(struct airoha_pcs_priv *priv, int index);
++	int (*rxlock_workaround)(struct airoha_pcs_priv *priv, int index,
++				 phy_interface_t interface);
+ 	void (*post_config)(struct airoha_pcs_priv *priv, int index,
+ 			    phy_interface_t interface);
+ };
+@@ -1698,7 +1699,8 @@
+ 			   int index, phy_interface_t interface);
+ 
+ void an7581_pcs_phya_link_up(struct airoha_pcs_priv *priv, int index);
+-int an7581_pcs_rxlock_workaround(struct airoha_pcs_priv *priv, int index);
++int an7581_pcs_rxlock_workaround(struct airoha_pcs_priv *priv, int index,
++				 phy_interface_t interface);
+ void an7581_pcs_jcpll_recal(struct airoha_pcs_priv *priv, int index,
+ 			    phy_interface_t interface);
+ #else
+@@ -1730,7 +1732,8 @@
+ }
+ 
+ static inline int an7581_pcs_rxlock_workaround(struct airoha_pcs_priv *priv,
+-					       int index)
++					       int index,
++					       phy_interface_t interface)
+ {
+ 	return 0;
+ }
