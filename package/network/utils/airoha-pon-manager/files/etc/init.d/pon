@@ -169,6 +169,33 @@ load_dsd_env() {
 	fi
 }
 
+prepare_bob() {
+	local bob_status bob_path bob_size
+
+	[ -x /sbin/ecnt_sys ] || {
+		logger -t pon "ecnt_sys is missing; cannot prepare EN7572 BoB data"
+		return 1
+	}
+
+	if /sbin/ecnt_sys get bob nodual >/dev/null 2>&1; then
+		logger -t pon "generated /etc/lddla/en7572_bob.conf from read-only DSD"
+		return 0
+	fi
+
+	# Keep a previously generated valid-sized file usable when the factory
+	# partition is temporarily unavailable, but never write back to DSD.
+	bob_status="$(/sbin/ecnt_sys status bob 2>/dev/null)"
+	bob_path="$(printf '%s\n' "$bob_status" | sed -n 's/^path=//p')"
+	bob_size="$(printf '%s\n' "$bob_status" | sed -n 's/^size=//p')"
+	if [ "$bob_size" = 512 ] && [ -f "$bob_path" ]; then
+		logger -t pon "using existing /etc/lddla/en7572_bob.conf"
+		return 0
+	fi
+
+	logger -t pon "failed to generate a valid EN7572 BoB file from DSD"
+	return 1
+}
+
 apply_config() {
 	local serial password loid loid_password
 	local password_format
@@ -229,6 +256,7 @@ start_service() {
 	ensure_node /dev/pon 190 0
 	ensure_node /dev/epon_mac 221 0
 	load_dsd_env
+	prepare_bob || return 1
 	load_modules || return 1
 	setup_links
 	setup_lan_links

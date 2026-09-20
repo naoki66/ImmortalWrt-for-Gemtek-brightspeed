@@ -36,7 +36,7 @@ index 433a646..d474b26 100644
  u32 airoha_rr(void __iomem *base, u32 offset)
  {
  	return readl(base + offset);
-@@ -1345,6 +1358,166 @@ static int airoha_qdma_init_irq_banks(struct platform_device *pdev,
+@@ -1345,6 +1358,172 @@ static int airoha_qdma_init_irq_banks(struct platform_device *pdev,
  	return 0;
  }
  
@@ -118,6 +118,12 @@ index 433a646..d474b26 100644
 +	return eth ? eth->dev : NULL;
 +}
 +EXPORT_SYMBOL(get_frame_engine_dev);
++
++struct airoha_eth *airoha_pon_compat_get_eth(void)
++{
++	return READ_ONCE(airoha_pon_eth);
++}
++EXPORT_SYMBOL_GPL(airoha_pon_compat_get_eth);
 +
 +int get_qdma_lan_irq(int index)
 +{
@@ -201,8 +207,8 @@ index 433a646..d474b26 100644
 +EXPORT_SYMBOL(ecnt_ppe_get_buffer_base);
 +
  static int airoha_qdma_init(struct platform_device *pdev,
- 			    struct airoha_eth *eth,
- 			    struct airoha_qdma *qdma)
+			    struct airoha_eth *eth,
+			    struct airoha_qdma *qdma)
 @@ -2920,6 +3093,7 @@ static int airoha_probe(struct platform_device *pdev)
  	struct device_node *np;
  	struct airoha_eth *eth;
@@ -240,15 +246,14 @@ index 433a646..d474b26 100644
  	return 0;
  
  error_napi_stop:
-@@ -3022,6 +3211,8 @@ static void airoha_remove(struct platform_device *pdev)
+@@ -4377,5 +4377,7 @@ static void airoha_remove(struct platform_device *pdev)
  	struct airoha_eth *eth = platform_get_drvdata(pdev);
  	int i;
  
 +	WRITE_ONCE(airoha_pon_eth, NULL);
 +
- 	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++) {
+ 	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++)
  		airoha_qdma_stop_napi(&eth->qdma[i]);
- 		airoha_hw_cleanup(&eth->qdma[i]);
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
 index cd13c1c..1ee1496 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h

@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Sun, 20 Sep 2026 00:00:00 +0800
+Subject: [PATCH] ptp: add Airoha ToD PHC driver option
+
+Expose the standalone Airoha ToD PHC driver in the generic PTP build. The
+implementation is supplied by target/linux/airoha/files-6.18 and is packaged
+only for the XG2010G PON image.
+
+---
+ drivers/ptp/Kconfig  | 14 ++++++++++++++
+ drivers/ptp/Makefile |  1 +
+ 2 files changed, 15 insertions(+)
+
+diff --git a/drivers/ptp/Kconfig b/drivers/ptp/Kconfig
+--- a/drivers/ptp/Kconfig
++++ b/drivers/ptp/Kconfig
+@@ -69,4 +69,17 @@ config PTP_1588_CLOCK_QORIQ
+	  will be called ptp_qoriq.
+
++config PTP_1588_CLOCK_AIROHA_TOD
++	tristate "Airoha EN7581 ToD clock"
++	depends on PTP_1588_CLOCK
++	depends on HAS_IOMEM
++	depends on ARCH_AIROHA || COMPILE_TEST
++	help
++	  This driver exposes the EN7581 Time of Day generator as a Linux
++	  PTP hardware clock. It supports reading and setting the 48-bit
++	  seconds counter and signed hardware timestamp offsets.
++
++	  Frequency adjustment is intentionally left disabled until the
++	  vendor FREQ_ADJ_* unit scaling is documented for this SoC.
++
+ comment "Enable PHYLIB and NETWORK_PHY_TIMESTAMPING to see the additional clocks."
+	depends on PHYLIB=n || NETWORK_PHY_TIMESTAMPING=n
+diff --git a/drivers/ptp/Makefile b/drivers/ptp/Makefile
+--- a/drivers/ptp/Makefile
++++ b/drivers/ptp/Makefile
+@@ -11,3 +11,4 @@ obj-$(CONFIG_PTP_1588_CLOCK_VMCLOCK)	+= ptp_vmclock.o
+ obj-$(CONFIG_PTP_1588_CLOCK_QORIQ)	+= ptp_qoriq.o
++obj-$(CONFIG_PTP_1588_CLOCK_AIROHA_TOD)	+= ptp_airoha_tod.o
+ obj-$(CONFIG_PTP_1588_CLOCK_IDTCM)	+= ptp_clockmatrix.o
+ obj-$(CONFIG_PTP_1588_CLOCK_FC3W)	+= ptp_fc3.o
+-- 
+2.47.0

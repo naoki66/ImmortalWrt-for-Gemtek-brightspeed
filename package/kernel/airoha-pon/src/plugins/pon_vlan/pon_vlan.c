@@ -2472,7 +2472,7 @@ int send_broadcast_by_multi_rules(struct sk_buff *skb)
         }
 
 #if 0
-        if((skb_tmp->pon_vlan_flag & PON_VLAN_RX_CALL_HOOK) && pon_vlan_all_data.onu_mode == MODE_HGU)
+        if((XPON_SKB_CB(skb_tmp)->pon_vlan_flag & PON_VLAN_RX_CALL_HOOK) && pon_vlan_all_data.onu_mode == MODE_HGU)
             skb_tmp->data -= 14;
 #endif
         

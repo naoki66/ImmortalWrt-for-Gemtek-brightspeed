@@ -1,0 +1,265 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Sun, 20 Sep 2026 00:00:00 +0800
+Subject: [PATCH] net: airoha: add native PPE multicast compatibility provider
+
+The vendor xPON multicast code still calls the legacy ECNT PPE ABI. Keep
+that ABI in the PON module, but implement the multicast operations in the
+native Airoha PPE driver. The provider matches IPv4/IPv6 multicast bridge
+entries by their derived destination MAC and updates the PPE port aggregation
+field only for the EN7581 LAN bit range that is unambiguously mapped.
+
+Legacy Wi-Fi/XSI bits, source-IP matching, local proxy delivery, and original
+device recovery are rejected or reported as unsupported rather than being
+silently translated to a different PPE field.
+
+diff --git a/include/linux/airoha_ppe_compat.h b/include/linux/airoha_ppe_compat.h
+new file mode 100644
+--- /dev/null
++++ b/include/linux/airoha_ppe_compat.h
+@@ -0,0 +1,36 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef __LINUX_AIROHA_PPE_COMPAT_H
++#define __LINUX_AIROHA_PPE_COMPAT_H
++
++#include <linux/types.h>
++
++struct net_device;
++
++#define AIROHA_PPE_MC_PROTO_IPV4	4
++#define AIROHA_PPE_MC_PROTO_IPV6	6
++#define AIROHA_PPE_MC_UPDATE_VLAN	(1U << 0)
++#define AIROHA_PPE_MC_UPDATE_GRPIP	(1U << 1)
++#define AIROHA_PPE_MC_UPDATE_SRCIP	(1U << 2)
++
++struct airoha_ppe_mc_info {
++	u32 proto;
++	u32 vlan_tag_num;
++	u16 outer_tci;
++	u16 inner_tci;
++	u8 grp_addr[16];
++	u8 src_addr[16];
++	struct net_device *orig_dev;
++	u16 br_vid;
++};
++
++int airoha_ppe_mc_update(const struct airoha_ppe_mc_info *info,
++			 u32 update_mode, u32 op_type, u32 port_mask, u32 local);
++int airoha_ppe_mc_clear(void);
++int airoha_ppe_mc_get_portmask(const struct airoha_ppe_mc_info *info,
++			       u32 foe_index);
++int airoha_ppe_mc_subscribe(const struct airoha_ppe_mc_info *info,
++			   u32 update_mode);
++int airoha_ppe_mc_get_local(const struct airoha_ppe_mc_info *info);
++int airoha_ppe_mc_get_origdev(struct airoha_ppe_mc_info *info);
++
++#endif
+diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -786,5 +786,203 @@ static int airoha_ppe_foe_commit_entry(struct airoha_ppe *ppe,
+ 	return err;
+ }
++
++#include <linux/airoha_ppe_compat.h>
++extern struct airoha_eth *airoha_pon_compat_get_eth(void);
++
++static struct airoha_ppe *airoha_ppe_mc_instance(void)
++{
++	struct airoha_eth *eth = airoha_pon_compat_get_eth();
++
++	return eth ? READ_ONCE(eth->ppe) : NULL;
++}
++
++static void airoha_ppe_mc_group_mac(const struct airoha_ppe_mc_info *info,
++					    u8 *mac)
++{
++	memset(mac, 0, ETH_ALEN);
++
++	if (info->proto == AIROHA_PPE_MC_PROTO_IPV4) {
++		mac[0] = 0x01;
++		mac[1] = 0x00;
++		mac[2] = 0x5e;
++		mac[3] = info->grp_addr[1] & 0x7f;
++		mac[4] = info->grp_addr[2];
++		mac[5] = info->grp_addr[3];
++	} else if (info->proto == AIROHA_PPE_MC_PROTO_IPV6) {
++		mac[0] = 0x33;
++		mac[1] = 0x33;
++		memcpy(&mac[2], &info->grp_addr[12], 4);
++	}
++}
++
++static bool airoha_ppe_mc_match(const struct airoha_foe_entry *hwe,
++					const struct airoha_ppe_mc_info *info)
++{
++	u8 mac[ETH_ALEN];
++
++	if (!(hwe->bridge.ib2 & AIROHA_FOE_IB2_MULTICAST))
++		return false;
++
++	airoha_ppe_mc_group_mac(info, mac);
++	return hwe->bridge.l2.common.dest_mac_hi == get_unaligned_be32(mac) &&
++	       hwe->bridge.l2.common.dest_mac_lo == get_unaligned_be16(mac + 4);
++}
++
++static struct airoha_foe_entry *
++airoha_ppe_mc_find_locked(struct airoha_ppe *ppe,
++				  const struct airoha_ppe_mc_info *info,
++				  u32 foe_index, u32 *hash)
++{
++	u32 total = airoha_ppe_get_total_num_entries(ppe);
++	u32 i;
++
++	if (foe_index < total) {
++		struct airoha_foe_entry *hwe;
++
++		hwe = airoha_ppe_foe_get_entry_locked(ppe, foe_index);
++		if (hwe && airoha_ppe_mc_match(hwe, info)) {
++			*hash = foe_index;
++			return hwe;
++		}
++	}
++
++	for (i = 0; i < total; i++) {
++		struct airoha_foe_entry *hwe;
++
++		if (i == foe_index)
++			continue;
++		hwe = airoha_ppe_foe_get_entry_locked(ppe, i);
++		if (hwe && airoha_ppe_mc_match(hwe, info)) {
++			*hash = i;
++			return hwe;
++		}
++	}
++
++	return NULL;
++}
++
++static int airoha_ppe_mc_apply(struct airoha_ppe *ppe,
++				 struct airoha_foe_entry *hwe, u32 hash,
++				 u32 port_mask)
++{
++	int err;
++
++	/* SDK bits 0-3 are the only unambiguous EN7581 LAN mapping. */
++	if (port_mask & ~0x0fU)
++		return -EOPNOTSUPP;
++
++	hwe->bridge.ib2 &= ~AIROHA_FOE_IB2_PORT_AG;
++	hwe->bridge.ib2 |= FIELD_PREP(AIROHA_FOE_IB2_PORT_AG, port_mask);
++	err = airoha_ppe_foe_commit_entry(ppe, hwe, hash, false);
++
++	return err;
++}
++
++int airoha_ppe_mc_update(const struct airoha_ppe_mc_info *info,
++			 u32 update_mode, u32 op_type, u32 port_mask, u32 local)
++{
++	struct airoha_ppe *ppe;
++	struct airoha_foe_entry *hwe;
++	u32 hash;
++	int err;
++
++	if (!info || (info->proto != AIROHA_PPE_MC_PROTO_IPV4 &&
++		      info->proto != AIROHA_PPE_MC_PROTO_IPV6))
++		return -EINVAL;
++	if (update_mode & (AIROHA_PPE_MC_UPDATE_VLAN |
++			   AIROHA_PPE_MC_UPDATE_SRCIP))
++		return -EOPNOTSUPP;
++	if (op_type != 0 || local)
++		return -EOPNOTSUPP;
++
++	ppe = airoha_ppe_mc_instance();
++	if (!ppe)
++		return -ENODEV;
++
++	spin_lock_bh(&ppe_lock);
++	hwe = airoha_ppe_mc_find_locked(ppe, info, 0xffff, &hash);
++	if (!hwe)
++		err = -ENOENT;
++	else if (!port_mask)
++		err = -ENOENT;
++	else
++		err = airoha_ppe_mc_apply(ppe, hwe, hash, port_mask);
++	spin_unlock_bh(&ppe_lock);
++
++	return err;
++}
++EXPORT_SYMBOL_GPL(airoha_ppe_mc_update);
++
++int airoha_ppe_mc_clear(void)
++{
++	struct airoha_ppe *ppe = airoha_ppe_mc_instance();
++	u32 total, sram, i;
++
++	if (!ppe)
++		return -ENODEV;
++
++	total = airoha_ppe_get_total_num_entries(ppe);
++	sram = airoha_ppe_get_total_sram_num_entries(ppe);
++	spin_lock_bh(&ppe_lock);
++	for (i = 0; i < total; i++) {
++		struct airoha_foe_entry *hwe;
++
++		hwe = airoha_ppe_foe_get_entry_locked(ppe, i);
++		if (!hwe || !(hwe->bridge.ib2 & AIROHA_FOE_IB2_MULTICAST))
++			continue;
++		hwe->ib1 &= ~AIROHA_FOE_IB1_BIND_STATE;
++		hwe->ib1 |= FIELD_PREP(AIROHA_FOE_IB1_BIND_STATE,
++					AIROHA_FOE_STATE_INVALID);
++		if (i < sram)
++			airoha_ppe_foe_commit_sram_entry(ppe, i);
++	}
++	spin_unlock_bh(&ppe_lock);
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(airoha_ppe_mc_clear);
++
++int airoha_ppe_mc_get_portmask(const struct airoha_ppe_mc_info *info,
++			       u32 foe_index)
++{
++	struct airoha_ppe *ppe = airoha_ppe_mc_instance();
++	struct airoha_foe_entry *hwe;
++	u32 hash, port_mask;
++
++	if (!info)
++		return -EINVAL;
++
++	if (!ppe)
++		return -ENODEV;
++
++	spin_lock_bh(&ppe_lock);
++	hwe = airoha_ppe_mc_find_locked(ppe, info, foe_index, &hash);
++	port_mask = hwe ? FIELD_GET(AIROHA_FOE_IB2_PORT_AG,
++					  hwe->bridge.ib2) : 0;
++	spin_unlock_bh(&ppe_lock);
++
++	return hwe ? (port_mask & 0x0f) : -ENOENT;
++}
++EXPORT_SYMBOL_GPL(airoha_ppe_mc_get_portmask);
++
++int airoha_ppe_mc_subscribe(const struct airoha_ppe_mc_info *info,
++			   u32 update_mode)
++{
++	return info && update_mode ? 0 : -EINVAL;
++}
++EXPORT_SYMBOL_GPL(airoha_ppe_mc_subscribe);
++
++int airoha_ppe_mc_get_local(const struct airoha_ppe_mc_info *info)
++{
++	return info ? 0 : -EINVAL;
++}
++EXPORT_SYMBOL_GPL(airoha_ppe_mc_get_local);
++
++int airoha_ppe_mc_get_origdev(struct airoha_ppe_mc_info *info)
++{
++	return info ? -EOPNOTSUPP : -EINVAL;
++}
++EXPORT_SYMBOL_GPL(airoha_ppe_mc_get_origdev);
+ 
+ static void airoha_ppe_foe_remove_flow(struct airoha_ppe *ppe,
+ 				       struct airoha_flow_table_entry *e)
+--
+2.47.0

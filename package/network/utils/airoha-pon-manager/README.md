@@ -16,7 +16,12 @@ Airoha EN7581/AN7583 xPON driver stack under
   `/proc/pon_phy` diagnostics.
 - reads the read-only factory DSD key/value block from `/dev/mtdblock2` with
   `dsdctl`, exports it to `/tmp/dsd.env`, and uses `fsan` as a GPON serial
-  fallback only when a password is explicitly configured.
+  fallback only when a password is explicitly configured;
+- installs `/sbin/ecnt_sys` for the vendor `econet_bob` ABI. `ecnt_sys get bob
+  nodual` reads the 512-byte BoB record from `/dev/mtdblock2` at offset
+  `0x12000`, validates the `ECONET` and `EN7572` markers, and atomically
+  writes `/etc/lddla/en7572_bob.conf`. `del bob nodual` only removes that
+  generated file.
 
 The `mode` names map to the vendor `XMCSIF_WanDetectionMode_t` order in
 `src/bsp/include/global_inc/xpon_public_const.h`: `auto=0`, `gpon=1`,
@@ -48,3 +53,9 @@ boundary.
 
 `dsdctl` is intentionally read-only. It supports `get <key>`, `get all`,
 `env`, and `status`; it does not write the calibration/identity partition.
+
+`ecnt_sys` keeps the DSD source read-only. The BoB path can be overridden for
+host testing with `EN7572_BOB_PATH`, and the DSD device with `DSD_DEVICE`; the
+production defaults remain `/etc/lddla/en7572_bob.conf` and
+`/dev/mtdblock2`. `DSD_BOB_OFFSET` is available for fixture tests and defaults
+to `0x12000`.

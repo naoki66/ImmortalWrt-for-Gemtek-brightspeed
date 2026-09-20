@@ -230,6 +230,7 @@ define Device/gemtek_xg2010g-ubi
 	kmod-airoha-xpon-en757x kmod-airoha-pon-plugins \
 	kmod-airoha-pon-dataplane kmod-airoha-xpon-igmp \
 	kmod-airoha-gpon-igmp \
+	kmod-airoha-tod \
 	airoha-pon-firmware airoha-pon-manager
   BLOCKSIZE := 128k
   PAGESIZE := 2048

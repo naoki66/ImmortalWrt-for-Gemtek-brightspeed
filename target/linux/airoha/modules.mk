@@ -22,4 +22,21 @@ endef
 
 $(eval $(call KernelPackage,pwm-airoha))
 
+define KernelPackage/airoha-tod
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=Airoha EN7581 ToD PTP hardware clock
+  DEPENDS:=@TARGET_airoha_an7581
+  KCONFIG:= \
+        CONFIG_PTP_1588_CLOCK=y \
+        CONFIG_PTP_1588_CLOCK_OPTIONAL=y \
+        CONFIG_NET_PTP_CLASSIFY=y \
+        CONFIG_PTP_1588_CLOCK_AIROHA_TOD=m
+  FILES:=$(LINUX_DIR)/drivers/ptp/ptp_airoha_tod.ko
+  AUTOLOAD:=$(call AutoProbe,ptp_airoha_tod)
+endef
 
+define KernelPackage/airoha-tod/description
+ Linux PHC driver for the Airoha EN7581 Time of Day generator.
+endef
+
+$(eval $(call KernelPackage,airoha-tod))

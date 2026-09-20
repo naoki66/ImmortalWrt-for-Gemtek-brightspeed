@@ -39,6 +39,13 @@
 		      <0x0 0x1faf3000 0x0 0xfff>,
 		      <0x0 0x1faf4000 0x0 0xfff>;
 	};
+
+	tod: tod@1fbe2300 {
+		compatible = "econet,ecnt-tod";
+		reg = <0x0 0x1fbe2300 0x0 0xd0>;
+		interrupts = <GIC_SPI 78 IRQ_TYPE_LEVEL_HIGH>;
+		status = "okay";
+	};
 };
 
 &i2c0 {
