@@ -12,7 +12,7 @@ define Package/airoha-pon-manager
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Airoha xPON management helpers
-  DEPENDS:=+kmod-airoha-xpon-en757x +ip-full +uci
+  DEPENDS:=@TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi +kmod-airoha-xpon-en757x +ip-full +uci
 endef
 
 define Package/airoha-pon-manager/description

@@ -86,6 +86,7 @@ jobs:
           VERSION_CODE='${{ steps.version.outputs.version_code }}' \
           bash scripts/set-build-version.sh .config
           make defconfig
+          bash scripts/check-gemtek-profile-isolation.sh --config .config
           grep -E 'CONFIG_(IMAGEOPT|EXTRA_IMAGE_NAME|VERSIONOPT|VERSION_DIST|VERSION_NUMBER|VERSION_CODE|VERSION_FILENAMES|VERSION_CODE_FILENAMES)[= ]' .config
 
       - name: Download sources
@@ -95,6 +96,18 @@ jobs:
         shell: bash
         run: |
           make -j2 world 2>&1 | tee build.log
+
+      - name: Verify device isolation
+        shell: bash
+        run: |
+          kernel_config=$(find build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581 -path '*/linux-*/.config' -print -quit)
+          manifest=$(find bin/targets/airoha/an7581 -maxdepth 1 -type f -name '*manifest' -print -quit)
+          test -n "$kernel_config"
+          test -n "$manifest"
+          bash scripts/check-gemtek-profile-isolation.sh \
+            --config .config \
+            --kernel-config "$kernel_config" \
+            --manifest "$manifest"
 
       - name: Check build status
         if: always()
@@ -115,10 +128,11 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: xr1710g-firmware
+          name: gemtek-${{ inputs.config_seed }}-firmware
           path: |
             build.log
             bin/targets/airoha/an7581/*.itb
+            bin/targets/airoha/an7581/*manifest
             bin/targets/airoha/an7581/config.buildinfo
             bin/targets/airoha/an7581/feeds.buildinfo
             bin/targets/airoha/an7581/version.buildinfo

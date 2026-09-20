@@ -25,7 +25,7 @@ $(eval $(call KernelPackage,pwm-airoha))
 define KernelPackage/airoha-tod
   SUBMENU:=$(OTHER_MENU)
   TITLE:=Airoha EN7581 ToD PTP hardware clock
-  DEPENDS:=@TARGET_airoha_an7581
+  DEPENDS:=@TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi
   KCONFIG:= \
         CONFIG_PTP_1588_CLOCK=y \
         CONFIG_PTP_1588_CLOCK_OPTIONAL=y \

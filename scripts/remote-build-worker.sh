@@ -57,6 +57,7 @@ run_build() {
 	cp "$config_seed" .config
 	bash scripts/set-build-version.sh .config
 	make defconfig
+	bash scripts/check-gemtek-profile-isolation.sh --config .config
 
 	case "$mode" in
 		kernel)
@@ -71,6 +72,22 @@ run_build() {
 			make -j"$jobs" world
 			;;
 	esac
+
+	kernel_config="$(find build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581 -path '*/linux-*/.config' -print -quit)"
+	[[ -n "$kernel_config" ]] || {
+		echo "kernel config was not generated" >&2
+		exit 1
+	}
+	check_args=(--config .config --kernel-config "$kernel_config")
+	if [[ "$mode" == "world" ]]; then
+		manifest="$(find bin/targets/airoha/an7581 -maxdepth 1 -type f -name '*manifest' -print -quit)"
+		[[ -n "$manifest" ]] || {
+			echo "image manifest was not generated" >&2
+			exit 1
+		}
+		check_args+=(--manifest "$manifest")
+	fi
+	bash scripts/check-gemtek-profile-isolation.sh "${check_args[@]}"
 
 	echo "REMOTE_BUILD_FINISHED=$(date --iso-8601=seconds)"
 	if [[ "$mode" == "world" && -d bin/targets/airoha/an7581 ]]; then

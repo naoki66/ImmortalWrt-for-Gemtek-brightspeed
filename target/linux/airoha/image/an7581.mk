@@ -108,7 +108,7 @@ define Device/gemtek_w1700k-ubi
   DEVICE_COMPAT_MESSAGE := Partition table has been changed to cooperate \
        with the vendor bootloader with regard to the BMT/BBT partition at \
        the end of flash. A reinstall including corrected chainloader is needed.
-  DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware fitblk \
+  DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware airoha-an7581-mt7996-board fitblk \
 		    kmod-hwmon-nct7802 kmod-mt7996-firmware wpad-openssl \
 		    rtl826x-firmware
   UBINIZE_OPTS := -E 5
@@ -198,9 +198,14 @@ define Device/gemtek_xr1710g-ubi
   DEVICE_ALT0_VARIANT := UBI
   SUPPORTED_DEVICES := gemtek,xr1710g-ubi
   DEVICE_DTS := an7581-xr1710g-ubi
-  DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware fitblk uboot-envtools kmod-airoha-i2c \
+  DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware airoha-an7581-mt7996-board \
+		    fitblk uboot-envtools kmod-airoha-i2c \
 		    kmod-hwmon-nct7802 kmod-mt7996-firmware wpad-mbedtls \
-		    rtl826x-firmware px5g-mbedtls
+		    rtl826x-firmware px5g-mbedtls \
+		    -kmod-airoha-xpon-en757x -kmod-airoha-pon-plugins \
+		    -kmod-airoha-pon-dataplane -kmod-airoha-xpon-igmp \
+		    -kmod-airoha-gpon-igmp -kmod-airoha-tod \
+		    -airoha-pon-firmware -airoha-pon-manager
   UBINIZE_OPTS := -E 5
   BLOCKSIZE := 128k
   PAGESIZE := 2048
@@ -231,7 +236,10 @@ define Device/gemtek_xg2010g-ubi
 	kmod-airoha-pon-dataplane kmod-airoha-xpon-igmp \
 	kmod-airoha-gpon-igmp \
 	kmod-airoha-tod \
-	airoha-pon-firmware airoha-pon-manager
+	airoha-pon-firmware airoha-pon-manager \
+	-airoha-an7581-mt7996-board -airoha-en7581-mt7996-npu-firmware \
+	-kmod-mac80211 -kmod-mt7996-firmware -kmod-mt7996e \
+	-wpad-mbedtls -wpad-mesh-mbedtls -wireless-regdb
   BLOCKSIZE := 128k
   PAGESIZE := 2048
   UBINIZE_OPTS := -E 5

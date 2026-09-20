@@ -15,7 +15,6 @@ esac
 /usr/libexec/network/packet-steering.uc $opts "$mode"
 
 [ "$mode" != "0" ] || exit 0
-
 [ "$(board_name)" = "gemtek,xr1710g-ubi" ] || exit 0
 
 cpu_count=0
@@ -25,9 +24,8 @@ for cpu_path in /sys/devices/system/cpu/cpu[0-9]*; do
 	cpu_count=$((cpu_count + 1))
 done
 
-# Keep CPU0 available for the GIC and Ethernet hard IRQs. The mt7996 driver
-# creates several threaded-NAPI workers with the same truncated task name;
-# netifd otherwise groups every worker onto one CPU.
+# Keep CPU0 available for the GIC and Ethernet hard IRQs. Spread the MT7996
+# threaded-NAPI workers instead of letting netifd group them onto one CPU.
 [ "$cpu_count" -gt 1 ] || exit 0
 
 next_cpu=1

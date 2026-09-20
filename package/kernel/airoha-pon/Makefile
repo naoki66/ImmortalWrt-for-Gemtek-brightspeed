@@ -47,7 +47,8 @@ endef
 
 define KernelPackage/airoha-xpon-en757x
   $(call KernelPackage/airoha-pon/Default)
-  DEPENDS+=@(TARGET_airoha_an7581||TARGET_airoha_an7583) +kmod-airoha-i2c
+  DEPENDS+=@TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi +kmod-airoha-i2c
+  KCONFIG:=CONFIG_AIROHA_PON_COMPAT=y
   TITLE:=Airoha EN757x xPON driver (v2)
   VARIANT:=v2
   FILES:= \
@@ -70,7 +71,7 @@ endef
 
 define KernelPackage/airoha-pon-plugins
   $(call KernelPackage/airoha-pon/Default)
-  DEPENDS+=@TARGET_airoha_an7581 +kmod-airoha-xpon-en757x +airoha-pon-firmware
+  DEPENDS+=@TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi +kmod-airoha-xpon-en757x +airoha-pon-firmware
   TITLE:=Airoha EN7572 xPON helper plugins
   VARIANT:=v2
   FILES:= \
@@ -85,7 +86,7 @@ endef
 
 define KernelPackage/airoha-pon-dataplane
   $(call KernelPackage/airoha-pon/Default)
-  DEPENDS+=@TARGET_airoha_an7581 +kmod-airoha-xpon-en757x
+  DEPENDS+=@TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi +kmod-airoha-xpon-en757x
   TITLE:=Airoha xPON VLAN, MAC filter and mapping plugins
   VARIANT:=v2
   FILES:= \
@@ -101,7 +102,7 @@ endef
 
 define KernelPackage/airoha-xpon-igmp
   $(call KernelPackage/airoha-pon/Default)
-  DEPENDS+=@TARGET_airoha_an7581 +kmod-airoha-pon-dataplane
+  DEPENDS+=@TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi +kmod-airoha-pon-dataplane
   TITLE:=Airoha 10G xPON IGMP plugin
   VARIANT:=v2
   FILES:=$(PON_PLUGIN_DIR)/xpon_igmp/xpon_igmp.ko
@@ -114,7 +115,7 @@ endef
 
 define KernelPackage/airoha-gpon-igmp
   $(call KernelPackage/airoha-pon/Default)
-  DEPENDS+=@TARGET_airoha_an7581 +kmod-airoha-pon-dataplane
+  DEPENDS+=@TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi +kmod-airoha-pon-dataplane
   TITLE:=Airoha legacy GPON IGMP plugin
   VARIANT:=v2
   FILES:=$(PON_PLUGIN_DIR)/gpon_igmp/gpon_igmp.ko
@@ -128,7 +129,7 @@ endef
 define Package/airoha-pon-firmware
   SECTION:=firmware
   CATEGORY:=Firmware
-  DEPENDS:=@TARGET_airoha_an7581
+  DEPENDS:=@TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi
   TITLE:=Airoha EN7572 LDDLA firmware
   PKGARCH:=all
 endef

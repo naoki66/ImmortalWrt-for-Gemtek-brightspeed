@@ -1,0 +1,150 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Sun, 20 Sep 2026 00:00:00 +0800
+Subject: [PATCH] net: airoha: gate legacy PON compatibility
+
+The AN7581 target is shared by PON and non-PON boards. Keep the legacy
+FE/QDMA register exports and PPE multicast provider out of XR1710G kernels
+unless the XG2010G xPON package explicitly selects them.
+
+diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
+index 7899065..f9eff6a 100644
+--- a/drivers/net/ethernet/airoha/Kconfig
++++ b/drivers/net/ethernet/airoha/Kconfig
+@@ -25,6 +25,13 @@ config NET_AIROHA
+ 	  This driver supports the gigabit ethernet MACs in the
+ 	  Airoha SoC family.
+ 
++config AIROHA_PON_COMPAT
++	bool "Airoha legacy xPON compatibility"
++	depends on NET_AIROHA
++	help
++	  Export the legacy FE, QDMA and PPE multicast interfaces required by
++	  the vendor EN7581 xPON modules. Keep this disabled on non-PON boards.
++
+ config NET_AIROHA_FLOW_STATS
+ 	default y
+ 	bool "Airoha flow stats"
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
+index 6d4f8fd..25ce64a 100644
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -21,6 +21,7 @@
+ #include "airoha_regs.h"
+ #include "airoha_eth.h"
+ 
++#ifdef CONFIG_AIROHA_PON_COMPAT
+ #define AIROHA_PON_FE_BASE		0x1fb50000
+ #define AIROHA_PON_FE_SIZE		0x00002600
+ #define AIROHA_PON_QDMA0_BASE		0x1fb54000
+@@ -33,6 +34,7 @@ static struct airoha_eth *airoha_pon_eth;
+ static phys_addr_t airoha_pon_qdma_lan_buffer_base;
+ static phys_addr_t airoha_pon_qdma_wan_buffer_base;
+ static phys_addr_t airoha_pon_ppe_buffer_base;
++#endif
+ 
+ u32 airoha_rr(void __iomem *base, u32 offset)
+ {
+@@ -1736,6 +1738,7 @@ static int airoha_qdma_init_irq_banks(struct platform_device *pdev,
+ 	return 0;
+ }
+ 
++#ifdef CONFIG_AIROHA_PON_COMPAT
+ static void __iomem *airoha_pon_reg_base(struct airoha_eth *eth,
+ 						 u32 reg, u32 *offset)
+ {
+@@ -1901,6 +1904,7 @@ unsigned int ecnt_ppe_get_buffer_base(void)
+ 	return (unsigned int)airoha_pon_ppe_buffer_base;
+ }
+ EXPORT_SYMBOL(ecnt_ppe_get_buffer_base);
++#endif
+ 
+ static int airoha_qdma_init(struct platform_device *pdev,
+ 			    struct airoha_eth *eth,
+@@ -4242,7 +4246,9 @@ static int airoha_probe(struct platform_device *pdev)
+ 	struct device_node *np;
+ 	struct airoha_eth *eth;
+ 	int i, err;
++#ifdef CONFIG_AIROHA_PON_COMPAT
+ 	bool pon_compat;
++#endif
+ 
+ 	eth = devm_kzalloc(&pdev->dev, sizeof(*eth), GFP_KERNEL);
+ 	if (!eth)
+@@ -4265,6 +4271,7 @@ static int airoha_probe(struct platform_device *pdev)
+ 		return dev_err_probe(eth->dev, PTR_ERR(eth->fe_regs),
+ 				     "failed to iomap fe regs\n");
+ 
++#ifdef CONFIG_AIROHA_PON_COMPAT
+ 	pon_compat = of_property_read_bool(pdev->dev.of_node,
+ 						  "airoha,pon-compat");
+ 	if (pon_compat) {
+@@ -4277,6 +4284,7 @@ static int airoha_probe(struct platform_device *pdev)
+ 
+ 	eth->fe_irq = platform_get_irq_optional(pdev, 8);
+ 	eth->pdma_irq = platform_get_irq_optional(pdev, 9);
++#endif
+ 
+ 	eth->rsts[0].id = "fe";
+ 	eth->rsts[1].id = "pdma";
+@@ -4341,7 +4349,10 @@ static int airoha_probe(struct platform_device *pdev)
+ 	if (err)
+ 		goto error_napi_stop;
+ 
+-	WRITE_ONCE(airoha_pon_eth, eth);
++#ifdef CONFIG_AIROHA_PON_COMPAT
++	if (pon_compat)
++		WRITE_ONCE(airoha_pon_eth, eth);
++#endif
+ 
+ 	return 0;
+ 
+@@ -4385,7 +4396,9 @@ static void airoha_remove(struct platform_device *pdev)
+ 	struct airoha_eth *eth = platform_get_drvdata(pdev);
+ 	int i;
+ 
++#ifdef CONFIG_AIROHA_PON_COMPAT
+ 	WRITE_ONCE(airoha_pon_eth, NULL);
++#endif
+ 
+ 	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++)
+ 		airoha_qdma_stop_napi(&eth->qdma[i]);
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
+index c249409..c044a87 100644
+--- a/drivers/net/ethernet/airoha/airoha_eth.h
++++ b/drivers/net/ethernet/airoha/airoha_eth.h
+@@ -667,10 +667,12 @@ struct airoha_eth {
+ 	struct airoha_qdma qdma[AIROHA_MAX_NUM_QDMA];
+ 	struct airoha_gdm_port *ports[AIROHA_MAX_NUM_GDM_PORTS];
+ 
++#ifdef CONFIG_AIROHA_PON_COMPAT
+ 	/* Optional legacy xPON register/IRQ compatibility view. */
+ 	void __iomem *pon_switch_regs;
+ 	int fe_irq;
+ 	int pdma_irq;
++#endif
+ };
+ 
+ u32 airoha_rr(void __iomem *base, u32 offset);
+diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
+index 314ebda..7f222cb 100644
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -809,6 +809,7 @@ unlock:
+ 	return err;
+ }
+ 
++#ifdef CONFIG_AIROHA_PON_COMPAT
+ #include <linux/airoha_ppe_compat.h>
+ extern struct airoha_eth *airoha_pon_compat_get_eth(void);
+ 
+@@ -1006,6 +1007,7 @@ int airoha_ppe_mc_get_origdev(struct airoha_ppe_mc_info *info)
+ 	return info ? -EOPNOTSUPP : -EINVAL;
+ }
+ EXPORT_SYMBOL_GPL(airoha_ppe_mc_get_origdev);
++#endif
+ 
+ static void airoha_ppe_foe_remove_flow(struct airoha_ppe *ppe,
+ 				       struct airoha_flow_table_entry *e)
+--
+2.47.0
