@@ -103,7 +103,6 @@ define Device/gemtek_w1700k-ubi
   DEVICE_ALT2_VENDOR := Quantum Fiber
   DEVICE_ALT2_MODEL := W1700K
   DEVICE_ALT2_VARIANT := UBI
-  SUPPORTED_DEVICES := gemtek,w1700k-ubi
   DEVICE_DTS := an7581-w1700k-ubi
   DEVICE_COMPAT_VERSION := 2.0
   DEVICE_COMPAT_MESSAGE := Partition table has been changed to cooperate \
@@ -111,7 +110,7 @@ define Device/gemtek_w1700k-ubi
        the end of flash. A reinstall including corrected chainloader is needed.
   DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware fitblk \
 		    kmod-hwmon-nct7802 kmod-mt7996-firmware wpad-openssl \
-		    rtl826x-firmware px5g-mbedtls
+		    rtl826x-firmware
   UBINIZE_OPTS := -E 5
   BLOCKSIZE := 128k
   PAGESIZE := 2048
@@ -128,32 +127,6 @@ define Device/gemtek_w1700k-ubi
   SOC := an7581
 endef
 TARGET_DEVICES += gemtek_w1700k-ubi
-
-define Device/gemtek_xr1710g-ubi
-  DEVICE_VENDOR := Gemtek
-  DEVICE_MODEL := XR1710G
-  DEVICE_VARIANT := UBI
-  DEVICE_ALT0_VENDOR := Brightspeed
-  DEVICE_ALT0_MODEL := XR1710G
-  DEVICE_ALT0_VARIANT := UBI
-  SUPPORTED_DEVICES := gemtek,xr1710g-ubi
-  DEVICE_DTS := an7581-xr1710g-ubi
-  DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware fitblk uboot-envtools kmod-airoha-i2c \
-		    kmod-hwmon-nct7802 kmod-mt7996-firmware wpad-mbedtls \
-		    rtl826x-firmware px5g-mbedtls
-  UBINIZE_OPTS := -E 5
-  BLOCKSIZE := 128k
-  PAGESIZE := 2048
-  UBOOTENV_IN_UBI := 1
-  KERNEL_IN_UBI := 1
-  KERNEL := kernel-bin | gzip
-  KERNEL_INITRAMFS := kernel-bin | lzma | fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd | pad-to 128k
-  KERNEL_INITRAMFS_SUFFIX := -recovery.itb
-  IMAGES := sysupgrade.itb
-  IMAGE/sysupgrade.itb := append-kernel | fit gzip $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb external-static-with-rootfs | append-metadata
-  SOC := an7581
-endef
-TARGET_DEVICES += gemtek_xr1710g-ubi
 
 define Device/nokia_valyrian
   DEVICE_VENDOR := Nokia
@@ -216,6 +189,33 @@ define Device/nokia_xg-040g-md-ubi
 endef
 TARGET_DEVICES += nokia_xg-040g-md-ubi
 
+define Device/gemtek_xr1710g-ubi
+  DEVICE_VENDOR := Gemtek
+  DEVICE_MODEL := XR1710G
+  DEVICE_VARIANT := UBI
+  DEVICE_ALT0_VENDOR := Brightspeed
+  DEVICE_ALT0_MODEL := XR1710G
+  DEVICE_ALT0_VARIANT := UBI
+  SUPPORTED_DEVICES := gemtek,xr1710g-ubi
+  DEVICE_DTS := an7581-xr1710g-ubi
+  DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware fitblk uboot-envtools kmod-airoha-i2c \
+		    kmod-hwmon-nct7802 kmod-mt7996-firmware wpad-mbedtls \
+		    rtl826x-firmware px5g-mbedtls
+  UBINIZE_OPTS := -E 5
+  BLOCKSIZE := 128k
+  PAGESIZE := 2048
+  UBOOTENV_IN_UBI := 1
+  KERNEL_IN_UBI := 1
+  KERNEL := kernel-bin | gzip
+  KERNEL_INITRAMFS := kernel-bin | lzma | \
+	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd | pad-to 128k
+  KERNEL_INITRAMFS_SUFFIX := -recovery.itb
+  IMAGES := sysupgrade.itb
+  IMAGE/sysupgrade.itb := append-kernel | fit gzip $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb external-static-with-rootfs | append-metadata
+  SOC := an7581
+endef
+TARGET_DEVICES += gemtek_xr1710g-ubi
+
 define Device/gemtek_xg2010g-ubi
   DEVICE_VENDOR := Gemtek
   DEVICE_MODEL := XG2010G
@@ -247,3 +247,34 @@ define Device/gemtek_xg2010g-ubi
   SOC := an7581
 endef
 TARGET_DEVICES += gemtek_xg2010g-ubi
+
+define Device/quantum_q1000k-ubi
+  DEVICE_VENDOR := Quantum Fiber
+  DEVICE_MODEL := Q1000K
+  DEVICE_VARIANT := UBI
+  DEVICE_ALT0_VENDOR := CenturyLink
+  DEVICE_ALT0_MODEL := Q1000K
+  DEVICE_ALT0_VARIANT := UBI
+  DEVICE_ALT1_VENDOR := Lumen
+  DEVICE_ALT1_MODEL := Q1000K
+  DEVICE_ALT1_VARIANT := UBI
+  DEVICE_DTS := an7581-q1000k
+  DEVICE_PACKAGES := fitblk nand-utils rtl826x-firmware
+  UBINIZE_OPTS := -E 5
+  BLOCKSIZE := 128k
+  PAGESIZE := 2048
+  UBOOTENV_IN_UBI := 1
+  KERNEL_IN_UBI := 1
+  KERNEL := kernel-bin | gzip
+  KERNEL_INITRAMFS := kernel-bin | lzma | \
+	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd | pad-to 128k
+  KERNEL_INITRAMFS_SUFFIX := -recovery.itb
+  IMAGES := sysupgrade.itb
+  # Match the Q1000K HTTP recovery upload buffer (256 MiB).
+  IMAGE_SIZE := 262144k
+  IMAGE/sysupgrade.itb := append-kernel | \
+	fit gzip $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb external-static-with-rootfs | \
+	append-metadata | check-size
+  SOC := an7581
+endef
+TARGET_DEVICES += quantum_q1000k-ubi
