@@ -763,7 +763,7 @@ Signed-off-by: coolsnowwolf <coolsnowwolf@gmail.com>
  
  INCDIR		:= inc
  SRCDIR		:= src
-@@ -14,34 +14,31 @@
+@@ -14,35 +14,32 @@
  endif
  endif
  
@@ -771,6 +771,8 @@ Signed-off-by: coolsnowwolf <coolsnowwolf@gmail.com>
 +ccflags-y += -include $(XPON_BSP_MODULES_XPON_10G_DRIVER)/$(INCDIR)/common/xpon_compat.h \
 +			-I$(XPON_BSP_MODULES_XPON_10G_DRIVER)/$(INCDIR) -I$(XPON_BSP_MODULES_XPON_10G_DRIVER)/$(INCDIR)/epon  -I$(XPON_BSP_GLOBAL_INC_PRIVATE) \
  			-I$(XPON_BSP_GLOBAL_INC_PUBLIC) -I$(XPON_BSP_ECNT_HOOK_DIR)/include
+-EXTRA_CFLAGS += -include $(XPON_BSP_ECNT_HOOK_DIR)/include/linux/xpon_skb.h
++ccflags-y += -include $(XPON_BSP_ECNT_HOOK_DIR)/include/linux/xpon_skb.h
  
 -ifeq ($(strip $(TCSUPPORT_3_18_21_KERNEL) $(TCSUPPORT_4_4_KERNEL)),)
 -EXTRA_CFLAGS += -O0 
@@ -796,7 +798,7 @@ Signed-off-by: coolsnowwolf <coolsnowwolf@gmail.com>
  
  #connect wan for xpon_10g
 -EXTRA_CFLAGS += -D CONFIG_CONNECT_WAN_DEBUG 
-+ccflags-y += -D CONFIG_CONNECT_WAN_DEBUG
++ccflags-y += -D CONFIG_CONNECT_WAN_DEBUG 
  
  ####-Warning for error MUST at last of EXTRA_CFLAGS
 -EXTRA_CFLAGS+=-Werror -Wno-error=frame-larger-than=
@@ -808,11 +810,6 @@ Signed-off-by: coolsnowwolf <coolsnowwolf@gmail.com>
  	GPON_OBJ	:= $(GPON_SRC:%.c=$(SRCDIR)/gpon/%.o)
  
  	XMCS_SRC	+= xmcs_gpon.c 
-@@ -84,4 +81,3 @@
- clean:
- 	# cd $(FILESYSTEM_DIR)/lib/modules/ && rm -f xpon_10g.ko
- 	$(MAKE) -C $(KERNELDIR) M=`pwd` clean
--
 --- a/xpon-en757x/xpon_10g/inc/common/drv_types.h
 +++ b/xpon-en757x/xpon_10g/inc/common/drv_types.h
 @@ -93,7 +93,7 @@
@@ -1513,53 +1510,17 @@ Signed-off-by: coolsnowwolf <coolsnowwolf@gmail.com>
  			return 0;
  		}
  #endif/*TCSUPPORT_COMPILE*/
-@@ -113,7 +113,7 @@
- 			epon_mapping_hook(skb);
- 		}
- #endif
--		idx = skb->v_if ;
-+		idx = XPON_SKB_CB(skb)->v_if ;
- 		if(idx >= EPON_LLID_MAX_NUM) {
- 			return -1 ;
- 		}else if(!gpWanPriv->epon.llid[idx].info.valid) {
-@@ -152,8 +152,8 @@
- 		} 
- 
- 		pTxMsg->raw.oam = 0 ;
--		pTxMsg->raw.channel = skb->v_if ;
--		pTxMsg->raw.nboq = skb->v_if ;
-+		pTxMsg->raw.channel = XPON_SKB_CB(skb)->v_if ;
-+		pTxMsg->raw.nboq = XPON_SKB_CB(skb)->v_if ;
- 		
-         FE_API_GET_METER_IDX(skb, UP_STREAM, &tsid, 0);
- 
-@@ -226,7 +226,7 @@
- 		//__dump_skb(skb, pktLens) ;
- 	PON_MSG(MSG_ERR, "%s %d receive data packet.\n",__FUNCTION__,__LINE__) ;
- 		if(gpWanPriv->epon.llid[idx].info.valid) {
--			skb->v_if = pRxMsg->raw.channel ;
-+			XPON_SKB_CB(skb)->v_if = pRxMsg->raw.channel ;
- 			
- 			if(gpWanPriv->epon.llid[idx].info.rxDrop) {
- 				gpWanPriv->epon.llid[idx].stats.rx_dropped++ ;
 --- a/xpon-en757x/xpon_10g/src/pwan/gpon_wan.c
 +++ b/xpon-en757x/xpon_10g/src/pwan/gpon_wan.c
-@@ -43,4 +43,5 @@
+@@ -42,6 +42,7 @@
  #include <linux/netdevice.h>
  #include <linux/version.h>
  #include <linux/skbuff.h>
 +#include <linux/foe_hook.h>
  #include "common/xpon_global.h"
-@@ -953,7 +953,7 @@
- 	} else {
- 
- #if defined(TCSUPPORT_PON_VLAN)
--			skb->pon_vlan_flag |= PON_VLAN_TX_CALL_HOOK;
-+			XPON_SKB_CB(skb)->pon_vlan_flag |= PON_VLAN_TX_CALL_HOOK;
- 			if(pon_insert_tag_hook)
- 			{
- 				if(pon_insert_tag_hook(&skb) == -1){
-@@ -970,13 +970,13 @@
+ #include <ecnt_hook/ecnt_hook_fe.h>
+ #include "common/xpon_api.h"
+@@ -970,13 +971,13 @@
          pTxMsg->raw.ndp = 0 ;
  
  #if/*TCSUPPORT_COMPILE*/ defined(TCSUPPORT_CT_HWNAT_OFFLOAD)
@@ -1575,123 +1536,6 @@ Signed-off-by: coolsnowwolf <coolsnowwolf@gmail.com>
          return 0;
      }
  #endif/*TCSUPPORT_COMPILE*/
-@@ -1008,9 +1008,9 @@
- 		}
- 
-         /*prepare meter and anct info */
--        if(skb->pon_mark & QOS_TSE_MARK)
-+        if(XPON_SKB_CB(skb)->pon_mark & QOS_TSE_MARK)
-         {
--            mtr_logic_idx = skb->pon_mark & QOS_TSID_MARK;
-+            mtr_logic_idx = XPON_SKB_CB(skb)->pon_mark & QOS_TSID_MARK;
-             PON_MSG(MSG_TRACE, "gemport ratelimit is eanble, mtr_logic_idx= %d\n",mtr_logic_idx) ; 
-         }
-         
-@@ -1025,7 +1025,7 @@
- 		FH_VLAN_TX_PROC(skb);
- 
- 		/* Just for FPGA Verification. the default gem port msut use default interface or dropped. */
--		gemIdx = (skb->gem_port) ? (gpWanPriv->gpon.gemIdToIndex[skb->gem_port] & GPON_GEM_IDX_MASK) : CONFIG_GPON_10G_MAX_GEMPORT ;
-+		gemIdx = (XPON_SKB_CB(skb)->gem_port) ? (gpWanPriv->gpon.gemIdToIndex[XPON_SKB_CB(skb)->gem_port] & GPON_GEM_IDX_MASK) : CONFIG_GPON_10G_MAX_GEMPORT ;
- 		if(gemIdx>=CONFIG_GPON_10G_MAX_GEMPORT || !gpWanPriv->gpon.gemPort[gemIdx].info.valid || 
- 											  (gpWanPriv->gpon.gemPort[gemIdx].info.channel==GPON_MULTICAST_CHANNEL || gpWanPriv->gpon.gemPort[gemIdx].info.channel==GPON_UNKNOWN_CHANNEL) ||
- 											  gpWanPriv->gpon.allocId[gpWanPriv->gpon.gemPort[gemIdx].info.channel] == GPON_10G_UNASSIGN_ALLOC_ID ||
-@@ -1035,7 +1035,7 @@
- 		}
- 		
- 		//Do GPON MAC filter
--		skb->v_if = gpWanPriv->gpon.gemPort[gemIdx].info.ani ;
-+		XPON_SKB_CB(skb)->v_if = gpWanPriv->gpon.gemPort[gemIdx].info.ani ;
- #if defined(TCSUPPORT_PON_VLAN) && defined(TCSUPPORT_PON_VLAN_FILTER) && defined(TCSUPPORT_XPON_IGMP)
- 		if (is_up_igmp_pkt)
- 		{
-@@ -1052,7 +1052,7 @@
- #endif
- 	{
- 
--		skb->pon_vlan_flag |= PON_PKT_SEND_TO_WAN;
-+		XPON_SKB_CB(skb)->pon_vlan_flag |= PON_PKT_SEND_TO_WAN;
- 		if(pon_insert_tag_hook)
- 		{
- 			if(pon_insert_tag_hook(&skb) == -1){
-@@ -1064,7 +1064,7 @@
- #endif
- 
- 	#ifdef TCSUPPORT_PON_MAC_FILTER
--		skb->pon_mac_filter_flag |= PKT_SEND_TO_WAN;
-+		XPON_SKB_CB(skb)->pon_mac_filter_flag |= PKT_SEND_TO_WAN;
- 		if(pon_check_mac_hook)
- 		{
- 			if(pon_check_mac_hook(skb) == -1){
-@@ -1236,18 +1236,18 @@
- 		gpWanPriv->gpon.gemPort[gemIdx].stats.rx_packets++ ;
- 		gpWanPriv->gpon.gemPort[gemIdx].stats.rx_bytes += pktLens ;
- 		if(GPON_MULTICAST_CHANNEL == gpWanPriv->gpon.gemPort[gemIdx].info.channel){
--			skb->gem_type = GPON_MULTICAST_GEM ;
-+			XPON_SKB_CB(skb)->gem_type = GPON_MULTICAST_GEM ;
- 		}else{
--			skb->gem_type = GPON_UNICAST_GEM ;			 
-+			XPON_SKB_CB(skb)->gem_type = GPON_UNICAST_GEM ;
- 		}
- 
--		skb->gem_port = gemPortId ;
--		skb->v_if = gpWanPriv->gpon.gemPort[gemIdx].info.ani ;
--		skb->pon_mark |= DS_PKT_FORM_WAN;
-+		XPON_SKB_CB(skb)->gem_port = gemPortId ;
-+		XPON_SKB_CB(skb)->v_if = gpWanPriv->gpon.gemPort[gemIdx].info.ani ;
-+		XPON_SKB_CB(skb)->pon_mark |= DS_PKT_FORM_WAN;
- 		
- /*excute ani port mac filter function here*/		
- #ifdef TCSUPPORT_PON_MAC_FILTER
--		skb->pon_mac_filter_flag |= PKT_SEND_TO_LAN;
-+		XPON_SKB_CB(skb)->pon_mac_filter_flag |= PKT_SEND_TO_LAN;
- 		mac = skb->data + 12;
- 		 
- 		while((tpid =((*mac << 8) + *(mac + 1))) == 0x8100 ||(tpid == 0x88a8)||(tpid == 0x9100))
-@@ -1256,14 +1256,14 @@
- 			mac += 4;
- 		}
- 
--		skb->pon_tag_num = tagNum;
-+		XPON_SKB_CB(skb)->pon_tag_num = tagNum;
- 		if(pon_check_mac_hook)
- 		{
- 			if(pon_check_mac_hook(skb) == -1)
- 				goto fail;
- 		}
--		skb->pon_mac_filter_flag &= ~(PKT_SEND_TO_LAN) ;	
--		skb->pon_tag_num = 0;
-+		XPON_SKB_CB(skb)->pon_mac_filter_flag &= ~(PKT_SEND_TO_LAN) ;
-+		XPON_SKB_CB(skb)->pon_tag_num = 0;
- #endif
-         
- #ifdef TCSUPPORT_HWNAT_L2VID
-@@ -1278,7 +1278,7 @@
- 				for(i=0 ; i<CONFIG_GPON_10G_MAX_GEMPORT ; i++) {
- 					if(gpWanPriv->gpon.gemPort[i].info.valid) {
- 						if(!foo) {
--							skb->gem_port = gpWanPriv->gpon.gemPort[i].info.portId ;
-+							XPON_SKB_CB(skb)->gem_port = gpWanPriv->gpon.gemPort[i].info.portId ;
- 							skb->mark = (skb->mark & ~QOS_FILTER_MARK) | ((random32()&0x7)<<4) ;
- 							break ;
- 						}
-@@ -1287,14 +1287,14 @@
- 				}
- 				if(i == CONFIG_GPON_10G_MAX_GEMPORT) {
- 					skb->mark = (skb->mark & ~QOS_FILTER_MARK) | ((random32()&0x7)<<4) ;
--					skb->gem_port = gemPortId ;
-+					XPON_SKB_CB(skb)->gem_port = gemPortId ;
- 				}
- 				*pFlag = 1 ;
- 			} else 
- #endif /* CONFIG_USE_FOR_TEST */
- 			{
- 				if(gpWanPriv->gpon.gemPort[gemIdx].info.channel<CONFIG_GPON_10G_MAX_TCONT) {
--					skb->gem_port = gemPortId ;
-+					XPON_SKB_CB(skb)->gem_port = gemPortId ;
- 					*pFlag = 1 ;
- 				} else {
- #ifdef XPON_MAC_CONFIG_DEBUG  
 --- a/xpon-en757x/xpon_10g/src/pwan/xpon_netif.c
 +++ b/xpon-en757x/xpon_10g/src/pwan/xpon_netif.c
 @@ -57,7 +57,6 @@
@@ -1710,15 +1554,6 @@ Signed-off-by: coolsnowwolf <coolsnowwolf@gmail.com>
  		netif_rx(skb) ;
  		goto post_qdma_tx;
  		
-@@ -351,7 +349,7 @@
- 		{
- 			GOTO_DROP(2);
- 		}
--		gemport=skb->gem_port;
-+		gemport=XPON_SKB_CB(skb)->gem_port;
- 	} else 
- #endif /* TCSUPPORT_WAN_GPON */
- #ifdef TCSUPPORT_WAN_EPON
 @@ -477,7 +475,7 @@
  		skb_mirror = NULL ;
  	}
