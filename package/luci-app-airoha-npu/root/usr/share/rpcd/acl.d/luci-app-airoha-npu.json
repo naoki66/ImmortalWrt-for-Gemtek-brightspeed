@@ -22,7 +22,7 @@
 		},
 		"write": {
 			"ubus": {
-				"luci.airoha_npu": [ "setGovernor", "setMaxFreq", "setVlanOffload", "setPppoeOffload", "setFlowOffload", "setApModeOffload" ],
+				"luci.airoha_npu": [ "setGovernor", "setMaxFreq", "setCpuSettings", "setVlanOffload", "setPppoeOffload", "setFlowOffload", "setApModeOffload" ],
 				"uci": [ "set", "commit" ]
 			},
 			"file": {

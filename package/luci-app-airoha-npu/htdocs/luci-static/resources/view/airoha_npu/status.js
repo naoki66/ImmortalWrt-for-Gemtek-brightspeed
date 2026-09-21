@@ -19,6 +19,11 @@ var callSetFlowOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setFl
 var callGetApModeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getApModeOffload' });
 var callSetApModeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setApModeOffload', params: ['enabled'] });
 var callGetDeviceMode = rpc.declare({ object: 'luci.airoha_npu', method: 'getDeviceMode' });
+var callSetCpuSettings = rpc.declare({ object: 'luci.airoha_npu', method: 'setCpuSettings', params: ['governor', 'freq'] });
+
+// Tracks whether the user has changed a CPU control select without saving yet.
+// While dirty, the 5s poll must NOT overwrite the selects with live sysfs values.
+var cpuSettingsDirty = false;
 
 /* ── Theme-adaptive CSS ── */
 var themeCSS = '\
@@ -65,6 +70,8 @@ var themeCSS = '\
 .cpu-setting{display:flex;align-items:center;gap:8px;min-width:190px;flex:1}\
 .cpu-setting-label{font-size:12px;line-height:1.4;font-weight:500;color:var(--soc-muted);font-family:var(--airoha-font-ui);white-space:nowrap}\
 .cpu-setting .cbi-input-select{flex:1;min-width:0!important}\
+.cpu-settings-hint{font-size:12px;line-height:1.4;margin-left:6px;white-space:nowrap}\
+.cpu-settings-save{margin-left:auto}\
 .npu-frame-wrap{margin-top:8px;border:1px solid var(--soc-border);border-radius:8px;padding:10px;background:var(--soc-card-bg)}\
 .fe-cdm-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:10px}\
 .fe-wifi-band-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}\
@@ -489,19 +496,29 @@ function governorLabel(governor) {
 function renderGovSelect(avail, active) {
 	var gs = (avail||'').trim().split(/\s+/).filter(Boolean);
 	if (!gs.length) return E('span',{},'N/A');
-	return E('select', { 'id':'cpu-governor-select','class':'cbi-input-select','style':'min-width:140px','change':function(ev){
-		var g=ev.target.value; ev.target.disabled=true;
-		callSetGovernor(g).then(function(r){ev.target.disabled=false;if(r&&r.error) ui.addNotification(null,E('p',{},_('Error: ')+r.error),'error');}).catch(function(){ev.target.disabled=false;});
+	return E('select', { 'id':'cpu-governor-select','class':'cbi-input-select','style':'min-width:140px','change':function(){
+		cpuSettingsDirty = true; updateCpuSettingsHint();
 	}}, gs.map(function(g){return E('option',{'value':g,'selected':g===active?'':null},governorLabel(g));}));
 }
 
 function renderMaxFreqSelect(avail, cur) {
 	var fs = (avail||'').trim().split(/\s+/).filter(Boolean);
 	if (!fs.length) return E('span',{},'N/A');
-	return E('select', { 'id':'cpu-maxfreq-select','class':'cbi-input-select','style':'min-width:140px','change':function(ev){
-		var f=ev.target.value; ev.target.disabled=true;
-		callSetMaxFreq(parseInt(f)).then(function(r){ev.target.disabled=false;if(r&&r.error) ui.addNotification(null,E('p',{},_('Error: ')+r.error),'error');}).catch(function(){ev.target.disabled=false;});
+	return E('select', { 'id':'cpu-maxfreq-select','class':'cbi-input-select','style':'min-width:140px','change':function(){
+		cpuSettingsDirty = true; updateCpuSettingsHint();
 	}}, fs.map(function(f){return E('option',{'value':f,'selected':parseInt(f)===parseInt(cur)?'':null},(parseInt(f)/1000).toFixed(0)+' MHz');}));
+}
+
+function updateCpuSettingsHint() {
+	var hint = document.getElementById('cpu-settings-hint');
+	if (!hint) return;
+	if (cpuSettingsDirty) {
+		hint.textContent = _('Unsaved changes');
+		hint.style.color = '#f59e0b';
+	} else {
+		hint.textContent = '';
+		hint.style.color = '';
+	}
 }
 
 function offloadBadgeState(enabled, blocked) {
@@ -611,6 +628,33 @@ function buildCpuInfoContent(st) {
 }
 
 function buildControlSettingsContent(st) {
+	// Container rebuilt from live status → selections reflect what is currently applied.
+	cpuSettingsDirty = false;
+
+	var saveBtn = E('button', {
+		'id': 'cpu-settings-save',
+		'class': 'cbi-button cbi-button-apply cpu-settings-save',
+		'click': function(ev) {
+			var btn = ev.target;
+			var gs = document.getElementById('cpu-governor-select');
+			var fs = document.getElementById('cpu-maxfreq-select');
+			if (!gs || !fs) return;
+			btn.disabled = true;
+			callSetCpuSettings(gs.value, parseInt(fs.value)).then(function(r) {
+				btn.disabled = false;
+				if (r && r.error) {
+					ui.addNotification(null, E('p', {}, _('Error: ') + r.error), 'error');
+				} else {
+					cpuSettingsDirty = false;
+					updateCpuSettingsHint();
+					ui.addNotification(null, E('p', {}, _('CPU settings saved — they will persist after a reboot')), 'info');
+				}
+			}).catch(function() { btn.disabled = false; });
+		}
+	}, _('Save'));
+
+	var hint = E('span', { 'id': 'cpu-settings-hint', 'class': 'cpu-settings-hint soc-muted' }, '');
+
 	return E('div',{'class':'cpu-setting-controls'},[
 		E('div',{'class':'cpu-setting'},[
 			E('span',{'class':'cpu-setting-label'},_('Governor')),
@@ -619,7 +663,9 @@ function buildControlSettingsContent(st) {
 		E('div',{'class':'cpu-setting'},[
 			E('span',{'class':'cpu-setting-label'},_('Max Freq')),
 			renderMaxFreqSelect(st.cpu_avail_freqs,st.cpu_max_freq)
-		])
+		]),
+		saveBtn,
+		hint
 	]);
 }
 
@@ -806,16 +852,19 @@ return view.extend({
 					if (fc) { fc.innerHTML = ''; fc.appendChild(renderFreqBar(st.cpu_hw_freq,st.cpu_min_freq,st.cpu_max_freq,st.pll_freq_mhz,st.cpu_governor)); }
 				}
 
-				// Control settings — update values if selects exist, otherwise re-render container
-				var gs = document.getElementById('cpu-governor-select');
-				if (gs) {
+			// Control settings — update values if selects exist, otherwise re-render container.
+			// While there are unsaved changes, leave the selects alone so the user's pick is kept.
+			var gs = document.getElementById('cpu-governor-select');
+			if (gs) {
+				if (!cpuSettingsDirty) {
 					if (!gs.matches(':focus')) gs.value = st.cpu_governor || '';
 					var fs = document.getElementById('cpu-maxfreq-select');
 					if (fs && !fs.matches(':focus')) fs.value = (st.cpu_max_freq || 0).toString();
-				} else {
-					var cc = document.getElementById('cpu-control-content');
-					if (cc) { cc.innerHTML = ''; cc.appendChild(buildControlSettingsContent(st)); }
 				}
+			} else {
+				var cc = document.getElementById('cpu-control-content');
+				if (cc) { cc.innerHTML = ''; cc.appendChild(buildControlSettingsContent(st)); }
+			}
 
 				updateOffloadControl('vlan-offload-select', 'vlan-offload-badge', vo.enabled, bridgeBlocked);
 				updateOffloadControl('pppoe-offload-select', 'pppoe-offload-badge', ppo.enabled, bridgeBlocked);

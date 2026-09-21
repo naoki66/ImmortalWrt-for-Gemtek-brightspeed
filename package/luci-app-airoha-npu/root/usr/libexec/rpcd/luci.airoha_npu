@@ -377,6 +377,14 @@ get_token_info() {
 	' "$token_file" 2>/dev/null || printf '{"token_count":0,"token_size":0,"npu_active":false,"tx_queues":[],"station_counts":[%s]}' "$sta_json"
 }
 
+# Persist CPU governor / max_freq to UCI so the choice survives a reboot.
+_uci_persist_cpu() {
+	uci -q get airoha_npu.@cpu[0] >/dev/null 2>&1 || uci set airoha_npu.@cpu[0]=cpu
+	[ -n "$1" ] && uci set airoha_npu.@cpu[0].governor="$1"
+	[ -n "$2" ] && uci set airoha_npu.@cpu[0].max_freq="$2"
+	uci commit airoha_npu
+}
+
 set_governor() {
 	local governor
 	governor=$(echo "$1" | jsonfilter -e "@.governor" 2>/dev/null)
@@ -395,6 +403,7 @@ set_governor() {
 
 	echo "$governor" > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor 2>/dev/null
 	if [ $? -eq 0 ]; then
+		_uci_persist_cpu "$governor"
 		printf '{"result":"ok","governor":"%s"}' "$governor"
 	else
 		echo '{"error":"failed to set governor"}'
@@ -419,10 +428,57 @@ set_max_freq() {
 
 	echo "$freq" > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq 2>/dev/null
 	if [ $? -eq 0 ]; then
+		_uci_persist_cpu "" "$freq"
 		printf '{"result":"ok","freq":%d}' "$freq"
 	else
 		echo '{"error":"failed to set max frequency"}'
 	fi
+}
+
+# Combined persistence RPC: apply both governor and max_freq, then persist to UCI
+# in a single transaction so the choice survives a reboot. Either field may be omitted.
+set_cpu_settings() {
+	local governor freq
+	governor=$(echo "$1" | jsonfilter -e "@.governor" 2>/dev/null)
+	freq=$(echo "$1" | jsonfilter -e "@.freq" 2>/dev/null)
+
+	if [ -z "$governor" ] && [ -z "$freq" ]; then
+		echo '{"error":"missing governor and freq parameters"}'
+		return
+	fi
+
+	if [ -n "$governor" ]; then
+		local avail_g=$(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_available_governors 2>/dev/null)
+		if ! echo "$avail_g" | grep -qw "$governor"; then
+			printf '{"error":"invalid governor: %s"}' "$governor"
+			return
+		fi
+		echo "$governor" > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor 2>/dev/null
+		if [ $? -ne 0 ]; then
+			echo '{"error":"failed to set governor"}'
+			return
+		fi
+	fi
+
+	if [ -n "$freq" ]; then
+		local avail_f=$(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_available_frequencies 2>/dev/null)
+		if ! echo "$avail_f" | grep -qw "$freq"; then
+			printf '{"error":"invalid frequency: %s"}' "$freq"
+			return
+		fi
+		echo "$freq" > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq 2>/dev/null
+		if [ $? -ne 0 ]; then
+			echo '{"error":"failed to set max frequency"}'
+			return
+		fi
+	fi
+
+	_uci_persist_cpu "$governor" "$freq"
+
+	local out='{"result":"ok"'
+	[ -n "$governor" ] && out="$out,\"governor\":\"$governor\""
+	[ -n "$freq" ] && out="$out,\"freq\":$freq"
+	printf '%s}' "$out"
 }
 
 get_frame_engine() {
@@ -654,7 +710,7 @@ set_apmode_offload() {
 
 case "$1" in
 	list)
-		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"getApModeOffload":{},"setApModeOffload":{"enabled":"int"},"getDeviceMode":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"}}'
+		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"getApModeOffload":{},"setApModeOffload":{"enabled":"int"},"getDeviceMode":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"},"setCpuSettings":{"governor":"str","freq":"int"}}'
 		;;
 	call)
 		case "$2" in
@@ -674,10 +730,14 @@ case "$1" in
 				read input
 				set_governor "$input"
 				;;
-			setMaxFreq)
-				read input
-				set_max_freq "$input"
-				;;
+		setMaxFreq)
+			read input
+			set_max_freq "$input"
+			;;
+		setCpuSettings)
+			read input
+			set_cpu_settings "$input"
+			;;
 			getFrameEngine)
 				get_frame_engine
 				;;

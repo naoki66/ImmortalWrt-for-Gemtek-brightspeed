@@ -216,3 +216,12 @@ msgstr "类型"
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:421
 msgid "Unbound:"
 msgstr "未绑定："
+
+msgid "Save"
+msgstr "保存"
+
+msgid "Unsaved changes"
+msgstr "有未保存的更改"
+
+msgid "CPU settings saved — they will persist after a reboot"
+msgstr "CPU 设置已保存，重启后依然生效"
