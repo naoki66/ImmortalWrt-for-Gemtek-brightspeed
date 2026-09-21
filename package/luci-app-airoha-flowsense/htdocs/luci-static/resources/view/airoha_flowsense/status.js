@@ -688,7 +688,7 @@ function compassState(bypass, hwBuf, jitter, wan, wifi, bridge, mode) {
 	};
 }
 
-function buildCompassSVG(cs, mode, ppe) {
+function buildCompassSVG(cs, mode, ppe, ti) {
 	var cx=150, cy=150;
 	var npuOpacity  = cs.npuActive ? '1'    : cs.hwEnabled ? '0.45' : '0.2';
 	var cpuOpacity  = !cs.hwEnabled ? '1'   : cs.npuActive ? '0.2'  : '0.45';
@@ -699,7 +699,7 @@ function buildCompassSVG(cs, mode, ppe) {
 	var southOpacity= cs.hwBuf.pulsing ? '1' : '0.45';
 	var southAnim   = cs.hwBuf.pulsing ? ' style="animation:sqm-pulse 1.5s ease-in-out infinite"' : '';
 	var tip = needleTip(cs.latMs);
-	var ppeRing = _cnPpeRingStyle(ppe);
+	var ppeRing = _cnPpeRingStyle(ppe, ti);
 
 	// Arc paths
 	var pNpuOuter = arcPath(cx,cy,132, 210,330);
@@ -759,7 +759,7 @@ function buildCompassSVG(cs, mode, ppe) {
 	'</svg>';
 }
 
-function updateCompassSVG(cs, mode, ppe) {
+function updateCompassSVG(cs, mode, ppe, ti) {
 	function sa(id, attr, val) { var el=document.getElementById(id); if(el) el.setAttribute(attr, val); }
 
 	var npuOpacity  = cs.npuActive ? '1'    : cs.hwEnabled ? '0.45' : '0.2';
@@ -813,7 +813,7 @@ function updateCompassSVG(cs, mode, ppe) {
 	// PPE state ring on compass outer edge
 	var ppeGlow = document.getElementById('cp-ppe-glow');
 	if (ppeGlow) {
-		var ppeRing = _cnPpeRingStyle(ppe);
+		var ppeRing = _cnPpeRingStyle(ppe, ti);
 		ppeGlow.setAttribute('stroke', ppeRing.color);
 		ppeGlow.setAttribute('style', ppeRing.style);
 	}
@@ -1516,7 +1516,7 @@ return view.extend({
 
 		// Compass SVG container — tachometer is embedded inside (innerHTML so we can update by element ID)
 		var compassSvgWrap = E('div', { 'class': 'compass-svg-wrap compass-gauge-wrap', 'id': 'compass-svg-wrap' });
-		compassSvgWrap.innerHTML = buildCompassSVG(cs, mode, ppe);
+		compassSvgWrap.innerHTML = buildCompassSVG(cs, mode, ppe, ti);
 
 		var cnWrap = E('div', { 'id': 'cpu-npu-svg-wrap', 'class': 'compass-gauge-wrap' });
 		cnWrap.innerHTML = buildCpuNpuCompassSVG(cs, ppe, st, ti);
@@ -1570,7 +1570,7 @@ return view.extend({
 				// Compass update (tachometer embedded inside compass)
 				var hwBuf = hwBufferState(fe, ppe, mode);
 				var cs = compassState(bypass, hwBuf, jitter, wan, wifi, bridge, mode);
-				updateCompassSVG(cs, mode, ppe);
+				updateCompassSVG(cs, mode, ppe, ti);
 				updateCompassCards(cs, bypass, jitter, wan, wifi, bridge, mode);
 
 				// CPU/NPU Load compass update
