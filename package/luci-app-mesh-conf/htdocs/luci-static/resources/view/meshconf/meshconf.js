@@ -88,8 +88,9 @@ var callSteerService = rpc.declare({
  * Surfaces, text and borders map onto the LuCI theme variables instead of
  * being hardcoded: the theme owns its light/dark palette, and the previous
  * fixed palette plus a body-background luminance probe made this page ignore
- * it entirely. Themes that ship a dark mode also set
- * :root[data-darkmode="true"], which is the only extra hook the accents need.
+ * it entirely. Dark mode is detected at runtime by probing the computed
+ * background luminance of the page containers plus the loaded stylesheet
+ * links, so the accents re-tune correctly on any theme that ships a dark palette.
  *
  * `tokens` is the shared `--ds-*` declaration block; see ds-tokens.js for the
  * canonical values and the note about the LuCI theme owning light/dark.
@@ -173,12 +174,52 @@ var css = [
 	'@media(max-width:720px){.nm-title{flex-direction:column;align-items:flex-start;gap:var(--ds-sp-1)}}'
 ].join('\n');
 
-/* Dark accents. LuCI themes that ship a dark mode set this attribute on :root;
+/* Dark accents. Applied when isDarkMode() detects a dark page background;
  * surfaces and text already follow the theme variables, so only the semantic
  * accents have to be re-tuned for a dark background - and the tints get a
- * higher alpha, since a .08 wash is invisible on a dark surface. Shared with
- * steering.js via ds-tokens.js. */
+ * higher alpha, since a .08 wash is invisible on a dark surface. */
 var darkVars = dsTokens.dark;
+
+function isDarkMode() {
+	/* Probe order matters: the first element with an opaque background wins.
+	 * - body carries the theme background in every LuCI theme.
+	 * - .main-left is Argon's sidebar: var(--menu-bg-color) (#ffffff) when
+	 *   light, #333333 when dark. It is the only other always-opaque surface
+	 *   Argon has, and it matters because Argon inlines css/dark.css into a
+	 *   <style> block (header.ut readfile()) instead of linking it, so the
+	 *   stylesheet fallback below can never match Argon.
+	 * - .main-content / #maincontent / .cbi-map are the bootstrap-era wrappers.
+	 * header is deliberately NOT probed: Argon paints it with var(--primary)
+	 * (#5e72e4, luminance ~121), which would read as dark in light mode. */
+	var els = [document.body, document.querySelector('.main-left'), document.querySelector('.main-right'),
+		document.querySelector('.main-content'), document.querySelector('#maincontent'), document.querySelector('.cbi-map')];
+	for (var i = 0; i < els.length; i++) {
+		if (!els[i]) continue;
+		/* Parse rgb()/rgba() explicitly. Matching with /\d+/g splits the
+		 * fractional alpha 0.6 into "0" and "6", so m[3] reads 0 and every
+		 * semi-transparent background is mistaken for a fully transparent one
+		 * and skipped - semi-transparent dark surfaces then fell through to the
+		 * stylesheet fallback and were reported as light. */
+		var bg = window.getComputedStyle(els[i]).backgroundColor;
+		var m = bg.match(/rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:[\s,/]+([\d.]+))?/i);
+		if (m) {
+			var a = m[4] === undefined ? 1 : parseFloat(m[4]);
+			if (a < 0.1) continue;
+			var lum = (parseFloat(m[1]) * 299 + parseFloat(m[2]) * 587 + parseFloat(m[3]) * 114) / 1000;
+			return lum < 128;
+		}
+	}
+	var sheets = document.querySelectorAll('link[href*="dark"], link[href*="glass"]');
+	if (sheets.length > 0) return true;
+	/* Last resort: follow the OS preference. This is exactly what Argon's
+	 * default mode='normal' does - it wraps the inlined dark.css in
+	 * @media (prefers-color-scheme: dark) - and it also covers any theme that
+	 * leaves every probed surface transparent. */
+	try {
+		if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) return true;
+	} catch (e) {}
+	return false;
+}
 
 function injectCSS() {
 	var el = document.getElementById('meshconf-css');
@@ -187,7 +228,7 @@ function injectCSS() {
 		el.id = 'meshconf-css';
 		document.head.appendChild(el);
 	}
-	el.textContent = css + '\n' + darkVars;
+	el.textContent = css + (isDarkMode() ? '\n' + darkVars : '');
 }
 
 /* ---------------------------------------------------------------------------
