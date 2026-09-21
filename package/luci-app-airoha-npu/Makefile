@@ -36,6 +36,14 @@ define Package/$(LUCI_NAME)/install
 	# Preserve runtime-created acceleration settings during sysupgrade.
 	$(INSTALL_DIR) $(1)/lib/upgrade/keep.d
 	$(INSTALL_DATA) ./root/lib/upgrade/keep.d/luci-app-airoha-npu $(1)/lib/upgrade/keep.d/
+
+	# Install init script that re-applies persisted CPU governor / max_freq at boot.
+	# Bake the rc.d symlink so the service is enabled on a freshly flashed image too
+	# (the postinst 'enable' only runs on a running device, not during image build).
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_BIN) ./root/etc/init.d/airoha-npu $(1)/etc/init.d/
+	$(INSTALL_DIR) $(1)/etc/rc.d
+	ln -sf ../init.d/airoha-npu $(1)/etc/rc.d/S89airoha-npu
 endef
 
 define Package/$(LUCI_NAME)/postinst
@@ -44,6 +52,9 @@ define Package/$(LUCI_NAME)/postinst
 
 # Reload rpcd to register the new luci.airoha_npu backend
 /etc/init.d/rpcd reload 2>/dev/null
+
+# Enable the boot-time CPU settings apply script (runs at next reboot)
+/etc/init.d/airoha-npu enable 2>/dev/null
 
 # Bridge acceleration is opt-in through the NPU page. Remove defaults from
 # earlier builds so only firewall hardware flow offload is enabled by default.

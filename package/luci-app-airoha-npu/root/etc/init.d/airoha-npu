@@ -1,0 +1,43 @@
+#!/bin/sh /etc/rc.common
+#
+# Airoha NPU — apply persisted CPU control settings at boot.
+#
+# The CPU frequency scaling governor / max frequency are runtime-only sysfs
+# knobs that the kernel resets to its built-in default (ondemand) on every
+# reboot. The NPU status page persists the user's choice to UCI
+# (airoha_npu.@cpu[0].governor / .max_freq); this script re-applies it at boot
+# so the selection survives a reboot.
+
+START=89
+
+SYS_GOV=/sys/devices/system/cpu/cpufreq/policy0/scaling_governor
+SYS_DIR=/sys/devices/system/cpu/cpufreq/policy0
+
+apply_cpu_settings() {
+	local governor max_freq
+
+	governor=$(uci -q get airoha_npu.@cpu[0].governor 2>/dev/null)
+	max_freq=$(uci -q get airoha_npu.@cpu[0].max_freq 2>/dev/null)
+
+	[ -n "$max_freq" ] && [ -w "$SYS_DIR/scaling_max_freq" ] && {
+		if echo "$max_freq" | grep -qw "$(cat "$SYS_DIR/scaling_available_frequencies" 2>/dev/null)"; then
+			echo "$max_freq" > "$SYS_DIR/scaling_max_freq" 2>/dev/null
+		fi
+	}
+
+	[ -n "$governor" ] && [ -w "$SYS_DIR/scaling_governor" ] && {
+		if echo "$governor" | grep -qw "$(cat "$SYS_DIR/scaling_available_governors" 2>/dev/null)"; then
+			echo "$governor" > "$SYS_DIR/scaling_governor" 2>/dev/null
+		fi
+	}
+}
+
+start() {
+	# Wait (bounded, ~5s) for the cpufreq sysfs node, then apply persisted settings.
+	local i=0
+	while [ ! -w "$SYS_DIR/scaling_governor" ] && [ $i -lt 5 ]; do
+		sleep 1
+		i=$((i + 1))
+	done
+	apply_cpu_settings
+}
