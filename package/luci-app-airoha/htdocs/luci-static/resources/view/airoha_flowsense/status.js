@@ -168,9 +168,15 @@ function buildTachoInner(ppe, cs, mode) {
 
 	var p = [];
 
-	// Inner fill + dashed boundary ring
+	// Inner fill + dashed boundary ring.
+	// The ring is drawn inside buildCompassSVG on top of its r=148 solid disc
+	// (C.surface, #ffffff), where a 1px C.border (#d8dee4) stroke only reaches
+	// 1.36:1 - below the 3:1 WCAG floor for non-text graphics, which is exactly
+	// why this compass ring looked invisible while the two standalone gauges
+	// (same bytes, but over the page background) did not. borderStrong + 1.5px
+	// clears 3:1 on both the white disc and the page surface.
 	p.push('<circle cx="150" cy="150" r="97" style="fill:' + C.border + '" opacity="0.1"/>');
-	p.push('<circle cx="150" cy="150" r="98" fill="none" stroke="' + C.border + '" stroke-width="1" stroke-dasharray="3 5"/>');
+	p.push('<circle cx="150" cy="150" r="98" fill="none" stroke="' + C.borderStrong + '" stroke-width="1.5" stroke-dasharray="5 6"/>');
 	p.push('<circle cx="150" cy="150" r="56" fill="none" stroke="' + C.border + '" stroke-width="0.5" opacity="0.35"/>');
 	p.push('<circle cx="150" cy="150" r="69" fill="none" stroke="' + C.border + '" stroke-width="0.5" opacity="0.35"/>');
 	p.push('<circle cx="150" cy="150" r="83" fill="none" stroke="' + C.border + '" stroke-width="0.5" opacity="0.35"/>');
@@ -360,8 +366,12 @@ function buildCpuNpuTacho(cs, ppe, st, ti) {
 	var cx = 150, cy = 150;
 	var p = [];
 
+	// CPU/NPU standalone gauge. Same fix as the compass ring above: a 1px
+	// C.border boundary reads at 1.36:1 on the white disc the compass lays
+	// down, so all three gauges move to borderStrong + 1.5px to clear the 3:1
+	// contrast floor on either backing surface.
 	p.push('<circle cx="150" cy="150" r="97" style="fill:' + C.border + '" opacity="0.1"/>');
-	p.push('<circle cx="150" cy="150" r="98" fill="none" stroke="' + C.border + '" stroke-width="1" stroke-dasharray="3 5"/>');
+	p.push('<circle cx="150" cy="150" r="98" fill="none" stroke="' + C.borderStrong + '" stroke-width="1.5" stroke-dasharray="5 6"/>');
 	p.push('<circle cx="150" cy="150" r="56" fill="none" stroke="' + C.border + '" stroke-width="0.5" opacity="0.35"/>');
 	p.push('<circle cx="150" cy="150" r="69" fill="none" stroke="' + C.border + '" stroke-width="0.5" opacity="0.35"/>');
 	p.push('<circle cx="150" cy="150" r="83" fill="none" stroke="' + C.border + '" stroke-width="0.5" opacity="0.35"/>');
@@ -492,8 +502,11 @@ function buildWifiBandTacho(bandIdx, ws, qType, bndCount, unbCount) {
 	var cx = 150, cy = 150;
 	var p = [];
 
+	// WiFi-band standalone gauge. Kept byte-identical to the other two rings so
+	// the trio stays visually unified; borderStrong + 1.5px is what lifts the
+	// 1px border above the 3:1 non-text contrast floor on the compass disc.
 	p.push('<circle cx="150" cy="150" r="97" style="fill:' + C.border + '" opacity="0.1"/>');
-	p.push('<circle cx="150" cy="150" r="98" fill="none" stroke="' + C.border + '" stroke-width="1" stroke-dasharray="3 5"/>');
+	p.push('<circle cx="150" cy="150" r="98" fill="none" stroke="' + C.borderStrong + '" stroke-width="1.5" stroke-dasharray="5 6"/>');
 	p.push('<circle cx="150" cy="150" r="56" fill="none" stroke="' + C.border + '" stroke-width="0.5" opacity="0.35"/>');
 	p.push('<circle cx="150" cy="150" r="69" fill="none" stroke="' + C.border + '" stroke-width="0.5" opacity="0.35"/>');
 	p.push('<circle cx="150" cy="150" r="83" fill="none" stroke="' + C.border + '" stroke-width="0.5" opacity="0.35"/>');
