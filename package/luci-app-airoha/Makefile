@@ -119,5 +119,14 @@ define Package/$(LUCI_NAME)/prerm
 exit 0
 endef
 
-# No manual BuildPackage call: feeds/luci/luci.mk (included above) auto-builds
-# this app package and the luci-i18n-airoha-<lang> translation packages.
+# call BuildPackage - OpenWrt buildroot signature
+#
+# feeds/luci/luci.mk (included above) already runs
+#   $(foreach pkg,$(LUCI_BUILD_PACKAGES),$(eval $(call BuildPackage,$(pkg))))
+# for this app and the luci-i18n-airoha-<lang> translation packages, so no
+# explicit BuildPackage eval must be added here (that would define the package
+# twice). The literal string above is nevertheless REQUIRED: include/scan.mk
+# discovers package Makefiles with
+#   find ... -name Makefile | xargs grep -aHE 'call (Build/DefaultTargets|BuildPackage|KernelPackage)'
+# so a Makefile without it is never scanned, never lands in tmp/.packageinfo
+# and the package silently disappears from every generated image.
