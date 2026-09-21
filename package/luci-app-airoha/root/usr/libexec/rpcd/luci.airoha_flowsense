@@ -342,12 +342,28 @@ get_ppe_entries() {
 	fi
 	unb_json=$(printf '%s' "$unb_json" | sed 's/}$/,"band_unb":'"$band_unb"'}/')
 
-	# Per-port BND counts for LAN ports using bridge FDB learned MACs
-	local macs_p1 macs_p2 macs_p3 macs_p4
-	macs_p1=$(bridge fdb show dev lan1 2>/dev/null | grep -v " self\| permanent" | awk '{print $1}' | tr '\n' '|' | sed 's/|$//')
-	macs_p2=$(bridge fdb show dev lan2 2>/dev/null | grep -v " self\| permanent" | awk '{print $1}' | tr '\n' '|' | sed 's/|$//')
-	macs_p3=$(bridge fdb show dev lan3 2>/dev/null | grep -v " self\| permanent" | awk '{print $1}' | tr '\n' '|' | sed 's/|$//')
-	macs_p4=$(bridge fdb show dev lan4 2>/dev/null | grep -v " self\| permanent" | awk '{print $1}' | tr '\n' '|' | sed 's/|$//')
+	# Per-port BND counts for LAN ports using bridge FDB learned MACs.
+	# Index contract: port_bnd is indexed lan1..lan4 = 0..3 to match the
+	# existing frontend. Ports the board does not have keep their 0 slot.
+	local topo lan_list d n cur
+	local macs_p1="" macs_p2="" macs_p3="" macs_p4=""
+	topo=$(airoha_port_topology_json)
+	lan_list=$(printf '%s' "$topo" | jsonfilter -e '@.lan_netdevs[*]' 2>/dev/null)
+	for d in /sys/class/net/lan*; do
+		[ -e "$d" ] || continue
+		lan_list="${lan_list}
+$(basename "$d")"
+	done
+	for n in 1 2 3 4; do
+		printf '%s\n' "$lan_list" | grep -qx "lan$n" || continue
+		cur=$(bridge fdb show dev "lan$n" 2>/dev/null | grep -v " self\| permanent" | awk '{print $1}' | tr '\n' '|' | sed 's/|$//')
+		case "$n" in
+			1) macs_p1="$cur" ;;
+			2) macs_p2="$cur" ;;
+			3) macs_p3="$cur" ;;
+			4) macs_p4="$cur" ;;
+		esac
+	done
 
 	local port_bnd="[0,0,0,0]"
 	if [ -f "$bind_file" ]; then
@@ -697,7 +713,9 @@ get_jitter_result() {
 	if [ -f "$result_file" ]; then
 		cat "$result_file"
 	else
-		echo '{"jitter":0,"last_ping":0,"samples":0,"target":"223.5.5.5","reachable":false,"available":false}'
+		# No runtime sample yet: report an empty target rather than inventing an
+		# address. The configured value comes from get_ping_target().
+		echo '{"jitter":0,"last_ping":0,"samples":0,"target":"","reachable":false,"available":false}'
 	fi
 }
 
@@ -1054,9 +1072,28 @@ get_conflict_alerts() {
 get_eth_stats() {
 	printf '{"ports":['
 	local first=1
-	for iface in wan lan1 lan2 lan3 lan4; do
+	local topo lan_netdevs wan_netdev cand d iface role
+	topo=$(airoha_port_topology_json)
+	lan_netdevs=$(printf '%s' "$topo" | jsonfilter -e '@.lan_netdevs[*]' 2>/dev/null)
+	wan_netdev=$(printf '%s' "$topo" | jsonfilter -e '@.wan_netdev' 2>/dev/null)
+	cand=""
+	for d in $lan_netdevs; do
+		cand="${cand}${d}
+"
+	done
+	[ -n "$wan_netdev" ] && cand="${cand}${wan_netdev}
+"
+	for d in /sys/class/net/lan*; do
+		[ -e "$d" ] || continue
+		cand="${cand}$(basename "$d")
+"
+	done
+	cand=$(printf '%s' "$cand" | grep -v '^$' | sort -u)
+	for iface in $cand; do
 		local sys="/sys/class/net/$iface"
 		[ -d "$sys" ] || continue
+		role="lan"
+		[ "$iface" = "$wan_netdev" ] && role="wan"
 		local operstate up=false
 		operstate=$(cat "$sys/operstate" 2>/dev/null || echo "unknown")
 		[ "$operstate" = "up" ] && up=true
@@ -1069,17 +1106,41 @@ get_eth_stats() {
 		tx_errors=$(cat "$sys/statistics/tx_errors" 2>/dev/null || echo 0)
 		rx_errors=$(cat "$sys/statistics/rx_errors" 2>/dev/null || echo 0)
 		[ "$first" = "1" ] || printf ","
-		printf '{"iface":"%s","up":%s,"speed":%d,"tx_bytes":%d,"rx_bytes":%d,"tx_errors":%d,"rx_errors":%d}' \
-			"$iface" "$up" "$speed" "$tx_bytes" "$rx_bytes" "$tx_errors" "$rx_errors"
+		printf '{"iface":"%s","role":"%s","up":%s,"speed":%d,"tx_bytes":%d,"rx_bytes":%d,"tx_errors":%d,"rx_errors":%d}' \
+			"$iface" "$role" "$up" "$speed" "$tx_bytes" "$rx_bytes" "$tx_errors" "$rx_errors"
 		first=0
 	done
 	printf ']}'
 }
 
+# The configured ping target is owned by uci alone (the package ships the
+# default in /etc/config/npu-monitor). Reporting the live uci value means the
+# LuCI card is correct even when the jitter daemon is stopped and its
+# /tmp/npu-jitter.json result file is missing.
 get_ping_target() {
 	local target
-	target=$(uci get npu-monitor.@jitter[0].target 2>/dev/null || echo "223.5.5.5")
+	target=$(uci -q get npu-monitor.@jitter[0].target 2>/dev/null)
 	printf '{"target":"%s"}' "$target"
+}
+
+# Accept an IPv4/IPv6 literal or a hostname. The value is persisted to uci and
+# then handed to ping as a single argv, so reject anything that could be read as
+# an option and anything that is not a plausible host.
+_valid_ping_target() {
+	local t="$1"
+	[ -n "$t" ] && [ "${#t}" -le 253 ] || return 1
+	case "$t" in -*) return 1 ;; esac
+	# Reject any character outside the union of what the two patterns below
+	# accept. The patterns are matched with grep, which is line-based, so
+	# without this guard a value containing a newline validates (each fragment
+	# matching on its own) and is then emitted raw by printf, yielding
+	# unparseable JSON. Character-class negation also runs entirely in the
+	# shell, so it stays correct under busybox ash with no subshell.
+	case "$t" in *[!A-Za-z0-9.:%_~-]*) return 1 ;; esac
+	case "$t" in
+		*:*) printf '%s' "$t" | grep -Eq '^[0-9A-Fa-f:.]+(%[A-Za-z0-9_.~-]+)?$' ;;
+		*)   printf '%s' "$t" | grep -Eq '^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$' ;;
+	esac
 }
 
 set_ping_target() {
@@ -1090,14 +1151,31 @@ set_ping_target() {
 		echo '{"error":"Missing target parameter"}'
 		return
 	fi
-	uci set npu-monitor.@jitter[0].target="$target"
-	uci commit npu-monitor
+	if ! _valid_ping_target "$target"; then
+		echo '{"error":"Invalid ping target (expected an IP address or hostname)"}'
+		return
+	fi
+
+	# Create the section if a stripped config lost it: `uci set` on a missing
+	# anonymous section fails, which previously left the old target in place
+	# while the RPC still reported success.
+	[ -n "$(uci -q get npu-monitor.@jitter[0])" ] || uci set npu-monitor.@jitter[0]=jitter
+	uci set npu-monitor.@jitter[0].target="$target" 2>/dev/null
+	uci commit npu-monitor 2>/dev/null
+
+	# Verify the write instead of trusting it: announcing success while nothing
+	# changed is what made the card look hardcoded.
+	[ "$(uci -q get npu-monitor.@jitter[0].target 2>/dev/null)" = "$target" ] || {
+		echo '{"error":"Failed to save the ping target"}'
+		return
+	}
+
 	/etc/init.d/npu-jitter restart 2>/dev/null
 	printf '{"success":true,"target":"%s"}' "$target"
 }
 
 get_overview() {
-	local status ppe token frame vlan tx mode bypass wan jitter alerts wifi bridge flow pppoe apmode eth
+	local status ppe token frame vlan tx mode bypass wan jitter alerts wifi bridge flow pppoe apmode eth topo pon
 	local ppe_bound ppe_unbound ppe_total
 	ppe=$(_cached_json ppe 10 get_ppe_entries)
 	ppe_bound=$(printf '%s' "$ppe" | jsonfilter -e '@.bnd.total' 2>/dev/null)
@@ -1121,10 +1199,13 @@ get_overview() {
 	pppoe=$(get_pppoe_offload)
 	apmode=$(get_apmode_offload)
 	eth=$(get_eth_stats)
+	topo=$(airoha_port_topology_json)
+	pon=$(printf '%s' "$topo" | jsonfilter -e '@.pon' 2>/dev/null)
+	case "$pon" in ''|'null') pon="null" ;; esac
 
-	printf '{"status":%s,"ppe":%s,"token":%s,"frame":%s,"vlan":%s,"tx":%s,"mode":%s,"bypass":%s,"wan":%s,"jitter":%s,"alerts":%s,"wifi":%s,"bridge":%s,"flow":%s,"pppoe":%s,"apmode":%s,"eth":%s}' \
+	printf '{"status":%s,"ppe":%s,"token":%s,"frame":%s,"vlan":%s,"tx":%s,"mode":%s,"bypass":%s,"wan":%s,"jitter":%s,"alerts":%s,"wifi":%s,"bridge":%s,"flow":%s,"pppoe":%s,"apmode":%s,"eth":%s,"topo":%s,"pon":%s}' \
 		"$status" "$ppe" "$token" "$frame" "$vlan" "$tx" "$mode" "$bypass" \
-		"$wan" "$jitter" "$alerts" "$wifi" "$bridge" "$flow" "$pppoe" "$apmode" "$eth"
+		"$wan" "$jitter" "$alerts" "$wifi" "$bridge" "$flow" "$pppoe" "$apmode" "$eth" "$topo" "$pon"
 }
 
 case "$1" in

@@ -64,6 +64,9 @@ msgstr ""
 msgid "Bridge & hardware buffer"
 msgstr ""
 
+msgid "Bridge / PON / Token Details"
+msgstr ""
+
 msgid "Bridge / WAN / Token Details"
 msgstr ""
 
@@ -97,10 +100,16 @@ msgstr ""
 msgid "CPU Temperature"
 msgstr ""
 
+msgid "CPU frequency scaling is not available on this board"
+msgstr ""
+
 msgid "CPU frequency, NPU and frame engine, hardware offload switches · source luci.airoha_npu (5 s poll)"
 msgstr ""
 
 msgid "CPU settings saved — they will persist after a reboot"
+msgstr ""
+
+msgid "Cancel"
 msgstr ""
 
 msgid "Check the WAN cable or SFP"
@@ -146,6 +155,9 @@ msgid "Device"
 msgstr ""
 
 msgid "Disabled"
+msgstr ""
+
+msgid "Downstream"
 msgstr ""
 
 msgid "Driver unavailable"
@@ -244,7 +256,16 @@ msgstr ""
 msgid "Integrity"
 msgstr ""
 
+msgid "Internal Switch"
+msgstr ""
+
 msgid "Jitter"
+msgstr ""
+
+msgid "LAN"
+msgstr ""
+
+msgid "LAN ports"
 msgstr ""
 
 msgid "Latency"
@@ -310,6 +331,12 @@ msgstr ""
 msgid "No"
 msgstr ""
 
+msgid "No CPU frequency controls are available on this board"
+msgstr ""
+
+msgid "No CPU governors reported by the kernel"
+msgstr ""
+
 msgid "No WAN IP detected"
 msgstr ""
 
@@ -325,6 +352,15 @@ msgstr ""
 msgid "No entries"
 msgstr ""
 
+msgid "No netdev"
+msgstr ""
+
+msgid "No optical signal"
+msgstr ""
+
+msgid "No selectable CPU frequencies reported by the kernel"
+msgstr ""
+
 msgid "No wireless hardware detected"
 msgstr ""
 
@@ -337,10 +373,19 @@ msgstr ""
 msgid "Not provided without wireless hardware"
 msgstr ""
 
+msgid "ONU state"
+msgstr ""
+
 msgid "Offload Statistics"
 msgstr ""
 
 msgid "Offload share"
+msgstr ""
+
+msgid "Optical module"
+msgstr ""
+
+msgid "Optical signal present"
 msgstr ""
 
 msgid "Original Flow"
@@ -353,6 +398,15 @@ msgid "PLE: no data source"
 msgstr ""
 
 msgid "PLL Reading"
+msgstr ""
+
+msgid "PON"
+msgstr ""
+
+msgid "PON mode"
+msgstr ""
+
+msgid "PON status"
 msgstr ""
 
 msgid "POOR"
@@ -383,6 +437,9 @@ msgid "Physical Bottleneck"
 msgstr ""
 
 msgid "Ping"
+msgstr ""
+
+msgid "Ping target"
 msgstr ""
 
 msgid "Ping target IP:"
@@ -475,6 +532,9 @@ msgstr ""
 msgid "Temperature"
 msgstr ""
 
+msgid "The Latency card pings this host every 2 s to measure jitter. Enter an IP address or a hostname."
+msgstr ""
+
 msgid "The gauge row is an auto-fit grid: on a board without wireless the three WiFi gauges are not built at all, so the remainder reflows to fill the row."
 msgstr ""
 
@@ -514,6 +574,9 @@ msgstr ""
 msgid "Upstream"
 msgstr ""
 
+msgid "Upstream rate"
+msgstr ""
+
 msgid "Uptime"
 msgstr ""
 
@@ -530,6 +593,9 @@ msgid "WAN errors"
 msgstr ""
 
 msgid "WAN health"
+msgstr ""
+
+msgid "WAN ports"
 msgstr ""
 
 msgid "WEAK"

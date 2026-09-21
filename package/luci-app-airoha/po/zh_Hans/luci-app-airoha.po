@@ -69,6 +69,9 @@ msgstr "已绑定 / PPE 总表项"
 msgid "Bridge & hardware buffer"
 msgstr "网桥与硬件缓冲"
 
+msgid "Bridge / PON / Token Details"
+msgstr "网桥 / PON / Token 明细"
+
 msgid "Bridge / WAN / Token Details"
 msgstr "网桥 / WAN / Token 明细"
 
@@ -102,11 +105,17 @@ msgstr "CPU 路径"
 msgid "CPU Temperature"
 msgstr "CPU 温度"
 
+msgid "CPU frequency scaling is not available on this board"
+msgstr "此设备不支持 CPU 频率调节"
+
 msgid "CPU frequency, NPU and frame engine, hardware offload switches · source luci.airoha_npu (5 s poll)"
 msgstr "CPU 频率、NPU 与帧引擎、硬件卸载开关 · 数据源 luci.airoha_npu（5 秒轮询）"
 
 msgid "CPU settings saved — they will persist after a reboot"
 msgstr "CPU 设置已保存，重启后依然生效"
+
+msgid "Cancel"
+msgstr "取消"
 
 msgid "Check the WAN cable or SFP"
 msgstr "请检查 WAN 网线或光模块"
@@ -152,6 +161,9 @@ msgstr "设备"
 
 msgid "Disabled"
 msgstr "已禁用"
+
+msgid "Downstream"
+msgstr "下行"
 
 msgid "Driver unavailable"
 msgstr "驱动未加载"
@@ -249,8 +261,17 @@ msgstr "索引"
 msgid "Integrity"
 msgstr "信号质量"
 
+msgid "Internal Switch"
+msgstr "内部交换"
+
 msgid "Jitter"
 msgstr "抖动"
+
+msgid "LAN"
+msgstr "LAN"
+
+msgid "LAN ports"
+msgstr "LAN 端口"
 
 msgid "Latency"
 msgstr "延迟"
@@ -315,6 +336,12 @@ msgstr "新连接"
 msgid "No"
 msgstr "否"
 
+msgid "No CPU frequency controls are available on this board"
+msgstr "此设备没有可用的 CPU 频率控制项"
+
+msgid "No CPU governors reported by the kernel"
+msgstr "内核未上报可用的 CPU 调频策略"
+
 msgid "No WAN IP detected"
 msgstr "未检测到 WAN IP"
 
@@ -330,6 +357,15 @@ msgstr "无数据"
 msgid "No entries"
 msgstr "无条目"
 
+msgid "No netdev"
+msgstr "无网络设备"
+
+msgid "No optical signal"
+msgstr "无光信号"
+
+msgid "No selectable CPU frequencies reported by the kernel"
+msgstr "内核未上报可选的 CPU 频率"
+
 msgid "No wireless hardware detected"
 msgstr "未检测到无线硬件"
 
@@ -342,11 +378,20 @@ msgstr "未激活"
 msgid "Not provided without wireless hardware"
 msgstr "无无线硬件时后端不返回"
 
+msgid "ONU state"
+msgstr "ONU 状态"
+
 msgid "Offload Statistics"
 msgstr "卸载统计"
 
 msgid "Offload share"
 msgstr "加速占比"
+
+msgid "Optical module"
+msgstr "光模块"
+
+msgid "Optical signal present"
+msgstr "有光信号"
 
 msgid "Original Flow"
 msgstr "原始连接"
@@ -359,6 +404,15 @@ msgstr "PLE：无数据源"
 
 msgid "PLL Reading"
 msgstr "PLL 实测"
+
+msgid "PON"
+msgstr "PON"
+
+msgid "PON mode"
+msgstr "PON 模式"
+
+msgid "PON status"
+msgstr "PON 状态"
 
 msgid "POOR"
 msgstr "较差"
@@ -389,6 +443,9 @@ msgstr "物理瓶颈"
 
 msgid "Ping"
 msgstr "Ping"
+
+msgid "Ping target"
+msgstr "Ping 目标"
 
 msgid "Ping target IP:"
 msgstr "Ping 目标 IP："
@@ -480,6 +537,9 @@ msgstr "TX 环排队"
 msgid "Temperature"
 msgstr "温度"
 
+msgid "The Latency card pings this host every 2 s to measure jitter. Enter an IP address or a hostname."
+msgstr "延迟卡片每隔 2 秒 ping 该主机以测量抖动。请输入 IP 地址或主机名。"
+
 msgid "The gauge row is an auto-fit grid: on a board without wireless the three WiFi gauges are not built at all, so the remainder reflows to fill the row."
 msgstr "仪表行为 auto-fit 栅格：无无线硬件的机型上三个 WiFi 转速表完全不构造，剩余仪表自动并栏铺满整行。"
 
@@ -519,6 +579,9 @@ msgstr "更新于 %s"
 msgid "Upstream"
 msgstr "上游"
 
+msgid "Upstream rate"
+msgstr "上游速率"
+
 msgid "Uptime"
 msgstr "在线时长"
 
@@ -536,6 +599,9 @@ msgstr "WAN 错误"
 
 msgid "WAN health"
 msgstr "WAN 健康"
+
+msgid "WAN ports"
+msgstr "WAN 端口"
 
 msgid "WEAK"
 msgstr "较弱"

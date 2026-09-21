@@ -12,8 +12,18 @@ var _prevBridgeDrops = null;
 var _prevPpeBnd      = null;  // for tachometer heartbeat
 var _maxUnbSeen      = 8;     // UNB scale denominator — only grows, never shrinks
 
+/* ── Ping target (the Latency card is click-to-edit) ──
+ * `_cfgPingTarget` is the value stored in uci, refreshed on every poll, so the
+ * card shows what is actually configured even while the jitter daemon is down
+ * and its /tmp result file is missing. `_pingRefresh` is installed by render()
+ * so the editor modal can repaint the card at once instead of waiting up to 5 s
+ * for the next poll. */
+var _cfgPingTarget = '';
+var _pingRefresh = null;
+
 /* ── RPC Declarations ── */
 var callGetOverview  = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getOverview' });
+var callGetPingTarget = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getPingTarget' });
 var callSetPingTarget = rpc.declare({ object: 'luci.airoha_flowsense', method: 'setPingTarget', params: ['target'] });
 
 /* ── Token aliases ──
@@ -212,9 +222,13 @@ function buildTachoInner(ppe, cs, mode) {
 }
 
 /* ── Compass SVG ── */
-function compassState(bypass, hwBuf, jitter, wan, wifi, bridge, mode) {
+function compassState(bypass, hwBuf, jitter, wan, wifi, bridge, mode, topo) {
 	bypass = bypass || {}; hwBuf = hwBuf || {}; jitter = jitter || {};
 	wan = wan || {}; wifi = wifi || {}; bridge = bridge || {};
+
+	// A PON ONU has no WAN uplink: its integrity signal is the optical link,
+	// not WAN RX/TX error counters (which do not exist on that board).
+	var pon = isPonTopo(topo) ? topo.pon : null;
 
 	var npuActive = bypass.npu_active  === true;
 	var hwEnabled = bypass.hw_offload_enabled === true;
@@ -228,8 +242,13 @@ function compassState(bypass, hwBuf, jitter, wan, wifi, bridge, mode) {
 	var worstSignal = 0;
 	var wbDelta = [];
 	if (mode === 'router') {
-		errCount = (wan.rx_errors || 0) + (wan.tx_errors || 0);
-		eastAlarm = errCount > 0;
+		if (pon) {
+			// No light (los=1) is the alarm condition when the uplink is optical.
+			eastAlarm = Number(pon.los) === 1;
+		} else {
+			errCount = (wan.rx_errors || 0) + (wan.tx_errors || 0);
+			eastAlarm = errCount > 0;
+		}
 	} else {
 		// AP mode: use per-station RSSI from iw station dump.
 		(wifi.bands || []).filter(function(b) { return (b.stations || 0) > 0; }).forEach(function(b) {
@@ -254,6 +273,7 @@ function compassState(bypass, hwBuf, jitter, wan, wifi, bridge, mode) {
 		npuActive: npuActive, hwEnabled: hwEnabled, cpuPct: cpuPct, wanMbps: wanMbps,
 		hwBuf: hwBuf, mode: mode,
 		latMs: latMs, errCount: errCount, eastAlarm: eastAlarm,
+		pon: pon,
 		wbDelta: wbDelta, worstSignal: worstSignal,
 		latColor: latencyColor(latMs),
 		eastColor: eastColor
@@ -608,7 +628,7 @@ function renderConflictAlerts(alertData) {
 }
 
 /* ── Link overview tiles ── */
-function renderLinkTiles(dm, bypass, st, wan, wifi, apo, flo, vo, ppo, mode, hasWifi) {
+function renderLinkTiles(dm, bypass, st, wan, wifi, apo, flo, vo, ppo, mode, hasWifi, topo) {
 	bypass = bypass || {}; st = st || {}; wan = wan || {}; wifi = wifi || {};
 	var pathText = bypass.npu_active ? _('HW ACCELERATED') : (bypass.hw_offload_enabled ? _('NPU IDLE') : _('CPU PATH'));
 	var ppeBound = (bypass.offload_bound || 0);
@@ -616,13 +636,19 @@ function renderLinkTiles(dm, bypass, st, wan, wifi, apo, flo, vo, ppo, mode, has
 	var wifiCount = (wifi.bands || []).reduce(function(a, x) { return a + (x.stations || 0); }, 0);
 	var errCount = (wan.rx_errors || 0) + (wan.tx_errors || 0);
 	var reason = dm.reason ? (' — ' + dm.reason) : '';
+	// On a PON board the WAN-centric tiles become PON-centric ones.
+	var isPon = isPonTopo(topo);
+	var pon = isPon ? topo.pon : null;
+	var optical = isPon ? ponOpticalState(pon) : null;
 
 	var tiles = [
 		aui.tile({ title: _('Working Mode'), value: mode === 'ap' ? _('AP MODE') : _('ROUTER MODE'), accent: mode === 'ap' ? C.npu : C.ok, sub: _('Auto-detected') + reason }),
 		aui.tile({ title: _('NPU Path'), value: pathText, accent: bypass.npu_active ? C.npu : C.warn, sub: (bypass.offload_bound || 0) + ' ' + _('Bound') }),
 		aui.tile({ title: _('Acceleration'), value: accOn + ' / 4', accent: C.warn, sub: 'VLAN · PPPoE · Flow · AP' }),
 		aui.tile({ title: _('CPU LOAD'), value: String(bypass.cpu_pct || 0), unit: '%', accent: C.load, sub: aui.fmtFreq(st.cpu_hw_freq) + ' · ' + (st.cpu_governor || '') }),
-		aui.tile({ title: mode === 'ap' ? _('Upstream') : _('WAN'), value: String(bypass.wan_mbps || 0), unit: 'Mbps', accent: C.ok, sub: (wan.device || '') + ' · ' + aui.fmtUptime(wan.uptime || 0) })
+		isPon
+			? aui.tile({ title: _('PON'), value: ponModeName(pon), accent: C.npu, sub: ponRateText(pon) })
+			: aui.tile({ title: mode === 'ap' ? _('Upstream') : _('WAN'), value: String(bypass.wan_mbps || 0), unit: 'Mbps', accent: C.ok, sub: (wan.device || '') + ' · ' + aui.fmtUptime(wan.uptime || 0) })
 	];
 	if (hasWifi) {
 		var parts = aui.BANDS.map(function(b, i) {
@@ -631,6 +657,8 @@ function renderLinkTiles(dm, bypass, st, wan, wifi, apo, flo, vo, ppo, mode, has
 			return b.name + ' ' + (ws ? (ws.stations || 0) : 0);
 		});
 		tiles.push(aui.tile({ title: _('Clients'), value: String(wifiCount), accent: C.v6, sub: parts.join(' · ') }));
+	} else if (isPon) {
+		tiles.push(aui.tile({ title: _('Optical module'), value: optical.text, accent: optical.color, sub: ponModeName(pon) }));
 	} else {
 		tiles.push(aui.tile({ title: _('WAN errors'), value: String(errCount), accent: errCount ? C.err : C.ok, sub: errCount ? _('Check the WAN cable or SFP') : 'RX / TX 0' }));
 	}
@@ -647,14 +675,24 @@ function renderQuad(cs, bypass, jitter, wan, wifi, bridge, mode) {
 
 	var northVal   = cs.npuActive ? _('ACTIVE') : (cs.hwEnabled ? _('IDLE') : _('CPU PATH'));
 	var northColor = cs.npuActive ? C.npu : (cs.hwEnabled ? C.muted : C.cpu);
+	// On a PON board there are no WAN Mbps to show — name the PON mode instead.
 	var northSub   = mode === 'ap'
 		? 'CPU: ' + cs.cpuPct + '%  |  Bridge drops Δ: ' + bridgeDelta
-		: 'CPU: ' + cs.cpuPct + '%  |  WAN: ' + cs.wanMbps + ' Mbps';
+		: cs.pon
+			? 'CPU: ' + cs.cpuPct + '%  |  PON: ' + ponModeName(cs.pon)
+			: 'CPU: ' + cs.cpuPct + '%  |  WAN: ' + cs.wanMbps + ' Mbps';
 
 	var eastVal, eastSub;
 	if (mode === 'router') {
-		eastVal = cs.eastAlarm ? cs.errCount + ' ' + _('ERROR') + (cs.errCount > 1 ? 'S' : '') : _('CLEAN');
-		eastSub = 'RX errors: ' + (wan.rx_errors || 0) + '  TX errors: ' + (wan.tx_errors || 0);
+		if (cs.pon) {
+			// PON has no RX/TX error counters — report the optical link instead.
+			var optical = ponOpticalState(cs.pon);
+			eastVal = optical.text;
+			eastSub = _('PON') + ': ' + ponModeName(cs.pon);
+		} else {
+			eastVal = cs.eastAlarm ? cs.errCount + ' ' + _('ERROR') + (cs.errCount > 1 ? 'S' : '') : _('CLEAN');
+			eastSub = 'RX errors: ' + (wan.rx_errors || 0) + '  TX errors: ' + (wan.tx_errors || 0);
+		}
 	} else {
 		var ws = cs.worstSignal;
 		eastVal = cs.wbDelta.length === 0 ? _('NO CLIENTS')
@@ -672,8 +710,11 @@ function renderQuad(cs, bypass, jitter, wan, wifi, bridge, mode) {
 	var southSub   = 'PSE Δ: ' + hb.pseDelta + '  CDM Δ: ' + hb.cdmHwfDelta + ' | PPE: ' + hb.ppePct + '% BND (' + hb.ppeBound + '/' + hb.ppeTotal + ')';
 
 	var latVal   = cs.latMs > 0 ? cs.latMs.toFixed(1) + 'ms' : (jitter.available === false ? 'N/A' : '---');
-	var latTarget = jitter.target || '223.5.5.5';
-	var latSub   = _('Jitter') + ': ' + (jitter.jitter || 0).toFixed(1) + 'ms  |  ' + (jitter.samples || 0) + ' ' + _('samples') + '  |  ' + _('Ping') + ': ' + latTarget + ' ✏';
+	// The target is whatever uci holds (getPingTarget); the daemon's runtime copy
+	// is only a fallback. When neither is known show "—" instead of inventing an
+	// address the operator never chose.
+	var latTarget = _cfgPingTarget || jitter.target || '';
+	var latSub   = _('Jitter') + ': ' + (jitter.jitter || 0).toFixed(1) + 'ms  |  ' + (jitter.samples || 0) + ' ' + _('samples') + '  |  ' + _('Ping') + ': ' + (latTarget || '—') + ' ✏';
 
 	function card(name, val, color, sub, onclick) {
 		var c = aui.card({
@@ -684,26 +725,56 @@ function renderQuad(cs, bypass, jitter, wan, wifi, bridge, mode) {
 			]
 		});
 		if (onclick) {
-			var s = c.querySelector('.ai-gauge-cap');
-			if (s) {
-				s.style.cursor = 'pointer';
-				s.title = _('Click to change ping target');
-				s.addEventListener('click', onclick);
-			}
+			// Bind on the whole card, not only the sub-line: one small text line is
+			// a tiny hit target. The sub-line is a child, so in the browser a click
+			// on it still bubbles up to this handler.
+			c.style.cursor = 'pointer';
+			c.title = _('Click to change ping target');
+			c.addEventListener('click', onclick);
 		}
 		return c;
 	}
 
 	var pingClick = function() {
-		var newTarget = window.prompt(_('Ping target IP:'), latTarget);
-		if (newTarget && newTarget !== latTarget) {
+		// A LuCI modal instead of window.prompt(): once a browser starts
+		// suppressing repeated native dialogs ("prevent this page from creating
+		// additional dialogs") prompt() silently returns null and the card looks
+		// read-only. The modal cannot be suppressed and can validate the input.
+		var input = E('input', {
+			'type': 'text', 'class': 'cbi-input-text', 'style': 'width:100%',
+			'placeholder': '223.5.5.5', 'value': latTarget
+		});
+
+		var submit = function() {
+			var newTarget = (input.value || '').trim();
+			ui.hideModal();
+			if (!newTarget || newTarget === latTarget) return;
 			callSetPingTarget(newTarget).then(function(res) {
-				if (res && res.success) window.alert(_('Ping target changed to: ') + res.target);
-				else window.alert(_('Failed to set ping target'));
+				if (res && res.success) {
+					_cfgPingTarget = res.target || newTarget;
+					ui.addNotification(null, E('p', {}, _('Ping target changed to: ') + _cfgPingTarget), 'info');
+					if (_pingRefresh) _pingRefresh();
+				} else {
+					ui.addNotification(null, E('p', {}, (res && res.error) || _('Failed to set ping target')), 'error');
+				}
 			}).catch(function(err) {
-				window.alert(_('Error: ') + err);
+				ui.addNotification(null, E('p', {}, _('Error: ') + err), 'error');
 			});
-		}
+		};
+
+		input.addEventListener('keydown', function(ev) {
+			if (ev.key === 'Enter') submit();
+		});
+
+		return ui.showModal(_('Ping target'), [
+			E('p', {}, _('The Latency card pings this host every 2 s to measure jitter. Enter an IP address or a hostname.')),
+			input,
+			E('div', { 'class': 'right' }, [
+				E('button', { 'class': 'cbi-button cbi-button-apply', 'click': submit }, _('Save')),
+				' ',
+				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': function() { ui.hideModal(); } }, _('Cancel'))
+			])
+		]);
 	};
 
 	return E('div', { 'class': 'ai-grid ai-grid--4', 'style': 'margin-top:var(--ds-sp-3)' }, [
@@ -712,6 +783,67 @@ function renderQuad(cs, bypass, jitter, wan, wifi, bridge, mode) {
 		card(_('Latency'), latVal, cs.latColor, latSub, pingClick),
 		card(_('HW Buffer'), southVal, hb.color || C.ok, southSub)
 	]);
+}
+
+/* ── Board topology (getOverview.topo) ──
+ * The backend describes the board's ports once, in `topo`, so the view stops
+ * assuming an Ethernet WAN uplink exists. A PON ONU (e.g. XG2010G) has no WAN
+ * netdev at all and an optical upstream instead, and a router (XR1710G) has a
+ * `wan` netdev. A missing `topo` (older RPC or a failed call) is treated as
+ * "unknown" so every renderer falls back to the legacy WAN-shaped markup. */
+function normalizeTopo(topo, pon) {
+	if (!topo || typeof topo !== 'object') return null;
+	var lanNetdevs = Array.isArray(topo.lan_netdevs) ? topo.lan_netdevs.filter(function(x) { return !!x; }) : [];
+	var wanNetdev = topo.wan_netdev || '';
+	var lanCount = (typeof topo.lan_count === 'number') ? topo.lan_count : lanNetdevs.length;
+	var wanCount = (typeof topo.wan_count === 'number') ? topo.wan_count : (wanNetdev ? 1 : 0);
+	return {
+		model: topo.model || '',
+		compatible: topo.compatible || '',
+		lan_netdevs: lanNetdevs,
+		wan_netdev: wanNetdev,
+		lan_count: lanCount,
+		wan_count: wanCount,
+		has_pon: topo.has_pon ? 1 : 0,
+		pon: topo.pon || pon || null,
+		ports: Array.isArray(topo.ports) ? topo.ports : []
+	};
+}
+
+/* True only for a PON-upstream board (ONU): PON present and no WAN uplink. */
+function isPonTopo(topo) {
+	return !!(topo && topo.has_pon && topo.pon && topo.wan_count === 0);
+}
+
+/* Negotiated PON mode, upper-cased (xgpon → XGPON). The value comes from the
+ * backend, so this never hard-codes the XGPON/XGSPON rate pairs. */
+function ponModeName(pon) {
+	if (!pon || !pon.mode_name) return '—';
+	return String(pon.mode_name).toUpperCase();
+}
+
+/* One line-rate as Gbps/Mbps. */
+function ponLineRate(mbps) {
+	var v = Number(mbps) || 0;
+	if (v <= 0) return '—';
+	return v >= 1000 ? (v / 1000) + ' Gbps' : v + ' Mbps';
+}
+
+/* "10 Gbps ↓ / 2.5 Gbps ↑", or "—" when either direction is unknown. */
+function ponRateText(pon) {
+	var d = Number((pon || {}).down_mbps) || 0;
+	var u = Number((pon || {}).up_mbps) || 0;
+	if (d <= 0 || u <= 0) return '—';
+	return ponLineRate(d) + ' ↓ / ' + ponLineRate(u) + ' ↑';
+}
+
+/* Optical state derived from pon.los: 1 = no light, 0 = light present. */
+function ponOpticalState(pon) {
+	if (!pon || pon.los === undefined || pon.los === null)
+		return { text: '—', color: C.muted, alarm: false, unknown: true };
+	if (Number(pon.los) === 1)
+		return { text: _('No optical signal'), color: C.err, alarm: true, unknown: false };
+	return { text: _('Optical signal present'), color: C.ok, alarm: false, unknown: false };
 }
 
 /* ── Ethernet port cards ── */
@@ -725,14 +857,31 @@ function _ethSpeed(speed) {
 	return speed + 'M';
 }
 
-function renderEthCards(ethPorts, ppe) {
-	var cards = (ethPorts || []).map(function(p) {
-		var iface = p.iface || '';
-		var isWan = (iface === 'wan');
+function renderEthCards(ethPorts, ppe, topo) {
+	var byIface = {};
+	(ethPorts || []).forEach(function(p) { if (p && p.iface) byIface[p.iface] = p; });
+
+	// Port list: LAN ports in topology order, then the WAN uplink when one
+	// exists. Without topo (RPC failure) keep the payload order so nothing
+	// disappears from the page.
+	var order = [];
+	if (topo) {
+		order = topo.lan_netdevs.slice();
+		if (topo.wan_netdev) order.push(topo.wan_netdev);
+	} else {
+		(ethPorts || []).forEach(function(p) { if (p && p.iface) order.push(p.iface); });
+	}
+
+	var cards = order.map(function(iface) {
+		var p = byIface[iface] || { iface: iface };
+		// WAN is whatever the topology/role says it is — never the literal 'wan'.
+		var isWan = (p.role === 'wan') || (!!(topo && topo.wan_netdev) && iface === topo.wan_netdev);
 		var up = !!p.up;
 		var clr = isWan ? C.npu : C.ok;
 		var maxSc = 100;
-		var txMbps = p.tx_mbps || 0, rxMbps = p.rx_mbps || 0;
+		// Drawn from the per-port Mbps the poll tick derives from the byte
+		// counters — the backend only ever emits tx_bytes/rx_bytes.
+		var txMbps = Number(p.tx_mbps) || 0, rxMbps = Number(p.rx_mbps) || 0;
 		var footer;
 		if (isWan) {
 			var bndTotal = (ppe && ppe.bnd) ? (ppe.bnd.total || 0) : 0;
@@ -744,7 +893,7 @@ function renderEthCards(ethPorts, ppe) {
 			footer = 'BND: ' + Math.max(0, bndTotal - wifiBnd) + '  UNB: ' + Math.max(0, unbTotal - wifiUnb);
 		} else {
 			var portIdx = { lan1: 0, lan2: 1, lan3: 2, lan4: 3 }[iface];
-			var bndPort = (ppe && ppe.bnd && ppe.bnd.port_bnd) ? (ppe.bnd.port_bnd[portIdx] || 0) : 0;
+			var bndPort = (ppe && ppe.bnd && ppe.bnd.port_bnd && portIdx !== undefined) ? (ppe.bnd.port_bnd[portIdx] || 0) : 0;
 			footer = 'BND: ' + bndPort;
 		}
 		var errs = (p.tx_errors || 0) + (p.rx_errors || 0);
@@ -760,7 +909,15 @@ function renderEthCards(ethPorts, ppe) {
 			]
 		});
 	});
-	return E('div', { 'class': 'ai-grid ai-grid--4', 'style': 'margin-top:var(--ds-sp-3)' }, cards);
+
+	// Surface the LAN/WAN port counts the topology reports.
+	var head = topo
+		? E('div', { 'class': 'ai-subhead' }, _('LAN ports') + ': ' + topo.lan_count + ' · ' + _('WAN ports') + ': ' + topo.wan_count)
+		: null;
+	return E('div', {}, [
+		head,
+		E('div', { 'class': 'ai-grid ai-grid--4', 'style': 'margin-top:var(--ds-sp-3)' }, cards)
+	]);
 }
 
 /* ── Mode And Acceleration Status Cards ── */
@@ -886,7 +1043,7 @@ function txRingRows(ti, hasWifi) {
 	return [ [ _('TX ring depth'), depth ], [ _('TX ring queued'), queued ] ];
 }
 
-function renderDetailSection(bridge, wan, ti, fe, hasWifi) {
+function renderDetailSection(bridge, wan, ti, fe, hasWifi, topo) {
 	bridge = bridge || {}; wan = wan || {}; ti = ti || {}; fe = fe || {};
 
 	var ports = Array.isArray(fe.pse_ports) ? fe.pse_ports : [];
@@ -920,18 +1077,38 @@ function renderDetailSection(bridge, wan, ti, fe, hasWifi) {
 		[ _('TX dropped'), String(wan.tx_dropped || 0) ]
 	]);
 
+	// A PON ONU has an optical, not an Ethernet, upstream — swap the WAN health
+	// block for a PON status block rather than printing meaningless WAN zeros.
+	var isPon = isPonTopo(topo);
+	var pon = isPon ? topo.pon : null;
+	var optical = isPon ? ponOpticalState(pon) : null;
+	var wanTitle = isPon ? _('PON status') : _('WAN health');
+	// A PON ONU has no WAN uplink, so the section heading must not claim WAN
+	// either — keep the title in step with the sub-heading it introduces.
+	var detailTitle = isPon ? _('Bridge / PON / Token Details') : _('Bridge / WAN / Token Details');
+	var wanBlock = isPon
+		? aui.kv([
+			[ _('PON mode'), ponModeName(pon) ],
+			[ _('Downstream'), ponLineRate(pon.down_mbps) ],
+			[ _('Upstream rate'), ponLineRate(pon.up_mbps) ],
+			[ _('Optical module'), optical.text, optical.color ],
+			[ _('ONU state'), (pon.onu_state !== undefined && pon.onu_state !== null && pon.onu_state !== '') ? pon.onu_state : '—' ],
+			[ _('Device'), pon.netdev || '—' ]
+		])
+		: wanKv;
+
 	var tokKv = aui.kv([
 		[ _('Token pool'), tokSize > 0 ? (tokCount + ' / ' + tokSize + ' (' + aui.fmtPct(tokPct, 0) + ')') : '—' ],
 		[ _('NPU state'), isOn(ti.npu_active) ? _('Yes') : _('No') ]
 	].concat(txRingRows(ti, hasWifi)));
 
 	return aui.section({
-		title: _('Bridge / WAN / Token Details'),
+		title: detailTitle,
 		body: E('div', {}, [
 			E('div', { 'class': 'ai-subhead' }, _('Bridge & hardware buffer')),
 			bridgeKv,
-			E('div', { 'class': 'ai-subhead' }, _('WAN health')),
-			wanKv,
+			E('div', { 'class': 'ai-subhead' }, wanTitle),
+			wanBlock,
 			E('div', { 'class': 'ai-subhead' }, _('Token pool & TX rings')),
 			tokKv
 		])
@@ -1003,6 +1180,9 @@ return view.extend({
 		var ppePaused = false;
 		var latestPpe = ppe;
 		var latestEth = eth;
+		// Board topology (+ PON upstream) from getOverview; null = unknown, so
+		// every renderer keeps the legacy WAN-shaped fallback until it arrives.
+		var latestTopo = null;
 		var updatedEl = null;
 
 		function markUpdated() {
@@ -1041,7 +1221,7 @@ return view.extend({
 
 		function renderGaugeRow() {
 			var hwBuf = hwBufferState(fe, ppe, mode);
-			var cs = compassState(bypass, hwBuf, jitter, wan, wifi, bridge, mode);
+			var cs = compassState(bypass, hwBuf, jitter, wan, wifi, bridge, mode, latestTopo);
 			var ppeBound = (ppe.bnd || {}).total || 0;
 			var ppeUnb = (ppe.unb || {}).total || 0;
 			var ppeTotal = ppeBound + ppeUnb;
@@ -1076,12 +1256,12 @@ return view.extend({
 				title: _('Link Overview'),
 				hint: _('The gauge row is an auto-fit grid: on a board without wireless the three WiFi gauges are not built at all, so the remainder reflows to fill the row.'),
 				body: E('div', {}, [
-					E('div', { 'id': 'link-tiles' }, [ renderLinkTiles(dm, bypass, st, wan, wifi, apo, flo, vo, ppo, mode, hasWifi) ]),
+					E('div', { 'id': 'link-tiles' }, [ renderLinkTiles(dm, bypass, st, wan, wifi, apo, flo, vo, ppo, mode, hasWifi, latestTopo) ]),
 					E('div', { 'id': 'gauge-row', 'class': 'ai-gauge-row', 'style': 'margin-top:var(--ds-sp-3)' }, renderGaugeRow()),
 					E('div', { 'id': 'link-quad' }, [
-						renderQuad(compassState(bypass, hwBufferState(fe, ppe, mode), jitter, wan, wifi, bridge, mode), bypass, jitter, wan, wifi, bridge, mode)
+						renderQuad(compassState(bypass, hwBufferState(fe, ppe, mode), jitter, wan, wifi, bridge, mode, latestTopo), bypass, jitter, wan, wifi, bridge, mode)
 					]),
-					E('div', { 'id': 'eth-row' }, [ renderEthCards((eth && Array.isArray(eth.ports)) ? eth.ports : [], ppe) ])
+					E('div', { 'id': 'eth-row' }, [ renderEthCards((eth && Array.isArray(eth.ports)) ? eth.ports : [], ppe, latestTopo) ])
 				])
 			}),
 
@@ -1098,7 +1278,7 @@ return view.extend({
 			}),
 
 			// Bridge / WAN / Token detail blocks
-			E('div', { 'id': 'detail-blocks' }, [ renderDetailSection(bridge, wan, ti, fe, hasWifi) ]),
+			E('div', { 'id': 'detail-blocks' }, [ renderDetailSection(bridge, wan, ti, fe, hasWifi, latestTopo) ]),
 
 			// WiFi band detail table (skipped entirely on a radio-less board)
 			E('div', { 'id': 'wifi-detail', 'class': 'ai-wifi-only' }, [ renderWifiTable(wifi, ppe, hasWifi) ])
@@ -1110,8 +1290,16 @@ return view.extend({
 
 		// Data fetch + DOM update function — called immediately and via poll
 		var fetchData = L.bind(function() {
-			return callGetOverview().then(L.bind(function(overview) {
-				overview = overview || {};
+			// One round trip for the page plus one tiny uci read for the configured
+			// ping target, so the Latency card stays correct even if the overview
+			// call fails and the daemon's /tmp result file is gone.
+			return Promise.all([
+				callGetOverview().catch(function() { return {}; }),
+				callGetPingTarget().catch(function() { return {}; })
+			]).then(L.bind(function(results) {
+				results = results || [];
+				var overview = results[0] || {};
+				_cfgPingTarget = (results[1] && results[1].target) || _cfgPingTarget || '';
 				var d = [
 					overview.status, overview.ppe, overview.token, overview.frame,
 					overview.vlan, overview.tx, overview.mode, overview.bypass,
@@ -1132,12 +1320,13 @@ return view.extend({
 				view.setAttribute('data-wifi', hasWifi ? 'true' : 'false');
 				latestPpe = ppe;
 				latestEth = eth;
+				latestTopo = normalizeTopo(overview.topo, overview.pon);
 
 				var hwBuf = hwBufferState(fe, ppe, mode);
-				var cs = compassState(bypass, hwBuf, jitter, wan, wifi, bridge, mode);
+				var cs = compassState(bypass, hwBuf, jitter, wan, wifi, bridge, mode, latestTopo);
 
 				// Per-port Mbps deltas from cumulative byte counters
-				updateInto('link-tiles', [ renderLinkTiles(dm, bypass, st, wan, wifi, apo, flo, vo, ppo, mode, hasWifi) ]);
+				updateInto('link-tiles', [ renderLinkTiles(dm, bypass, st, wan, wifi, apo, flo, vo, ppo, mode, hasWifi, latestTopo) ]);
 
 				// Rebuild the gauge row (SVG gauges have no interactive state, so a
 				// full rebuild is cheaper to reason about than in-place patching).
@@ -1151,7 +1340,7 @@ return view.extend({
 				updateInto('conflict-alerts', [ renderConflictAlerts(alertData) ]);
 				updateInto('mode-cards', [ renderModeCards(dm, apo, flo, vo, ppo) ]);
 				if (!ppePaused) updateInto('ppe-console', [ renderPpeConsole(latestPpe) ]);
-				updateInto('detail-blocks', [ renderDetailSection(bridge, wan, ti, fe, hasWifi) ]);
+				updateInto('detail-blocks', [ renderDetailSection(bridge, wan, ti, fe, hasWifi, latestTopo) ]);
 				updateInto('wifi-detail', [ renderWifiTable(wifi, ppe, hasWifi) ]);
 
 				markUpdated();
@@ -1178,8 +1367,12 @@ return view.extend({
 				p.tx_mbps = txMbps;
 				p.rx_mbps = rxMbps;
 			});
-			updateInto('eth-row', [ renderEthCards(ports, latestPpe) ]);
+			updateInto('eth-row', [ renderEthCards(ports, latestPpe, latestTopo) ]);
 		}, this);
+
+		// Let the ping-target modal repaint the Latency card immediately rather
+		// than waiting for the next 5 s poll.
+		_pingRefresh = fetchData;
 
 		fetchData().then(ethTick, ethTick);
 		poll.add(function() { return fetchData().then(ethTick, ethTick); }, 5);
