@@ -69,12 +69,17 @@ function isDarkMode() {
 	var els = [document.body, document.querySelector('.main-content'), document.querySelector('#maincontent'), document.querySelector('.cbi-map')];
 	for (var i = 0; i < els.length; i++) {
 		if (!els[i]) continue;
+		/* Parse rgb()/rgba() explicitly. Matching with /\d+/g splits the
+		 * fractional alpha 0.6 into "0" and "6", so m[3] reads 0 and every
+		 * semi-transparent background is mistaken for a fully transparent one
+		 * and skipped - semi-transparent dark surfaces then fell through to the
+		 * stylesheet fallback and were reported as light. */
 		var bg = window.getComputedStyle(els[i]).backgroundColor;
-		var m = bg.match(/\d+/g);
-		if (m && m.length >= 3) {
-			var a = m.length >= 4 ? parseFloat(m[3]) : 1;
+		var m = bg.match(/rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:[\s,/]+([\d.]+))?/i);
+		if (m) {
+			var a = m[4] === undefined ? 1 : parseFloat(m[4]);
 			if (a < 0.1) continue;
-			var lum = (parseInt(m[0]) * 299 + parseInt(m[1]) * 587 + parseInt(m[2]) * 114) / 1000;
+			var lum = (parseFloat(m[1]) * 299 + parseFloat(m[2]) * 587 + parseFloat(m[3]) * 114) / 1000;
 			return lum < 128;
 		}
 	}
