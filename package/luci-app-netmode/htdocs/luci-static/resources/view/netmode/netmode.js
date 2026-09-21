@@ -65,6 +65,23 @@ var css = [
 
 var darkVars = ':root{--nm-bg:#1e1f22;--nm-border:#3a3d42;--nm-soft:#26282d;--nm-text:#f0f3f6;--nm-muted:#a7adb5;--nm-blue:#4d9cf6;--nm-green:#4ac26b;--nm-orange:#e3934a;--nm-red:#f47067}';
 
+function isDarkMode() {
+	var els = [document.body, document.querySelector('.main-content'), document.querySelector('#maincontent'), document.querySelector('.cbi-map')];
+	for (var i = 0; i < els.length; i++) {
+		if (!els[i]) continue;
+		var bg = window.getComputedStyle(els[i]).backgroundColor;
+		var m = bg.match(/\d+/g);
+		if (m && m.length >= 3) {
+			var a = m.length >= 4 ? parseFloat(m[3]) : 1;
+			if (a < 0.1) continue;
+			var lum = (parseInt(m[0]) * 299 + parseInt(m[1]) * 587 + parseInt(m[2]) * 114) / 1000;
+			return lum < 128;
+		}
+	}
+	var sheets = document.querySelectorAll('link[href*="dark"], link[href*="glass"]');
+	return sheets.length > 0;
+}
+
 function injectCSS() {
 	var el = document.getElementById('netmode-css');
 	if (!el) {
@@ -72,10 +89,7 @@ function injectCSS() {
 		el.id = 'netmode-css';
 		document.head.appendChild(el);
 	}
-	var bg = window.getComputedStyle(document.body).backgroundColor;
-	var nums = bg.match(/\d+/g) || [];
-	var dark = nums.length >= 3 && ((+nums[0] * 299 + +nums[1] * 587 + +nums[2] * 114) / 1000) < 128;
-	el.textContent = css + (dark ? darkVars : '');
+	el.textContent = css + (isDarkMode() ? darkVars : '');
 }
 
 var MODE_LABELS = {
