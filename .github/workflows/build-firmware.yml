@@ -103,6 +103,16 @@ jobs:
         run: |
           make -j2 world 2>&1 | tee build.log
 
+      - name: Verbose retry on build failure
+        if: failure()
+        shell: bash
+        run: |
+          failed_pkg=$(grep 'ERROR:.*failed to build' build.log | head -1 | sed 's/.*ERROR: \(.*\) failed to build.*/\1/' || true)
+          if [ -n "$failed_pkg" ]; then
+            echo "=== Rebuilding $failed_pkg with V=s ==="
+            make "package/$failed_pkg/compile" V=s -j1 2>&1 | tail -300
+          fi
+
       - name: Verify device isolation
         shell: bash
         run: |
