@@ -26,6 +26,12 @@ define Package/$(LUCI_NAME)/install
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/airoha_flowsense
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/airoha_flowsense/status.js $(1)/www/luci-static/resources/view/airoha_flowsense/
 
+	# Install the shared design system consumed by BOTH tabs (page tokens +
+	# component kit). Without these two modules the views cannot render.
+	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/airoha
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/airoha/ds-tokens.js $(1)/www/luci-static/resources/view/airoha/
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/airoha/ui.js $(1)/www/luci-static/resources/view/airoha/
+
 	# Install UCI configuration
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_DATA) ./root/etc/config/npu-monitor $(1)/etc/config/

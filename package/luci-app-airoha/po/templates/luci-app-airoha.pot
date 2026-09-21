@@ -1,6 +1,9 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\n"
 
+msgid "5 s refresh"
+msgstr ""
+
 msgid "ACTIVE"
 msgstr ""
 
@@ -10,10 +13,10 @@ msgstr ""
 msgid "AP Mode Acceleration"
 msgstr ""
 
-msgid "Activated"
+msgid "Acceleration"
 msgstr ""
 
-msgid "Active"
+msgid "Activated"
 msgstr ""
 
 msgid "Airoha"
@@ -25,22 +28,28 @@ msgstr ""
 msgid "Airoha SoC Status"
 msgstr ""
 
+msgid "Architecture"
+msgstr ""
+
 msgid "Auto-detected"
 msgstr ""
 
-msgid "BND FLOWS"
+msgid "BND — bound to hardware"
 msgstr ""
 
-msgid "Bound:"
+msgid "Bands"
 msgstr ""
 
-msgid "Bytes"
+msgid "Binding rate (BND / total)"
+msgstr ""
+
+msgid "Bound"
+msgstr ""
+
+msgid "Bound / total PPE flows"
 msgstr ""
 
 msgid "CLEAN"
-msgstr ""
-
-msgid "CPU Cores"
 msgstr ""
 
 msgid "CPU Frequency"
@@ -55,19 +64,37 @@ msgstr ""
 msgid "CPU PATH"
 msgstr ""
 
+msgid "CPU frequency, NPU and frame engine, hardware offload switches · source luci.airoha_npu (5 s poll)"
+msgstr ""
+
 msgid "CPU settings saved — they will persist after a reboot"
 msgstr ""
 
-msgid "CRIT"
+msgid "Check the WAN cable or SFP"
 msgstr ""
 
 msgid "Click to change ping target"
+msgstr ""
+
+msgid "Click to disable"
+msgstr ""
+
+msgid "Click to enable"
+msgstr ""
+
+msgid "Clients"
+msgstr ""
+
+msgid "Conflicts & Alerts"
 msgstr ""
 
 msgid "Control Settings"
 msgstr ""
 
 msgid "Core Count"
+msgstr ""
+
+msgid "Critical"
 msgstr ""
 
 msgid "Current Frequency"
@@ -85,13 +112,13 @@ msgstr ""
 msgid "Disabled"
 msgstr ""
 
-msgid "Drop:"
+msgid "Driver unavailable"
+msgstr ""
+
+msgid "Drop"
 msgstr ""
 
 msgid "ERROR"
-msgstr ""
-
-msgid "ERRORS"
 msgstr ""
 
 msgid "Enabled"
@@ -100,19 +127,16 @@ msgstr ""
 msgid "Error: "
 msgstr ""
 
+msgid "Errors"
+msgstr ""
+
 msgid "Ethernet"
 msgstr ""
 
-msgid "FAIR"
-msgstr ""
-
-msgid "Failed to set governor:"
-msgstr ""
-
-msgid "Failed to set max frequency:"
-msgstr ""
-
 msgid "Failed to set ping target"
+msgstr ""
+
+msgid "Fair"
 msgstr ""
 
 msgid "Firmware / Clock / Cores"
@@ -127,16 +151,25 @@ msgstr ""
 msgid "Frame Engine"
 msgstr ""
 
-msgid "GOOD"
+msgid "Frame engine data is not available on this build"
+msgstr ""
+
+msgid "Frequency"
+msgstr ""
+
+msgid "Frequency Range"
 msgstr ""
 
 msgid "Ghost Shaper Active"
 msgstr ""
 
+msgid "Good"
+msgstr ""
+
 msgid "Governor"
 msgstr ""
 
-msgid "Grant access to Airoha NPU status (NPU + CPU + Offload)"
+msgid "Grant access to Airoha NPU status and FlowSense offload monitor"
 msgstr ""
 
 msgid "HEALTHY"
@@ -145,16 +178,7 @@ msgstr ""
 msgid "HW ACCELERATED"
 msgstr ""
 
-msgid "HW BUFFER"
-msgstr ""
-
 msgid "HW Buffer"
-msgstr ""
-
-msgid "HW Flow Offload"
-msgstr ""
-
-msgid "HW Offload"
 msgstr ""
 
 msgid "HW offload is enabled but ISP latency is high. Latency management may be skipped by hardware acceleration."
@@ -166,9 +190,6 @@ msgstr ""
 msgid "IDLE"
 msgstr ""
 
-msgid "INTEGRITY"
-msgstr ""
-
 msgid "Idle"
 msgstr ""
 
@@ -178,40 +199,28 @@ msgstr ""
 msgid "Integrity"
 msgstr ""
 
-msgid "LAN 1"
-msgstr ""
-
-msgid "LAN 2"
-msgstr ""
-
-msgid "LAN 3"
-msgstr ""
-
-msgid "LAN 4"
-msgstr ""
-
-msgid "LATENCY"
+msgid "Jitter"
 msgstr ""
 
 msgid "Latency"
 msgstr ""
 
+msgid "Link Overview"
+msgstr ""
+
 msgid "Local gateway detected"
 msgstr ""
 
-msgid "MBPS"
-msgstr ""
-
-msgid "MODE detecting..."
+msgid "Max"
 msgstr ""
 
 msgid "Max Freq"
 msgstr ""
 
-msgid "Max Frequency"
+msgid "Mode & Acceleration Status"
 msgstr ""
 
-msgid "Mb"
+msgid "Model"
 msgstr ""
 
 msgid "N/A"
@@ -235,25 +244,19 @@ msgstr ""
 msgid "NPU Clock / Cores"
 msgstr ""
 
-msgid "NPU Firmware Version"
-msgstr ""
-
 msgid "NPU HW offload is bypassing CAKE SQM. Offloaded flows skip bufferbloat management — latency protection is inactive under load."
 msgstr ""
 
 msgid "NPU IDLE"
 msgstr ""
 
-msgid "NPU Information"
-msgstr ""
-
-msgid "NPU PATH"
-msgstr ""
-
 msgid "NPU Path"
 msgstr ""
 
 msgid "NPU Status"
+msgstr ""
+
+msgid "NPU device ready"
 msgstr ""
 
 msgid "New Flow"
@@ -265,37 +268,37 @@ msgstr ""
 msgid "No clients"
 msgstr ""
 
+msgid "No conflicts detected"
+msgstr ""
+
 msgid "No data"
 msgstr ""
 
 msgid "No entries"
 msgstr ""
 
+msgid "Normal"
+msgstr ""
+
 msgid "Not Activated"
-msgstr ""
-
-msgid "Not Active"
-msgstr ""
-
-msgid "Not available"
-msgstr ""
-
-msgid "OFFLOADED"
-msgstr ""
-
-msgid "OK"
 msgstr ""
 
 msgid "Offload Statistics"
 msgstr ""
 
-msgid "Original"
+msgid "Offload share"
 msgstr ""
 
 msgid "Original Flow"
 msgstr ""
 
+msgid "PLL Reading"
+msgstr ""
+
 msgid "POOR"
+msgstr ""
+
+msgid "PPE Flow Monitor"
 msgstr ""
 
 msgid "PPE Flow Offload Entries"
@@ -304,16 +307,13 @@ msgstr ""
 msgid "PPPoE Offload"
 msgstr ""
 
-msgid "PPPoE offload not supported on this device"
-msgstr ""
-
-msgid "Packets"
-msgstr ""
-
 msgid "Pause"
 msgstr ""
 
 msgid "Physical Bottleneck"
+msgstr ""
+
+msgid "Ping"
 msgstr ""
 
 msgid "Ping target IP:"
@@ -322,10 +322,13 @@ msgstr ""
 msgid "Ping target changed to: "
 msgstr ""
 
+msgid "Poor"
+msgstr ""
+
 msgid "ROUTER MODE"
 msgstr ""
 
-msgid "RX"
+msgid "Real-time PPE hardware offload monitoring, link health and hardware offload status · source luci.airoha_flowsense (5 s poll)"
 msgstr ""
 
 msgid "Refresh"
@@ -340,7 +343,10 @@ msgstr ""
 msgid "Resume"
 msgstr ""
 
-msgid "STA"
+msgid "Retransmit"
+msgstr ""
+
+msgid "Router mode restricted"
 msgstr ""
 
 msgid "Save"
@@ -349,28 +355,40 @@ msgstr ""
 msgid "SoC / NPU"
 msgstr ""
 
-msgid "SoC Status"
+msgid "State"
 msgstr ""
 
-msgid "State"
+msgid "Suggested off in router mode"
+msgstr ""
+
+msgid "Switches here are write operations; the same values are mirrored read-only on the FlowSense tab so there is only one place to change them."
 msgstr ""
 
 msgid "TX"
 msgstr ""
 
-msgid "Total:"
+msgid "Temperature"
 msgstr ""
 
-msgid "Translated"
+msgid "The gauge row is an auto-fit grid: on a board without wireless the three WiFi gauges are not built at all, so the remainder reflows to fill the row."
+msgstr ""
+
+msgid "This tab is read-only: switches are operated on the SoC / NPU tab so a kernel switch has only one writable entry point."
+msgstr ""
+
+msgid "Total"
 msgstr ""
 
 msgid "Type"
 msgstr ""
 
-msgid "UNB FLOWS"
+msgid "UNB — learning (CPU path)"
 msgstr ""
 
-msgid "Unbound:"
+msgid "Unbound"
+msgstr ""
+
+msgid "Unknown"
 msgstr ""
 
 msgid "Unsaved changes"
@@ -379,40 +397,49 @@ msgstr ""
 msgid "Updated %s"
 msgstr ""
 
-msgid "VLAN Offload"
+msgid "Upstream"
 msgstr ""
 
-msgid "VLAN offload not supported on this device"
+msgid "Use hardware flow offload in router mode"
+msgstr ""
+
+msgid "VLAN Offload"
 msgstr ""
 
 msgid "WAN"
 msgstr ""
 
-msgid "WARN"
+msgid "WAN errors"
 msgstr ""
 
 msgid "WEAK"
 msgstr ""
 
+msgid "Warning"
+msgstr ""
+
+msgid "Working Mode"
+msgstr ""
+
+msgid "alerts"
+msgstr ""
+
 msgid "conservative"
 msgstr ""
 
-msgid "entries"
-msgstr ""
-
-msgid "failed to set PPPoE offload"
-msgstr ""
-
-msgid "failed to set VLAN offload"
+msgid "cores"
 msgstr ""
 
 msgid "flows"
 msgstr ""
 
-msgid "more"
+msgid "free"
 msgstr ""
 
-msgid "no entries"
+msgid "memory regions"
+msgstr ""
+
+msgid "more"
 msgstr ""
 
 msgid "ondemand"
@@ -424,7 +451,10 @@ msgstr ""
 msgid "powersave"
 msgstr ""
 
-msgid "showing"
+msgid "samples"
+msgstr ""
+
+msgid "used"
 msgstr ""
 
 msgid "userspace"
@@ -435,4 +465,3 @@ msgstr ""
 
 msgid "v6"
 msgstr ""
-
