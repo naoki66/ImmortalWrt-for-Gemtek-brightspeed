@@ -69,7 +69,18 @@ var css = [
 var darkVars = ':root{--ds-ok:#4ac26b;--ds-ok-tint:rgba(74,194,107,.18);--ds-ok-line:rgba(74,194,107,.45);--ds-warn:#e3934a;--ds-warn-tint:rgba(227,147,74,.18);--ds-warn-line:rgba(227,147,74,.45);--ds-error:#f47067;--ds-error-tint:rgba(244,112,103,.18);--ds-error-line:rgba(244,112,103,.5);--ds-info:#4d9cf6;--ds-info-tint:rgba(77,156,246,.18);--ds-info-line:rgba(77,156,246,.45);--ds-focus-ring:rgba(77,156,246,.45);--ds-shadow-1:none}';
 
 function isDarkMode() {
-	var els = [document.body, document.querySelector('.main-content'), document.querySelector('#maincontent'), document.querySelector('.cbi-map')];
+	/* Probe order matters: the first element with an opaque background wins.
+	 * - body carries the theme background in every LuCI theme.
+	 * - .main-left is Argon's sidebar: var(--menu-bg-color) (#ffffff) when
+	 *   light, #333333 when dark. It is the only other always-opaque surface
+	 *   Argon has, and it matters because Argon inlines css/dark.css into a
+	 *   <style> block (header.ut readfile()) instead of linking it, so the
+	 *   stylesheet fallback below can never match Argon.
+	 * - .main-content / #maincontent / .cbi-map are the bootstrap-era wrappers.
+	 * header is deliberately NOT probed: Argon paints it with var(--primary)
+	 * (#5e72e4, luminance ~121), which would read as dark in light mode. */
+	var els = [document.body, document.querySelector('.main-left'), document.querySelector('.main-right'),
+		document.querySelector('.main-content'), document.querySelector('#maincontent'), document.querySelector('.cbi-map')];
 	for (var i = 0; i < els.length; i++) {
 		if (!els[i]) continue;
 		/* Parse rgb()/rgba() explicitly. Matching with /\d+/g splits the
@@ -87,7 +98,15 @@ function isDarkMode() {
 		}
 	}
 	var sheets = document.querySelectorAll('link[href*="dark"], link[href*="glass"]');
-	return sheets.length > 0;
+	if (sheets.length > 0) return true;
+	/* Last resort: follow the OS preference. This is exactly what Argon's
+	 * default mode='normal' does - it wraps the inlined dark.css in
+	 * @media (prefers-color-scheme: dark) - and it also covers any theme that
+	 * leaves every probed surface transparent. */
+	try {
+		if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) return true;
+	} catch (e) {}
+	return false;
 }
 
 function injectCSS() {
