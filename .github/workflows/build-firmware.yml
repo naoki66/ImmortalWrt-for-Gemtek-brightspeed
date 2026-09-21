@@ -110,7 +110,14 @@ jobs:
           failed_pkg=$(grep 'ERROR:.*failed to build' build.log | head -1 | sed 's/.*ERROR: \(.*\) failed to build.*/\1/' || true)
           if [ -n "$failed_pkg" ]; then
             echo "=== Rebuilding $failed_pkg with V=s ==="
-            make "package/$failed_pkg/compile" V=s -j1 2>&1 | tail -300
+            make "package/$failed_pkg/compile" V=s -j1 2>&1 | tee build-verbose.log || true
+            echo "=== First errors in build-verbose.log ==="
+            grep -nE "error:|Error [0-9]|FAILED|Patch failed|No rule to make target" build-verbose.log | head -40 || true
+            echo "=== tail of build-verbose.log ==="
+            tail -80 build-verbose.log || true
+          else
+            echo "No failing package found in build.log" >&2
+            tail -150 build.log || true
           fi
 
       - name: Verify device isolation
@@ -147,6 +154,7 @@ jobs:
           name: gemtek-${{ inputs.config_seed }}-firmware
           path: |
             build.log
+            build-verbose.log
             bin/targets/airoha/an7581/*.itb
             bin/targets/airoha/an7581/*manifest
             bin/targets/airoha/an7581/config.buildinfo
