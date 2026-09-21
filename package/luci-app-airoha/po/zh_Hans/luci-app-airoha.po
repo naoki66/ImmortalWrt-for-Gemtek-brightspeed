@@ -273,9 +273,6 @@ msgstr "模式与加速状态"
 msgid "Model"
 msgstr "型号"
 
-msgid "N/A"
-msgstr "N/A"
-
 msgid "NO CLIENTS"
 msgstr "无客户端"
 
@@ -356,6 +353,9 @@ msgstr "原始连接"
 
 msgid "PHY rate"
 msgstr "协商速率"
+
+msgid "PLE: no data source"
+msgstr "PLE：无数据源"
 
 msgid "PLL Reading"
 msgstr "PLL 实测"

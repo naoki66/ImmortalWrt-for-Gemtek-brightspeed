@@ -40,20 +40,6 @@ function governorLabel(governor) {
 function retryColor(pct) { return pct > 20 ? C.err : pct > 5 ? C.warn : C.ok; }
 function perColor(per) { return per > 15 ? C.err : per > 5 ? C.warn : C.ok; }
 
-function pleHealth(free) {
-	if (typeof free !== 'number' || free < 0) return { text: _('N/A'), color: C.muted };
-	if (free >= 1000000) return { text: _('Normal'), color: C.ok };
-	if (free >=  100000) return { text: _('Warning'), color: C.warn };
-	return { text: _('Critical'), color: C.err };
-}
-
-function formatPleCount(free) {
-	if (typeof free !== 'number' || free < 0) return '—';
-	if (free >= 1000000) return (free / 1000000).toFixed(1) + 'M';
-	if (free >= 1000)    return Math.round(free / 1000) + 'K';
-	return free + '';
-}
-
 function getTxQueue(ti, b) {
 	var q = Array.isArray(ti.tx_queues) ? ti.tx_queues : [];
 	for (var i = 0; i < q.length; i++) if (q[i].band === b) return q[i];
@@ -393,30 +379,44 @@ function buildCpuNpuTacho(cs, ppe, st, ti) {
 	p.push('<text x="150" y="190" text-anchor="middle" fill="' + npuColor + '" font-size="13" font-weight="700" font-family="monospace">' + offloadPct + '%</text>');
 	p.push('<text x="150" y="200" text-anchor="middle" fill="' + C.muted + '" font-size="8" font-family="monospace" letter-spacing="0">' + _('Offload share') + '</text>');
 
-	// PLE pool — curved textPath at r=91, south arc (CCW 160°→20°).
-	var pleFree = (ti && typeof ti.ple_free === 'number') ? ti.ple_free : -1;
-	var pleH    = pleHealth(pleFree);
-	var pleStr  = formatPleCount(pleFree);
-	var plR  = 91;
-	var plSX = (150 + plR * Math.cos(160 * Math.PI / 180)).toFixed(1);
-	var plSY = (150 + plR * Math.sin(160 * Math.PI / 180)).toFixed(1);
-	var plEX = (150 + plR * Math.cos( 20 * Math.PI / 180)).toFixed(1);
-	var plEY = (150 + plR * Math.sin( 20 * Math.PI / 180)).toFixed(1);
-	p.push('<defs><path id="cn-ple-arc" d="M ' + plSX + ' ' + plSY + ' A ' + plR + ' ' + plR + ' 0 0 0 ' + plEX + ' ' + plEY + '" fill="none"/></defs>');
-	p.push('<text font-size="9" font-weight="600" font-family="monospace" fill="' + pleH.color + '" opacity="0.9" letter-spacing="0"><textPath href="#cn-ple-arc" startOffset="50%" text-anchor="middle">PLE ' + pleStr + ' ● ' + pleH.text + '</textPath></text>');
+	// Token pool on the north arc (r=91, CW 200°→340°); the WiFi PLE pool has
+	// no backend source on this build, so the south arc says so plainly instead
+	// of printing a fabricated "N/A".
+	var tokCount = Number(ti && ti.token_count) || 0;
+	var tokSize  = Number(ti && ti.token_size) || 0;
+	var tokPct   = tokSize > 0 ? tokCount / tokSize * 100 : 0;
+	var tokColor = !tokSize ? C.muted : tokPct < 50 ? C.ok : tokPct < 80 ? C.warn : C.err;
+	var tokText  = tokSize > 0 ? 'TOKEN ' + tokCount + '/' + tokSize : _('Token pool') + ' N/A';
+
+	var plR = 91;
+	var topSX = (150 + plR * Math.cos(200 * Math.PI / 180)).toFixed(1);
+	var topSY = (150 + plR * Math.sin(200 * Math.PI / 180)).toFixed(1);
+	var topEX = (150 + plR * Math.cos(340 * Math.PI / 180)).toFixed(1);
+	var topEY = (150 + plR * Math.sin(340 * Math.PI / 180)).toFixed(1);
+	var botSX = (150 + plR * Math.cos(160 * Math.PI / 180)).toFixed(1);
+	var botSY = (150 + plR * Math.sin(160 * Math.PI / 180)).toFixed(1);
+	var botEX = (150 + plR * Math.cos( 20 * Math.PI / 180)).toFixed(1);
+	var botEY = (150 + plR * Math.sin( 20 * Math.PI / 180)).toFixed(1);
+	p.push('<defs>' +
+		'<path id="cn-tok-arc" d="M ' + topSX + ' ' + topSY + ' A ' + plR + ' ' + plR + ' 0 0 1 ' + topEX + ' ' + topEY + '" fill="none"/>' +
+		'<path id="cn-ple-arc" d="M ' + botSX + ' ' + botSY + ' A ' + plR + ' ' + plR + ' 0 0 0 ' + botEX + ' ' + botEY + '" fill="none"/>' +
+	'</defs>');
+	p.push('<text font-size="9" font-weight="600" font-family="monospace" fill="' + tokColor + '" opacity="0.9" letter-spacing="0"><textPath href="#cn-tok-arc" startOffset="50%" text-anchor="middle">' + aui.esc(tokText) + '</textPath></text>');
+	p.push('<text font-size="9" font-weight="600" font-family="monospace" fill="' + C.muted + '" opacity="0.9" letter-spacing="0"><textPath href="#cn-ple-arc" startOffset="50%" text-anchor="middle">' + _('PLE: no data source') + '</textPath></text>');
 
 	return p.join('');
 }
 
 function _cnPpeRingStyle(ppe, ti) {
-	// PLE pool health overrides the BND-based cyan default when the WiFi TX buffer pool
-	// drops toward zero — that's the precursor signal for mt7996 SER / TX wedge.
-	var ple = (ti && typeof ti.ple_free === 'number') ? ti.ple_free : -1;
-	if (ple >= 0 && ple < 100000) {
-		return { style: 'filter:blur(6px);opacity:0.85', color: C.err };
-	}
-	if (ple >= 0 && ple < 1000000) {
-		return { style: 'filter:blur(5px);opacity:0.7',  color: C.warn };
+	// TX-wedge precursor: the hardware token pool draining toward empty. The
+	// historical PLE reading (ti.ple_free) is returned by neither backend, so
+	// this uses the pool that actually backs WiFi TX instead of a dead value.
+	var tokSize = (ti && Number(ti.token_size)) || 0;
+	var tokCount = (ti && Number(ti.token_count)) || 0;
+	if (tokSize > 0) {
+		var tokPct = tokCount / tokSize * 100;
+		if (tokPct > 95) return { style: 'filter:blur(6px);opacity:0.85', color: C.err };
+		if (tokPct > 80) return { style: 'filter:blur(5px);opacity:0.7',  color: C.warn };
 	}
 
 	// Default: cyan-on-BND, invisible when no BND
