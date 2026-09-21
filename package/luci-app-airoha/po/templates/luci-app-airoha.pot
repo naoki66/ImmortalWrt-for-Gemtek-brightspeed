@@ -328,6 +328,9 @@ msgstr ""
 msgid "No entries"
 msgstr ""
 
+msgid "No wireless hardware detected"
+msgstr ""
+
 msgid "Normal"
 msgstr ""
 
@@ -473,6 +476,9 @@ msgid "Temperature"
 msgstr ""
 
 msgid "The gauge row is an auto-fit grid: on a board without wireless the three WiFi gauges are not built at all, so the remainder reflows to fill the row."
+msgstr ""
+
+msgid "The per-band cards are indexed by wireless band and are skipped entirely on this board. The rest of the frame engine (PSE / GDM / CDM / NPU) is unaffected."
 msgstr ""
 
 msgid "This tab is read-only: switches are operated on the SoC / NPU tab so a kernel switch has only one writable entry point."

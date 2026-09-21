@@ -251,6 +251,7 @@ get_ppe_entries() {
 
 get_token_info() {
 	local token_file="/sys/kernel/debug/ieee80211/phy0/mt76/token_info"
+	local has_wifi; has_wifi=$(airoha_has_wifi)
 
 	# Gather per-band WiFi station stats (count, retries, failures)
 	local sta_json="" band
@@ -271,11 +272,11 @@ get_token_info() {
 	done
 
 	if [ ! -f "$token_file" ]; then
-		printf '{"token_count":0,"token_size":0,"npu_active":false,"tx_queues":[],"station_counts":[%s]}' "$sta_json"
+		printf '{"token_count":0,"token_size":0,"npu_active":false,"tx_queues":[],"station_counts":[%s],"has_wifi":%s}' "$sta_json" "$has_wifi"
 		return
 	fi
 
-	awk -v stations="$sta_json" '
+	awk -v stations="$sta_json" -v hw="$has_wifi" '
 	BEGIN {
 		tc=0; ts=0; npu=0
 		tq_n=0
@@ -306,9 +307,9 @@ get_token_info() {
 				tq_band[i], tq_type[i], tq_v[i,0], tq_v[i,1], tq_v[i,2], tq_v[i,3]
 		}
 
-		printf "],\"station_counts\":[%s]}", stations
+		printf "],\"station_counts\":[%s],\"has_wifi\":%s}", stations, hw
 	}
-	' "$token_file" 2>/dev/null || printf '{"token_count":0,"token_size":0,"npu_active":false,"tx_queues":[],"station_counts":[%s]}' "$sta_json"
+	' "$token_file" 2>/dev/null || printf '{"token_count":0,"token_size":0,"npu_active":false,"tx_queues":[],"station_counts":[%s],"has_wifi":%s}' "$sta_json" "$has_wifi"
 }
 
 # Persist CPU governor / max_freq to UCI so the choice survives a reboot.

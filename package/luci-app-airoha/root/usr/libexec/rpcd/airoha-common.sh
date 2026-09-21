@@ -8,6 +8,7 @@
 #   _run_with_deadline          — run a probe behind a wall-clock deadline (no circuit breaker)
 #   _run_hardware_with_deadline — same, but trips the reboot-scoped circuit breaker on timeout
 #   _devmem_read                — timeout-protected MMIO read via devmem
+#   airoha_has_wifi             — authoritative /sys/class/ieee80211 presence (true/false)
 #
 # Extracted from luci.airoha_npu / luci.airoha_flowsense to remove near-duplicate code.
 
@@ -98,4 +99,21 @@ _devmem_read() {
 	rc=$?
 	echo "${val:-0}"
 	[ "$rc" -eq 0 ] && [ -n "$val" ]
+}
+
+# Authoritative wireless presence: does the board expose any ieee80211 phy?
+# Prints "true" or "false". The frontend uses this to decide whether to build
+# the WiFi gauges and band tables at all.
+#
+# This is deliberately independent of `iw dev`: on a radio-less board (e.g. the
+# XR1710G 2010) iw may still be installed and simply report no interfaces, and
+# get_wifi_stats cannot distinguish "no radio" from "radio present, no clients".
+# /sys/class/ieee80211/phy* is the ground truth.
+airoha_has_wifi() {
+	local phy
+	for phy in /sys/class/ieee80211/phy*; do
+		[ -e "$phy" ] && { echo "true"; return 0; }
+	done
+	echo "false"
+	return 1
 }

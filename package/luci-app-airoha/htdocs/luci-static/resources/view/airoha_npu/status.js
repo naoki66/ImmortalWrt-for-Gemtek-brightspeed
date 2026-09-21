@@ -391,6 +391,12 @@ function renderFeDiagram(fe, ti, st, ppe) {
 	ti = ti || {}; st = st || {}; ppe = ppe || {};
 	var ports = Array.isArray(fe.pse_ports) ? fe.pse_ports : [];
 
+	// The per-band cards (tx_queues / station_counts) are indexed by wireless
+	// band, so they are skipped entirely on a radio-less board (e.g. the 2010)
+	// instead of rendering three empty cards. has_wifi is authoritative; the
+	// shared predicate fails open if the flag is missing.
+	var hasWifi = aui.hasWifiRadio({ has_wifi: ti.has_wifi });
+
 	function gdmCard(key, name, label, accent, pse) {
 		var d = fe[key] || {};
 		var body = [ aui.row('TX', aui.fmtK(d.tx)), aui.row('RX', aui.fmtK(d.rx)) ];
@@ -420,30 +426,38 @@ function renderFeDiagram(fe, ti, st, ppe) {
 
 	// WiFi band chips (CDM4) — data sources are indexed by wireless band.
 	var bandChips = [];
-	for (var b = 0; b < 3; b++) {
-		var stats = getBandStats(ti, b);
-		var txQ = getTxQueue(ti, b);
-		var type = txQ ? txQ.type : '?';
-		var h = bandHealth(stats);
-		bandChips.push(aui.card({
-			name: aui.BANDS[b].full, tag: 'P7 ' + type.toUpperCase(), accent: aui.bandColor(b),
-			body: [
-				h.kind || h.text ? aui.pill(h.text, h.kind) : null,
-				aui.row(_('Clients'), String(stats.count)),
-				aui.row(_('Retransmit'), retryPct(stats))
-			]
-		}));
+	if (hasWifi) {
+		for (var b = 0; b < 3; b++) {
+			var stats = getBandStats(ti, b);
+			var txQ = getTxQueue(ti, b);
+			var type = txQ ? txQ.type : '?';
+			var h = bandHealth(stats);
+			bandChips.push(aui.card({
+				name: aui.BANDS[b].full, tag: 'P7 ' + type.toUpperCase(), accent: aui.bandColor(b),
+				body: [
+					h.kind || h.text ? aui.pill(h.text, h.kind) : null,
+					aui.row(_('Clients'), String(stats.count)),
+					aui.row(_('Retransmit'), retryPct(stats))
+				]
+			}));
+		}
 	}
+
+	var bandBlock = hasWifi ? [
+		E('div', { 'class': 'ai-subhead', 'style': 'margin:var(--ds-sp-2) 0 var(--ds-sp-1)' }, _('Bands')),
+		E('div', { 'class': 'ai-grid ai-grid--bands', 'style': 'gap:var(--ds-sp-1)' }, bandChips)
+	] : [];
 
 	var p7 = ports[7] || { iq: 0, oq: 0, drops: 0 };
 	var cdm4WiFi = aui.card({
 		name: 'CDM4 / WDMA', tag: 'P7 WiFi DMA', accent: 'var(--ai-band-6)',
 		body: [
-			aui.bar({ title: 'IQ / OQ', right: 'IQ ' + p7.iq + ' · OQ ' + p7.oq, pct: (p7.oq / 256 * 100), accent: 'var(--ai-band-6)' }),
-			E('div', { 'class': 'ai-subhead', 'style': 'margin:var(--ds-sp-2) 0 var(--ds-sp-1)' }, _('Bands')),
-			E('div', { 'class': 'ai-grid ai-grid--bands', 'style': 'gap:var(--ds-sp-1)' }, bandChips)
-		]
+			aui.bar({ title: 'IQ / OQ', right: 'IQ ' + p7.iq + ' · OQ ' + p7.oq, pct: (p7.oq / 256 * 100), accent: 'var(--ai-band-6)' })
+		].concat(bandBlock)
 	});
+
+	var wifiBanner = hasWifi ? null : aui.banner('info', _('No wireless hardware detected'),
+		_('The per-band cards are indexed by wireless band and are skipped entirely on this board. The rest of the frame engine (PSE / GDM / CDM / NPU) is unaffected.'));
 
 	var npuActive = isEnabled(st.npu_loaded);
 	var npuCard = aui.card({
@@ -489,6 +503,7 @@ function renderFeDiagram(fe, ti, st, ppe) {
 	});
 
 	return E('div', { 'id': 'fe-diagram' }, [
+		wifiBanner,
 		aui.bar({
 			title: 'PSE Shared Buffer', right: (fe.pse_used || 0) + ' ' + _('used') + ' / ' + (fe.pse_free || 0) + ' ' + _('free') + ' (' + aui.fmtPct(pseP) + ')',
 			pct: pseP, accent: pseCol

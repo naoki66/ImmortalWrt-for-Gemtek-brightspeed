@@ -333,6 +333,9 @@ msgstr "无数据"
 msgid "No entries"
 msgstr "无条目"
 
+msgid "No wireless hardware detected"
+msgstr "未检测到无线硬件"
+
 msgid "Normal"
 msgstr "正常"
 
@@ -479,6 +482,9 @@ msgstr "温度"
 
 msgid "The gauge row is an auto-fit grid: on a board without wireless the three WiFi gauges are not built at all, so the remainder reflows to fill the row."
 msgstr "仪表行为 auto-fit 栅格：无无线硬件的机型上三个 WiFi 转速表完全不构造，剩余仪表自动并栏铺满整行。"
+
+msgid "The per-band cards are indexed by wireless band and are skipped entirely on this board. The rest of the frame engine (PSE / GDM / CDM / NPU) is unaffected."
+msgstr "频段卡按无线频段索引，在此机型上整块跳过渲染；帧引擎的其余部分（PSE / GDM / CDM / NPU）不受影响。"
 
 msgid "This tab is read-only: switches are operated on the SoC / NPU tab so a kernel switch has only one writable entry point."
 msgstr "本标签只读：开关统一在「SoC / NPU」标签操作，避免同一份内核开关出现两个可写入口。"

@@ -1101,8 +1101,12 @@ return view.extend({
 			E('div', { 'id': 'detail-blocks' }, [ renderDetailSection(bridge, wan, ti, fe, hasWifi) ]),
 
 			// WiFi band detail table (skipped entirely on a radio-less board)
-			E('div', { 'id': 'wifi-detail' }, [ renderWifiTable(wifi, ppe, hasWifi) ])
+			E('div', { 'id': 'wifi-detail', 'class': 'ai-wifi-only' }, [ renderWifiTable(wifi, ppe, hasWifi) ])
 		]);
+
+		// Gate the whole page on wireless presence; the auto-fit grids reflow to
+		// fill the row when the WiFi gauges are skipped. Updated on every poll.
+		view.setAttribute('data-wifi', hasWifi ? 'true' : 'false');
 
 		// Data fetch + DOM update function — called immediately and via poll
 		var fetchData = L.bind(function() {
@@ -1125,6 +1129,7 @@ return view.extend({
 				var eth = d[16] || {};
 				var mode = dm.mode || 'router';
 				hasWifi = aui.hasWifiRadio(wifi);
+				view.setAttribute('data-wifi', hasWifi ? 'true' : 'false');
 				latestPpe = ppe;
 				latestEth = eth;
 

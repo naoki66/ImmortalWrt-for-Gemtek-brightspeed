@@ -708,7 +708,7 @@ get_wifi_stats() {
 	# each one's actual operating frequency to classify its band.
 
 	if ! command -v iw > /dev/null 2>&1; then
-		echo '{"available":false,"bands":[]}'
+		printf '{"available":false,"has_wifi":%s,"bands":[]}' "$(airoha_has_wifi)"
 		return
 	fi
 
@@ -716,7 +716,7 @@ get_wifi_stats() {
 	local all_ifaces
 	all_ifaces=$(iw dev 2>/dev/null | awk '/Interface/{iface=$2} /type AP/{print iface}')
 
-	[ -z "$all_ifaces" ] && { printf '{"available":true,"bands":[]}'; return; }
+	[ -z "$all_ifaces" ] && { printf '{"available":true,"has_wifi":%s,"bands":[]}' "$(airoha_has_wifi)"; return; }
 
 	# Accumulate station dumps and interface names per band index (0=2.4G, 1=5G, 2=6G)
 	local dump0="" dump1="" dump2=""
@@ -815,7 +815,15 @@ ${d}" ;;
 			1) dump="$dump1"; tx_mbps="$tx1_mbps" ;;
 			2) dump="$dump2"; tx_mbps="$tx2_mbps" ;;
 		esac
-		[ -z "$dump" ] && continue
+		# Emit a band whenever an AP interface runs on it — even with no
+		# associated clients. Skipping client-less bands would make bands[]
+		# empty on a radio-equipped board, which the frontend cannot tell
+		# apart from a radio-less one (authoritative signal: has_wifi).
+		case "$band_idx" in
+			0) [ -n "$ifaces0" ] || continue ;;
+			1) [ -n "$ifaces1" ] || continue ;;
+			2) [ -n "$ifaces2" ] || continue ;;
+		esac
 
 		local stats
 		stats=$(echo "$dump" | awk '
@@ -865,7 +873,7 @@ ${d}" ;;
 		bands_json="${bands_json}{\"band\":${band_idx},\"stations\":${1:-0},\"tx_packets\":${2:-0},\"tx_retries\":${3:-0},\"tx_failed\":${4:-0},\"avg_phy_rate\":${5:-0},\"avg_exp_throughput\":${6:-0},\"airtime_efficiency\":${7:-0},\"retry_pct\":${8:-0},\"avg_signal\":${9:-0},\"min_signal\":${10:-0},\"tx_mbps\":${tx_mbps},\"tx_bytes_raw\":${sta_tx_raw:-0}}"
 	done
 
-	printf '{"available":true,"bands":[%s]}' "$bands_json"
+	printf '{"available":true,"has_wifi":%s,"bands":[%s]}' "$(airoha_has_wifi)" "$bands_json"
 }
 
 get_bridge_stats() {
