@@ -1,0 +1,697 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: luci-app-mesh-conf\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid " (WPA3 network: ft_psk_generate_local is forced to 0)"
+msgstr ""
+
+msgid " (channels are overwritten together)"
+msgstr ""
+
+msgid " (channels are staggered automatically; already-different ones stay as they are)"
+msgstr ""
+
+msgid " · mesh not supported"
+msgstr ""
+
+msgid "%d APs"
+msgstr ""
+
+msgid "%d SSIDs still do not have k/v enabled"
+msgstr ""
+
+msgid "%d entries"
+msgstr ""
+
+msgid "%d interfaces use WPA3 / WPA3 mixed encryption: they have no PSK to derive a local PMK-R0, so enabling R forces ft_psk_generate_local to 0 (1 for other encryption types)."
+msgstr ""
+
+msgid "%d peers"
+msgstr ""
+
+msgid "%d/%d SSIDs enabled"
+msgstr ""
+
+msgid "%s (%s, channel %s)"
+msgstr ""
+
+msgid "%s GHz (channel %s)"
+msgstr ""
+
+msgid "2.4 GHz"
+msgstr ""
+
+msgid "4 hex digits (0-9 / a-f); clear it and press Enter to fall back to the SSID-derived value. All interfaces of the same SSID are updated together."
+msgstr ""
+
+msgid "5 GHz"
+msgstr ""
+
+msgid "6 GHz"
+msgstr ""
+
+msgid "802.11k neighbor report"
+msgstr ""
+
+msgid "802.11k/v/r only publish information: an AP can answer \"who else is there\", and a client can ask on its own. DAWN does the other half — it aggregates what every device sees for each client, scores the candidate APs, and then has the current AP hand the client to a better one with a BSS Transition. With two devices on the same SSID and nothing making that decision, a client sticks to its original AP until the signal dies completely."
+msgstr ""
+
+msgid "802.11k/v/r roaming"
+msgstr ""
+
+msgid "802.11r cannot be enabled on an open / OWE network"
+msgstr ""
+
+msgid "802.11r fast roaming"
+msgstr ""
+
+msgid "802.11s needs a hostapd built with mesh support (wpad-mesh-* or wpad-openssl). No mesh features were found in /usr/sbin/hostapd, so the interface may not come up."
+msgstr ""
+
+msgid "802.11v BTM transition"
+msgstr ""
+
+msgid "AP"
+msgstr ""
+
+msgid "APs and clients"
+msgstr ""
+
+msgid "Absolute RSSI"
+msgstr ""
+
+msgid "Add points when the signal is better than this"
+msgstr ""
+
+msgid "All devices must use the same key"
+msgstr ""
+
+msgid "An error occurred while querying DAWN."
+msgstr ""
+
+msgid "Applied; the wireless configuration is reloading (a few seconds)."
+msgstr ""
+
+msgid "Applying…"
+msgstr ""
+
+msgid "At least 8 characters"
+msgstr ""
+
+msgid "Auto"
+msgstr ""
+
+msgid "Automatically stagger channels when syncing"
+msgstr ""
+
+msgid "BSSID"
+msgstr ""
+
+msgid "Bad signal threshold"
+msgstr ""
+
+msgid "Band"
+msgstr ""
+
+msgid "Base score"
+msgstr ""
+
+msgid "Base score of an AP on this band: 2.4G is usually a little lower than 5G/6G"
+msgstr ""
+
+msgid "Both"
+msgstr ""
+
+msgid "Bridge to LAN (both devices on one layer-2)"
+msgstr ""
+
+msgid "Broadcast address"
+msgstr ""
+
+msgid "Broadcast port"
+msgstr ""
+
+msgid "Channel utilization (scaled from 0-255)"
+msgstr ""
+
+msgid "Channel utilization averaging period"
+msgstr ""
+
+msgid "Cleared; back to deriving from the SSID (%s)."
+msgstr ""
+
+msgid "Click \"Scan LAN for devices\" to find XR1710G units on the same LAN."
+msgstr ""
+
+msgid "Click to disable %s"
+msgstr ""
+
+msgid "Click to enable %s"
+msgstr ""
+
+msgid "Client"
+msgstr ""
+
+msgid "Clients"
+msgstr ""
+
+msgid "Config revision"
+msgstr ""
+
+msgid "Configured"
+msgstr ""
+
+msgid "Connected"
+msgstr ""
+
+msgid "Consecutive evaluation count"
+msgstr ""
+
+msgid "Create an 802.11s mesh interface on the selected radio and bridge it to the LAN, so both devices share one layer-2 network. Native 802.11s, no batman-adv required."
+msgstr ""
+
+msgid "DAWN hands a client off with the 802.11v BSS Transition, and 802.11k tells it whom to hand the client to. Turn on K and V for these SSIDs in the table above."
+msgstr ""
+
+msgid "DAWN has not learned any AP yet."
+msgstr ""
+
+msgid "DAWN is not installed"
+msgstr ""
+
+msgid "DAWN key"
+msgstr ""
+
+msgid "DAWN not installed"
+msgstr ""
+
+msgid "DAWN service unavailable"
+msgstr ""
+
+msgid "DAWN without the 6 GHz patch only has two parameter sets, 802_11g and 802_11a, so 6G is treated as the last group (802_11a) and shares its scores. The 6 GHz row below can still be filled in and synced, but only firmware carrying the patches/feeds/packages/net/dawn patch actually reads it."
+msgstr ""
+
+msgid "Derived from the \"wired sync\" shared key (recommended)"
+msgstr ""
+
+msgid "Device"
+msgstr ""
+
+msgid "Disable 802.11s"
+msgstr ""
+
+msgid "Disable k/v/r"
+msgstr ""
+
+msgid "Disabled"
+msgstr ""
+
+msgid "Disabling…"
+msgstr ""
+
+msgid "Discovery method"
+msgstr ""
+
+msgid "Do not move clients"
+msgstr ""
+
+msgid "Dynamic (from neighbours a client hears)"
+msgstr ""
+
+msgid "Each AP under the same SSID: the higher the utilization and client count, the more DAWN prefers to give a new client to another AP."
+msgstr ""
+
+msgid "Each client's signal and score as seen by every AP. The higher the score, the more willing DAWN is to hand the client over; if a client only appears in one row, no other AP can hear it at all and no amount of tuning will make it steer."
+msgstr ""
+
+msgid "Enable 802.11s mesh"
+msgstr ""
+
+msgid "Enable k/v/r"
+msgstr ""
+
+msgid "Enable steering (DAWN)"
+msgstr ""
+
+msgid "Enable wired sync (also makes this device discoverable)"
+msgstr ""
+
+msgid "Enabled"
+msgstr ""
+
+msgid "Enabling…"
+msgstr ""
+
+msgid "Encrypt traffic between neighbouring devices (all devices must match)"
+msgstr ""
+
+msgid "Encryption"
+msgstr ""
+
+msgid "Failed to load data"
+msgstr ""
+
+msgid "Found %d device(s)."
+msgstr ""
+
+msgid "Frequency"
+msgstr ""
+
+msgid "Go to steering settings"
+msgstr ""
+
+msgid "Good signal threshold"
+msgstr ""
+
+msgid "High Throughput"
+msgstr ""
+
+msgid "IP"
+msgstr ""
+
+msgid "If the two APs are far apart, you may turn this off."
+msgstr ""
+
+msgid "K"
+msgstr ""
+
+msgid "Keep the current key"
+msgstr ""
+
+msgid "Kicking policy"
+msgstr ""
+
+msgid "LAN IP"
+msgstr ""
+
+msgid "Last peer %s"
+msgstr ""
+
+msgid "Layer-2 discovery"
+msgstr ""
+
+msgid "Leave blank to keep unchanged"
+msgstr ""
+
+msgid "Link not established"
+msgstr ""
+
+msgid "Loading…"
+msgstr ""
+
+msgid "Local status"
+msgstr ""
+
+msgid "Make sure both devices use an identical Mesh ID, encryption method and key, and that the selected radio is enabled."
+msgstr ""
+
+msgid "Manual"
+msgstr ""
+
+msgid "Manually added device IPs"
+msgstr ""
+
+msgid "Matches this device"
+msgstr ""
+
+msgid "Mesh ID"
+msgstr ""
+
+msgid "Mesh interface"
+msgstr ""
+
+msgid "Mesh key"
+msgstr ""
+
+msgid "Mesh networking"
+msgstr ""
+
+msgid "Minimum probe count"
+msgstr ""
+
+msgid "Mobility domain MD"
+msgstr ""
+
+msgid "Mobility domain set to %s (%d interfaces of the same SSID updated)."
+msgstr ""
+
+msgid "Model"
+msgstr ""
+
+msgid "Network"
+msgstr ""
+
+msgid "Networking between two XR1710G units: wireless uses native 802.11s; wired uses discovery on the same LAN plus /etc/config/wireless sync."
+msgstr ""
+
+msgid "Never synced"
+msgstr ""
+
+msgid "No clients"
+msgstr ""
+
+msgid "No comparable records under this SSID yet."
+msgstr ""
+
+msgid "No encryption"
+msgstr ""
+
+msgid "No neighbour reports have been received yet (802.11k beacon reports must be enabled, or a client must send its own probe)."
+msgstr ""
+
+msgid "No other devices found. Check that the peer has wired sync enabled, uses the same key, and is on the same LAN."
+msgstr ""
+
+msgid "Not configured"
+msgstr ""
+
+msgid "Not set"
+msgstr ""
+
+msgid "Off"
+msgstr ""
+
+msgid "On"
+msgstr ""
+
+msgid "Operation failed"
+msgstr ""
+
+msgid "Overwrite %s with the wireless config of this device (the peer decides whether to stagger channels). Continue?"
+msgstr ""
+
+msgid "Overwrite this device with the wireless config from %s%s (the current config is backed up to /etc/config/wireless.meshconf-bak). Continue?"
+msgstr ""
+
+msgid "Please enter a Mesh ID; both devices must use the same one."
+msgstr ""
+
+msgid "Please select a mesh-capable radio."
+msgstr ""
+
+msgid "Please set the shared key in \"Wired sync\" first: the DAWN key is derived from it, otherwise the two devices cannot decrypt each other."
+msgstr ""
+
+msgid "Please set the shared key; all devices must match it, otherwise sync will fail."
+msgstr ""
+
+msgid "Points added or subtracted per 1 dB away from the center; once it is non-zero the two fields below are de-emphasised and the score mostly tracks signal strength"
+msgstr ""
+
+msgid "Port"
+msgstr ""
+
+msgid "Probed only"
+msgstr ""
+
+msgid "Pull to local"
+msgstr ""
+
+msgid "Pulling…"
+msgstr ""
+
+msgid "Push to peer"
+msgstr ""
+
+msgid "Pushing…"
+msgstr ""
+
+msgid "R"
+msgstr ""
+
+msgid "RSSI center"
+msgstr ""
+
+msgid "RSSI comparison (recommended)"
+msgstr ""
+
+msgid "RSSI weight"
+msgstr ""
+
+msgid "Radio"
+msgstr ""
+
+msgid "Received Channel Power Indication"
+msgstr ""
+
+msgid "Received Signal to Noise Indicator"
+msgstr ""
+
+msgid "Refresh"
+msgstr ""
+
+msgid "Refreshing…"
+msgstr ""
+
+msgid "Roaming: off"
+msgstr ""
+
+msgid "Roaming: on for %d/%d SSIDs"
+msgstr ""
+
+msgid "SAE (recommended)"
+msgstr ""
+
+msgid "SSID"
+msgstr ""
+
+msgid "SSID: %s"
+msgstr ""
+
+msgid "Save & apply"
+msgstr ""
+
+msgid "Save failed"
+msgstr ""
+
+msgid "Saving reloads the wireless; connected clients will briefly disconnect."
+msgstr ""
+
+msgid "Saving…"
+msgstr ""
+
+msgid "Scan LAN for devices"
+msgstr ""
+
+msgid "Scan failed"
+msgstr ""
+
+msgid "Scanning…"
+msgstr ""
+
+msgid "Score"
+msgstr ""
+
+msgid "Score difference threshold"
+msgstr ""
+
+msgid "Scoring per band"
+msgstr ""
+
+msgid "See who is connected to each AP and who is in whose range:"
+msgstr ""
+
+msgid "Send neighbour reports"
+msgstr ""
+
+msgid "Set"
+msgstr ""
+
+msgid "Shared key"
+msgstr ""
+
+msgid "Signal"
+msgstr ""
+
+msgid "Source"
+msgstr ""
+
+msgid "Start failed"
+msgstr ""
+
+msgid "Start service"
+msgstr ""
+
+msgid "Starting…"
+msgstr ""
+
+msgid "State"
+msgstr ""
+
+msgid "Static (all APs)"
+msgstr ""
+
+msgid "Steering (DAWN)"
+msgstr ""
+
+msgid "Steering is not working properly"
+msgstr ""
+
+msgid "Steering: DAWN not installed"
+msgstr ""
+
+msgid "Steering: disabled"
+msgstr ""
+
+msgid "Steering: enabled"
+msgstr ""
+
+msgid "Steering: not connected to ubus"
+msgstr ""
+
+msgid "Steering: service not running"
+msgstr ""
+
+msgid "Subtract points when the signal is worse than this"
+msgstr ""
+
+msgid "Supported"
+msgstr ""
+
+msgid "Sync"
+msgstr ""
+
+msgid "Sync key"
+msgstr ""
+
+msgid "Syncing overwrites the whole /etc/config/wireless on the peer; pulling to this device automatically backs it up to /etc/config/wireless.meshconf-bak. For devices not on the same layer-2 (across routers), add them under \"Manually added device IPs\". With \"Automatically stagger channels\" checked, the receiving end moves within the same band to a channel that does not overlap the peer (2.4G uses 1/6/11, 5G/6G hops by channel width); channels that are already staggered stay as they are, and the radio carrying the 802.11s backhaul stays on the same channel as the peer (mesh requires a shared channel). SSID, key and k/v/r sync as usual and roaming is unaffected."
+msgstr ""
+
+msgid "TCP (no auto-discovery)"
+msgstr ""
+
+msgid "TCP port"
+msgstr ""
+
+msgid "The K / V / R in the table can be toggled per SSID. K writes the neighbour report and beacon report, V writes the BTM transition and WNM sleep, R writes fast roaming (Over the Air, 20s reassociation deadline, mobility domain). The mobility domain is derived from the SSID: the same SSID yields the same MD on every device and every band, while different SSIDs get distinct MDs."
+msgstr ""
+
+msgid "The Mesh interface is down"
+msgstr ""
+
+msgid "The rpcd plugin (luci.meshconf) did not respond."
+msgstr ""
+
+msgid "The service is still not up; run \"logread -e dawn\" over SSH to see why."
+msgstr ""
+
+msgid "The service is still not up; run \"logread -e meshconf\" over SSH to see why."
+msgstr ""
+
+msgid "The service process is missing. It should start automatically after saving; you can also start it manually with the button below."
+msgstr ""
+
+msgid "The signal center the score is built around"
+msgstr ""
+
+msgid "The steering service has started."
+msgstr ""
+
+msgid "The sync service has started."
+msgstr ""
+
+msgid "The sync service is not running"
+msgstr ""
+
+msgid "The two buttons above act on all SSIDs at once; the toggles in the table only change the interface on that row. The MD column is editable: enter 4 hex digits (0-9 / a-f), or clear it to fall back to the SSID-derived value. Editing one interface updates every interface of the same SSID, otherwise FT will not work when roaming across bands. Enable it, then use \"Wired sync\" to push the config to the other devices so the whole group shares the same SSID and MD."
+msgstr ""
+
+msgid "The whole network as DAWN sees it: which APs broadcast the same SSID, who is connected to each AP, and how loudly each client is heard by the other APs. Use it to tell whether roaming is actually working — instead of guessing."
+msgstr ""
+
+msgid "There are no AP interfaces."
+msgstr ""
+
+msgid "There is no dawn object on ubus: either dawn was not built into the firmware, or the service is not running. Enable and start it under \"Mesh networking → Steering (DAWN)\"."
+msgstr ""
+
+msgid "This configuration is carried to the peer together with /etc/config/wireless by \"Wired sync\", so both devices score identically; when the peer runs older firmware this step is skipped automatically. After SAVE, DAWN restarts once: an in-flight AP-change decision is interrupted but clients do not drop."
+msgstr ""
+
+msgid "This device has a 6 GHz radio, but the current DAWN does not recognise the 6G section"
+msgstr ""
+
+msgid "This package declares dawn as a dependency: if this device was built before that dependency was added, install it with opkg install dawn (umdns comes with it) and then reload the page. Until then 802.11k/v/r still work; there is simply nothing to make the \"time to change AP\" decision."
+msgstr ""
+
+msgid "To make the score track signal strength exactly (the approach the DAWN docs recommend): set the \"RSSI weight\" of all three bands to 2 and the \"RSSI center\" to -20, and set the good/bad signal scores and the channel-utilization adjustments to 0 for that band. The score then reduces to base score + (RSSI − center) × weight, so even with two APs 20 dB apart the better one wins instead of both falling into the same bucket and scoring the same."
+msgstr ""
+
+msgid "UDP broadcast"
+msgstr ""
+
+msgid "UDP multicast"
+msgstr ""
+
+msgid "Updated %s"
+msgstr ""
+
+msgid "Used to compare whether two devices match"
+msgstr ""
+
+msgid "Utilization"
+msgstr ""
+
+msgid "V"
+msgstr ""
+
+msgid "Very High Throughput"
+msgstr ""
+
+msgid "When the devices are already on the same LAN, use this one to unify the others: it periodically broadcasts to discover neighbours, then syncs /etc/config/wireless (including SSID, key and k/v/r parameters) using the shared key."
+msgstr ""
+
+msgid "When to hand a client off"
+msgstr ""
+
+msgid "Who hears whom: %s"
+msgstr ""
+
+msgid "Wired sync (same-model devices)"
+msgstr ""
+
+msgid "Wired sync: disabled"
+msgstr ""
+
+msgid "Wired sync: port %s"
+msgstr ""
+
+msgid "Wired sync: service not running"
+msgstr ""
+
+msgid "Wireless Mesh (802.11s)"
+msgstr ""
+
+msgid "Wireless Mesh: connected, %d peer(s)"
+msgstr ""
+
+msgid "Wireless Mesh: disabled"
+msgstr ""
+
+msgid "Wireless Mesh: enabled but not up"
+msgstr ""
+
+msgid "Wireless Mesh: waiting for peers"
+msgstr ""
+
+msgid "Wireless config revision"
+msgstr ""
+
+msgid "e.g. 192.168.1.255"
+msgstr ""
+
+msgid "e.g. 192.168.2.1, 192.168.3.10"
+msgstr ""
+
+msgid "umdns + TCP (recommended)"
+msgstr ""
+
+msgid "wpad may not support mesh"
+msgstr ""
+
+msgid "…"
+msgstr ""

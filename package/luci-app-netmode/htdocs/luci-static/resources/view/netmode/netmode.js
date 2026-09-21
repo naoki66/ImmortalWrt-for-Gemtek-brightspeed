@@ -79,13 +79,13 @@ function injectCSS() {
 }
 
 var MODE_LABELS = {
-	ap: _('AP 模式'),
-	dhcp: _('DHCP 路由'),
-	pppoe: _('PPPoE 拨号')
+	ap: _('AP mode'),
+	dhcp: _('DHCP router'),
+	pppoe: _('PPPoE dial-up')
 };
 
 function modeLabel(mode) {
-	return MODE_LABELS[mode] || _('未知模式');
+	return MODE_LABELS[mode] || _('Unknown mode');
 }
 
 function infoCard(label, value, sub) {
@@ -102,16 +102,16 @@ function statusPills(status) {
 	var wanPillClass, wanPillText;
 	if (isAp) {
 		wanPillClass = '';
-		wanPillText = _('WAN 已桥接');
+		wanPillText = _('WAN bridged');
 	} else if (status.wan_up) {
 		wanPillClass = 'ok';
-		wanPillText = _('WAN 已连接');
+		wanPillText = _('WAN connected');
 	} else if (status.wan_proto) {
 		wanPillClass = 'warn';
-		wanPillText = _('WAN 未连接');
+		wanPillText = _('WAN disconnected');
 	} else {
 		wanPillClass = '';
-		wanPillText = _('WAN 未配置');
+		wanPillText = _('WAN not configured');
 	}
 
 	return E('div', {}, [
@@ -120,12 +120,12 @@ function statusPills(status) {
 			E('span', { 'class': 'nm-pill ' + wanPillClass }, wanPillText)
 		]),
 		E('div', { 'class': 'nm-infogrid' }, [
-			infoCard(_('设备型号'), status.board),
-			infoCard(_('主机名'), status.hostname),
-			infoCard(_('管理地址 (LAN)'), status.lan_ip || _('获取中…')),
+			infoCard(_('Device model'), status.board),
+			infoCard(_('Hostname'), status.hostname),
+			infoCard(_('Management address (LAN)'), status.lan_ip || _('Loading…')),
 			isAp
-				? infoCard(_('WAN 地址'), _('桥接至 br-lan'))
-				: infoCard(_('WAN 地址'), status.wan_ip || _('未获取'))
+				? infoCard(_('WAN address'), _('Bridged to br-lan'))
+				: infoCard(_('WAN address'), status.wan_ip || _('Not obtained'))
 		])
 	]);
 }
@@ -141,22 +141,22 @@ return view.extend({
 
 		var mode = this.status.mode || 'unknown';
 		var root = E('div', { 'class': 'cbi-map netmode-page' }, [
-			E('h2', {}, _('上网模式')),
-			E('p', { 'class': 'nm-lede' }, _('选择这台设备如何连接上级网络。'))
+			E('h2', {}, _('Internet mode')),
+			E('p', { 'class': 'nm-lede' }, _('Choose how this device connects to the upstream network.'))
 		]);
 
 		if (this.status.error)
 			root.appendChild(E('p', { 'class': 'alert-message error' },
-				_('读取状态失败: %s').format(this.status.error)));
+				_('Failed to load data') + ': ' + this.status.error));
 
 		this.statusBox = E('div', {}, statusPills(this.status));
 		root.appendChild(E('div', { 'class': 'nm-section' }, [
 			E('div', { 'class': 'nm-title' }, [
-				E('span', {}, _('当前状态')),
+				E('span', {}, _('Current status')),
 				E('button', {
 					'class': 'cbi-button cbi-button-neutral',
 					'click': ui.createHandlerFn(this, 'refresh')
-				}, _('刷新'))
+				}, _('Refresh'))
 			]),
 			this.statusBox
 		]));
@@ -170,19 +170,19 @@ return view.extend({
 			'placeholder': '192.168.50.1'
 		});
 		this.pppoeUserInput = E('input', {
-			'type': 'text', 'autocomplete': 'off', 'placeholder': _('宽带账号')
+			'type': 'text', 'autocomplete': 'off', 'placeholder': _('Broadband account')
 		});
 		this.pppoePassInput = E('input', {
-			'type': 'password', 'autocomplete': 'new-password', 'placeholder': _('宽带密码')
+			'type': 'password', 'autocomplete': 'new-password', 'placeholder': _('Broadband password')
 		});
 
 		root.appendChild(E('div', { 'class': 'nm-section' }, [
-			E('div', { 'class': 'nm-title' }, _('一键切换')),
-			E('p', { 'class': 'nm-subtitle' }, _('点击任一模式卡片即可切换，配置将立即生效。')),
+			E('div', { 'class': 'nm-title' }, _('One-click switch')),
+			E('p', { 'class': 'nm-subtitle' }, _('Click any mode card to switch; the change takes effect immediately.')),
 			E('div', { 'class': 'nm-grid' }, [
-				this.modeCard('ap', _('AP 模式'), _('WAN 口并入 br-lan，由上级路由分配地址，本机只做桥接。'), mode === 'ap'),
-				this.modeCard('dhcp', _('DHCP 路由'), _('WAN 口自动获取上级地址，本机负责 NAT 与 DHCP。'), mode === 'dhcp'),
-				this.modeCard('pppoe', _('PPPoE 拨号'), _('WAN 口用宽带账号密码拨号，本机负责 NAT 与 DHCP。'), mode === 'pppoe')
+				this.modeCard('ap', _('AP mode'), _('The WAN port joins br-lan; the upstream router assigns the address and this device only bridges.'), mode === 'ap'),
+				this.modeCard('dhcp', _('DHCP router'), _('The WAN port obtains an upstream address automatically; this device provides NAT and DHCP.'), mode === 'dhcp'),
+				this.modeCard('pppoe', _('PPPoE dial-up'), _('The WAN port dials with the broadband account and password; this device provides NAT and DHCP.'), mode === 'pppoe')
 			]),
 			E('div', { 'class': 'nm-formbox' }, [
 				E('div', { 'class': 'nm-form' }, [
@@ -190,18 +190,27 @@ return view.extend({
 						E('label', {}, _('LAN IP')), this.lanIpInput
 					]),
 					E('div', { 'class': 'nm-field' }, [
-						E('label', {}, _('PPPoE 账号')), this.pppoeUserInput
+						E('label', {}, _('PPPoE account')), this.pppoeUserInput
 					]),
 					E('div', { 'class': 'nm-field' }, [
-						E('label', {}, _('PPPoE 密码')), this.pppoePassInput
+						E('label', {}, _('PPPoE password')), this.pppoePassInput
 					])
 				]),
-				E('p', { 'class': 'nm-hint' }, _('AP 模式下 LAN IP 即为访问本机的地址，留空由上级路由自动分配。')),
-				E('p', { 'class': 'nm-hint' }, _('LAN IP 在路由模式下为网关，留空则使用 192.168.50.1；PPPoE 账号与密码仅在 PPPoE 模式需要。'))
+				E('p', { 'class': 'nm-hint' }, _('In AP mode the LAN IP is the address used to reach this device; leave it blank to let the upstream router assign one.')),
+				E('p', { 'class': 'nm-hint' }, _('In router mode the LAN IP is the gateway; leave it blank to use 192.168.50.1. The PPPoE account and password are only needed in PPPoE mode.'))
 			])
 		]));
 
+		this.updatedEl = E('p', { 'class': 'nm-muted', 'style': 'margin:14px 0 0;text-align:right;font-size:12px' }, '');
+		root.appendChild(this.updatedEl);
+		this.markUpdated();
+
 		return root;
+	},
+
+	markUpdated: function() {
+		if (this.updatedEl)
+			this.updatedEl.textContent = _('Updated %s').format(new Date().toLocaleTimeString());
 	},
 
 	modeCard: function(mode, title, desc, active) {
@@ -211,7 +220,7 @@ return view.extend({
 		}, [
 			E('strong', {}, [
 				title,
-				active ? E('em', { 'class': 'nm-badge' }, _('当前')) : ''
+				active ? E('em', { 'class': 'nm-badge' }, _('Current')) : ''
 			]),
 			E('span', {}, desc),
 			E('span', { 'class': 'nm-check' })
@@ -220,35 +229,35 @@ return view.extend({
 
 	confirmMode: function(mode, title) {
 		var summary = ({
-			ap: _('WAN 口并入 br-lan，本机改为由上级路由分配地址并关闭 DHCP。'),
-			dhcp: _('WAN 口自动获取上级地址，LAN 使用静态地址并开启 DHCP。'),
-			pppoe: _('WAN 口拨号上网，LAN 使用静态地址并开启 DHCP。')
+			ap: _('The WAN port joins br-lan; this device takes an address from the upstream router and disables DHCP.'),
+			dhcp: _('The WAN port obtains an upstream address automatically; the LAN uses a static address with DHCP enabled.'),
+			pppoe: _('The WAN port dials up; the LAN uses a static address with DHCP enabled.')
 		})[mode];
 
 		var addresses = this.status.addresses || [];
 		var notice = mode === 'ap'
 			? (addresses.length
-				? _('当前管理地址 %s 将失效，改由上级路由分配。')
+				? _('The current management address %s will stop working; the upstream router will assign a new one.')
 					.format(addresses.map(function(i) { return i.address; }).join(', '))
-				: _('管理地址将改为由上级路由分配。'))
+				: _('The management address will be assigned by the upstream router.'))
 			: '';
 
 		if (mode === 'pppoe' && !(this.pppoeUserInput.value || '').trim()) {
-			ui.addNotification(null, E('p', _('请先填写 PPPoE 账号。')));
+			ui.addNotification(null, E('p', _('Please enter the PPPoE account first.')));
 			return;
 		}
 
-		return ui.showModal(_('切换到 %s').format(title), [
+		return ui.showModal(_('Switch to %s').format(title), [
 			E('p', {}, summary),
 			notice ? E('div', { 'class': 'nm-alert' }, notice) : '',
-			E('p', { 'class': 'nm-muted' }, _('配置将立即生效并重新加载网络。')),
+			E('p', { 'class': 'nm-muted' }, _('The configuration takes effect immediately and the network will be reloaded.')),
 			E('div', { 'class': 'right' }, [
 				E('button', {
 					'class': 'cbi-button cbi-button-apply',
 					'click': ui.createHandlerFn(this, 'applyMode', mode)
-				}, _('确认切换')),
+				}, _('Confirm switch')),
 				' ',
-				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.hideModal }, _('取消'))
+				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.hideModal }, _('Cancel'))
 			])
 		]);
 	},
@@ -273,7 +282,7 @@ return view.extend({
 
 	afterModeApply: function(mode, res) {
 		if (!res || !res.success) {
-			ui.addNotification(null, E('p', (res && res.error) || _('应用失败')));
+			ui.addNotification(null, E('p', (res && res.error) || _('Apply failed')));
 			return;
 		}
 		return this.waitForSwitch(mode, res);
@@ -287,13 +296,13 @@ return view.extend({
 	// the static LAN address again. The page we are currently on goes away in
 	// both cases, so waiting is the only sane reaction: stay quiet while the
 	// reload is in flight (probing during that window is what used to raise a
-	// bogus "应用失败"), then poll for up to 90s and show a countdown the
+	// bogus "apply failed"), then poll for up to 90s and show a countdown the
 	// whole time. Real validation errors still arrive as {"success":false}
 	// and are reported immediately.
 	// ---------------------------------------------------------------------
 	waitForSwitch: function(mode, res) {
 		if (res && res.success === false) {
-			ui.addNotification(null, E('p', (res && res.error) || _('应用失败')));
+			ui.addNotification(null, E('p', (res && res.error) || _('Apply failed')));
 			return;
 		}
 
@@ -301,28 +310,28 @@ return view.extend({
 		var lanIp = (this.lanIpInput && (this.lanIpInput.value || '').trim()) || '192.168.50.1';
 		var copy = ({
 			ap: {
-				title: _('AP 模式已应用'),
-				doing: _('配置已成功提交，设备正在切换到 AP 模式。'),
-				why: _('切换会把管理地址改为上级路由 DHCP 分配，当前页面断开属于正常现象，并不表示失败。'),
-				done: _('设备已进入 AP 模式。')
+				title: _('AP mode applied'),
+				doing: _('Configuration submitted; the device is switching to AP mode.'),
+				why: _('The switch changes the management address to an upstream DHCP lease; this page disconnecting is expected and does not mean failure.'),
+				done: _('The device is now in AP mode.')
 			},
 			dhcp: {
-				title: _('DHCP 路由模式已应用'),
-				doing: _('配置已成功提交，设备正在切换到 DHCP 路由模式。'),
-				why: _('切换会把管理地址改回 LAN 静态地址，当前页面断开属于正常现象，并不表示失败。'),
-				done: _('设备已进入 DHCP 路由模式。')
+				title: _('DHCP router mode applied'),
+				doing: _('Configuration submitted; the device is switching to DHCP router mode.'),
+				why: _('The switch changes the management address back to the static LAN address; this page disconnecting is expected and does not mean failure.'),
+				done: _('The device is now in DHCP router mode.')
 			},
 			pppoe: {
-				title: _('PPPoE 路由模式已应用'),
-				doing: _('配置已成功提交，设备正在切换到 PPPoE 路由模式。'),
-				why: _('切换会把管理地址改回 LAN 静态地址，当前页面断开属于正常现象，并不表示失败。'),
-				done: _('设备已进入 PPPoE 路由模式。')
+				title: _('PPPoE router mode applied'),
+				doing: _('Configuration submitted; the device is switching to PPPoE router mode.'),
+				why: _('The switch changes the management address back to the static LAN address; this page disconnecting is expected and does not mean failure.'),
+				done: _('The device is now in PPPoE router mode.')
 			}
 		})[mode] || {
-			title: _('配置已应用'),
-			doing: _('配置已成功提交，设备正在切换上网模式。'),
-			why: _('切换会改变管理地址，当前页面断开属于正常现象，并不表示失败。'),
-			done: _('设备已完成切换。')
+			title: _('Configuration applied'),
+			doing: _('Configuration submitted; the device is switching internet mode.'),
+			why: _('The switch changes the management address; this page disconnecting is expected and does not mean failure.'),
+			done: _('The device has finished switching.')
 		};
 
 		var TOTAL = 90, SILENT = 12, PROBE_EVERY = 3;
@@ -332,7 +341,7 @@ return view.extend({
 		var self = this;
 
 		var bar = E('span', {});
-		var statusEl = E('p', { 'class': 'nm-muted' }, _('配置已提交，网络服务正在重载…'));
+		var statusEl = E('p', { 'class': 'nm-muted' }, _('Configuration submitted; the network service is reloading…'));
 		var resultBox = E('div', {}, '');
 
 		var elapsed = function() { return Math.round((Date.now() - started) / 1000); };
@@ -344,7 +353,7 @@ return view.extend({
 			statusEl.textContent = copy.done;
 			resultBox.innerHTML = '';
 			resultBox.appendChild(E('div', { 'class': 'nm-alert ok' },
-				_('已检测到设备，当前管理地址: %s').format(st.lan_ip || '-')));
+				_('Device detected; current management address: %s').format(st.lan_ip || '-')));
 			resultBox.appendChild(E('div', { 'class': 'nm-goto' }, [
 				E('button', {
 					'class': 'cbi-button cbi-button-apply',
@@ -352,11 +361,11 @@ return view.extend({
 						window.location.href = window.location.protocol + '//' +
 							(st.lan_ip || window.location.hostname) + '/';
 					}
-				}, _('打开新地址')),
+				}, _('Open new address')),
 				E('button', {
 					'class': 'cbi-button cbi-button-neutral',
 					'click': function() { window.location.reload(); }
-				}, _('刷新页面'))
+				}, _('Reload page'))
 			]));
 		};
 
@@ -368,7 +377,7 @@ return view.extend({
 					showSuccess(st);
 					return;
 				}
-				statusEl.textContent = _('设备已有响应，等待模式切换完成…（剩余 %d 秒）').format(remain());
+				statusEl.textContent = _('The device is responding; waiting for the mode switch to finish… (%d s left)').format(remain());
 			}).catch(function() {
 				// address not answering yet, which is the normal case while
 				// the interface is being reconfigured
@@ -378,18 +387,18 @@ return view.extend({
 		var showTimeout = function() {
 			var host = (self.status && self.status.hostname) || '-';
 			var wanIp = (self.status && self.status.wan_ip) || '';
-			statusEl.textContent = _('自动检测超时。');
+			statusEl.textContent = _('Automatic detection timed out.');
 			resultBox.innerHTML = '';
-			resultBox.appendChild(E('p', {}, _('配置已经下发成功，只是没能在当前地址上重新找到设备。')));
+			resultBox.appendChild(E('p', {}, _('The configuration was applied, but the device could not be found at the current address.')));
 			if (isAp) {
 				resultBox.appendChild(E('p', {}, wanIp
-					? _('新地址由上级路由分配，通常与切换前的 WAN 地址 %s 同网段；请按主机名「%s」或 MAC 在上级路由的 DHCP 租约里查找。')
+					? _('The new address is assigned by the upstream router, usually on the same subnet as the previous WAN address %s; look it up by hostname "%s" or MAC in the DHCP leases of the upstream router.')
 						.format(wanIp, host)
-					: _('新地址由上级路由分配；请按主机名「%s」或 MAC 在上级路由的 DHCP 租约里查找。').format(host)));
+					: _('The new address is assigned by the upstream router; look it up by hostname "%s" or MAC in the DHCP leases of the upstream router.').format(host)));
 			}
 			else {
 				resultBox.appendChild(E('p', {},
-					_('新地址为 LAN 静态地址 %s；请确认网线接在 LAN 口，且本机网卡已设为自动获取（DHCP）。').format(lanIp)));
+					_('The new address is the static LAN address %s; make sure the cable is in a LAN port and the computer is set to obtain an address automatically (DHCP).').format(lanIp)));
 			}
 
 			var input = E('input', { 'type': 'text', 'placeholder': isAp ? '192.168.1.x' : lanIp });
@@ -402,7 +411,7 @@ return view.extend({
 						if (!v) return;
 						window.location.href = window.location.protocol + '//' + v + '/';
 					}
-				}, _('用这个地址打开'))
+				}, _('Open with this address'))
 			]));
 		};
 
@@ -415,14 +424,14 @@ return view.extend({
 				return;
 			}
 			if (e < SILENT) {
-				statusEl.textContent = _('仍在等待设备…（%d 秒后开始检测，剩余 %d 秒）').format(SILENT - e, TOTAL - e);
+				statusEl.textContent = _('Still waiting for the device… (probing starts in %d s, %d s left)').format(SILENT - e, TOTAL - e);
 			} else {
 				if (e - lastProbe >= PROBE_EVERY) {
 					lastProbe = e;
 					probe();
 				}
 				if (!state.done)
-					statusEl.textContent = _('仍在等待设备…（剩余 %d 秒）').format(TOTAL - e);
+					statusEl.textContent = _('Still waiting for the device… (%d s left)').format(TOTAL - e);
 			}
 			setTimeout(tick, 1000);
 		};
@@ -437,7 +446,7 @@ return view.extend({
 				E('button', {
 					'class': 'cbi-button cbi-button-neutral',
 					'click': function() { state.cancelled = true; ui.hideModal(); }
-				}, _('关闭'))
+				}, _('Close'))
 			])
 		]);
 
@@ -452,6 +461,7 @@ return view.extend({
 				this.statusBox.innerHTML = '';
 				this.statusBox.appendChild(statusPills(this.status));
 			}
+			this.markUpdated();
 		}, this));
 	}
 });

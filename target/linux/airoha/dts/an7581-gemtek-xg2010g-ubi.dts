@@ -164,3 +164,14 @@
 &eth {
 	airoha,pon-compat;
 };
+
+/* Route CPUfreq through the SoC SCU when BL31's AVS SMC is unavailable:
+ * the pmdomain driver only falls back to direct PLL programming when the
+ * cpufreq node carries reg/reg-names (otherwise it bails with "ATF SMC not
+ * available and no chip-scu reg in DT"). Mirrors the XR1710G and is a no-op
+ * whenever airoha_cpu_smc_available() succeeds. */
+&cpufreq {
+	reg = <0x0 0x1FA20000 0x0 0x2C0
+	       0x0 0x1EFBE000 0x0 0x800>;
+	reg-names = "chip-scu", "mcucfg";
+};

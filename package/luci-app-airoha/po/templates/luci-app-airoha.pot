@@ -1,0 +1,665 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "5 s refresh"
+msgstr ""
+
+msgid "ACTIVE"
+msgstr ""
+
+msgid "AP MODE"
+msgstr ""
+
+msgid "AP Mode Acceleration"
+msgstr ""
+
+msgid "Acceleration"
+msgstr ""
+
+msgid "Activated"
+msgstr ""
+
+msgid "Active"
+msgstr ""
+
+msgid "Airoha"
+msgstr ""
+
+msgid "Airoha FlowSense"
+msgstr ""
+
+msgid "Airoha SoC Status"
+msgstr ""
+
+msgid "Airtime"
+msgstr ""
+
+msgid "Architecture"
+msgstr ""
+
+msgid "Auto-detected"
+msgstr ""
+
+msgid "BND = bound to hardware (NPU path); UNB = learning (CPU path). The client renders the first 100 rows."
+msgstr ""
+
+msgid "BND — bound to hardware"
+msgstr ""
+
+msgid "Band"
+msgstr ""
+
+msgid "Bands"
+msgstr ""
+
+msgid "Binding rate (BND / total)"
+msgstr ""
+
+msgid "Bound"
+msgstr ""
+
+msgid "Bound / total PPE flows"
+msgstr ""
+
+msgid "Bridge & hardware buffer"
+msgstr ""
+
+msgid "Bridge / PON / Token Details"
+msgstr ""
+
+msgid "Bridge / WAN / Token Details"
+msgstr ""
+
+msgid "Bridge RX dropped"
+msgstr ""
+
+msgid "Bridge RX packets"
+msgstr ""
+
+msgid "Bridge TX dropped"
+msgstr ""
+
+msgid "Bridge TX packets"
+msgstr ""
+
+msgid "CLEAN"
+msgstr ""
+
+msgid "CPU Frequency"
+msgstr ""
+
+msgid "CPU Info"
+msgstr ""
+
+msgid "CPU LOAD"
+msgstr ""
+
+msgid "CPU PATH"
+msgstr ""
+
+msgid "CPU Temperature"
+msgstr ""
+
+msgid "CPU frequency scaling is not available on this board"
+msgstr ""
+
+msgid "CPU frequency, NPU and frame engine, hardware offload switches · source luci.airoha_npu (5 s poll)"
+msgstr ""
+
+msgid "CPU settings saved — they will persist after a reboot"
+msgstr ""
+
+msgid "Cancel"
+msgstr ""
+
+msgid "Check the WAN cable or SFP"
+msgstr ""
+
+msgid "Click to change ping target"
+msgstr ""
+
+msgid "Click to disable"
+msgstr ""
+
+msgid "Click to enable"
+msgstr ""
+
+msgid "Clients"
+msgstr ""
+
+msgid "Conflicts & Alerts"
+msgstr ""
+
+msgid "Control Settings"
+msgstr ""
+
+msgid "Core Count"
+msgstr ""
+
+msgid "Critical"
+msgstr ""
+
+msgid "Current Frequency"
+msgstr ""
+
+msgid "DETECTING"
+msgstr ""
+
+msgid "DHCP disabled in UCI"
+msgstr ""
+
+msgid "DROPPING"
+msgstr ""
+
+msgid "Device"
+msgstr ""
+
+msgid "Disabled"
+msgstr ""
+
+msgid "Downstream"
+msgstr ""
+
+msgid "Driver unavailable"
+msgstr ""
+
+msgid "Drop"
+msgstr ""
+
+msgid "ERROR"
+msgstr ""
+
+msgid "Enabled"
+msgstr ""
+
+msgid "Error: "
+msgstr ""
+
+msgid "Errors"
+msgstr ""
+
+msgid "Ethernet"
+msgstr ""
+
+msgid "Expected"
+msgstr ""
+
+msgid "Failed"
+msgstr ""
+
+msgid "Failed to set ping target"
+msgstr ""
+
+msgid "Fair"
+msgstr ""
+
+msgid "Firmware / Clock / Cores"
+msgstr ""
+
+msgid "Flow Offload"
+msgstr ""
+
+msgid "FlowSense"
+msgstr ""
+
+msgid "Forward transitions"
+msgstr ""
+
+msgid "Frame Engine"
+msgstr ""
+
+msgid "Frame engine data is not available on this build"
+msgstr ""
+
+msgid "Frequency"
+msgstr ""
+
+msgid "Frequency Range"
+msgstr ""
+
+msgid "Ghost Shaper Active"
+msgstr ""
+
+msgid "Good"
+msgstr ""
+
+msgid "Governor"
+msgstr ""
+
+msgid "Grant access to Airoha NPU status and FlowSense offload monitor"
+msgstr ""
+
+msgid "HEALTHY"
+msgstr ""
+
+msgid "HW ACCELERATED"
+msgstr ""
+
+msgid "HW Buffer"
+msgstr ""
+
+msgid "HW offload is enabled but ISP latency is high. Latency management may be skipped by hardware acceleration."
+msgstr ""
+
+msgid "Hardware errors detected on WAN. Check WAN cable or SFP. Latency stats may be misleading."
+msgstr ""
+
+msgid "IDLE"
+msgstr ""
+
+msgid "Idle"
+msgstr ""
+
+msgid "Index"
+msgstr ""
+
+msgid "Integrity"
+msgstr ""
+
+msgid "Internal Switch"
+msgstr ""
+
+msgid "Jitter"
+msgstr ""
+
+msgid "LAN"
+msgstr ""
+
+msgid "LAN ports"
+msgstr ""
+
+msgid "Latency"
+msgstr ""
+
+msgid "Link Overview"
+msgstr ""
+
+msgid "Local gateway detected"
+msgstr ""
+
+msgid "Max"
+msgstr ""
+
+msgid "Max Freq"
+msgstr ""
+
+msgid "Mode & Acceleration Status"
+msgstr ""
+
+msgid "Model"
+msgstr ""
+
+msgid "NO CLIENTS"
+msgstr ""
+
+msgid "NO DATA"
+msgstr ""
+
+msgid "NO LINK"
+msgstr ""
+
+msgid "NPU & Offload Engine"
+msgstr ""
+
+msgid "NPU Bypass Detected"
+msgstr ""
+
+msgid "NPU Clock / Cores"
+msgstr ""
+
+msgid "NPU HW offload is bypassing CAKE SQM. Offloaded flows skip bufferbloat management — latency protection is inactive under load."
+msgstr ""
+
+msgid "NPU IDLE"
+msgstr ""
+
+msgid "NPU Path"
+msgstr ""
+
+msgid "NPU Status"
+msgstr ""
+
+msgid "NPU device ready"
+msgstr ""
+
+msgid "NPU state"
+msgstr ""
+
+msgid "New Flow"
+msgstr ""
+
+msgid "No"
+msgstr ""
+
+msgid "No CPU frequency controls are available on this board"
+msgstr ""
+
+msgid "No CPU governors reported by the kernel"
+msgstr ""
+
+msgid "No WAN IP detected"
+msgstr ""
+
+msgid "No clients"
+msgstr ""
+
+msgid "No conflicts detected"
+msgstr ""
+
+msgid "No data"
+msgstr ""
+
+msgid "No entries"
+msgstr ""
+
+msgid "No netdev"
+msgstr ""
+
+msgid "No optical signal"
+msgstr ""
+
+msgid "No selectable CPU frequencies reported by the kernel"
+msgstr ""
+
+msgid "No wireless hardware detected"
+msgstr ""
+
+msgid "Normal"
+msgstr ""
+
+msgid "Not Activated"
+msgstr ""
+
+msgid "Not provided without wireless hardware"
+msgstr ""
+
+msgid "ONU state"
+msgstr ""
+
+msgid "Offload Statistics"
+msgstr ""
+
+msgid "Offload share"
+msgstr ""
+
+msgid "Optical module"
+msgstr ""
+
+msgid "Optical signal present"
+msgstr ""
+
+msgid "Original Flow"
+msgstr ""
+
+msgid "PHY rate"
+msgstr ""
+
+msgid "PLE: no data source"
+msgstr ""
+
+msgid "PLL Reading"
+msgstr ""
+
+msgid "PON"
+msgstr ""
+
+msgid "PON mode"
+msgstr ""
+
+msgid "PON status"
+msgstr ""
+
+msgid "POOR"
+msgstr ""
+
+msgid "PPE Flow Monitor"
+msgstr ""
+
+msgid "PPE Flow Offload Entries"
+msgstr ""
+
+msgid "PPPoE Offload"
+msgstr ""
+
+msgid "PSE port drops"
+msgstr ""
+
+msgid "PSE shared buffer"
+msgstr ""
+
+msgid "Pause"
+msgstr ""
+
+msgid "Per-band airtime efficiency, negotiated and expected rates, failure counts and BND/UNB ownership."
+msgstr ""
+
+msgid "Physical Bottleneck"
+msgstr ""
+
+msgid "Ping"
+msgstr ""
+
+msgid "Ping target"
+msgstr ""
+
+msgid "Ping target IP:"
+msgstr ""
+
+msgid "Ping target changed to: "
+msgstr ""
+
+msgid "Poor"
+msgstr ""
+
+msgid "ROUTER MODE"
+msgstr ""
+
+msgid "RX dropped"
+msgstr ""
+
+msgid "RX errors"
+msgstr ""
+
+msgid "Real-time PPE hardware offload monitoring, link health and hardware offload status · source luci.airoha_flowsense (5 s poll)"
+msgstr ""
+
+msgid "Received"
+msgstr ""
+
+msgid "Refresh"
+msgstr ""
+
+msgid "Refreshing…"
+msgstr ""
+
+msgid "Reserved Memory"
+msgstr ""
+
+msgid "Resume"
+msgstr ""
+
+msgid "Retransmit"
+msgstr ""
+
+msgid "Retry"
+msgstr ""
+
+msgid "Router mode restricted"
+msgstr ""
+
+msgid "Save"
+msgstr ""
+
+msgid "Sent"
+msgstr ""
+
+msgid "Signal"
+msgstr ""
+
+msgid "SoC / NPU"
+msgstr ""
+
+msgid "State"
+msgstr ""
+
+msgid "Suggested off in router mode"
+msgstr ""
+
+msgid "Switches here are write operations; the same values are mirrored read-only on the FlowSense tab so there is only one place to change them."
+msgstr ""
+
+msgid "TX"
+msgstr ""
+
+msgid "TX Token Pool"
+msgstr ""
+
+msgid "TX dropped"
+msgstr ""
+
+msgid "TX errors"
+msgstr ""
+
+msgid "TX ring depth"
+msgstr ""
+
+msgid "TX ring depth / queued"
+msgstr ""
+
+msgid "TX ring queued"
+msgstr ""
+
+msgid "Temperature"
+msgstr ""
+
+msgid "The Latency card pings this host every 2 s to measure jitter. Enter an IP address or a hostname."
+msgstr ""
+
+msgid "The gauge row is an auto-fit grid: on a board without wireless the three WiFi gauges are not built at all, so the remainder reflows to fill the row."
+msgstr ""
+
+msgid "The per-band cards are indexed by wireless band and are skipped entirely on this board. The rest of the frame engine (PSE / GDM / CDM / NPU) is unaffected."
+msgstr ""
+
+msgid "This tab is read-only: switches are operated on the SoC / NPU tab so a kernel switch has only one writable entry point."
+msgstr ""
+
+msgid "Token pool"
+msgstr ""
+
+msgid "Token pool & TX rings"
+msgstr ""
+
+msgid "Total"
+msgstr ""
+
+msgid "Type"
+msgstr ""
+
+msgid "UNB — learning (CPU path)"
+msgstr ""
+
+msgid "Unbound"
+msgstr ""
+
+msgid "Unknown"
+msgstr ""
+
+msgid "Unsaved changes"
+msgstr ""
+
+msgid "Updated %s"
+msgstr ""
+
+msgid "Upstream"
+msgstr ""
+
+msgid "Upstream rate"
+msgstr ""
+
+msgid "Uptime"
+msgstr ""
+
+msgid "Use hardware flow offload in router mode"
+msgstr ""
+
+msgid "VLAN Offload"
+msgstr ""
+
+msgid "WAN"
+msgstr ""
+
+msgid "WAN errors"
+msgstr ""
+
+msgid "WAN health"
+msgstr ""
+
+msgid "WAN ports"
+msgstr ""
+
+msgid "WEAK"
+msgstr ""
+
+msgid "Warning"
+msgstr ""
+
+msgid "WiFi Band Details"
+msgstr ""
+
+msgid "Working Mode"
+msgstr ""
+
+msgid "Yes"
+msgstr ""
+
+msgid "alerts"
+msgstr ""
+
+msgid "conservative"
+msgstr ""
+
+msgid "cores"
+msgstr ""
+
+msgid "flows"
+msgstr ""
+
+msgid "free"
+msgstr ""
+
+msgid "memory regions"
+msgstr ""
+
+msgid "more"
+msgstr ""
+
+msgid "ondemand"
+msgstr ""
+
+msgid "performance"
+msgstr ""
+
+msgid "powersave"
+msgstr ""
+
+msgid "samples"
+msgstr ""
+
+msgid "showing"
+msgstr ""
+
+msgid "truncated"
+msgstr ""
+
+msgid "used"
+msgstr ""
+
+msgid "userspace"
+msgstr ""
+
+msgid "v4"
+msgstr ""
+
+msgid "v6"
+msgstr ""
