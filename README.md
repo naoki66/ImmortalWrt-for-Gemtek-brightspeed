@@ -1,35 +1,49 @@
 <img src="https://avatars.githubusercontent.com/u/53193414?s=200&v=4" alt="logo" width="200" height="200" align="right">
 
-# ImmortalWrt for Gemtek XR1710G
+# ImmortalWrt-for-Gemtek-brightspeed
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/naoki66/ImmortalWrt-for-Gemtek-XR1710G/build-firmware.yml?branch=master&label=Build)](https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/actions/workflows/build-firmware.yml)
-[![Sync Status](https://img.shields.io/github/actions/workflow/status/naoki66/ImmortalWrt-for-Gemtek-XR1710G/sync-upstream.yml?branch=master&label=Sync)](https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/actions/workflows/sync-upstream.yml)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/naoki66/ImmortalWrt-for-Gemtek-brightspeed/build-firmware.yml?branch=master&label=Build)](https://github.com/naoki66/ImmortalWrt-for-Gemtek-brightspeed/actions/workflows/build-firmware.yml)
+[![Sync Status](https://img.shields.io/github/actions/workflow/status/naoki66/ImmortalWrt-for-Gemtek-brightspeed/sync-upstream.yml?branch=master&label=Sync)](https://github.com/naoki66/ImmortalWrt-for-Gemtek-brightspeed/actions/workflows/sync-upstream.yml)
 [![Upstream](https://img.shields.io/badge/upstream-immortalwrt%403e246256ce-blue)](https://github.com/immortalwrt/immortalwrt)
 [![Synced](https://img.shields.io/badge/synced-2026--09--14%20merged-brightgreen)](#)
 [![Kernel](https://img.shields.io/badge/kernel-6.18.44-red)](https://www.kernel.org/)
 [![SoC](https://img.shields.io/badge/SoC-Airoha%20AN7581GT-orange)]()
 [![License](https://img.shields.io/badge/license-GPL--2.0-green)](https://spdx.org/licenses/GPL-2.0-only.html)
 
-基于 [ImmortalWrt](https://github.com/immortalwrt/immortalwrt) 为 Gemtek XR1710G（Brightspeed XR1710G）路由器定制的固件。
+基于 [ImmortalWrt](https://github.com/immortalwrt/immortalwrt) 为 Brightspeed/Gemtek
+XR1710G 与 XG2010G 设备维护的 Airoha AN7581 固件项目。
 
 项目的重要功能、稳定性和补丁维护记录见 [更新日志](CHANGELOG.md)。
+
+当前维护两个相互隔离的硬件配置：
+
+- **XR1710G**：Brightspeed 10G Wi-Fi 7 路由器，使用 `1710.config`，包含 MT7996 无线、NPU 和 RTL8261BE 以太网支持。
+- **XG2010G**：10G XG(S)-PON 网关，使用 `2010.config`，不选择 XR1710G 的 Wi-Fi/NPU 软件包，单独使用 EN7581 xPON 软件包。
+
+## 支持设备
+
+| 设备 | 构建配置 | 当前定位 | 设备树/镜像 |
+|------|----------|----------|------------|
+| Brightspeed/Gemtek XR1710G | [`1710.config`](1710.config) | Wi-Fi 7 路由器固件 | [`an7581-xr1710g-ubi.dts`](target/linux/airoha/dts/an7581-xr1710g-ubi.dts) |
+| Gemtek XG2010G | [`2010.config`](2010.config) | XG(S)-PON 网关移植基线 | [`an7581-gemtek-xg2010g-ubi.dts`](target/linux/airoha/dts/an7581-gemtek-xg2010g-ubi.dts) |
+
+### XR1710G
 
 默认管理地址：http://192.168.50.1 或 http://immortalwrt.lan，用户名：**root**，密码：*无*。
 
 首次启动的无线网络为 `ImmortalWrt-2G`、`ImmortalWrt-5G` 和 `ImmortalWrt-6G`，统一初始密码为 `12345678`。2.4GHz 使用 WPA2，5GHz 使用 WPA2/WPA3 混合模式，6GHz 使用 WPA3；首次登录后请及时修改管理密码和无线密码。
 
-## 设备规格
-
 | 项目 | 参数 |
 |------|------|
-| **SoC** | Airoha AN7581GT (1.3GHz 4核CPU + 8核NPU) |
+| **SoC** | Airoha AN7581GT（1.3GHz 4 核 CPU + 8 核 NPU） |
 | **内存** | 2GB |
 | **闪存** | 512MB |
 | **网口** | 2×10G RTL8261BE + 2×1G AN7581 |
-| **PWM风扇** | 新唐 NCT7802 |
+| **无线** | MediaTek MT7996AV，2.4GHz/5GHz/6GHz 三频 Wi-Fi 7 |
+| **PWM 风扇** | 新唐 NCT7802 |
 | **电源规格** | 12V 5A |
 
-### 无线局域网 (MT7996AV BE19000)
+#### 无线局域网（MT7996AV BE19000）
 
 | 频段 | 芯片 | 规格 | 最高速率 |
 |------|------|------|----------|
@@ -38,7 +52,41 @@
 | WLAN3 | MT7977AN | 6GHz 4×5 (Tx/Rx) 4096 QAM 320 MHz (backhaul) | 10 Gbps |
 
 
-## 固件特性
+### XG2010G
+
+XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件用途、存储布局和软件包集合不同，不能互刷固件。
+
+| 项目 | 参数 |
+|------|------|
+| **SoC** | Airoha AN7581 / EN7581 |
+| **内存** | 1GB DDR4 |
+| **闪存** | 512MB SPI-NAND（W25N04K 基线） |
+| **以太网** | 2×10G RTL8261N、1×2.5G EN8811H，以及板载 1G 交换端口 |
+| **光接入** | EN7572 xPON 前端；原厂定位为 XG(S)-PON 网关 |
+| **无线** | 本项目的 XG2010G 配置不启用无线驱动和 MT7996 软件包 |
+
+#### 移植基线
+
+- 使用 Airoha `an7581` 目标和独立的 `gemtek_xg2010g-ubi` 镜像配置。
+- `2010.config` 只选择 XG2010G 的 xPON、PON dataplane、TOD 和 EN7581 PCM-SPI 相关软件包，并通过 [profile isolation 检查](scripts/check-gemtek-profile-isolation.sh) 拒绝混入 XR1710G 的 Wi-Fi 软件包。
+- 设备树禁用当前没有足够硬件证据的 PCIe、USB 和 eMMC，保留 EN7581 xPON、PON PHY、TOD、I2C 和 PCM-SPI 相关节点。
+- 镜像使用 XG2010G 专用 UBI 布局：`ubi` 分区从 `0x00600000` 开始，`fit` volume 位于该 UBI 分区内。
+
+#### 刷写和验证边界
+
+> [!WARNING]
+> XG2010G 刷写前必须通过串口确认当前启动状态，并完成原厂 NAND/关键分区的只读备份和校验。只允许针对匹配的 `ubi` 分区升级；必须保留 `bootloader`、`uenv`、`dsd` 和 `reserved_bmt`。不要将 XR1710G 镜像或分区表用于 XG2010G。
+
+当前仓库已具备 XG2010G 的设备树、镜像定义、独立构建配置和 PON 软件包选择，但以下项目仍需以实机证据确认：
+
+- 冷启动、串口启动和 UBI/`fit` volume 启动；
+- 10G/2.5G/1G 以太网端口映射与链路协商；
+- EN7572 光模块注册、XG(S)-PON/GPON/EPON 模式和 WAN 流量；
+- 升级、回滚和异常恢复路径。
+
+因此，XG2010G 部分应视为可复现的移植和构建基线，不应仅根据源码或静态检查宣称已经完成光口注册或宽带业务验证。
+
+## XR1710G 固件特性
 
 ### 核心定制
 
@@ -155,13 +203,14 @@
 
 **Release 格式**：
 - Tag：`YYYYMMDD-<short-hash>`
-- 名称：`YYYYMMDD - XR1710G Build (<short-hash>)`
+- 名称：`YYYYMMDD - Gemtek <XR1710G|XG2010G> Build (<short-hash>)`
 - 选项：`release` / `prerelease` / `none`
 
 ## 下载
 
-- [Releases 页面](https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/releases)
-- 固件文件：`immortalwrt-naoki66-YYYYMMDD-<repo-hash>-airoha-an7581-gemtek_xr1710g-ubi-squashfs-sysupgrade.itb`
+- [Releases 页面](https://github.com/naoki66/ImmortalWrt-for-Gemtek-brightspeed/releases)
+- XR1710G 固件文件：`immortalwrt-naoki66-YYYYMMDD-<repo-hash>-airoha-an7581-gemtek_xr1710g-ubi-squashfs-sysupgrade.itb`
+- XG2010G 固件文件：`immortalwrt-naoki66-YYYYMMDD-<repo-hash>-airoha-an7581-gemtek_xg2010g-ubi-squashfs-sysupgrade.itb`
 - 升级方法：LuCI → 系统 → 备份/升级 → 刷写固件
 
 ### 升级注意事项
@@ -174,8 +223,8 @@
 ## 本地构建（可选）
 
 ```bash
-git clone https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G.git
-cd ImmortalWrt-for-Gemtek-XR1710G
+git clone https://github.com/naoki66/ImmortalWrt-for-Gemtek-brightspeed.git
+cd ImmortalWrt-for-Gemtek-brightspeed
 ./scripts/feeds update -a
 ./scripts/feeds install -a
 bash scripts/fix-stale-golang-host.sh
@@ -198,6 +247,7 @@ bash scripts/summarize-build-errors.sh build.log
 - [openwrt/mt76](https://github.com/openwrt/mt76) - MediaTek WiFi 驱动
 
 ### 参考项目
+- [naoki66/ImmortalWrt-for-Gemtek-XG2010G](https://github.com/naoki66/ImmortalWrt-for-Gemtek-XG2010G) - XG2010G AN7581/EN7581、XG(S)-PON 硬件基线和公开移植说明
 - [YYH2913/openwrt](https://github.com/YYH2913/openwrt) - XR1710G 6.18 内核集成参考（an7581-xr1710g-ubi.dts 基础结构）
 - [hurrian/openwrt-w1700k](https://github.com/hurrian/openwrt-w1700k) - XR1710G PCIe 3.0 x2 补丁参考（912 Gen3 速度协商）
 - [lvcdy/openwrt_xr1710g](https://github.com/lvcdy/openwrt_xr1710g) - XR1710G 早期移植参考（分区表、PHY 配置）

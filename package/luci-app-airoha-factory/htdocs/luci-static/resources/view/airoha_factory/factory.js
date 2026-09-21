@@ -162,7 +162,7 @@ function macPlus1(v) {
 
 function buildRequirementHint() {
 	var ubootUrl = 'https://github.com/naoki66/XR1710G-http-uboot/releases';
-	var firmwareUrl = 'https://github.com/naoki66/ImmortalWrt-for-Gemtek-XR1710G/releases';
+	var firmwareUrl = 'https://github.com/naoki66/ImmortalWrt-for-Gemtek-brightspeed/releases';
 
 	return E('div', { 'class': 'fac-callout-text' }, [
 		E('strong', {}, _('Compatibility note:')),

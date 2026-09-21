@@ -60,7 +60,13 @@ jobs:
           echo "upstream_commit=$upstream_commit" >> $GITHUB_OUTPUT
           echo "version_number=$version_number" >> $GITHUB_OUTPUT
           echo "version_code=$version_code" >> $GITHUB_OUTPUT
-          echo "Build version: ImmortalWrt naoki66 $version_number"
+          case '${{ inputs.config_seed }}' in
+            1710.config) device_model=XR1710G ;;
+            2010.config) device_model=XG2010G ;;
+            *) echo "Unsupported config seed: ${{ inputs.config_seed }}" >&2; exit 1 ;;
+          esac
+          echo "device_model=$device_model" >> $GITHUB_OUTPUT
+          echo "Build version: ImmortalWrt-for-Gemtek-brightspeed $device_model $version_number"
 
       - name: Setup build environment
         run: |
@@ -166,7 +172,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ format('{0}-{1}', steps.version.outputs.date, steps.version.outputs.repo_commit) }}
-          name: ${{ format('{0} - XR1710G Build ({1})', steps.version.outputs.date, steps.version.outputs.repo_commit) }}
+          name: ${{ format('{0} - Gemtek {1} Build ({2})', steps.version.outputs.date, steps.version.outputs.device_model, steps.version.outputs.repo_commit) }}
           body: ${{ steps.release_body.outputs.body }}
           draft: false
           prerelease: ${{ github.event.inputs.release_type == 'prerelease' }}
