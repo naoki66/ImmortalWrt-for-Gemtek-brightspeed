@@ -13,7 +13,7 @@ LUCI_TITLE:=LuCI Airoha XR1710G FlowSense
 LUCI_DESCRIPTION:=Provides real-time monitoring and control for Airoha PPE hardware offload. \
 	Displays NPU token usage, flow entry count, flow/VLAN-tag/PPPoE-passthrough and AP-mode offload status, \
 	and allows enabling/disabling hardware offload for specific interfaces.
-LUCI_DEPENDS:=+luci-base
+LUCI_DEPENDS:=+luci-base +luci-app-airoha-common
 
 include $(TOPDIR)/feeds/luci/luci.mk
 
