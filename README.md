@@ -18,7 +18,7 @@ XR1710G 与 XG2010G 设备维护的 Airoha AN7581 固件项目。
 当前维护两个相互隔离的硬件配置：
 
 - **XR1710G**：Brightspeed 10G Wi-Fi 7 路由器，使用 `1710.config`，包含 MT7996 无线、NPU 和 RTL8261BE 以太网支持。
-- **XG2010G**：10G XG(S)-PON 网关，使用 `2010.config`，不选择 XR1710G 的 Wi-Fi/NPU 软件包，单独使用 EN7581 xPON 软件包。
+- **XG2010G**：10G XG(S)-PON 网关，使用 `2010.config`， 使用 EN7581 xPON 软件包,NPU 和 RTL8261BE 以太网支持。
 
 ## 支持设备
 
@@ -54,7 +54,7 @@ XR1710G 与 XG2010G 设备维护的 Airoha AN7581 固件项目。
 
 ### XG2010G
 
-XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件用途、存储布局和软件包集合不同，不能互刷固件。
+XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集合不同，不能互刷固件。
 
 | 项目 | 参数 |
 |------|------|
@@ -64,8 +64,6 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件用途、存储布局
 | **以太网** | 2×10G RTL8261N、1×2.5G EN8811H，以及板载 1G 交换端口 |
 | **光接入** | EN7572 xPON 前端；原厂定位为 XG(S)-PON 网关 |
 | **无线** | 本项目的 XG2010G 配置不启用无线驱动和 MT7996 软件包 |
-
-#### 移植基线
 
 - 使用 Airoha `an7581` 目标和独立的 `gemtek_xg2010g-ubi` 镜像配置。
 - `2010.config` 只选择 XG2010G 的 xPON、PON dataplane、TOD 和 EN7581 PCM-SPI 相关软件包，并通过 [profile isolation 检查](scripts/check-gemtek-profile-isolation.sh) 拒绝混入 XR1710G 的 Wi-Fi 软件包。
@@ -77,14 +75,6 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件用途、存储布局
 > [!WARNING]
 > XG2010G 刷写前必须通过串口确认当前启动状态，并完成原厂 NAND/关键分区的只读备份和校验。只允许针对匹配的 `ubi` 分区升级；必须保留 `bootloader`、`uenv`、`dsd` 和 `reserved_bmt`。不要将 XR1710G 镜像或分区表用于 XG2010G。
 
-当前仓库已具备 XG2010G 的设备树、镜像定义、独立构建配置和 PON 软件包选择，但以下项目仍需以实机证据确认：
-
-- 冷启动、串口启动和 UBI/`fit` volume 启动；
-- 10G/2.5G/1G 以太网端口映射与链路协商；
-- EN7572 光模块注册、XG(S)-PON/GPON/EPON 模式和 WAN 流量；
-- 升级、回滚和异常恢复路径。
-
-因此，XG2010G 部分应视为可复现的移植和构建基线，不应仅根据源码或静态检查宣称已经完成光口注册或宽带业务验证。
 
 ## XR1710G 固件特性
 
@@ -247,7 +237,6 @@ bash scripts/summarize-build-errors.sh build.log
 - [openwrt/mt76](https://github.com/openwrt/mt76) - MediaTek WiFi 驱动
 
 ### 参考项目
-- [naoki66/ImmortalWrt-for-Gemtek-XG2010G](https://github.com/naoki66/ImmortalWrt-for-Gemtek-XG2010G) - XG2010G AN7581/EN7581、XG(S)-PON 硬件基线和公开移植说明
 - [YYH2913/openwrt](https://github.com/YYH2913/openwrt) - XR1710G 6.18 内核集成参考（an7581-xr1710g-ubi.dts 基础结构）
 - [hurrian/openwrt-w1700k](https://github.com/hurrian/openwrt-w1700k) - XR1710G PCIe 3.0 x2 补丁参考（912 Gen3 速度协商）
 - [lvcdy/openwrt_xr1710g](https://github.com/lvcdy/openwrt_xr1710g) - XR1710G 早期移植参考（分区表、PHY 配置）
