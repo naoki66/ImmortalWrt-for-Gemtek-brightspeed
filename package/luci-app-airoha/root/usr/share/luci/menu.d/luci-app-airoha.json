@@ -1,0 +1,20 @@
+{
+	"admin/status/airoha": {
+		"title": "Airoha",
+		"order": 15,
+		"action": { "type": "firstchild" },
+		"depends": { "acl": [ "luci-app-airoha" ] }
+	},
+	"admin/status/airoha/npu": {
+		"title": "SoC / NPU",
+		"order": 10,
+		"action": { "type": "view", "path": "airoha_npu/status" },
+		"depends": { "acl": [ "luci-app-airoha" ] }
+	},
+	"admin/status/airoha/flowsense": {
+		"title": "FlowSense",
+		"order": 20,
+		"action": { "type": "view", "path": "airoha_flowsense/status" },
+		"depends": { "acl": [ "luci-app-airoha" ] }
+	}
+}

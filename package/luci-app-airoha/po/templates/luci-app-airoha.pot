@@ -1,0 +1,429 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "ACTIVE"
+msgstr ""
+
+msgid "AP MODE"
+msgstr ""
+
+msgid "AP Mode Acceleration"
+msgstr ""
+
+msgid "Activated"
+msgstr ""
+
+msgid "Active"
+msgstr ""
+
+msgid "Airoha"
+msgstr ""
+
+msgid "Airoha FlowSense"
+msgstr ""
+
+msgid "Airoha SoC Status"
+msgstr ""
+
+msgid "Auto-detected"
+msgstr ""
+
+msgid "BND FLOWS"
+msgstr ""
+
+msgid "Bound:"
+msgstr ""
+
+msgid "Bytes"
+msgstr ""
+
+msgid "CLEAN"
+msgstr ""
+
+msgid "CPU Cores"
+msgstr ""
+
+msgid "CPU Frequency"
+msgstr ""
+
+msgid "CPU Info"
+msgstr ""
+
+msgid "CPU LOAD"
+msgstr ""
+
+msgid "CPU PATH"
+msgstr ""
+
+msgid "CRIT"
+msgstr ""
+
+msgid "Click to change ping target"
+msgstr ""
+
+msgid "Control Settings"
+msgstr ""
+
+msgid "Core Count"
+msgstr ""
+
+msgid "Current Frequency"
+msgstr ""
+
+msgid "DETECTING"
+msgstr ""
+
+msgid "DHCP disabled in UCI"
+msgstr ""
+
+msgid "DROPPING"
+msgstr ""
+
+msgid "Disabled"
+msgstr ""
+
+msgid "Drop:"
+msgstr ""
+
+msgid "ERROR"
+msgstr ""
+
+msgid "ERRORS"
+msgstr ""
+
+msgid "Enabled"
+msgstr ""
+
+msgid "Error: "
+msgstr ""
+
+msgid "Ethernet"
+msgstr ""
+
+msgid "FAIR"
+msgstr ""
+
+msgid "Failed to set governor:"
+msgstr ""
+
+msgid "Failed to set max frequency:"
+msgstr ""
+
+msgid "Failed to set ping target"
+msgstr ""
+
+msgid "Firmware / Clock / Cores"
+msgstr ""
+
+msgid "Flow Offload"
+msgstr ""
+
+msgid "FlowSense"
+msgstr ""
+
+msgid "Frame Engine"
+msgstr ""
+
+msgid "GOOD"
+msgstr ""
+
+msgid "Ghost Shaper Active"
+msgstr ""
+
+msgid "Governor"
+msgstr ""
+
+msgid "Grant access to Airoha NPU status (NPU + CPU + Offload)"
+msgstr ""
+
+msgid "HEALTHY"
+msgstr ""
+
+msgid "HW ACCELERATED"
+msgstr ""
+
+msgid "HW BUFFER"
+msgstr ""
+
+msgid "HW Buffer"
+msgstr ""
+
+msgid "HW Flow Offload"
+msgstr ""
+
+msgid "HW Offload"
+msgstr ""
+
+msgid "HW offload is enabled but ISP latency is high. Latency management may be skipped by hardware acceleration."
+msgstr ""
+
+msgid "Hardware errors detected on WAN. Check WAN cable or SFP. Latency stats may be misleading."
+msgstr ""
+
+msgid "IDLE"
+msgstr ""
+
+msgid "INTEGRITY"
+msgstr ""
+
+msgid "Idle"
+msgstr ""
+
+msgid "Index"
+msgstr ""
+
+msgid "Integrity"
+msgstr ""
+
+msgid "LAN 1"
+msgstr ""
+
+msgid "LAN 2"
+msgstr ""
+
+msgid "LAN 3"
+msgstr ""
+
+msgid "LAN 4"
+msgstr ""
+
+msgid "LATENCY"
+msgstr ""
+
+msgid "Latency"
+msgstr ""
+
+msgid "Local gateway detected"
+msgstr ""
+
+msgid "MBPS"
+msgstr ""
+
+msgid "MODE detecting..."
+msgstr ""
+
+msgid "Max Freq"
+msgstr ""
+
+msgid "Max Frequency"
+msgstr ""
+
+msgid "Mb"
+msgstr ""
+
+msgid "N/A"
+msgstr ""
+
+msgid "NO CLIENTS"
+msgstr ""
+
+msgid "NO DATA"
+msgstr ""
+
+msgid "NO LINK"
+msgstr ""
+
+msgid "NPU & Offload Engine"
+msgstr ""
+
+msgid "NPU Bypass Detected"
+msgstr ""
+
+msgid "NPU Clock / Cores"
+msgstr ""
+
+msgid "NPU Firmware Version"
+msgstr ""
+
+msgid "NPU HW offload is bypassing CAKE SQM. Offloaded flows skip bufferbloat management — latency protection is inactive under load."
+msgstr ""
+
+msgid "NPU IDLE"
+msgstr ""
+
+msgid "NPU Information"
+msgstr ""
+
+msgid "NPU PATH"
+msgstr ""
+
+msgid "NPU Path"
+msgstr ""
+
+msgid "NPU Status"
+msgstr ""
+
+msgid "New Flow"
+msgstr ""
+
+msgid "No WAN IP detected"
+msgstr ""
+
+msgid "No clients"
+msgstr ""
+
+msgid "No data"
+msgstr ""
+
+msgid "No entries"
+msgstr ""
+
+msgid "Not Activated"
+msgstr ""
+
+msgid "Not Active"
+msgstr ""
+
+msgid "Not available"
+msgstr ""
+
+msgid "OFFLOADED"
+msgstr ""
+
+msgid "OK"
+msgstr ""
+
+msgid "Offload Statistics"
+msgstr ""
+
+msgid "Original"
+msgstr ""
+
+msgid "Original Flow"
+msgstr ""
+
+msgid "POOR"
+msgstr ""
+
+msgid "PPE Flow Offload Entries"
+msgstr ""
+
+msgid "PPPoE Offload"
+msgstr ""
+
+msgid "PPPoE offload not supported on this device"
+msgstr ""
+
+msgid "Packets"
+msgstr ""
+
+msgid "Pause"
+msgstr ""
+
+msgid "Physical Bottleneck"
+msgstr ""
+
+msgid "Ping target IP:"
+msgstr ""
+
+msgid "Ping target changed to: "
+msgstr ""
+
+msgid "ROUTER MODE"
+msgstr ""
+
+msgid "RX"
+msgstr ""
+
+msgid "Refresh"
+msgstr ""
+
+msgid "Refreshing…"
+msgstr ""
+
+msgid "Reserved Memory"
+msgstr ""
+
+msgid "Resume"
+msgstr ""
+
+msgid "STA"
+msgstr ""
+
+msgid "SoC / NPU"
+msgstr ""
+
+msgid "SoC Status"
+msgstr ""
+
+msgid "State"
+msgstr ""
+
+msgid "TX"
+msgstr ""
+
+msgid "Total:"
+msgstr ""
+
+msgid "Translated"
+msgstr ""
+
+msgid "Type"
+msgstr ""
+
+msgid "UNB FLOWS"
+msgstr ""
+
+msgid "Unbound:"
+msgstr ""
+
+msgid "Updated %s"
+msgstr ""
+
+msgid "VLAN Offload"
+msgstr ""
+
+msgid "VLAN offload not supported on this device"
+msgstr ""
+
+msgid "WAN"
+msgstr ""
+
+msgid "WARN"
+msgstr ""
+
+msgid "WEAK"
+msgstr ""
+
+msgid "conservative"
+msgstr ""
+
+msgid "entries"
+msgstr ""
+
+msgid "failed to set PPPoE offload"
+msgstr ""
+
+msgid "failed to set VLAN offload"
+msgstr ""
+
+msgid "flows"
+msgstr ""
+
+msgid "more"
+msgstr ""
+
+msgid "no entries"
+msgstr ""
+
+msgid "ondemand"
+msgstr ""
+
+msgid "performance"
+msgstr ""
+
+msgid "powersave"
+msgstr ""
+
+msgid "showing"
+msgstr ""
+
+msgid "userspace"
+msgstr ""
+
+msgid "v4"
+msgstr ""
+
+msgid "v6"
+msgstr ""
+
