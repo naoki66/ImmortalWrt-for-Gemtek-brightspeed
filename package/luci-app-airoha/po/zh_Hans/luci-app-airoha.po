@@ -60,6 +60,9 @@ msgstr "CPU 负载"
 msgid "CPU PATH"
 msgstr "CPU 路径"
 
+msgid "CPU settings saved — they will persist after a reboot"
+msgstr "CPU 设置已保存，重启后依然生效"
+
 msgid "CRIT"
 msgstr "严重"
 
@@ -345,6 +348,9 @@ msgstr "继续"
 msgid "STA"
 msgstr "客户端"
 
+msgid "Save"
+msgstr "保存"
+
 msgid "SoC / NPU"
 msgstr "SoC / NPU"
 
@@ -371,6 +377,9 @@ msgstr "UNB 流"
 
 msgid "Unbound:"
 msgstr "未绑定："
+
+msgid "Unsaved changes"
+msgstr "有未保存的更改"
 
 msgid "Updated %s"
 msgstr "更新于 %s"

@@ -1,3 +1,4 @@
 /etc/sysctl.d/12-apmode-offload.conf
 /etc/sysctl.d/13-pppoe-offload.conf
 /etc/sysctl.d/14-vlan-offload.conf
+/etc/config/airoha_npu

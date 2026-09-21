@@ -55,6 +55,9 @@ msgstr ""
 msgid "CPU PATH"
 msgstr ""
 
+msgid "CPU settings saved — they will persist after a reboot"
+msgstr ""
+
 msgid "CRIT"
 msgstr ""
 
@@ -340,6 +343,9 @@ msgstr ""
 msgid "STA"
 msgstr ""
 
+msgid "Save"
+msgstr ""
+
 msgid "SoC / NPU"
 msgstr ""
 
@@ -365,6 +371,9 @@ msgid "UNB FLOWS"
 msgstr ""
 
 msgid "Unbound:"
+msgstr ""
+
+msgid "Unsaved changes"
 msgstr ""
 
 msgid "Updated %s"
