@@ -21,6 +21,7 @@ var callSetFlowOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setFl
 var callGetApModeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getApModeOffload' });
 var callSetApModeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setApModeOffload', params: ['enabled'] });
 var callGetDeviceMode = rpc.declare({ object: 'luci.airoha_npu', method: 'getDeviceMode' });
+var callGetTopology = rpc.declare({ object: 'luci.airoha_npu', method: 'getTopology' });
 var callSetCpuSettings = rpc.declare({ object: 'luci.airoha_npu', method: 'setCpuSettings', params: ['governor', 'freq'] });
 
 // Tracks whether the user has changed a CPU control select without saving yet.
@@ -85,18 +86,64 @@ function calcTotalMem(regions) {
 	return t >= 1024 ? (t / 1024).toFixed(0) + ' MiB' : t + ' KiB';
 }
 
-var psePortMap = [
-	{ name: 'CDM1', label: 'CPU DMA 1',   color: 'var(--ai-cpu)' },
-	{ name: 'GDM1', label: 'Switch 1G',   color: 'var(--ds-warn)' },
-	{ name: 'GDM2', label: 'WAN 10G',     color: 'var(--ds-ok)' },
-	{ name: 'GDM3', label: 'GDM3',        color: 'var(--ds-border-strong)' },
-	{ name: 'PPE1', label: 'PPE Eng 1',   color: 'var(--ai-npu)' },
-	{ name: 'CDM2', label: 'CPU DMA 2',   color: 'var(--ai-cpu)' },
-	{ name: 'CDM3', label: 'CDM3',        color: 'var(--ds-border-strong)' },
-	{ name: 'CDM4', label: 'WDMA WiFi',   color: 'var(--ai-band-6)' },
-	{ name: 'PPE2', label: 'PPE Eng 2',   color: 'var(--ai-npu)' },
-	{ name: 'GDM4', label: 'LAN2 10G',    color: 'var(--ds-ok)' }
-];
+/* ── Topology-derived port labels ─────────────────────────────────────────
+ * The PSE/GDM/CDM layout is board-specific (the XR1710G has a USXGMII WAN and
+ * a WiFi DMA path; the XG2010G is a PON ONU with no WAN and no WiFi at all),
+ * so every port label is built from the getTopology facts instead of being
+ * hardcoded for one board. Technical tokens (GDM1, USXGMII, 2500base-x, the
+ * netdev names) stay untranslated, exactly as the file already treats them. */
+
+/* Human-readable role/mode summary for one topology port. */
+function portLabel(p) {
+	p = p || {};
+	var role = String(p.role || '').toLowerCase();
+	var mode = String(p.mode || '');
+	var netdev = String(p.netdev || '');
+	var parts = [];
+	if (mode === 'internal' || !netdev) parts.push(_('Internal Switch'));
+	else if (role === 'wan') parts.push(_('WAN'));
+	else if (role === 'lan') parts.push(_('LAN'));
+	else parts.push(_('No netdev'));
+	if (mode && mode !== 'internal') parts.push(mode.toUpperCase());
+	if (netdev) parts.push(netdev);
+	return parts.join(' · ');
+}
+
+function portName(p) {
+	return String((p && p.key) || '').toUpperCase();
+}
+
+/* Accent colour for a GDM card: CPU/internal-facing MACs are amber, the
+ * externally-facing LAN/WAN MACs are green. */
+function portAccent(p) {
+	p = p || {};
+	if (String(p.mode || '') === 'internal' || !p.netdev) return 'var(--ds-warn)';
+	return 'var(--ds-ok)';
+}
+
+/* PSE port index → tile metadata. The getFrameEngine payload enumerates the
+ * PSE ports 0..9; the CDM/PPE engines always get a fixed entry, the rest are
+ * filled from the topology's own `pse` index. A port without its own PSE entry
+ * (e.g. the switch ports behind the internal GDM) leaves the index empty and
+ * the tile falls back to its PSE index. First entry wins so a GDM MAC is never
+ * displaced by the internal switch ports that share its PSE. */
+function buildPsePortMap(topo) {
+	topo = topo || {};
+	var map = [];
+	map[0] = { name: 'CDM1', label: 'CPU DMA 1', color: 'var(--ai-cpu)' };
+	map[4] = { name: 'PPE1', label: 'PPE Eng 1', color: 'var(--ai-npu)' };
+	map[5] = { name: 'CDM2', label: 'CPU DMA 2', color: 'var(--ai-cpu)' };
+	map[6] = { name: 'CDM3', label: 'CDM3', color: 'var(--ds-border-strong)' };
+	map[7] = { name: 'CDM4', label: 'WDMA', color: 'var(--ai-band-6)' };
+	map[8] = { name: 'PPE2', label: 'PPE Eng 2', color: 'var(--ai-npu)' };
+	(Array.isArray(topo.ports) ? topo.ports : []).forEach(function(p) {
+		if (!p || p.pse === undefined || p.pse === null) return;
+		var idx = Number(p.pse);
+		if (isNaN(idx) || map[idx]) return;
+		map[idx] = { name: portName(p), label: portLabel(p), color: portAccent(p) };
+	});
+	return map;
+}
 
 /* ── Summary tiles ── */
 function npuSummaryTiles(st, ti) {
@@ -241,26 +288,63 @@ function governorLabel(governor) {
 	return labels[governor] || governor;
 }
 
-function renderGovSelect(avail, active) {
-	var gs = (avail || '').trim().split(/\s+/).filter(Boolean);
-	if (!gs.length) return E('span', {}, 'N/A');
-	return E('select', {
-		'id': 'cpu-governor-select', 'class': 'cbi-input-select',
-		'change': function() { cpuSettingsDirty = true; updateCpuSettingsHint(); }
-	}, gs.map(function(g) {
-		return E('option', { 'value': g, 'selected': g === active ? '' : null }, governorLabel(g));
-	}));
+function splitList(s) {
+	return String(s == null ? '' : s).trim().split(/\s+/).filter(Boolean);
 }
 
-function renderMaxFreqSelect(avail, cur) {
-	var fs = (avail || '').trim().split(/\s+/).filter(Boolean);
-	if (!fs.length) return E('span', {}, 'N/A');
-	return E('select', {
-		'id': 'cpu-maxfreq-select', 'class': 'cbi-input-select',
+/* Map the backend cpufreq reason code to its translatable string. */
+function cpuReasonText(reason) {
+	if (reason === 'no_governors') return _('No CPU governors reported by the kernel');
+	if (reason === 'no_frequencies') return _('No selectable CPU frequencies reported by the kernel');
+	return _('CPU frequency scaling is not available on this board');
+}
+
+/* Returns '' while cpufreq is usable, otherwise the reason text to show. A
+ * missing availability key fails open (a backend that predates the key must
+ * keep working); the key is only treated as "unavailable" when the kernel also
+ * reported nothing to choose from. */
+function cpufreqReason(st) {
+	st = st || {};
+	var avail = st.cpu_cpufreq_available;
+	if (avail !== undefined && avail !== null)
+		return isEnabled(avail) ? '' : cpuReasonText(st.cpu_cpufreq_reason);
+	if (splitList(st.cpu_avail_governors).length || splitList(st.cpu_avail_freqs).length)
+		return '';
+	return cpuReasonText(st.cpu_cpufreq_reason);
+}
+
+/* Build a CPU control <select>. It is ALWAYS a real select element (never a
+ * bare text node) so the poll path and the Save handler can always find it.
+ * When the available list is empty the live value is seeded so the control
+ * still displays the current setting; when nothing is known at all it becomes
+ * a disabled placeholder carrying the backend reason as its only option. */
+function cpuSelect(id, values, current, placeholder, labelFn) {
+	var attrs = {
+		'id': id, 'class': 'cbi-input-select',
 		'change': function() { cpuSettingsDirty = true; updateCpuSettingsHint(); }
-	}, fs.map(function(f) {
-		return E('option', { 'value': f, 'selected': parseInt(f) === parseInt(cur) ? '' : null }, (parseInt(f) / 1000).toFixed(0) + ' MHz');
-	}));
+	};
+	var opts;
+	if (values && values.length) {
+		opts = values.map(function(v) {
+			return E('option', { 'value': v, 'selected': String(v) === String(current) ? '' : null }, labelFn(v));
+		});
+	} else if (current !== undefined && current !== null && String(current) !== '') {
+		opts = [ E('option', { 'value': String(current), 'selected': '' }, labelFn(current)) ];
+	} else {
+		opts = [ E('option', { 'value': '', 'selected': '' }, placeholder || 'N/A') ];
+	}
+	if (!(values && values.length)) attrs.disabled = '';
+	return E('select', attrs, opts);
+}
+
+function renderGovSelect(avail, active, reason) {
+	return cpuSelect('cpu-governor-select', splitList(avail), active || '', reason, governorLabel);
+}
+
+function renderMaxFreqSelect(avail, cur, reason) {
+	return cpuSelect('cpu-maxfreq-select', splitList(avail), cur || '', reason, function(f) {
+		return Math.round(parseInt(f, 10) / 1000) + ' MHz';
+	});
 }
 
 function updateCpuSettingsHint() {
@@ -272,16 +356,23 @@ function updateCpuSettingsHint() {
 
 function renderControlSettings(st) {
 	// Container rebuilt from live status → selections reflect what is currently applied.
+	st = st || {};
 	cpuSettingsDirty = false;
+
+	var reason = cpufreqReason(st);
 
 	var saveBtn = E('button', {
 		'id': 'cpu-settings-save',
 		'class': 'ai-btn ai-btn--primary',
+		'title': reason || null,
 		'click': function(ev) {
 			var btn = ev.target;
 			var gs = document.getElementById('cpu-governor-select');
 			var fs = document.getElementById('cpu-maxfreq-select');
-			if (!gs || !fs) return;
+			if (!gs || !fs || gs.disabled || fs.disabled) {
+				ui.addNotification(null, E('p', {}, reason || _('No CPU frequency controls are available on this board')), 'warning');
+				return;
+			}
 			btn.disabled = true;
 			callSetCpuSettings(gs.value, parseInt(fs.value)).then(function(r) {
 				btn.disabled = false;
@@ -295,20 +386,28 @@ function renderControlSettings(st) {
 			}).catch(function() { btn.disabled = false; });
 		}
 	}, _('Save'));
+	// The Save button is always rendered; it is only disabled while there is
+	// nothing selectable, and its title explains why.
+	if (reason) saveBtn.disabled = true;
 
 	var hint = E('span', { 'id': 'cpu-settings-hint', 'class': 'ai-muted' }, '');
+	var note = E('div', {
+		'id': 'cpu-cpufreq-note', 'class': 'ai-hint',
+		'style': 'flex-basis:100%;margin:0'
+	}, reason || '');
 
 	return E('div', { 'class': 'ai-form' }, [
 		E('div', { 'class': 'ai-field' }, [
 			E('label', { 'class': 'ai-field-label', 'for': 'cpu-governor-select' }, _('Governor')),
-			renderGovSelect(st.cpu_avail_governors, st.cpu_governor)
+			renderGovSelect(st.cpu_avail_governors, st.cpu_governor, reason)
 		]),
 		E('div', { 'class': 'ai-field' }, [
 			E('label', { 'class': 'ai-field-label', 'for': 'cpu-maxfreq-select' }, _('Max Freq')),
-			renderMaxFreqSelect(st.cpu_avail_freqs, st.cpu_max_freq)
+			renderMaxFreqSelect(st.cpu_avail_freqs, st.cpu_max_freq, reason)
 		]),
 		saveBtn,
-		hint
+		hint,
+		note
 	]);
 }
 
@@ -386,10 +485,16 @@ function updateOffloadControl(inputId, badgeId, rowId, enabled, blocked) {
 }
 
 /* ── Frame engine diagram ── */
-function renderFeDiagram(fe, ti, st, ppe) {
+function renderFeDiagram(fe, ti, st, ppe, topo) {
 	if (!fe || fe.error) return aui.empty(_('Frame engine data is not available on this build'));
-	ti = ti || {}; st = st || {}; ppe = ppe || {};
+	ti = ti || {}; st = st || {}; ppe = ppe || {}; topo = topo || {};
 	var ports = Array.isArray(fe.pse_ports) ? fe.pse_ports : [];
+	// The GDM MAC cards and the PSE tile labels are generated from the live
+	// topology, never from a fixed board layout, so the 2010 (no WAN, lan1 on
+	// GDM4, no GDM2) and the 1710 (USXGMII WAN on GDM2) both render correctly.
+	var topoPorts = Array.isArray(topo.ports) ? topo.ports : [];
+	var gdmPorts = topoPorts.filter(function(p) { return p && p.kind === 'gdm'; });
+	var psePortMap = buildPsePortMap(topo);
 
 	// The per-band cards (tx_queues / station_counts) are indexed by wireless
 	// band, so they are skipped entirely on a radio-less board (e.g. the 2010)
@@ -509,17 +614,15 @@ function renderFeDiagram(fe, ti, st, ppe) {
 			pct: pseP, accent: pseCol
 		}),
 		E('div', { 'class': 'ai-subhead' }, 'GDM Ports'),
-		E('div', { 'class': 'ai-grid ai-grid--3' }, [
-			gdmCard('gdm1', 'GDM1', 'Internal Switch (1G LAN3/4)', 'var(--ds-warn)', 'P1'),
-			gdmCard('gdm2', 'GDM2', 'WAN (USXGMII 10G)', 'var(--ds-ok)', 'P2'),
-			gdmCard('gdm4', 'GDM4', 'LAN2 (USXGMII 10G)', 'var(--ds-ok)', 'P9')
-		]),
-		E('div', { 'class': 'ai-subhead' }, 'CPU DMA / WiFi DMA'),
+		E('div', { 'class': 'ai-grid ai-grid--3' }, gdmPorts.map(function(p) {
+			var pse = (p.pse !== undefined && p.pse !== null) ? p.pse : '?';
+			return gdmCard(p.key, portName(p), portLabel(p), portAccent(p), 'P' + pse);
+		})),
+		E('div', { 'class': 'ai-subhead' }, hasWifi ? 'CPU DMA / WiFi DMA' : 'CPU DMA'),
 		E('div', { 'class': 'ai-grid ai-grid--3' }, [
 			cdmCard('cdm1', 'CDM1', 'CPU DMA 1', 'P0'),
-			cdmCard('cdm2', 'CDM2', 'CPU DMA 2', 'P5'),
-			cdm4WiFi
-		]),
+			cdmCard('cdm2', 'CDM2', 'CPU DMA 2', 'P5')
+		].concat(hasWifi ? [ cdm4WiFi ] : [])),
 		E('div', { 'class': 'ai-grid ai-grid--2', 'style': 'margin-top:var(--ds-sp-2)' }, [ ppeCard, npuCard ]),
 		E('div', { 'class': 'ai-subhead' }, 'PSE Port Queue Status'),
 		E('div', { 'class': 'ai-grid ai-grid--pse' }, portCells),
@@ -601,6 +704,7 @@ return view.extend({
 		var vo = data[4] || { enabled: 0 }, ppo = data[5] || { enabled: 0 }, flo = data[6] || { enabled: 0 };
 		var apo = data[7] || { enabled: 0 };
 		var dm = data[8] || {};
+		var topo = data[9] || {};
 		var bridgeBlocked = isBridgeOffloadBlocked(dm);
 		var entries = Array.isArray(ppe.entries) ? ppe.entries : [];
 		var ppeUpdatesPaused = false;
@@ -608,6 +712,11 @@ return view.extend({
 		var ppeRequestSequence = 0;
 		var latestPpeRequest = 0;
 		var updatedEl = null;
+		// Last cpufreq reason, so the poll can rebuild the control container when
+		// the board's cpufreq availability changes. Null forces one rebuild once
+		// the live status lands (the controls always exist, so their presence can
+		// no longer signal "not rendered yet").
+		var prevCpuReason = null;
 
 		function markUpdated() {
 			if (updatedEl)
@@ -675,7 +784,7 @@ return view.extend({
 						renderOffloadSwitch({ rowId: 'apmode-offload-row', inputId: 'apmode-offload-select', badgeId: 'apmode-offload-badge', name: _('AP Mode Acceleration'), note: 'br_netfilter + VLAN passthrough', enabled: apo.enabled, blocked: bridgeBlocked, callFn: function(v) { return callSetApModeOffload(v); } })
 					]),
 					E('div', { 'class': 'ai-subhead' }, _('Frame Engine')),
-					E('div', { 'id': 'fe-container' }, renderFeDiagram(fe, ti, st, ppe))
+					E('div', { 'id': 'fe-container' }, renderFeDiagram(fe, ti, st, ppe, topo))
 				])
 			}),
 
@@ -705,13 +814,15 @@ return view.extend({
 				_safeCall(callGetPppoeOffload(), { enabled: 0 }),
 				_safeCall(callGetFlowOffload(), { enabled: 0 }),
 				_safeCall(callGetApModeOffload(), { enabled: 0 }),
-				_safeCall(callGetDeviceMode(), { bridge_offload_blocked: false })
+				_safeCall(callGetDeviceMode(), { bridge_offload_blocked: false }),
+				_safeCall(callGetTopology(), {})
 			]).then(L.bind(function(d) {
 				aui.ensureCss();
 				var st = d[0] || {}, ppe = d[1] || {}, ti = d[2] || {}, fe = d[3] || {};
 				var vo = d[4] || { enabled: 0 }, ppo = d[5] || { enabled: 0 }, flo = d[6] || { enabled: 0 };
 				var apo = d[7] || { enabled: 0 };
 				var dm = d[8] || {};
+				var topo = d[9] || {};
 				var bridgeBlocked = isBridgeOffloadBlocked(dm);
 				var entries = Array.isArray(ppe.entries) ? ppe.entries : [];
 				if (requestSequence > latestPpeRequest) {
@@ -734,18 +845,21 @@ return view.extend({
 					if (fc) { fc.innerHTML = ''; fc.appendChild(renderFreqCard(st)); }
 				}
 
-				// Control settings — update values if selects exist, otherwise re-render.
-				// While there are unsaved changes, leave the selects alone so the pick is kept.
+				// Control settings — the selects now always exist, so their presence can
+				// no longer signal "not rendered yet". Rebuild the container whenever the
+				// board's cpufreq availability/reason changes (cpufreq appearing or
+				// disappearing between polls); otherwise update the live values in place,
+				// unless the user has unsaved changes.
+				var cpuReason = cpufreqReason(st);
 				var gs = document.getElementById('cpu-governor-select');
-				if (gs) {
-					if (!cpuSettingsDirty) {
-						if (!gs.matches(':focus')) gs.value = st.cpu_governor || '';
-						var fs = document.getElementById('cpu-maxfreq-select');
-						if (fs && !fs.matches(':focus')) fs.value = (st.cpu_max_freq || 0).toString();
-					}
-				} else {
+				if (!gs || cpuReason !== prevCpuReason) {
 					var cc = document.getElementById('cpu-control-content');
 					if (cc) { cc.innerHTML = ''; cc.appendChild(renderControlSettings(st)); }
+					prevCpuReason = cpuReason;
+				} else if (!cpuSettingsDirty) {
+					if (!gs.matches(':focus')) gs.value = st.cpu_governor || '';
+					var fsSel = document.getElementById('cpu-maxfreq-select');
+					if (fsSel && !fsSel.matches(':focus')) fsSel.value = (st.cpu_max_freq || 0).toString();
 				}
 
 				updateOffloadControl('vlan-offload-select', 'vlan-offload-badge', 'vlan-offload-row', vo.enabled, bridgeBlocked);
@@ -754,7 +868,7 @@ return view.extend({
 				updateOffloadControl('apmode-offload-select', 'apmode-offload-badge', 'apmode-offload-row', apo.enabled, bridgeBlocked);
 
 				var fcEl = document.getElementById('fe-container');
-				if (fcEl) { fcEl.innerHTML = ''; fcEl.appendChild(renderFeDiagram(fe, ti, st, ppe)); }
+				if (fcEl) { fcEl.innerHTML = ''; fcEl.appendChild(renderFeDiagram(fe, ti, st, ppe, topo)); }
 
 				markUpdated();
 			}, this)).catch(function(err) {

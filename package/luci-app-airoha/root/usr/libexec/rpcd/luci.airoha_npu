@@ -48,6 +48,18 @@ get_device_mode() {
 	fi
 }
 
+# Discover the active cpufreq policy dir (policy0 is not guaranteed to exist:
+# a cpufreq node that fails to probe can leave the driver on another index).
+_find_cpufreq_policy() {
+	local dir
+	for dir in /sys/devices/system/cpu/cpufreq/policy[0-9]*; do
+		[ -r "$dir/scaling_governor" ] || continue
+		printf '%s' "$dir"
+		return 0
+	done
+	return 1
+}
+
 get_status() {
 	# === NPU Status ===
 	# Read the actually-loaded NPU firmware path from DTS (firmware-name property).
@@ -115,7 +127,7 @@ get_status() {
 	fi
 
 	# === CPU Frequency Status ===
-	local cpufreq_path="/sys/devices/system/cpu/cpufreq/policy0"
+	local cpufreq_path cpu_cpufreq_available=0 cpu_cpufreq_reason="no_cpufreq"
 	local cpu_cur_freq=0
 	local cpu_hw_freq=0
 	local cpu_governor="unknown"
@@ -124,7 +136,9 @@ get_status() {
 	local cpu_max_freq=0
 	local cpu_avail_freqs=""
 
-	if [ -d "$cpufreq_path" ]; then
+	cpufreq_path=$(_find_cpufreq_policy)
+	if [ -n "$cpufreq_path" ]; then
+		cpu_cpufreq_available=1
 		cpu_cur_freq=$(cat "$cpufreq_path/scaling_cur_freq" 2>/dev/null || echo 0)
 		cpu_hw_freq=$(cat "$cpufreq_path/cpuinfo_cur_freq" 2>/dev/null || echo 0)
 		cpu_governor=$(cat "$cpufreq_path/scaling_governor" 2>/dev/null || echo "unknown")
@@ -132,7 +146,36 @@ get_status() {
 		cpu_min_freq=$(cat "$cpufreq_path/scaling_min_freq" 2>/dev/null || echo 0)
 		cpu_max_freq=$(cat "$cpufreq_path/scaling_max_freq" 2>/dev/null || echo 0)
 		cpu_avail_freqs=$(cat "$cpufreq_path/scaling_available_frequencies" 2>/dev/null || echo "")
+
+		if [ -z "$cpu_avail_governors" ]; then
+			cpu_cpufreq_reason="no_governors"
+		else
+			if [ -z "$cpu_avail_freqs" ]; then
+				# Fallback: a de-duplicated ascending list built from the
+				# min/max limits the kernel does expose. Never invent values.
+				local _f _flist=""
+				for _f in \
+					"$(cat "$cpufreq_path/scaling_min_freq" 2>/dev/null)" \
+					"$(cat "$cpufreq_path/scaling_max_freq" 2>/dev/null)" \
+					"$(cat "$cpufreq_path/cpuinfo_min_freq" 2>/dev/null)" \
+					"$(cat "$cpufreq_path/cpuinfo_max_freq" 2>/dev/null)"; do
+					case "$_f" in ''|*[!0-9]*) continue ;; esac
+					[ "$_f" -gt 0 ] 2>/dev/null || continue
+					_flist="${_flist}${_f}
+"
+				done
+				cpu_avail_freqs=$(printf '%s' "$_flist" | grep -v '^$' | sort -n -u | tr '\n' ' ' | sed 's/ $//')
+			fi
+			if [ -n "$cpu_avail_freqs" ]; then
+				cpu_cpufreq_reason="ok"
+			else
+				cpu_cpufreq_reason="no_frequencies"
+			fi
+		fi
 	fi
+
+	local has_pon
+	has_pon=$(airoha_pon_present)
 
 	# Read the actual PLL frequency to cross-check cpufreq reporting.
 	local pll_freq=0
@@ -193,10 +236,14 @@ get_status() {
 	done
 	[ -n "$soc_compat" ] || soc_compat="Unknown"
 
-	printf '{"npu_version":"%s","npu_loaded":%s,"npu_device":"%s","npu_clock":%d,"npu_cores":%d,"offload_bound":%d,"offload_total":%d,"memory_regions":%s,"cpu_cur_freq":%d,"cpu_hw_freq":%d,"cpu_governor":"%s","cpu_avail_governors":"%s","cpu_min_freq":%d,"cpu_max_freq":%d,"cpu_avail_freqs":"%s","cpu_count":%d,"pll_freq_mhz":%d,"cpu_arch":"%s","cpu_temp":"%s","soc_compat":"%s"}' \
+	printf '{"npu_version":"%s","npu_loaded":%s,"npu_device":"%s","npu_clock":%d,"npu_cores":%d,"offload_bound":%d,"offload_total":%d,"memory_regions":%s,"cpu_cur_freq":%d,"cpu_hw_freq":%d,"cpu_governor":"%s","cpu_avail_governors":"%s","cpu_min_freq":%d,"cpu_max_freq":%d,"cpu_avail_freqs":"%s","cpu_cpufreq_available":%d,"cpu_cpufreq_reason":"%s","cpu_count":%d,"pll_freq_mhz":%d,"cpu_arch":"%s","cpu_temp":"%s","soc_compat":"%s","has_pon":%d}' \
 		"${npu_ver:-Unknown}" "$npu_loaded" "${npu_device:-}" "${npu_clock:-0}" "${npu_cores:-0}" "${offload_bound:-0}" "${offload_total:-0}" "$regions" \
-		"${cpu_cur_freq:-0}" "${cpu_hw_freq:-0}" "${cpu_governor:-unknown}" "${cpu_avail_governors:-}" "${cpu_min_freq:-0}" "${cpu_max_freq:-0}" "${cpu_avail_freqs:-}" "${cpu_count:-0}" "${pll_freq:-0}" \
-		"${cpu_arch:-}" "${cpu_temp:-N/A}" "${soc_compat:-}"
+		"${cpu_cur_freq:-0}" "${cpu_hw_freq:-0}" "${cpu_governor:-unknown}" "${cpu_avail_governors:-}" "${cpu_min_freq:-0}" "${cpu_max_freq:-0}" "${cpu_avail_freqs:-}" "${cpu_cpufreq_available:-0}" "${cpu_cpufreq_reason:-no_cpufreq}" "${cpu_count:-0}" "${pll_freq:-0}" \
+		"${cpu_arch:-}" "${cpu_temp:-N/A}" "${soc_compat:-}" "${has_pon:-0}"
+}
+
+get_topology() {
+	airoha_port_topology_json
 }
 
 get_ppe_entries() {
@@ -458,10 +505,16 @@ get_frame_engine() {
 	local gdm1_rx=$(($(_devmem_read 0x1fb50648)))
 	local gdm1_rxd=$(($(_devmem_read 0x1fb5064c)))
 
-	local gdm2_tx=$(($(_devmem_read 0x1fb51604)))
-	local gdm2_txd=$(($(_devmem_read 0x1fb51608)))
-	local gdm2_rx=$(($(_devmem_read 0x1fb51648)))
-	local gdm2_rxd=$(($(_devmem_read 0x1fb5164c)))
+	# GDM2 only exists as a WAN netdev on boards whose ethernet@2 node is
+	# enabled (the XG2010G disables it): skip its counters entirely there.
+	local have_gdm2=0 gdm2_tx=0 gdm2_txd=0 gdm2_rx=0 gdm2_rxd=0
+	if airoha_dt_node_okay "soc/ethernet@1fb50000/ethernet@2"; then
+		have_gdm2=1
+		gdm2_tx=$(($(_devmem_read 0x1fb51604)))
+		gdm2_txd=$(($(_devmem_read 0x1fb51608)))
+		gdm2_rx=$(($(_devmem_read 0x1fb51648)))
+		gdm2_rxd=$(($(_devmem_read 0x1fb5164c)))
+	fi
 
 	local gdm4_tx=$(($(_devmem_read 0x1fb52604)))
 	local gdm4_txd=$(($(_devmem_read 0x1fb52608)))
@@ -483,7 +536,7 @@ get_frame_engine() {
 
 	printf '{"pse_ports":[%s],"pse_used":%d,"pse_free":%d,' "$pse_ports" "$pse_used" "$pse_free"
 	printf '"gdm1":{"tx":%d,"tx_drop":%d,"rx":%d,"rx_drop":%d},' "$gdm1_tx" "$gdm1_txd" "$gdm1_rx" "$gdm1_rxd"
-	printf '"gdm2":{"tx":%d,"tx_drop":%d,"rx":%d,"rx_drop":%d},' "$gdm2_tx" "$gdm2_txd" "$gdm2_rx" "$gdm2_rxd"
+	[ "$have_gdm2" = "1" ] && printf '"gdm2":{"tx":%d,"tx_drop":%d,"rx":%d,"rx_drop":%d},' "$gdm2_tx" "$gdm2_txd" "$gdm2_rx" "$gdm2_rxd"
 	printf '"gdm4":{"tx":%d,"tx_drop":%d,"rx":%d,"rx_drop":%d},' "$gdm4_tx" "$gdm4_txd" "$gdm4_rx" "$gdm4_rxd"
 	printf '"cdm1":{"tx":%d,"rx_cpu":%d,"rx_hwf":%d,"rx_cpu_drop":%d,"rx_hwf_drop":%d},' "$cdm1_tx" "$cdm1_rxcpu" "$cdm1_rxhwf" "$cdm1_rxcpud" "$cdm1_rxhwfd"
 	printf '"cdm2":{"tx":%d,"rx_cpu":%d,"rx_hwf":%d,"rx_cpu_drop":%d,"rx_hwf_drop":%d}}' "$cdm2_tx" "$cdm2_rxcpu" "$cdm2_rxhwf" "$cdm2_rxcpud" "$cdm2_rxhwfd"
@@ -655,12 +708,15 @@ set_apmode_offload() {
 
 case "$1" in
 	list)
-		echo '{"getStatus":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"getApModeOffload":{},"setApModeOffload":{"enabled":"int"},"getDeviceMode":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"},"setCpuSettings":{"governor":"str","freq":"int"}}'
+		echo '{"getStatus":{},"getTopology":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"getApModeOffload":{},"setApModeOffload":{"enabled":"int"},"getDeviceMode":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"},"setCpuSettings":{"governor":"str","freq":"int"}}'
 		;;
 	call)
 		case "$2" in
 			getStatus)
 				get_status
+				;;
+			getTopology)
+				get_topology
 				;;
 			getDeviceMode)
 				get_device_mode
