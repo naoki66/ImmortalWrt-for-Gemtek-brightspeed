@@ -1,0 +1,778 @@
+#!/bin/sh
+
+# Airoha NPU Status RPC backend for LuCI (NPU + CPU + Offload)
+
+. /lib/functions.sh
+
+HARDWARE_BLOCKED_FILE="/tmp/luci-airoha-npu.hardware-blocked"
+
+. /usr/libexec/rpcd/airoha-common.sh
+
+_has_active_wan() {
+	local wan_status up l3_device ipv4 ipv6
+
+	wan_status=$(ubus call network.interface.wan status 2>/dev/null)
+	[ -n "$wan_status" ] || return 1
+
+	up=$(printf '%s' "$wan_status" | jsonfilter -e "@.up" 2>/dev/null)
+	[ "$up" = "true" ] || return 1
+
+	l3_device=$(printf '%s' "$wan_status" | jsonfilter -e "@.l3_device" 2>/dev/null)
+	ipv4=$(printf '%s' "$wan_status" | jsonfilter -e "@['ipv4-address'][0].address" 2>/dev/null)
+	ipv6=$(printf '%s' "$wan_status" | jsonfilter -e "@['ipv6-address'][0].address" 2>/dev/null)
+
+	[ -n "$l3_device$ipv4$ipv6" ]
+}
+
+_bridge_offload_blocked() {
+	_has_active_wan
+}
+
+_bridge_offload_block_error() {
+	echo '{"error":"Bridge VLAN-tag / PPPoE-passthrough / AP-mode offload is disabled while WAN is active; use Hardware Flow Offload in router mode"}'
+}
+
+get_device_mode() {
+	local dhcp_ignore
+
+	if _has_active_wan; then
+		printf '{"mode":"router","reason":"active_wan","bridge_offload_blocked":true}'
+		return
+	fi
+
+	dhcp_ignore=$(uci get dhcp.lan.ignore 2>/dev/null)
+	if [ "$dhcp_ignore" = "1" ]; then
+		printf '{"mode":"ap","reason":"dhcp_disabled","bridge_offload_blocked":false}'
+	else
+		printf '{"mode":"ap","reason":"no_active_wan","bridge_offload_blocked":false}'
+	fi
+}
+
+# Discover the active cpufreq policy dir (policy0 is not guaranteed to exist:
+# a cpufreq node that fails to probe can leave the driver on another index).
+_find_cpufreq_policy() {
+	local dir
+	for dir in /sys/devices/system/cpu/cpufreq/policy[0-9]*; do
+		[ -r "$dir/scaling_governor" ] || continue
+		printf '%s' "$dir"
+		return 0
+	done
+	return 1
+}
+
+get_status() {
+	# === NPU Status ===
+	# Read the actually-loaded NPU firmware path from DTS (firmware-name property).
+	local npu_fw=""
+	local npu_dt="/proc/device-tree/soc/npu@1e900000/firmware-name"
+	if [ -f "$npu_dt" ]; then
+		# firmware-name is a string list (null-separated). First entry is the rv32 code.
+		local fw_rel=$(tr '\0' '\n' < "$npu_dt" 2>/dev/null | grep -m1 "rv32")
+		[ -n "$fw_rel" ] && npu_fw="/lib/firmware/$fw_rel"
+	fi
+
+	local npu_ver="Unknown"
+	if [ -n "$npu_fw" ] && [ -f "$npu_fw" ]; then
+		npu_ver=$(strings "$npu_fw" 2>/dev/null | grep -oE '([0-9]+\.[0-9]+\.[0-9]+-)?TLB[0-9.]+[-_v0-9]*' | head -1)
+		[ -z "$npu_ver" ] && npu_ver="Unknown"
+	fi
+
+	local npu_loaded="false"
+	local npu_device=""
+	local npu_driver_path="/sys/bus/platform/drivers/airoha-npu"
+
+	if [ -d "$npu_driver_path" ]; then
+		npu_device=$(ls -1 "$npu_driver_path" 2>/dev/null | grep '\.npu$' | head -1)
+		if [ -n "$npu_device" ]; then
+			npu_loaded="true"
+		fi
+	fi
+
+	local npu_clock=0
+	if [ -f "/sys/kernel/debug/clk/npu/clk_rate" ]; then
+		npu_clock=$(cat /sys/kernel/debug/clk/npu/clk_rate 2>/dev/null || echo 0)
+	fi
+
+	local npu_cores=$(grep -c "airoha-npu-wdt" /proc/interrupts 2>/dev/null || echo 0)
+
+	local offload_bound=$(cat /sys/kernel/debug/ppe/bind 2>/dev/null | grep -c "^[0-9a-fA-F]")
+	local offload_total=$(cat /sys/kernel/debug/ppe/entries 2>/dev/null | grep -c "^[0-9a-fA-F]")
+
+	# NPU memory regions don't change after boot — cache to avoid slow dmesg on every poll
+	local mem_cache="/tmp/npu-mem-regions.json"
+	local regions="[]"
+	if [ -f "$mem_cache" ]; then
+		regions=$(cat "$mem_cache" 2>/dev/null)
+	else
+		local mem_info=$(dmesg 2>/dev/null | grep "reserved mem.*npu" | head -4)
+		if [ -n "$mem_info" ]; then
+			regions=$(echo "$mem_info" | awk '
+			BEGIN { printf "[" }
+			{
+				if (NR > 1) printf ","
+				match($0, /0x[0-9a-fA-F]+\.\.0x[0-9a-fA-F]+/)
+				range = substr($0, RSTART, RLENGTH)
+				split(range, a, "\\.\\.")
+				match($0, /\([0-9]+ [KMG]i?B\)/)
+				size = substr($0, RSTART+1, RLENGTH-2)
+				match($0, /non-reusable [^ ]+/)
+				name = substr($0, RSTART+13)
+				gsub(/@.*/, "", name)
+				printf "{\"name\":\"%s\",\"start\":\"%s\",\"end\":\"%s\",\"size\":\"%s\"}", name, a[1], a[2], size
+			}
+			END { printf "]" }
+			')
+		fi
+		echo "$regions" > "$mem_cache" 2>/dev/null
+	fi
+
+	# === CPU Frequency Status ===
+	local cpufreq_path cpu_cpufreq_available=0 cpu_cpufreq_reason="no_cpufreq"
+	local cpu_cur_freq=0
+	local cpu_hw_freq=0
+	local cpu_governor="unknown"
+	local cpu_avail_governors=""
+	local cpu_min_freq=0
+	local cpu_max_freq=0
+	local cpu_avail_freqs=""
+
+	cpufreq_path=$(_find_cpufreq_policy)
+	if [ -n "$cpufreq_path" ]; then
+		cpu_cpufreq_available=1
+		cpu_cur_freq=$(cat "$cpufreq_path/scaling_cur_freq" 2>/dev/null || echo 0)
+		cpu_hw_freq=$(cat "$cpufreq_path/cpuinfo_cur_freq" 2>/dev/null || echo 0)
+		cpu_governor=$(cat "$cpufreq_path/scaling_governor" 2>/dev/null || echo "unknown")
+		cpu_avail_governors=$(cat "$cpufreq_path/scaling_available_governors" 2>/dev/null || echo "")
+		cpu_min_freq=$(cat "$cpufreq_path/scaling_min_freq" 2>/dev/null || echo 0)
+		cpu_max_freq=$(cat "$cpufreq_path/scaling_max_freq" 2>/dev/null || echo 0)
+		cpu_avail_freqs=$(cat "$cpufreq_path/scaling_available_frequencies" 2>/dev/null || echo "")
+
+		if [ -z "$cpu_avail_governors" ]; then
+			cpu_cpufreq_reason="no_governors"
+		else
+			if [ -z "$cpu_avail_freqs" ]; then
+				# Fallback: a de-duplicated ascending list built from the
+				# min/max limits the kernel does expose. Never invent values.
+				local _f _flist=""
+				for _f in \
+					"$(cat "$cpufreq_path/scaling_min_freq" 2>/dev/null)" \
+					"$(cat "$cpufreq_path/scaling_max_freq" 2>/dev/null)" \
+					"$(cat "$cpufreq_path/cpuinfo_min_freq" 2>/dev/null)" \
+					"$(cat "$cpufreq_path/cpuinfo_max_freq" 2>/dev/null)"; do
+					case "$_f" in ''|*[!0-9]*) continue ;; esac
+					[ "$_f" -gt 0 ] 2>/dev/null || continue
+					_flist="${_flist}${_f}
+"
+				done
+				cpu_avail_freqs=$(printf '%s' "$_flist" | grep -v '^$' | sort -n -u | tr '\n' ' ' | sed 's/ $//')
+			fi
+			if [ -n "$cpu_avail_freqs" ]; then
+				cpu_cpufreq_reason="ok"
+			else
+				cpu_cpufreq_reason="no_frequencies"
+			fi
+		fi
+	fi
+
+	local has_pon
+	has_pon=$(airoha_pon_present)
+
+	# Read the actual PLL frequency to cross-check cpufreq reporting.
+	local pll_freq=0
+	if command -v devmem > /dev/null 2>&1; then
+		local pcw_raw=$(_devmem_read 0x1fa202b4 2>/dev/null)
+		local chg_raw=$(_devmem_read 0x1fa202b8 2>/dev/null)
+		if [ -n "$pcw_raw" ] && [ -n "$chg_raw" ]; then
+			pcw_raw=$((pcw_raw))
+			chg_raw=$((chg_raw))
+			local pcw_int=$(( (pcw_raw >> 24) & 0x7F ))
+			local pll_posdiv=$(( (chg_raw >> 4) & 7 ))
+			if [ "$pll_posdiv" -eq 0 ]; then
+				pll_freq=$((pcw_int * 50))
+			else
+				pll_freq=$((pcw_int * 50 / (1 << pll_posdiv)))
+			fi
+		fi
+	fi
+
+	# Count online CPUs
+	local cpu_count=0
+	if [ -d "/sys/devices/system/cpu" ]; then
+		cpu_count=$(ls -d /sys/devices/system/cpu/cpu[0-9]* 2>/dev/null | wc -l)
+	fi
+
+	# CPU architecture info
+	local cpu_arch=""
+	if [ -f "/proc/cpuinfo" ]; then
+		cpu_arch=$(grep -m1 "model name" /proc/cpuinfo | awk -F': ' '{print $2}')
+	fi
+
+	# CPU temperature
+	local cpu_temp="N/A"
+	for zone in /sys/class/thermal/thermal_zone*; do
+		if [ -f "$zone/temp" ] && [ -f "$zone/type" ]; then
+			local type=$(cat "$zone/type")
+			if echo "$type" | grep -q -i "cpu"; then
+				cpu_temp=$(cat "$zone/temp" 2>/dev/null)
+				if [ -n "$cpu_temp" ] && [ "$cpu_temp" -gt 0 ]; then
+					cpu_temp="$((cpu_temp/1000)).0°C"
+				else
+					cpu_temp="N/A"
+				fi
+				break
+			fi
+		fi
+	done
+
+	# SoC model — read the first device-tree compatible string instead of
+	# hardcoding one board's label, so the UI follows whatever it boots on.
+	local soc_compat=""
+	local dt
+	for dt in /proc/device-tree/compatible /sys/firmware/devicetree/base/compatible; do
+		if [ -f "$dt" ]; then
+			soc_compat=$(tr '\000' '\n' < "$dt" 2>/dev/null | sed -n '1p')
+			[ -n "$soc_compat" ] && break
+		fi
+	done
+	[ -n "$soc_compat" ] || soc_compat="Unknown"
+
+	printf '{"npu_version":"%s","npu_loaded":%s,"npu_device":"%s","npu_clock":%d,"npu_cores":%d,"offload_bound":%d,"offload_total":%d,"memory_regions":%s,"cpu_cur_freq":%d,"cpu_hw_freq":%d,"cpu_governor":"%s","cpu_avail_governors":"%s","cpu_min_freq":%d,"cpu_max_freq":%d,"cpu_avail_freqs":"%s","cpu_cpufreq_available":%d,"cpu_cpufreq_reason":"%s","cpu_count":%d,"pll_freq_mhz":%d,"cpu_arch":"%s","cpu_temp":"%s","soc_compat":"%s","has_pon":%d}' \
+		"${npu_ver:-Unknown}" "$npu_loaded" "${npu_device:-}" "${npu_clock:-0}" "${npu_cores:-0}" "${offload_bound:-0}" "${offload_total:-0}" "$regions" \
+		"${cpu_cur_freq:-0}" "${cpu_hw_freq:-0}" "${cpu_governor:-unknown}" "${cpu_avail_governors:-}" "${cpu_min_freq:-0}" "${cpu_max_freq:-0}" "${cpu_avail_freqs:-}" "${cpu_cpufreq_available:-0}" "${cpu_cpufreq_reason:-no_cpufreq}" "${cpu_count:-0}" "${pll_freq:-0}" \
+		"${cpu_arch:-}" "${cpu_temp:-N/A}" "${soc_compat:-}" "${has_pon:-0}"
+}
+
+get_topology() {
+	airoha_port_topology_json
+}
+
+get_ppe_entries() {
+	local entries_file="/sys/kernel/debug/ppe/entries"
+
+	if [ ! -f "$entries_file" ]; then
+		echo '{"entries":[]}'
+		return
+	fi
+
+	awk '
+	BEGIN {
+		printf "{\"entries\":["
+		first = 1
+	}
+	/^[0-9a-fA-F]+ / {
+		if (first == 0) printf ","
+		first = 0
+
+		index_val = $1
+		state = $2
+
+		type = ""
+		subtype = ""
+		if ($3 == "IPv4" || $3 == "IPv6") {
+			type = $3
+			subtype = $4
+		} else if ($3 == "L2B" || $4 == "L2B") {
+			type = "L2B"
+			subtype = ""
+		} else {
+			type = $3
+			subtype = $4
+		}
+
+		orig = ""
+		match($0, /orig=[^ ]+/)
+		if (RSTART > 0) {
+			orig = substr($0, RSTART+5, RLENGTH-5)
+		}
+
+		new_flow = ""
+		match($0, /new=[^ ]+/)
+		if (RSTART > 0) {
+			new_flow = substr($0, RSTART+4, RLENGTH-4)
+		}
+
+		eth = ""
+		match($0, /eth=[^ ]+/)
+		if (RSTART > 0) {
+			eth = substr($0, RSTART+4, RLENGTH-4)
+		}
+
+		printf "{\"index\":\"%s\",\"state\":\"%s\",\"type\":\"%s %s\",\"orig\":\"%s\",\"new_flow\":\"%s\",\"eth\":\"%s\"}", \
+			index_val, state, type, subtype, orig, new_flow, eth
+	}
+	END {
+		printf "]}"
+	}
+	' "$entries_file" 2>/dev/null || echo '{"entries":[]}'
+}
+
+get_token_info() {
+	local token_file="/sys/kernel/debug/ieee80211/phy0/mt76/token_info"
+	local has_wifi; has_wifi=$(airoha_has_wifi)
+
+	# Gather per-band WiFi station stats (count, retries, failures)
+	local sta_json="" band
+	for band in 0 1 2; do
+		local stats=$(
+			for iface in $(iw dev 2>/dev/null | awk '/Interface phy0\.'$band'-/{print $2}'); do
+				iw dev "$iface" station dump 2>/dev/null
+			done | awk '
+			BEGIN { n=0; tp=0; tr=0 }
+			/^Station/ { n++ }
+			/tx packets:/ { tp += $3 }
+			/tx retries:/ { tr += $3 }
+			END { printf "%d %d %d", n, tp, tr }'
+		)
+		set -- $stats
+		[ -n "$sta_json" ] && sta_json="${sta_json},"
+		sta_json="${sta_json}{\"band\":${band},\"count\":${1:-0},\"tx_packets\":${2:-0},\"tx_retries\":${3:-0}}"
+	done
+
+	if [ ! -f "$token_file" ]; then
+		printf '{"token_count":0,"token_size":0,"npu_active":false,"tx_queues":[],"station_counts":[%s],"has_wifi":%s}' "$sta_json" "$has_wifi"
+		return
+	fi
+
+	awk -v stations="$sta_json" -v hw="$has_wifi" '
+	BEGIN {
+		tc=0; ts=0; npu=0
+		tq_n=0
+	}
+	/^  token_count:/ { tc=$2+0; ts=$4+0 }
+	/status:.*active/ { npu=1 }
+	/band [0-9]/ {
+		gsub(/\|/, " ")
+		for(i=1;i<=NF;i++) {
+			if($i=="band") tq_band[tq_n]=$(i+1)+0
+			if($i=="npu" || $i=="dma") tq_type[tq_n]=$i
+		}
+		cnt=0
+		for(i=1;i<=NF;i++) {
+			if($i ~ /^[0-9]+$/ && $(i-1)!="band") {
+				tq_v[tq_n,cnt++]=$i+0
+			}
+		}
+		tq_n++
+	}
+	END {
+		printf "{\"token_count\":%d,\"token_size\":%d,\"npu_active\":%s,\"tx_queues\":[", \
+			tc, ts, (npu?"true":"false")
+
+		for(i=0;i<tq_n;i++) {
+			if(i>0) printf ","
+			printf "{\"band\":%d,\"type\":\"%s\",\"ndesc\":%d,\"queued\":%d,\"head\":%d,\"tail\":%d}", \
+				tq_band[i], tq_type[i], tq_v[i,0], tq_v[i,1], tq_v[i,2], tq_v[i,3]
+		}
+
+		printf "],\"station_counts\":[%s],\"has_wifi\":%s}", stations, hw
+	}
+	' "$token_file" 2>/dev/null || printf '{"token_count":0,"token_size":0,"npu_active":false,"tx_queues":[],"station_counts":[%s],"has_wifi":%s}' "$sta_json" "$has_wifi"
+}
+
+# Persist CPU governor / max_freq to UCI so the choice survives a reboot.
+_uci_persist_cpu() {
+	uci -q get airoha_npu.@cpu[0] >/dev/null 2>&1 || uci set airoha_npu.@cpu[0]=cpu
+	[ -n "$1" ] && uci set airoha_npu.@cpu[0].governor="$1"
+	[ -n "$2" ] && uci set airoha_npu.@cpu[0].max_freq="$2"
+	uci commit airoha_npu
+}
+
+set_governor() {
+	local governor
+	governor=$(echo "$1" | jsonfilter -e "@.governor" 2>/dev/null)
+
+	if [ -z "$governor" ]; then
+		echo '{"error":"missing governor parameter"}'
+		return
+	fi
+
+	# Validate governor is available
+	local avail=$(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_available_governors 2>/dev/null)
+	if ! echo "$avail" | grep -qw "$governor"; then
+		printf '{"error":"invalid governor: %s"}' "$governor"
+		return
+	fi
+
+	echo "$governor" > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor 2>/dev/null
+	if [ $? -eq 0 ]; then
+		_uci_persist_cpu "$governor"
+		printf '{"result":"ok","governor":"%s"}' "$governor"
+	else
+		echo '{"error":"failed to set governor"}'
+	fi
+}
+
+set_max_freq() {
+	local freq
+	freq=$(echo "$1" | jsonfilter -e "@.freq" 2>/dev/null)
+
+	if [ -z "$freq" ]; then
+		echo '{"error":"missing freq parameter"}'
+		return
+	fi
+
+	# Validate freq is in available list
+	local avail=$(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_available_frequencies 2>/dev/null)
+	if ! echo "$avail" | grep -qw "$freq"; then
+		printf '{"error":"invalid frequency: %s"}' "$freq"
+		return
+	fi
+
+	echo "$freq" > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq 2>/dev/null
+	if [ $? -eq 0 ]; then
+		_uci_persist_cpu "" "$freq"
+		printf '{"result":"ok","freq":%d}' "$freq"
+	else
+		echo '{"error":"failed to set max frequency"}'
+	fi
+}
+
+# Combined persistence RPC: apply both governor and max_freq, then persist to UCI
+# in a single transaction so the choice survives a reboot. Either field may be omitted.
+set_cpu_settings() {
+	local governor freq
+	governor=$(echo "$1" | jsonfilter -e "@.governor" 2>/dev/null)
+	freq=$(echo "$1" | jsonfilter -e "@.freq" 2>/dev/null)
+
+	if [ -z "$governor" ] && [ -z "$freq" ]; then
+		echo '{"error":"missing governor and freq parameters"}'
+		return
+	fi
+
+	if [ -n "$governor" ]; then
+		local avail_g=$(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_available_governors 2>/dev/null)
+		if ! echo "$avail_g" | grep -qw "$governor"; then
+			printf '{"error":"invalid governor: %s"}' "$governor"
+			return
+		fi
+		echo "$governor" > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor 2>/dev/null
+		if [ $? -ne 0 ]; then
+			echo '{"error":"failed to set governor"}'
+			return
+		fi
+	fi
+
+	if [ -n "$freq" ]; then
+		local avail_f=$(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_available_frequencies 2>/dev/null)
+		if ! echo "$avail_f" | grep -qw "$freq"; then
+			printf '{"error":"invalid frequency: %s"}' "$freq"
+			return
+		fi
+		echo "$freq" > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq 2>/dev/null
+		if [ $? -ne 0 ]; then
+			echo '{"error":"failed to set max frequency"}'
+			return
+		fi
+	fi
+
+	_uci_persist_cpu "$governor" "$freq"
+
+	local out='{"result":"ok"'
+	[ -n "$governor" ] && out="$out,\"governor\":\"$governor\""
+	[ -n "$freq" ] && out="$out,\"freq\":$freq"
+	printf '%s}' "$out"
+}
+
+get_frame_engine() {
+	[ -e /sys/kernel/debug/ppe/entries ] || { echo '{"error":"frame engine not ready"}'; return; }
+	if ! command -v devmem > /dev/null 2>&1; then
+		echo '{"error":"devmem not available"}'
+		return
+	fi
+
+	# PSE queue status (IQ=hi16, OQ=lo16) and drop counts for each port
+	local i reg_q reg_d pse_ports=""
+	for i in 0 1 2 3 4 5 6 7 8 9; do
+		reg_q=$(printf "0x%x" $((0x1fb50150 + i * 4)))
+		reg_d=$(printf "0x%x" $((0x1fb50120 + i * 4)))
+		local qval=$(($(_devmem_read $reg_q)))
+		local dval=$(($(_devmem_read $reg_d)))
+		local iq=$(( (qval >> 16) & 0xFFFF ))
+		local oq=$(( qval & 0xFFFF ))
+		[ -n "$pse_ports" ] && pse_ports="${pse_ports},"
+		pse_ports="${pse_ports}{\"port\":${i},\"iq\":${iq},\"oq\":${oq},\"drops\":${dval}}"
+	done
+
+	# PSE shared buffer
+	local psb=$(($(_devmem_read 0x1fb50104)))
+	local pse_used=$(( (psb >> 16) & 0xFFFF ))
+	local pse_free=$(( psb & 0x7FFF ))
+
+	# GDM counters (TX_OK, TX_DROP, RX_OK, RX_FC_DROP, RX_OVER_DROP)
+	# Read as hex to handle large 32-bit counters
+	local gdm1_tx=$(($(_devmem_read 0x1fb50604)))
+	local gdm1_txd=$(($(_devmem_read 0x1fb50608)))
+	local gdm1_rx=$(($(_devmem_read 0x1fb50648)))
+	local gdm1_rxd=$(($(_devmem_read 0x1fb5064c)))
+
+	# GDM2 only exists as a WAN netdev on boards whose ethernet@2 node is
+	# enabled (the XG2010G disables it): skip its counters entirely there.
+	local have_gdm2=0 gdm2_tx=0 gdm2_txd=0 gdm2_rx=0 gdm2_rxd=0
+	if airoha_dt_node_okay "soc/ethernet@1fb50000/ethernet@2"; then
+		have_gdm2=1
+		gdm2_tx=$(($(_devmem_read 0x1fb51604)))
+		gdm2_txd=$(($(_devmem_read 0x1fb51608)))
+		gdm2_rx=$(($(_devmem_read 0x1fb51648)))
+		gdm2_rxd=$(($(_devmem_read 0x1fb5164c)))
+	fi
+
+	local gdm4_tx=$(($(_devmem_read 0x1fb52604)))
+	local gdm4_txd=$(($(_devmem_read 0x1fb52608)))
+	local gdm4_rx=$(($(_devmem_read 0x1fb52648)))
+	local gdm4_rxd=$(($(_devmem_read 0x1fb5264c)))
+
+	# CDM counters (TX_OK, RXCPU_OK, RXHWF_OK, RXCPU_DROP, RXHWF_DROP)
+	local cdm1_tx=$(($(_devmem_read 0x1fb50580)))
+	local cdm1_rxcpu=$(($(_devmem_read 0x1fb50590)))
+	local cdm1_rxhwf=$(($(_devmem_read 0x1fb50594)))
+	local cdm1_rxcpud=$(($(_devmem_read 0x1fb505a0)))
+	local cdm1_rxhwfd=$(($(_devmem_read 0x1fb505a4)))
+
+	local cdm2_tx=$(($(_devmem_read 0x1fb51580)))
+	local cdm2_rxcpu=$(($(_devmem_read 0x1fb51590)))
+	local cdm2_rxhwf=$(($(_devmem_read 0x1fb51594)))
+	local cdm2_rxcpud=$(($(_devmem_read 0x1fb515a0)))
+	local cdm2_rxhwfd=$(($(_devmem_read 0x1fb515a4)))
+
+	printf '{"pse_ports":[%s],"pse_used":%d,"pse_free":%d,' "$pse_ports" "$pse_used" "$pse_free"
+	printf '"gdm1":{"tx":%d,"tx_drop":%d,"rx":%d,"rx_drop":%d},' "$gdm1_tx" "$gdm1_txd" "$gdm1_rx" "$gdm1_rxd"
+	[ "$have_gdm2" = "1" ] && printf '"gdm2":{"tx":%d,"tx_drop":%d,"rx":%d,"rx_drop":%d},' "$gdm2_tx" "$gdm2_txd" "$gdm2_rx" "$gdm2_rxd"
+	printf '"gdm4":{"tx":%d,"tx_drop":%d,"rx":%d,"rx_drop":%d},' "$gdm4_tx" "$gdm4_txd" "$gdm4_rx" "$gdm4_rxd"
+	printf '"cdm1":{"tx":%d,"rx_cpu":%d,"rx_hwf":%d,"rx_cpu_drop":%d,"rx_hwf_drop":%d},' "$cdm1_tx" "$cdm1_rxcpu" "$cdm1_rxhwf" "$cdm1_rxcpud" "$cdm1_rxhwfd"
+	printf '"cdm2":{"tx":%d,"rx_cpu":%d,"rx_hwf":%d,"rx_cpu_drop":%d,"rx_hwf_drop":%d}}' "$cdm2_tx" "$cdm2_rxcpu" "$cdm2_rxhwf" "$cdm2_rxcpud" "$cdm2_rxhwfd"
+}
+
+get_vlan_offload() {
+	local val
+	val=$(cat /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null)
+	printf '{"enabled":%d}' "${val:-0}"
+}
+
+set_vlan_offload() {
+	local enabled
+	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
+	[ -z "$enabled" ] && enabled="0"
+	if [ "$enabled" != "0" ] && [ "$enabled" != "1" ]; then
+		echo '{"error":"enabled must be 0 or 1"}'
+		return
+	fi
+	if [ "$enabled" = "1" ] && _bridge_offload_blocked; then
+		_bridge_offload_block_error
+		return
+	fi
+	if ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null; then
+		echo '{"error":"failed - bridge module may not be loaded"}'
+		return
+	fi
+	echo "net.bridge.bridge-nf-filter-vlan-tagged=$enabled" > /etc/sysctl.d/14-vlan-offload.conf
+	printf '{"result":"ok","enabled":%d}' "$enabled"
+}
+
+get_pppoe_offload() {
+	local val
+	# Use bridge-nf-filter-pppoe-tagged sysctl (consistent with flowsense)
+	val=$(cat /proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged 2>/dev/null)
+	printf '{"enabled":%d}' "${val:-0}"
+}
+
+set_pppoe_offload() {
+	local enabled
+	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
+	[ -z "$enabled" ] && enabled="0"
+	if [ "$enabled" != "0" ] && [ "$enabled" != "1" ]; then
+		echo '{"error":"enabled must be 0 or 1"}'
+		return
+	fi
+	if [ "$enabled" = "1" ] && _bridge_offload_blocked; then
+		_bridge_offload_block_error
+		return
+	fi
+	# Load bridge module if needed and set sysctl (consistent with flowsense)
+	if [ "$enabled" = "1" ]; then
+		modprobe bridge 2>/dev/null
+	fi
+	if ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged 2>/dev/null; then
+		echo '{"error":"failed - bridge module may not be loaded"}'
+		return
+	fi
+	echo "net.bridge.bridge-nf-filter-pppoe-tagged=$enabled" > /etc/sysctl.d/13-pppoe-offload.conf
+	# Also load PPTP conntrack helper for PPPoE offload support
+	if [ "$enabled" = "1" ]; then
+		modprobe nf_conntrack_pptp 2>/dev/null
+		modprobe nf_nat_pptp 2>/dev/null
+	fi
+	printf '{"result":"ok","enabled":%d}' "$enabled"
+}
+
+get_flow_offload() {
+	# Check UCI config (consistent with flowsense)
+	local fo foh
+	fo=$(uci get firewall.@defaults[0].flow_offloading 2>/dev/null)
+	foh=$(uci get firewall.@defaults[0].flow_offloading_hw 2>/dev/null)
+	if [ "$fo" = "1" ] && [ "$foh" = "1" ]; then
+		printf '{"enabled":1}'
+	else
+		printf '{"enabled":0}'
+	fi
+}
+
+set_flow_offload() {
+	local enabled
+	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
+	[ -z "$enabled" ] && enabled="0"
+	if [ "$enabled" != "0" ] && [ "$enabled" != "1" ]; then
+		echo '{"error":"enabled must be 0 or 1"}'
+		return
+	fi
+	# Set both flow_offloading and flow_offloading_hw (consistent with flowsense)
+	uci set firewall.@defaults[0].flow_offloading="$enabled" 2>/dev/null
+	uci set firewall.@defaults[0].flow_offloading_hw="$enabled" 2>/dev/null
+	uci commit firewall 2>/dev/null
+	# Restart firewall to apply changes
+	/etc/init.d/firewall restart 2>/dev/null &
+	printf '{"result":"ok","enabled":%d}' "$enabled"
+}
+
+_apmode_has_vlan_filtering() {
+	local path value
+
+	for path in /sys/class/net/*/bridge/vlan_filtering; do
+		[ -r "$path" ] || continue
+		value=$(cat "$path" 2>/dev/null)
+		[ "$value" = "1" ] && { echo 1; return; }
+	done
+
+	echo 0
+}
+
+get_apmode_offload() {
+	local ipt ip6t arp vlan_filtering filter_vlan_tagged pass_vlan_indev
+
+	ipt=$(cat /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null)
+	ip6t=$(cat /proc/sys/net/bridge/bridge-nf-call-ip6tables 2>/dev/null)
+	arp=$(cat /proc/sys/net/bridge/bridge-nf-call-arptables 2>/dev/null)
+	vlan_filtering=$(_apmode_has_vlan_filtering)
+	filter_vlan_tagged=$(cat /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null)
+	pass_vlan_indev=$(cat /proc/sys/net/bridge/bridge-nf-pass-vlan-input-dev 2>/dev/null)
+
+	if [ "$ipt" = "1" ] && [ "$ip6t" = "1" ] && [ "$arp" = "1" ] && \
+	   { [ "$vlan_filtering" = "0" ] || { [ "$filter_vlan_tagged" = "1" ] && [ "$pass_vlan_indev" = "1" ]; }; }; then
+		printf '{"enabled":1}'
+	else
+		printf '{"enabled":0}'
+	fi
+}
+
+set_apmode_offload() {
+	local enabled vlan_filtering vlan_options
+
+	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
+	[ -z "$enabled" ] && enabled="0"
+	if [ "$enabled" != "0" ] && [ "$enabled" != "1" ]; then
+		echo '{"error":"enabled must be 0 or 1"}'
+		return
+	fi
+	if [ "$enabled" = "1" ] && _bridge_offload_blocked; then
+		_bridge_offload_block_error
+		return
+	fi
+
+	modprobe br_netfilter 2>/dev/null
+	vlan_filtering=$(_apmode_has_vlan_filtering)
+	vlan_options=0
+	[ "$vlan_filtering" = "1" ] && vlan_options=$enabled
+
+	if ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null ||
+	   ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-call-ip6tables 2>/dev/null ||
+	   ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-call-arptables 2>/dev/null ||
+	   ! echo "$vlan_options" > /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null ||
+	   ! echo "$vlan_options" > /proc/sys/net/bridge/bridge-nf-pass-vlan-input-dev 2>/dev/null; then
+		echo '{"error":"failed to configure bridge netfilter"}'
+		return
+	fi
+
+	if [ "$enabled" = "1" ]; then
+		{
+			echo 'net.bridge.bridge-nf-call-iptables=1'
+			echo 'net.bridge.bridge-nf-call-ip6tables=1'
+			echo 'net.bridge.bridge-nf-call-arptables=1'
+			echo "net.bridge.bridge-nf-filter-vlan-tagged=$vlan_options"
+			echo "net.bridge.bridge-nf-pass-vlan-input-dev=$vlan_options"
+		} > /etc/sysctl.d/12-apmode-offload.conf
+	else
+		rm -f /etc/sysctl.d/12-apmode-offload.conf 2>/dev/null
+	fi
+
+	printf '{"result":"ok","enabled":%d,"vlan_filtering":%d}' "$enabled" "$vlan_filtering"
+}
+
+case "$1" in
+	list)
+		echo '{"getStatus":{},"getTopology":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"getApModeOffload":{},"setApModeOffload":{"enabled":"int"},"getDeviceMode":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"},"setCpuSettings":{"governor":"str","freq":"int"}}'
+		;;
+	call)
+		case "$2" in
+			getStatus)
+				get_status
+				;;
+			getTopology)
+				get_topology
+				;;
+			getDeviceMode)
+				get_device_mode
+				;;
+			getPpeEntries)
+				get_ppe_entries
+				;;
+			getTokenInfo)
+				get_token_info
+				;;
+			setGovernor)
+				read input
+				set_governor "$input"
+				;;
+			setMaxFreq)
+				read input
+				set_max_freq "$input"
+				;;
+			setCpuSettings)
+				read input
+				set_cpu_settings "$input"
+				;;
+			getFrameEngine)
+				get_frame_engine
+				;;
+			getVlanOffload)
+				get_vlan_offload
+				;;
+			setVlanOffload)
+				read input
+				set_vlan_offload "$input"
+				;;
+			getPppoeOffload)
+				get_pppoe_offload
+				;;
+			setPppoeOffload)
+				read input
+				set_pppoe_offload "$input"
+				;;
+			getFlowOffload)
+				get_flow_offload
+				;;
+			setFlowOffload)
+				read input
+				set_flow_offload "$input"
+				;;
+			getApModeOffload)
+				get_apmode_offload
+				;;
+			setApModeOffload)
+				read input
+				set_apmode_offload "$input"
+				;;
+			*)
+				echo '{"error":"Invalid method"}'
+				;;
+		esac
+		;;
+esac

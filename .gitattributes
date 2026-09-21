@@ -17,3 +17,4 @@ package/lucky/** text eol=lf
 # line continuation into two LFs, breaking multi-line string literals
 package/luci-app-netmode/** text eol=lf
 package/luci-app-mesh-conf/** text eol=lf
+package/luci-app-airoha/** text eol=lf

@@ -1,6 +1,7 @@
 'use strict';
 'require rpc';
 'require view';
+'require view.meshconf.ds-tokens as dsTokens';
 
 /* Read-only view of what DAWN sees: every AP in the network, the clients on
  * each of them, and - in the hearing map - what every other AP hears from a
@@ -29,12 +30,10 @@ var callHostHints = rpc.declare({
 	expect: {}
 });
 
-/* Design tokens: the same values the Mesh page inlines, mirrored here on
- * purpose - the two views ship in one package but are loaded independently,
- * and a shared module would turn "one file did not load" into "no styling at
- * all". Keep them in step with view/meshconf/meshconf.js. */
+/* Design tokens: the same values the Mesh page uses, shared through
+ * ds-tokens.js so the two views cannot drift apart. */
 var css = [
-	'.meshconf-page{--ds-surface:var(--background-color-high,#fff);--ds-surface-sunken:var(--background-color-medium,#f6f8fa);--ds-border:var(--border-color-low,#d8dee4);--ds-text:var(--text-color-high,#1f2328);--ds-text-muted:var(--text-color-low,#5c6773);--ds-primary:var(--primary-color-high,#0969da);--ds-ok:#1a7f37;--ds-ok-tint:rgba(26,127,55,.08);--ds-ok-line:rgba(26,127,55,.35);--ds-warn:#bc4c00;--ds-warn-tint:rgba(188,76,0,.08);--ds-warn-line:rgba(188,76,0,.35);--ds-error:#cf222e;--ds-error-tint:rgba(207,34,46,.08);--ds-error-line:rgba(207,34,46,.40);--ds-info:#0969da;--ds-info-tint:rgba(9,105,218,.08);--ds-info-line:rgba(9,105,218,.35);--ds-focus-ring:rgba(9,105,218,.32);--ds-r-sm:4px;--ds-r-md:6px;--ds-r-lg:8px;--ds-r-pill:999px;--ds-sp-1:.25em;--ds-sp-2:.5em;--ds-sp-3:.75em;--ds-sp-4:1em;--ds-sp-5:1.5em;--ds-fs-xs:.8em;--ds-fs-sm:.88em;--ds-fs-base:1em;--ds-fs-lg:1.1em;--ds-fs-2xl:1.6em;--ds-shadow-1:0 1px 2px rgba(16,24,40,.04);line-height:1.5;color:var(--ds-text)}',
+	'.meshconf-page{' + dsTokens.tokens + ';line-height:1.5;color:var(--ds-text)}',
 	'.meshconf-page :focus-visible{outline:2px solid var(--ds-primary);outline-offset:2px}',
 	'.meshconf-page h2{margin:0 0 var(--ds-sp-1);font-size:var(--ds-fs-2xl);line-height:1.3;font-weight:650;color:var(--ds-text)}',
 	'.meshconf-page .nm-lede{margin:0 0 var(--ds-sp-4);color:var(--ds-text-muted);font-size:var(--ds-fs-sm)}',
@@ -66,7 +65,7 @@ var css = [
 	'@media(max-width:720px){.nm-title{flex-direction:column;align-items:flex-start;gap:var(--ds-sp-1)}}'
 ].join('\n');
 
-var darkVars = ':root{--ds-ok:#4ac26b;--ds-ok-tint:rgba(74,194,107,.18);--ds-ok-line:rgba(74,194,107,.45);--ds-warn:#e3934a;--ds-warn-tint:rgba(227,147,74,.18);--ds-warn-line:rgba(227,147,74,.45);--ds-error:#f47067;--ds-error-tint:rgba(244,112,103,.18);--ds-error-line:rgba(244,112,103,.5);--ds-info:#4d9cf6;--ds-info-tint:rgba(77,156,246,.18);--ds-info-line:rgba(77,156,246,.45);--ds-focus-ring:rgba(77,156,246,.45);--ds-shadow-1:none}';
+var darkVars = dsTokens.dark;
 
 function isDarkMode() {
 	/* Probe order matters: the first element with an opaque background wins.
@@ -142,7 +141,7 @@ function channelOf(freq) {
 
 function freqText(freq) {
 	if (!freq) return '-';
-	return (freq / 1000).toFixed(3) + ' GHz（信道 ' + channelOf(freq) + '）';
+	return _('%s GHz (channel %s)').format((freq / 1000).toFixed(3), channelOf(freq));
 }
 
 /* DAWN reports channel utilization in 0-255, like hostapd does. */
@@ -153,7 +152,7 @@ function pct(raw) {
 }
 
 function yesNo(v) {
-	return v ? '支持' : '-';
+	return v ? _('Supported') : '-';
 }
 
 function signalCell(signal) {
@@ -178,14 +177,14 @@ function clientTable(ap, hints) {
 	});
 
 	if (!rows.length)
-		return E('em', {}, '没有客户端');
+		return E('em', {}, _('No clients'));
 
 	return E('table', { 'class': 'nm-table nested' }, [
 		E('thead', {}, E('tr', {}, [
-			E('th', {}, '客户端'),
-			E('th', { 'title': 'High Throughput' }, 'HT'),
-			E('th', { 'title': 'Very High Throughput' }, 'VHT'),
-			E('th', {}, '信号')
+			E('th', {}, _('Client')),
+			E('th', { 'title': _('High Throughput') }, 'HT'),
+			E('th', { 'title': _('Very High Throughput') }, 'VHT'),
+			E('th', {}, _('Signal'))
 		])),
 		E('tbody', {}, rows)
 	]);
@@ -194,7 +193,7 @@ function clientTable(ap, hints) {
 function renderNetwork(net, hints) {
 	var ssids = Object.keys(net || {});
 	if (!ssids.length)
-		return E('div', { 'class': 'nm-empty' }, 'DAWN 还没有学到任何 AP。');
+		return E('div', { 'class': 'nm-empty' }, _('DAWN has not learned any AP yet.'));
 
 	var out = E('div', {});
 	ssids.forEach(function(ssid) {
@@ -218,20 +217,20 @@ function renderNetwork(net, hints) {
 
 		out.appendChild(E('div', { 'class': 'nm-section' }, [
 			E('div', { 'class': 'nm-title' }, [
-				E('span', {}, 'SSID：' + ssid),
-				E('span', { 'class': 'nm-muted' }, Object.keys(aps).length + ' 个 AP')
+				E('span', {}, _('SSID: %s').format(ssid)),
+				E('span', { 'class': 'nm-muted' }, _('%d APs').format(Object.keys(aps).length))
 			]),
-			E('p', { 'class': 'nm-subtitle' }, '同一 SSID 下的每个 AP：利用率与客户端数越高，DAWN 越倾向把新客户端交给别的 AP。'),
+			E('p', { 'class': 'nm-subtitle' }, _('Each AP under the same SSID: the higher the utilization and client count, the more DAWN prefers to give a new client to another AP.')),
 			E('table', { 'class': 'nm-table' }, [
 				E('thead', {}, E('tr', {}, [
-					E('th', {}, 'AP'),
-					E('th', {}, 'BSSID'),
-					E('th', { 'title': '信道利用率（0-255 换算）' }, '利用率'),
-					E('th', {}, '频率'),
-					E('th', {}, '客户端数'),
-					E('th', { 'title': 'High Throughput' }, 'HT'),
-					E('th', { 'title': 'Very High Throughput' }, 'VHT'),
-					E('th', {}, '客户端')
+					E('th', {}, _('AP')),
+					E('th', {}, _('BSSID')),
+					E('th', { 'title': _('Channel utilization (scaled from 0-255)') }, _('Utilization')),
+					E('th', {}, _('Frequency')),
+					E('th', {}, _('Clients')),
+					E('th', { 'title': _('High Throughput') }, 'HT'),
+					E('th', { 'title': _('Very High Throughput') }, 'VHT'),
+					E('th', {}, _('Client'))
 				])),
 				E('tbody', {}, rows)
 			])
@@ -257,7 +256,7 @@ function renderHearing(hear, hints, net) {
 
 	var ssids = Object.keys(hear || {});
 	if (!ssids.length)
-		return E('div', { 'class': 'nm-empty' }, '还没有收到任何邻居报告（需要开启 802.11k 的 beacon report，或等客户端自己发 probe）。');
+		return E('div', { 'class': 'nm-empty' }, _('No neighbour reports have been received yet (802.11k beacon reports must be enabled, or a client must send its own probe).'));
 
 	var out = E('div', {});
 	ssids.forEach(function(ssid) {
@@ -281,8 +280,8 @@ function renderHearing(hear, hints, net) {
 					E('td', {}, e.rsni === undefined ? '-' : String(e.rsni)),
 					E('td', {}, pct(e.channel_utilization)),
 					E('td', {}, (connected[ssid] || []).indexOf(mac) >= 0
-						? E('span', { 'class': 'nm-state estab' }, '已连接')
-						: E('span', { 'class': 'nm-state' }, '仅探测')),
+						? E('span', { 'class': 'nm-state estab' }, _('Connected'))
+						: E('span', { 'class': 'nm-state' }, _('Probed only'))),
 					E('td', {}, signalCell(e.score))
 				]));
 			});
@@ -290,28 +289,28 @@ function renderHearing(hear, hints, net) {
 
 		out.appendChild(E('div', { 'class': 'nm-section' }, [
 			E('div', { 'class': 'nm-title' }, [
-				E('span', {}, '谁听得到谁：' + ssid),
-				E('span', { 'class': 'nm-muted' }, rows.length + ' 条')
+				E('span', {}, _('Who hears whom: %s').format(ssid)),
+				E('span', { 'class': 'nm-muted' }, _('%d entries').format(rows.length))
 			]),
-			E('p', { 'class': 'nm-subtitle' }, '每个客户端在各个 AP 眼里的信号与得分。分数越高，DAWN 越愿意把客户端交过去；如果某个客户端只在一行里出现，说明别的 AP 根本听不到它，再怎么调参数也不会被引导。'),
+			E('p', { 'class': 'nm-subtitle' }, _('Each client\'s signal and score as seen by every AP. The higher the score, the more willing DAWN is to hand the client over; if a client only appears in one row, no other AP can hear it at all and no amount of tuning will make it steer.')),
 			rows.length
 				? E('table', { 'class': 'nm-table' }, [
 					E('thead', {}, E('tr', {}, [
-						E('th', {}, '客户端'),
-						E('th', {}, 'AP'),
-						E('th', {}, '频率'),
-						E('th', { 'title': 'High Throughput' }, 'HT'),
-						E('th', { 'title': 'Very High Throughput' }, 'VHT'),
-						E('th', {}, '信号'),
-						E('th', { 'title': 'Received Channel Power Indication' }, 'RCPI'),
-						E('th', { 'title': 'Received Signal to Noise Indicator' }, 'RSNI'),
-						E('th', {}, '利用率'),
-						E('th', {}, '状态'),
-						E('th', {}, '得分')
+						E('th', {}, _('Client')),
+						E('th', {}, _('AP')),
+						E('th', {}, _('Frequency')),
+						E('th', { 'title': _('High Throughput') }, 'HT'),
+						E('th', { 'title': _('Very High Throughput') }, 'VHT'),
+						E('th', {}, _('Signal')),
+						E('th', { 'title': _('Received Channel Power Indication') }, 'RCPI'),
+						E('th', { 'title': _('Received Signal to Noise Indicator') }, 'RSNI'),
+						E('th', {}, _('Utilization')),
+						E('th', {}, _('State')),
+						E('th', {}, _('Score'))
 					])),
 					E('tbody', {}, rows)
 				])
-				: E('div', { 'class': 'nm-empty' }, '这个 SSID 下还没有任何可比较的记录。')
+				: E('div', { 'class': 'nm-empty' }, _('No comparable records under this SSID yet.'))
 		]));
 	});
 	return out;
@@ -328,20 +327,28 @@ function dawnAvailable() {
 	});
 }
 
+var updatedEl = null;
+
+function markUpdated() {
+	if (updatedEl)
+		updatedEl.textContent = _('Updated %s').format(new Date().toLocaleTimeString());
+}
+
 function load(body) {
 	body.innerHTML = '';
-	body.appendChild(E('div', { 'class': 'nm-empty' }, '加载中…'));
+	body.appendChild(E('div', { 'class': 'nm-empty' }, _('Loading…')));
 
 	return dawnAvailable().then(function(avail) {
 		if (!avail) {
 			body.innerHTML = '';
 			body.appendChild(E('div', { 'class': 'nm-banner bad' }, [
-				E('strong', {}, 'DAWN 服务不可用'),
-				E('div', {}, 'ubus 上没有 dawn 对象：要么是固件里没有编进 dawn，要么是服务没有启动。请到「Mesh 组网 → 漫游引导（DAWN）」里启用并启动它。'),
+				E('strong', {}, _('DAWN service unavailable')),
+				E('div', {}, _('There is no dawn object on ubus: either dawn was not built into the firmware, or the service is not running. Enable and start it under "Mesh networking → Steering (DAWN)".')),
 				E('div', { 'style': 'margin-top:.5em' }, [
-					E('a', { 'href': L.url('admin/network/meshconf') }, '去漫游引导设置')
+					E('a', { 'href': L.url('admin/network/meshconf') }, _('Go to steering settings'))
 				])
 			]));
+			markUpdated();
 			return;
 		}
 
@@ -349,13 +356,15 @@ function load(body) {
 			body.innerHTML = '';
 			body.appendChild(renderNetwork(r[0], r[2]));
 			body.appendChild(renderHearing(r[1], r[2], r[0]));
+			markUpdated();
 		});
 	}, function(e) {
 		body.innerHTML = '';
 		body.appendChild(E('div', { 'class': 'nm-banner bad' }, [
-			E('strong', {}, '读取失败'),
-			E('div', {}, e.message || '查询 DAWN 时出错。')
+			E('strong', {}, _('Failed to load data')),
+			E('div', {}, e.message || _('An error occurred while querying DAWN.'))
 		]));
+		markUpdated();
 	});
 }
 
@@ -365,11 +374,11 @@ return view.extend({
 
 		var body = E('div');
 
-		var refreshBtn = E('button', { 'class': 'cbi-button cbi-button-action' }, '刷新');
+		var refreshBtn = E('button', { 'class': 'cbi-button cbi-button-action' }, _('Refresh'));
 		refreshBtn.addEventListener('click', function() {
 			var self = refreshBtn, orig = self.textContent;
 			self.disabled = true;
-			self.textContent = '刷新中…';
+			self.textContent = _('Refreshing…');
 			load(body).then(function() {
 				self.disabled = false;
 				self.textContent = orig;
@@ -379,10 +388,12 @@ return view.extend({
 			});
 		});
 
+		updatedEl = E('span', { 'class': 'nm-muted' }, '');
+
 		var root = E('div', { 'class': 'meshconf-page' }, [
-			E('h2', {}, 'AP 与客户端'),
-			E('p', { 'class': 'nm-lede' }, 'DAWN 视角下的整张网：哪些 AP 在广播同一个 SSID、每个 AP 上连着谁、以及每个客户端在其它 AP 眼里有多响。用来判断漫游到底有没有在工作 —— 而不是猜。'),
-			E('div', { 'class': 'nm-actions', 'style': 'margin-top:0;border-top:0;padding-top:0' }, [ refreshBtn ]),
+			E('h2', {}, _('APs and clients')),
+			E('p', { 'class': 'nm-lede' }, _('The whole network as DAWN sees it: which APs broadcast the same SSID, who is connected to each AP, and how loudly each client is heard by the other APs. Use it to tell whether roaming is actually working — instead of guessing.')),
+			E('div', { 'class': 'nm-actions', 'style': 'margin-top:0;border-top:0;padding-top:0' }, [ refreshBtn, updatedEl ]),
 			body
 		]);
 
