@@ -61,6 +61,7 @@ endef
 define Package/$(LUCI_NAME)/install
 	$(call MeshConf/install-file,./htdocs/luci-static/resources/view/meshconf/meshconf.js,$(1)/www/luci-static/resources/view/meshconf/meshconf.js,0644)
 	$(call MeshConf/install-file,./htdocs/luci-static/resources/view/meshconf/steering.js,$(1)/www/luci-static/resources/view/meshconf/steering.js,0644)
+	$(call MeshConf/install-file,./htdocs/luci-static/resources/view/meshconf/ds-tokens.js,$(1)/www/luci-static/resources/view/meshconf/ds-tokens.js,0644)
 	$(call MeshConf/install-exec,./root/usr/libexec/rpcd/luci.meshconf,$(1)/usr/libexec/rpcd/luci.meshconf)
 	$(call MeshConf/install-exec,./root/usr/sbin/meshconf-beacon,$(1)/usr/sbin/meshconf-beacon)
 	$(call MeshConf/install-file,./root/usr/share/meshconf/lib.sh,$(1)/usr/share/meshconf/lib.sh,0644)
@@ -101,6 +102,7 @@ chmod 0755 /usr/sbin/meshconf-beacon 2>/dev/null
 chmod 0755 /usr/share/meshconf/www/cgi/sync 2>/dev/null
 sed -i 's/\r$$//' /www/luci-static/resources/view/meshconf/meshconf.js 2>/dev/null
 sed -i 's/\r$$//' /www/luci-static/resources/view/meshconf/steering.js 2>/dev/null
+sed -i 's/\r$$//' /www/luci-static/resources/view/meshconf/ds-tokens.js 2>/dev/null
 
 /etc/init.d/meshconf enable 2>/dev/null
 /etc/init.d/meshconf restart 2>/dev/null

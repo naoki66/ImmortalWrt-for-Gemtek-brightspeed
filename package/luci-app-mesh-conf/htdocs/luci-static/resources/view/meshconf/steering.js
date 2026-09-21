@@ -1,6 +1,7 @@
 'use strict';
 'require rpc';
 'require view';
+'require view.meshconf.ds-tokens as dsTokens';
 
 /* Read-only view of what DAWN sees: every AP in the network, the clients on
  * each of them, and - in the hearing map - what every other AP hears from a
@@ -29,12 +30,10 @@ var callHostHints = rpc.declare({
 	expect: {}
 });
 
-/* Design tokens: the same values the Mesh page inlines, mirrored here on
- * purpose - the two views ship in one package but are loaded independently,
- * and a shared module would turn "one file did not load" into "no styling at
- * all". Keep them in step with view/meshconf/meshconf.js. */
+/* Design tokens: the same values the Mesh page uses, shared through
+ * ds-tokens.js so the two views cannot drift apart. */
 var css = [
-	'.meshconf-page{--ds-surface:var(--background-color-high,#fff);--ds-surface-sunken:var(--background-color-medium,#f6f8fa);--ds-border:var(--border-color-low,#d8dee4);--ds-text:var(--text-color-high,#1f2328);--ds-text-muted:var(--text-color-low,#5c6773);--ds-primary:var(--primary-color-high,#0969da);--ds-ok:#1a7f37;--ds-ok-tint:rgba(26,127,55,.08);--ds-ok-line:rgba(26,127,55,.35);--ds-warn:#bc4c00;--ds-warn-tint:rgba(188,76,0,.08);--ds-warn-line:rgba(188,76,0,.35);--ds-error:#cf222e;--ds-error-tint:rgba(207,34,46,.08);--ds-error-line:rgba(207,34,46,.40);--ds-info:#0969da;--ds-info-tint:rgba(9,105,218,.08);--ds-info-line:rgba(9,105,218,.35);--ds-focus-ring:rgba(9,105,218,.32);--ds-r-sm:4px;--ds-r-md:6px;--ds-r-lg:8px;--ds-r-pill:999px;--ds-sp-1:.25em;--ds-sp-2:.5em;--ds-sp-3:.75em;--ds-sp-4:1em;--ds-sp-5:1.5em;--ds-fs-xs:.8em;--ds-fs-sm:.88em;--ds-fs-base:1em;--ds-fs-lg:1.1em;--ds-fs-2xl:1.6em;--ds-shadow-1:0 1px 2px rgba(16,24,40,.04);line-height:1.5;color:var(--ds-text)}',
+	'.meshconf-page{' + dsTokens.tokens + ';line-height:1.5;color:var(--ds-text)}',
 	'.meshconf-page :focus-visible{outline:2px solid var(--ds-primary);outline-offset:2px}',
 	'.meshconf-page h2{margin:0 0 var(--ds-sp-1);font-size:var(--ds-fs-2xl);line-height:1.3;font-weight:650;color:var(--ds-text)}',
 	'.meshconf-page .nm-lede{margin:0 0 var(--ds-sp-4);color:var(--ds-text-muted);font-size:var(--ds-fs-sm)}',
@@ -66,7 +65,7 @@ var css = [
 	'@media(max-width:720px){.nm-title{flex-direction:column;align-items:flex-start;gap:var(--ds-sp-1)}}'
 ].join('\n');
 
-var darkVars = ':root[data-darkmode="true"]{--ds-ok:#4ac26b;--ds-ok-tint:rgba(74,194,107,.18);--ds-ok-line:rgba(74,194,107,.45);--ds-warn:#e3934a;--ds-warn-tint:rgba(227,147,74,.18);--ds-warn-line:rgba(227,147,74,.45);--ds-error:#f47067;--ds-error-tint:rgba(244,112,103,.18);--ds-error-line:rgba(244,112,103,.5);--ds-info:#4d9cf6;--ds-info-tint:rgba(77,156,246,.18);--ds-info-line:rgba(77,156,246,.45);--ds-focus-ring:rgba(77,156,246,.45);--ds-shadow-1:none}';
+var darkVars = dsTokens.dark;
 
 function injectCSS() {
 	var el = document.getElementById('meshconf-css');
