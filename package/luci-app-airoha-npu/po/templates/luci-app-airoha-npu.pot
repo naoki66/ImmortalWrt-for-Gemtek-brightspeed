@@ -139,3 +139,15 @@ msgstr ""
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:421
 msgid "Unbound:"
 msgstr ""
+
+msgid "No data"
+msgstr ""
+
+msgid "Refresh"
+msgstr ""
+
+msgid "Refreshing…"
+msgstr ""
+
+msgid "Updated %s"
+msgstr ""

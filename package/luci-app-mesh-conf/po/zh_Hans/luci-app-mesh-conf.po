@@ -253,8 +253,8 @@ msgstr "加密相邻设备之间的报文（所有设备必须一致）"
 msgid "Encryption"
 msgstr "加密"
 
-msgid "Failed to read"
-msgstr "读取失败"
+msgid "Failed to load data"
+msgstr "加载数据失败"
 
 msgid "Found %d device(s)."
 msgstr "发现 %d 台设备。"
@@ -628,8 +628,8 @@ msgstr "UDP 广播"
 msgid "UDP multicast"
 msgstr "UDP 组播"
 
-msgid "Unable to read status"
-msgstr "无法读取状态"
+msgid "Updated %s"
+msgstr "更新于 %s"
 
 msgid "Used to compare whether two devices match"
 msgstr "用于比较两台设备是否一致"

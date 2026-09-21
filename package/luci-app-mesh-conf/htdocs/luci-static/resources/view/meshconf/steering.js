@@ -286,6 +286,13 @@ function dawnAvailable() {
 	});
 }
 
+var updatedEl = null;
+
+function markUpdated() {
+	if (updatedEl)
+		updatedEl.textContent = _('Updated %s').format(new Date().toLocaleTimeString());
+}
+
 function load(body) {
 	body.innerHTML = '';
 	body.appendChild(E('div', { 'class': 'nm-empty' }, _('Loading…')));
@@ -300,6 +307,7 @@ function load(body) {
 					E('a', { 'href': L.url('admin/network/meshconf') }, _('Go to steering settings'))
 				])
 			]));
+			markUpdated();
 			return;
 		}
 
@@ -307,13 +315,15 @@ function load(body) {
 			body.innerHTML = '';
 			body.appendChild(renderNetwork(r[0], r[2]));
 			body.appendChild(renderHearing(r[1], r[2], r[0]));
+			markUpdated();
 		});
 	}, function(e) {
 		body.innerHTML = '';
 		body.appendChild(E('div', { 'class': 'nm-banner bad' }, [
-			E('strong', {}, _('Failed to read')),
+			E('strong', {}, _('Failed to load data')),
 			E('div', {}, e.message || _('An error occurred while querying DAWN.'))
 		]));
+		markUpdated();
 	});
 }
 
@@ -337,10 +347,12 @@ return view.extend({
 			});
 		});
 
+		updatedEl = E('span', { 'class': 'nm-muted' }, '');
+
 		var root = E('div', { 'class': 'meshconf-page' }, [
 			E('h2', {}, _('APs and clients')),
 			E('p', { 'class': 'nm-lede' }, _('The whole network as DAWN sees it: which APs broadcast the same SSID, who is connected to each AP, and how loudly each client is heard by the other APs. Use it to tell whether roaming is actually working — instead of guessing.')),
-			E('div', { 'class': 'nm-actions', 'style': 'margin-top:0;border-top:0;padding-top:0' }, [ refreshBtn ]),
+			E('div', { 'class': 'nm-actions', 'style': 'margin-top:0;border-top:0;padding-top:0' }, [ refreshBtn, updatedEl ]),
 			body
 		]);
 

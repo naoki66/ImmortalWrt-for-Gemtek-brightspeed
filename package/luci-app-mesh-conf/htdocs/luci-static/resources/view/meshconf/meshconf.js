@@ -254,6 +254,12 @@ function notify(msg, kind) {
 var statusData = null;
 var peerData = null;
 var pageBody = null;
+var updatedEl = null;
+
+function markUpdated() {
+	if (updatedEl)
+		updatedEl.textContent = _('Updated %s').format(new Date().toLocaleTimeString());
+}
 
 function refresh() {
 	if (!pageBody) return Promise.resolve();
@@ -263,12 +269,14 @@ function refresh() {
 	return callStatus().then(function(res) {
 		statusData = res || {};
 		render();
+		markUpdated();
 	}, function(e) {
 		pageBody.innerHTML = '';
 		pageBody.appendChild(E('div', { 'class': 'nm-banner bad' }, [
-			E('strong', {}, _('Unable to read status')),
+			E('strong', {}, _('Failed to load data')),
 			E('div', {}, e.message || _('The rpcd plugin (luci.meshconf) did not respond.'))
 		]));
+		markUpdated();
 	});
 }
 
@@ -986,9 +994,21 @@ return view.extend({
 
 		pageBody = E('div');
 
+		var refreshBtn = E('button', { 'class': 'cbi-button cbi-button-action' }, _('Refresh'));
+		refreshBtn.addEventListener('click', function() {
+			var self = refreshBtn, orig = self.textContent;
+			self.disabled = true;
+			self.textContent = _('Refreshing…');
+			var done = function() { self.disabled = false; self.textContent = orig; };
+			refresh().then(done, done);
+		});
+
+		updatedEl = E('span', { 'class': 'nm-muted' }, '');
+
 		var root = E('div', { 'class': 'meshconf-page' }, [
 			E('h2', {}, _('Mesh networking')),
 			E('p', { 'class': 'nm-lede' }, _('Networking between two XR1710G units: wireless uses native 802.11s; wired uses discovery on the same LAN plus /etc/config/wireless sync.')),
+			E('div', { 'class': 'nm-actions', 'style': 'margin-top:0;border-top:0;padding-top:0' }, [ refreshBtn, updatedEl ]),
 			pageBody
 		]);
 

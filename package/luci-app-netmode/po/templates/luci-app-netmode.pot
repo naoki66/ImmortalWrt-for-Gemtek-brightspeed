@@ -78,7 +78,7 @@ msgstr ""
 msgid "Device model"
 msgstr ""
 
-msgid "Failed to read status: %s"
+msgid "Failed to load data"
 msgstr ""
 
 msgid "Hostname"
@@ -208,6 +208,9 @@ msgid "The switch changes the management address; this page disconnecting is exp
 msgstr ""
 
 msgid "Unknown mode"
+msgstr ""
+
+msgid "Updated %s"
 msgstr ""
 
 msgid "WAN address"

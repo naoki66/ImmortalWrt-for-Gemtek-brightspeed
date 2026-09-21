@@ -1470,6 +1470,22 @@ return view.extend({
 		var ppeTablePaused = false;
 		var latestPpe = ppe;
 
+		var updatedEl = null;
+
+		function markUpdated() {
+			if (updatedEl)
+				updatedEl.textContent = _('Updated %s').format(new Date().toLocaleTimeString());
+		}
+
+		var refreshBtn = E('button', { 'type': 'button', 'class': 'cbi-button cbi-button-action' }, _('Refresh'));
+		refreshBtn.addEventListener('click', function() {
+			var self = refreshBtn, orig = self.textContent;
+			self.disabled = true;
+			self.textContent = _('Refreshing…');
+			var done = function() { self.disabled = false; self.textContent = orig; };
+			Promise.resolve(fetchData()).then(done, done);
+		});
+
 		function updatePpeTerminal(ppeSnapshot) {
 			var body = document.getElementById('ppe-terminal-body');
 			if (!body) return;
@@ -1505,8 +1521,11 @@ return view.extend({
 		var cnWrap = E('div', { 'id': 'cpu-npu-svg-wrap', 'class': 'compass-gauge-wrap' });
 		cnWrap.innerHTML = buildCpuNpuCompassSVG(cs, ppe, st, ti);
 
+		updatedEl = E('span', { 'class': 'soc-muted' }, '');
+
 		var view = E('div',{'class':'cbi-map flowsense-dashboard'},[
 			E('h2',{},_('Airoha FlowSense')),
+			E('div',{'style':'display:flex;align-items:center;gap:12px;margin:0 0 12px'},[ refreshBtn, updatedEl ]),
 
 			// Conflict alerts
 			renderConflictAlerts(alertData),
@@ -1597,6 +1616,8 @@ return view.extend({
 
 				// PPE terminal
 				if (!ppeTablePaused) updatePpeTerminal(latestPpe);
+
+				markUpdated();
 			},this));
 		}, this);
 

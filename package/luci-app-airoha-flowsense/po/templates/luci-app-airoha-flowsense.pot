@@ -48,3 +48,12 @@ msgstr ""
 
 msgid "VLAN Offload"
 msgstr ""
+
+msgid "Refresh"
+msgstr ""
+
+msgid "Refreshing…"
+msgstr ""
+
+msgid "Updated %s"
+msgstr ""

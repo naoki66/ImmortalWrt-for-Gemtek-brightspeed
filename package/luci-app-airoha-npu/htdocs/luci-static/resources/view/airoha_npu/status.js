@@ -625,6 +625,10 @@ function buildControlSettingsContent(st) {
 
 /* ── PPE Table ── */
 function renderPpeRows(entries) {
+	if (!entries || !entries.length)
+		return [ E('tr', {}, [
+			E('td', { 'class': 'td', 'colspan': '6', 'style': 'text-align:center;color:var(--soc-muted)' }, _('No data'))
+		]) ];
 	return entries.slice(0,100).map(function(e) {
 		var eth = e.eth||''; if(eth==='00:00:00:00:00:00->00:00:00:00:00:00') eth='-';
 		return E('tr',{'class':'tr '+(e.state==='BND'?'npu-bnd-row':'')},[
@@ -681,8 +685,27 @@ return view.extend({
 			}
 		}, _('Pause'));
 
+		var updatedEl = null;
+
+		function markUpdated() {
+			if (updatedEl)
+				updatedEl.textContent = _('Updated %s').format(new Date().toLocaleTimeString());
+		}
+
+		var refreshBtn = E('button', { 'type': 'button', 'class': 'cbi-button cbi-button-action' }, _('Refresh'));
+		refreshBtn.addEventListener('click', function() {
+			var self = refreshBtn, orig = self.textContent;
+			self.disabled = true;
+			self.textContent = _('Refreshing…');
+			var done = function() { self.disabled = false; self.textContent = orig; };
+			Promise.resolve(fetchData()).then(done, done);
+		});
+
+		updatedEl = E('span', { 'class': 'soc-muted' }, '');
+
 		var view = E('div',{'class':'cbi-map npu-dashboard'},[
 			E('h2',{},_('Airoha SoC Status')),
+			E('div',{'style':'display:flex;align-items:center;gap:12px;margin:0 0 12px'},[ refreshBtn, updatedEl ]),
 
 			// CPU Frequency
 			E('div',{'class':'cbi-section npu-section'},[
@@ -824,6 +847,7 @@ return view.extend({
 
 				var fcEl=document.getElementById('fe-container'); if(fcEl){fcEl.innerHTML='';fcEl.appendChild(renderFeDiagram(fe, ti, st));}
 
+				markUpdated();
 			},this)).catch(function(err) {
 				console.error('[airoha_npu] fetchData error:', err);
 			});

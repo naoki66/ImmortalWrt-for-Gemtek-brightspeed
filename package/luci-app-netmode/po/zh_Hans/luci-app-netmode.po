@@ -79,8 +79,8 @@ msgstr "已检测到设备，当前管理地址: %s"
 msgid "Device model"
 msgstr "设备型号"
 
-msgid "Failed to read status: %s"
-msgstr "读取状态失败: %s"
+msgid "Failed to load data"
+msgstr "加载数据失败"
 
 msgid "Hostname"
 msgstr "主机名"
@@ -210,6 +210,9 @@ msgstr "切换会改变管理地址，当前页面断开属于正常现象，并
 
 msgid "Unknown mode"
 msgstr "未知模式"
+
+msgid "Updated %s"
+msgstr "更新于 %s"
 
 msgid "WAN address"
 msgstr "WAN 地址"

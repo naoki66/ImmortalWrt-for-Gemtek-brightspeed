@@ -273,3 +273,12 @@ msgstr "错误"
 
 msgid "ERRORS"
 msgstr "错误"
+
+msgid "Refresh"
+msgstr "刷新"
+
+msgid "Refreshing…"
+msgstr "刷新中…"
+
+msgid "Updated %s"
+msgstr "更新于 %s"

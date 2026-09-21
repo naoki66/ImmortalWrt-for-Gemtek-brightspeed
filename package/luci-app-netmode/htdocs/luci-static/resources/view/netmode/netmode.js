@@ -147,7 +147,7 @@ return view.extend({
 
 		if (this.status.error)
 			root.appendChild(E('p', { 'class': 'alert-message error' },
-				_('Failed to read status: %s').format(this.status.error)));
+				_('Failed to load data') + ': ' + this.status.error));
 
 		this.statusBox = E('div', {}, statusPills(this.status));
 		root.appendChild(E('div', { 'class': 'nm-section' }, [
@@ -201,7 +201,16 @@ return view.extend({
 			])
 		]));
 
+		this.updatedEl = E('p', { 'class': 'nm-muted', 'style': 'margin:14px 0 0;text-align:right;font-size:12px' }, '');
+		root.appendChild(this.updatedEl);
+		this.markUpdated();
+
 		return root;
+	},
+
+	markUpdated: function() {
+		if (this.updatedEl)
+			this.updatedEl.textContent = _('Updated %s').format(new Date().toLocaleTimeString());
 	},
 
 	modeCard: function(mode, title, desc, active) {
@@ -452,6 +461,7 @@ return view.extend({
 				this.statusBox.innerHTML = '';
 				this.statusBox.appendChild(statusPills(this.status));
 			}
+			this.markUpdated();
 		}, this));
 	}
 });

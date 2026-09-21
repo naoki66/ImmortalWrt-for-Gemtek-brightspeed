@@ -216,3 +216,15 @@ msgstr "类型"
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:421
 msgid "Unbound:"
 msgstr "未绑定："
+
+msgid "No data"
+msgstr "无数据"
+
+msgid "Refresh"
+msgstr "刷新"
+
+msgid "Refreshing…"
+msgstr "刷新中…"
+
+msgid "Updated %s"
+msgstr "更新于 %s"

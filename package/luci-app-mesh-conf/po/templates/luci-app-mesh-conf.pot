@@ -252,7 +252,7 @@ msgstr ""
 msgid "Encryption"
 msgstr ""
 
-msgid "Failed to read"
+msgid "Failed to load data"
 msgstr ""
 
 msgid "Found %d device(s)."
@@ -627,7 +627,7 @@ msgstr ""
 msgid "UDP multicast"
 msgstr ""
 
-msgid "Unable to read status"
+msgid "Updated %s"
 msgstr ""
 
 msgid "Used to compare whether two devices match"
