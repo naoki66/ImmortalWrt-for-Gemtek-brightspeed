@@ -99,13 +99,24 @@ var psePortMap = [
 ];
 
 /* ── Summary tiles ── */
-function npuSummaryTiles(st) {
-	st = st || {};
+function npuSummaryTiles(st, ti) {
+	st = st || {}; ti = ti || {};
 	var active = isEnabled(st.npu_loaded);
 	var clock = st.npu_clock ? Math.round(st.npu_clock / 1000000) : 0;
 	var bound = st.offload_bound || 0;
 	var total = st.offload_total || 0;
 	var mem = Array.isArray(st.memory_regions) ? st.memory_regions : [];
+
+	// TX token pool — the hardware send tokens the NPU/WDMA draws from. This is
+	// the reading the old view never surfaced.
+	var tokCount = Number(ti.token_count) || 0;
+	var tokSize = Number(ti.token_size) || 0;
+	var tokPct = tokSize > 0 ? tokCount / tokSize * 100 : 0;
+	var tokAccent = !tokSize ? 'var(--ds-text-muted)'
+		: tokPct < 50 ? 'var(--ds-ok)'
+			: tokPct < 80 ? 'var(--ds-warn)' : 'var(--ds-error)';
+
+	var temp = (st.cpu_temp && st.cpu_temp !== 'N/A') ? st.cpu_temp : '';
 
 	return {
 		'npu-summary-status': aui.tile({
@@ -129,25 +140,39 @@ function npuSummaryTiles(st) {
 			id: 'npu-summary-memory', title: _('Reserved Memory'),
 			value: calcTotalMem(mem), accent: 'var(--ai-band-6)',
 			sub: mem.length + ' ' + _('memory regions')
+		}),
+		'npu-summary-token': aui.tile({
+			id: 'npu-summary-token', title: _('TX Token Pool'),
+			value: tokSize > 0 ? (tokCount + ' / ' + tokSize) : 'N/A',
+			accent: tokAccent,
+			sub: tokSize > 0 ? (_('used') + ' ' + aui.fmtPct(tokPct, 0)) : _('Unknown')
+		}),
+		'npu-summary-temp': aui.tile({
+			id: 'npu-summary-temp', title: _('CPU Temperature'),
+			value: temp ? temp.replace(/[^\d.]/g, '') : '—', unit: temp ? '°C' : '',
+			accent: 'var(--ds-ok)',
+			sub: (st.cpu_count || 0) + ' ' + _('cores') + ' · ' + (st.soc_compat || '')
 		})
 	};
 }
 
-function renderSummary(st) {
-	var tiles = npuSummaryTiles(st);
-	return E('div', { 'class': 'ai-grid ai-grid--tiles', 'id': 'npu-summary-grid' }, [
-		tiles['npu-summary-status'], tiles['npu-summary-clock'], tiles['npu-summary-flows'], tiles['npu-summary-memory']
-	]);
+var SUMMARY_IDS = [
+	'npu-summary-status', 'npu-summary-clock', 'npu-summary-flows',
+	'npu-summary-memory', 'npu-summary-token', 'npu-summary-temp'
+];
+
+function renderSummary(st, ti) {
+	var tiles = npuSummaryTiles(st, ti);
+	return E('div', { 'class': 'ai-grid ai-grid--tiles', 'id': 'npu-summary-grid' },
+		SUMMARY_IDS.map(function(id) { return tiles[id]; }));
 }
 
-function updateSummary(st) {
+function updateSummary(st, ti) {
 	var grid = document.getElementById('npu-summary-grid');
 	if (!grid) return;
-	var tiles = npuSummaryTiles(st);
+	var tiles = npuSummaryTiles(st, ti);
 	grid.innerHTML = '';
-	['npu-summary-status', 'npu-summary-clock', 'npu-summary-flows', 'npu-summary-memory'].forEach(function(id) {
-		grid.appendChild(tiles[id]);
-	});
+	SUMMARY_IDS.forEach(function(id) { grid.appendChild(tiles[id]); });
 }
 
 /* ── CPU frequency ── */
@@ -186,7 +211,8 @@ function renderFreqCard(st) {
 				tall: true, fillId: 'cpu-freq-fill', labelId: 'cpu-freq-text'
 			}),
 			aui.row(_('PLL Reading'), aui.fmtFreq((st.pll_freq_mhz || 0) * 1000)),
-			aui.row(_('Frequency Range'), aui.fmtFreq(st.cpu_min_freq) + ' – ' + aui.fmtFreq(st.cpu_max_freq))
+			aui.row(_('Frequency Range'), aui.fmtFreq(st.cpu_min_freq) + ' – ' + aui.fmtFreq(st.cpu_max_freq)),
+			aui.row('scaling_cur_freq', aui.fmtFreq(st.cpu_cur_freq))
 		]
 	});
 }
@@ -360,9 +386,9 @@ function updateOffloadControl(inputId, badgeId, rowId, enabled, blocked) {
 }
 
 /* ── Frame engine diagram ── */
-function renderFeDiagram(fe, ti, st) {
+function renderFeDiagram(fe, ti, st, ppe) {
 	if (!fe || fe.error) return aui.empty(_('Frame engine data is not available on this build'));
-	ti = ti || {}; st = st || {};
+	ti = ti || {}; st = st || {}; ppe = ppe || {};
 	var ports = Array.isArray(fe.pse_ports) ? fe.pse_ports : [];
 
 	function gdmCard(key, name, label, accent, pse) {
@@ -370,6 +396,7 @@ function renderFeDiagram(fe, ti, st) {
 		var body = [ aui.row('TX', aui.fmtK(d.tx)), aui.row('RX', aui.fmtK(d.rx)) ];
 		if (d.tx_drop > 0) body.push(aui.row('TX Drop', aui.fmtK(d.tx_drop), 'ai-err'));
 		if (d.rx_drop > 0) body.push(aui.row('RX Drop', aui.fmtK(d.rx_drop), 'ai-err'));
+		body.push(aui.row(_('State'), (d.tx > 0 || d.rx > 0) ? _('Active') : _('Idle')));
 		return aui.card({ name: name, tag: pse + ' · ' + label, accent: accent, body: body });
 	}
 
@@ -428,11 +455,15 @@ function renderFeDiagram(fe, ti, st) {
 		]
 	});
 
+	var unbCount = (Array.isArray(ppe.entries) ? ppe.entries : []).filter(function(e) {
+		return e && e.state && e.state !== 'BND';
+	}).length;
 	var ppeCard = aui.card({
 		name: 'PPE Engines', tag: 'P4 + P8', accent: 'var(--ai-npu)',
 		body: [
 			aui.row(_('Bound'), String(st.offload_bound || 0)),
-			aui.row(_('Total'), String(st.offload_total || 0))
+			aui.row(_('Total'), String(st.offload_total || 0)),
+			aui.row(_('Unbound'), String(unbCount))
 		]
 	});
 
@@ -448,6 +479,13 @@ function renderFeDiagram(fe, ti, st) {
 			accent: p.drops > 0 ? 'var(--ds-error)' : 'var(--ds-border)',
 			sub: 'IQ / OQ' + (p.drops > 0 ? ' · ' + _('Drop') + ' ' + aui.fmtK(p.drops) : '')
 		});
+	});
+
+	// Reserved-memory regions — surfaced as a collapsible table so the addresses
+	// behind the summary tile's total are inspectable without cluttering the page.
+	var mem = Array.isArray(st.memory_regions) ? st.memory_regions : [];
+	var memRows = mem.map(function(r) {
+		return [ (r.name || '') + ' (' + (r.size || '') + ')', (r.start || '—') + ' → ' + (r.end || '—') ];
 	});
 
 	return E('div', { 'id': 'fe-diagram' }, [
@@ -469,15 +507,33 @@ function renderFeDiagram(fe, ti, st) {
 		]),
 		E('div', { 'class': 'ai-grid ai-grid--2', 'style': 'margin-top:var(--ds-sp-2)' }, [ ppeCard, npuCard ]),
 		E('div', { 'class': 'ai-subhead' }, 'PSE Port Queue Status'),
-		E('div', { 'class': 'ai-grid ai-grid--pse' }, portCells)
+		E('div', { 'class': 'ai-grid ai-grid--pse' }, portCells),
+		mem.length ? aui.details(_('Reserved Memory') + ' · ' + mem.length + ' ' + _('memory regions'), aui.kv(memRows)) : null
 	]);
 }
 
 /* ── PPE flow table ── */
+var PPE_SHOWN_MAX = 100;
+
+/* Header badge: how many entries the backend returned, the v4/v6 split, how
+ * many are actually rendered, and how many were dropped by the client cap. */
+function ppeCountText(entries) {
+	entries = entries || [];
+	var total = entries.length;
+	var shown = Math.min(total, PPE_SHOWN_MAX);
+	var v4 = 0, v6 = 0;
+	entries.forEach(function(e) {
+		if (e && String(e.type || '').indexOf('IPv6') >= 0) v6++; else v4++;
+	});
+	var s = total + ' ' + _('flows') + ' · v4 ' + v4 + ' / v6 ' + v6 + ' · ' + _('showing') + ' ' + shown;
+	if (total > shown) s += ' · ' + _('truncated') + ' ' + (total - shown);
+	return s;
+}
+
 function ppeRows(entries) {
 	if (!entries || !entries.length)
 		return [ E('tr', {}, [ E('td', { 'colspan': '6' }, aui.empty(_('No data'))) ]) ];
-	return entries.slice(0, 100).map(function(e) {
+	return entries.slice(0, PPE_SHOWN_MAX).map(function(e) {
 		var eth = e.eth || '';
 		if (eth === '00:00:00:00:00:00->00:00:00:00:00:00') eth = '-';
 		var state = e.state === 'BND' ? aui.badge(e.state, 'bnd') : aui.badge(e.state, 'unb');
@@ -512,6 +568,8 @@ function updatePpeTable(entries) {
 	if (!tbody) return;
 	tbody.innerHTML = '';
 	ppeRows(entries).forEach(function(row) { tbody.appendChild(row); });
+	var badge = document.getElementById('ppe-count');
+	if (badge) badge.textContent = ppeCountText(entries);
 }
 
 /* ── Main view ── */
@@ -594,7 +652,7 @@ return view.extend({
 				title: _('NPU & Offload Engine'),
 				hint: _('Switches here are write operations; the same values are mirrored read-only on the FlowSense tab so there is only one place to change them.'),
 				body: E('div', {}, [
-					renderSummary(st),
+					renderSummary(st, ti),
 					E('div', { 'class': 'ai-grid ai-grid--2', 'style': 'margin-top:var(--ds-sp-3)' }, [
 						renderOffloadSwitch({ rowId: 'vlan-offload-row', inputId: 'vlan-offload-select', badgeId: 'vlan-offload-badge', name: _('VLAN Offload'), note: 'bridge-nf-filter-vlan-tagged', enabled: vo.enabled, blocked: bridgeBlocked, callFn: function(v) { return callSetVlanOffload(v); } }),
 						renderOffloadSwitch({ rowId: 'pppoe-offload-row', inputId: 'pppoe-offload-select', badgeId: 'pppoe-offload-badge', name: _('PPPoE Offload'), note: 'bridge-nf-filter-pppoe-tagged', enabled: ppo.enabled, blocked: bridgeBlocked, callFn: function(v) { return callSetPppoeOffload(v); } }),
@@ -602,13 +660,15 @@ return view.extend({
 						renderOffloadSwitch({ rowId: 'apmode-offload-row', inputId: 'apmode-offload-select', badgeId: 'apmode-offload-badge', name: _('AP Mode Acceleration'), note: 'br_netfilter + VLAN passthrough', enabled: apo.enabled, blocked: bridgeBlocked, callFn: function(v) { return callSetApModeOffload(v); } })
 					]),
 					E('div', { 'class': 'ai-subhead' }, _('Frame Engine')),
-					E('div', { 'id': 'fe-container' }, renderFeDiagram(fe, ti, st))
+					E('div', { 'id': 'fe-container' }, renderFeDiagram(fe, ti, st, ppe))
 				])
 			}),
 
 			// PPE Flow Table
 			aui.section({
 				title: _('PPE Flow Offload Entries'),
+				count: ppeCountText(entries), countId: 'ppe-count',
+				hint: _('BND = bound to hardware (NPU path); UNB = learning (CPU path). The client renders the first 100 rows.'),
 				body: renderPpeTable(entries)
 			})
 		]);
@@ -644,7 +704,7 @@ return view.extend({
 					latestPpeEntries = entries;
 					if (!ppeUpdatesPaused) updatePpeTable(latestPpeEntries);
 				}
-				updateSummary(st);
+				updateSummary(st, ti);
 
 				// CPU info — always re-render (just text rows, no user interaction)
 				var ci = document.getElementById('cpu-info-content');
@@ -679,7 +739,7 @@ return view.extend({
 				updateOffloadControl('apmode-offload-select', 'apmode-offload-badge', 'apmode-offload-row', apo.enabled, bridgeBlocked);
 
 				var fcEl = document.getElementById('fe-container');
-				if (fcEl) { fcEl.innerHTML = ''; fcEl.appendChild(renderFeDiagram(fe, ti, st)); }
+				if (fcEl) { fcEl.innerHTML = ''; fcEl.appendChild(renderFeDiagram(fe, ti, st, ppe)); }
 
 				markUpdated();
 			}, this)).catch(function(err) {

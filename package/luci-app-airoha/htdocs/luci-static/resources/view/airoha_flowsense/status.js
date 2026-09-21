@@ -863,6 +863,122 @@ function renderPpeConsole(ppe) {
 	]);
 }
 
+/* ── Bridge / WAN / Token detail blocks ──
+ * Fields the backend has always returned but the pre-redesign views dropped:
+ * the br-lan counters, the full WAN health block, the token pool size and the
+ * per-band TX ring depth/occupancy (token.tx_queues). */
+function isOn(value) {
+	return value === true || value === 1 || value === '1';
+}
+
+function txRingRows(ti, hasWifi) {
+	var q = Array.isArray(ti.tx_queues) ? ti.tx_queues : [];
+	if (!hasWifi || !q.length)
+		return [ [ _('TX ring depth / queued'), _('Not provided without wireless hardware') ] ];
+	var byBand = {};
+	q.forEach(function(e) { byBand[e.band] = e; });
+	var depth = aui.BANDS.map(function(b, i) {
+		var e = byBand[i]; return b.name + ' ' + (e ? e.ndesc : '—');
+	}).join(' · ');
+	var queued = aui.BANDS.map(function(b, i) {
+		var e = byBand[i]; return b.name + ' ' + (e ? e.queued : '—');
+	}).join(' · ');
+	return [ [ _('TX ring depth'), depth ], [ _('TX ring queued'), queued ] ];
+}
+
+function renderDetailSection(bridge, wan, ti, fe, hasWifi) {
+	bridge = bridge || {}; wan = wan || {}; ti = ti || {}; fe = fe || {};
+
+	var ports = Array.isArray(fe.pse_ports) ? fe.pse_ports : [];
+	var pseDrops = 0;
+	ports.forEach(function(p) { pseDrops += (p.drops || 0); });
+	var pseT = (fe.pse_used || 0) + (fe.pse_free || 0);
+	var psePct = pseT > 0 ? (fe.pse_used / pseT) * 100 : 0;
+
+	var tokCount = Number(ti.token_count) || 0;
+	var tokSize = Number(ti.token_size) || 0;
+	var tokPct = tokSize > 0 ? tokCount / tokSize * 100 : 0;
+
+	var bridgeKv = aui.kv([
+		[ _('Bridge RX packets'), aui.nf(bridge.rx_packets || 0) ],
+		[ _('Bridge TX packets'), aui.nf(bridge.tx_packets || 0) ],
+		[ _('Bridge RX dropped'), String(bridge.rx_dropped || 0) ],
+		[ _('Bridge TX dropped'), String(bridge.tx_dropped || 0) ],
+		[ _('Forward transitions'), String(bridge.fwd_errors || 0) ],
+		[ _('PSE shared buffer'), aui.fmtPct(psePct, 0) + ' (' + (fe.pse_used || 0) + ' / ' + pseT + ')' ],
+		[ _('PSE port drops'), aui.fmtK(pseDrops) ]
+	]);
+
+	var wanKv = aui.kv([
+		[ _('Device'), wan.device || '—' ],
+		[ _('Uptime'), aui.fmtUptime(wan.uptime || 0) ],
+		[ _('Received'), aui.fmtGiB(wan.rx_bytes || 0) ],
+		[ _('Sent'), aui.fmtGiB(wan.tx_bytes || 0) ],
+		[ _('RX errors'), String(wan.rx_errors || 0) ],
+		[ _('TX errors'), String(wan.tx_errors || 0) ],
+		[ _('RX dropped'), String(wan.rx_dropped || 0) ],
+		[ _('TX dropped'), String(wan.tx_dropped || 0) ]
+	]);
+
+	var tokKv = aui.kv([
+		[ _('Token pool'), tokSize > 0 ? (tokCount + ' / ' + tokSize + ' (' + aui.fmtPct(tokPct, 0) + ')') : '—' ],
+		[ _('NPU state'), isOn(ti.npu_active) ? _('Yes') : _('No') ]
+	].concat(txRingRows(ti, hasWifi)));
+
+	return aui.section({
+		title: _('Bridge / WAN / Token Details'),
+		body: E('div', {}, [
+			E('div', { 'class': 'ai-subhead' }, _('Bridge & hardware buffer')),
+			bridgeKv,
+			E('div', { 'class': 'ai-subhead' }, _('WAN health')),
+			wanKv,
+			E('div', { 'class': 'ai-subhead' }, _('Token pool & TX rings')),
+			tokKv
+		])
+	});
+}
+
+/* ── WiFi band detail table ──
+ * The old view only painted the three tachometers; the backend already returns
+ * airtime efficiency, negotiated/expected rates, failure counts and per-band
+ * BND/UNB ownership. Only rendered when a radio is present. */
+function renderWifiTable(wifi, ppe, hasWifi) {
+	if (!hasWifi) return null;
+	var bands = (wifi && Array.isArray(wifi.bands)) ? wifi.bands : [];
+	var bandBnd = (ppe && ppe.bnd && Array.isArray(ppe.bnd.band_bnd)) ? ppe.bnd.band_bnd : [];
+	var bandUnb = (ppe && ppe.unb && Array.isArray(ppe.unb.band_unb)) ? ppe.unb.band_unb : [];
+	var rows = bands.map(function(bd) {
+		var info = aui.BANDS[bd.band] || { full: 'Band ' + bd.band };
+		var retry = bd.retry_pct || 0;
+		return [
+			info.full,
+			String(bd.stations || 0),
+			(bd.airtime_efficiency || 0) + '%',
+			String(bd.avg_phy_rate || 0),
+			String(bd.avg_exp_throughput || 0),
+			E('span', { 'style': 'color:' + (retry > 5 ? C.warn : C.ok) }, retry + '%'),
+			String(bd.tx_failed || 0),
+			(bd.avg_signal || 0) + ' / ' + (bd.min_signal || 0),
+			String(bd.tx_mbps || 0),
+			(bandBnd[bd.band] || 0) + ' / ' + (bandUnb[bd.band] || 0)
+		];
+	});
+	return aui.section({
+		title: _('WiFi Band Details'),
+		hint: _('Per-band airtime efficiency, negotiated and expected rates, failure counts and BND/UNB ownership.'),
+		body: aui.table({
+			mono: true, stack: true, emptyText: _('No entries'),
+			cols: [
+				{ t: _('Band') }, { t: _('Clients'), num: true }, { t: _('Airtime'), num: true },
+				{ t: _('PHY rate'), num: true }, { t: _('Expected'), num: true }, { t: _('Retry'), num: true },
+				{ t: _('Failed'), num: true }, { t: _('Signal'), num: true }, { t: _('TX') + ' Mbps', num: true },
+				{ t: 'BND / UNB', num: true }
+			],
+			rows: rows
+		})
+	});
+}
+
 /* ── Main View ── */
 return view.extend({
 	load: function() {
@@ -979,7 +1095,13 @@ return view.extend({
 			aui.section({
 				title: _('PPE Flow Monitor'),
 				body: E('div', { 'id': 'ppe-console' }, [ renderPpeConsole(ppe) ])
-			})
+			}),
+
+			// Bridge / WAN / Token detail blocks
+			E('div', { 'id': 'detail-blocks' }, [ renderDetailSection(bridge, wan, ti, fe, hasWifi) ]),
+
+			// WiFi band detail table (skipped entirely on a radio-less board)
+			E('div', { 'id': 'wifi-detail' }, [ renderWifiTable(wifi, ppe, hasWifi) ])
 		]);
 
 		// Data fetch + DOM update function — called immediately and via poll
@@ -1024,6 +1146,8 @@ return view.extend({
 				updateInto('conflict-alerts', [ renderConflictAlerts(alertData) ]);
 				updateInto('mode-cards', [ renderModeCards(dm, apo, flo, vo, ppo) ]);
 				if (!ppePaused) updateInto('ppe-console', [ renderPpeConsole(latestPpe) ]);
+				updateInto('detail-blocks', [ renderDetailSection(bridge, wan, ti, fe, hasWifi) ]);
+				updateInto('wifi-detail', [ renderWifiTable(wifi, ppe, hasWifi) ]);
 
 				markUpdated();
 			}, this));

@@ -252,7 +252,7 @@ function section(o) {
 	return E('section', attrs, [
 		E('div', { 'class': 'ai-section-head' }, [
 			E('h3', {}, o.title),
-			o.count ? E('span', { 'class': 'ai-badge' }, o.count) : null,
+			o.count ? E('span', { 'class': 'ai-badge', 'id': o.countId || null }, o.count) : null,
 			E('span', { 'class': 'ai-spacer' }),
 			o.actions || null
 		]),

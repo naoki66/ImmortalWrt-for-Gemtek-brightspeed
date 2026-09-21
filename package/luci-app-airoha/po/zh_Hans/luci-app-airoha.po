@@ -24,6 +24,9 @@ msgstr "加速开关"
 msgid "Activated"
 msgstr "已激活"
 
+msgid "Active"
+msgstr "活动"
+
 msgid "Airoha"
 msgstr "Airoha"
 
@@ -33,14 +36,23 @@ msgstr "Airoha 流量传感器"
 msgid "Airoha SoC Status"
 msgstr "Airoha SoC状态"
 
+msgid "Airtime"
+msgstr "空口效率"
+
 msgid "Architecture"
 msgstr "架构"
 
 msgid "Auto-detected"
 msgstr "自动检测"
 
+msgid "BND = bound to hardware (NPU path); UNB = learning (CPU path). The client renders the first 100 rows."
+msgstr "BND = 已绑定硬件（走 NPU）；UNB = 学习中（走 CPU）。前端最多渲染前 100 行。"
+
 msgid "BND — bound to hardware"
 msgstr "BND — 已绑定硬件"
+
+msgid "Band"
+msgstr "频段"
 
 msgid "Bands"
 msgstr "频段"
@@ -53,6 +65,24 @@ msgstr "已绑定"
 
 msgid "Bound / total PPE flows"
 msgstr "已绑定 / PPE 总表项"
+
+msgid "Bridge & hardware buffer"
+msgstr "网桥与硬件缓冲"
+
+msgid "Bridge / WAN / Token Details"
+msgstr "网桥 / WAN / Token 明细"
+
+msgid "Bridge RX dropped"
+msgstr "桥 RX 丢弃"
+
+msgid "Bridge RX packets"
+msgstr "桥 RX 包"
+
+msgid "Bridge TX dropped"
+msgstr "桥 TX 丢弃"
+
+msgid "Bridge TX packets"
+msgstr "桥 TX 包"
 
 msgid "CLEAN"
 msgstr "正常"
@@ -68,6 +98,9 @@ msgstr "CPU 负载"
 
 msgid "CPU PATH"
 msgstr "CPU 路径"
+
+msgid "CPU Temperature"
+msgstr "CPU 温度"
 
 msgid "CPU frequency, NPU and frame engine, hardware offload switches · source luci.airoha_npu (5 s poll)"
 msgstr "CPU 频率、NPU 与帧引擎、硬件卸载开关 · 数据源 luci.airoha_npu（5 秒轮询）"
@@ -114,6 +147,9 @@ msgstr "UCI 中 DHCP 已禁用"
 msgid "DROPPING"
 msgstr "丢包"
 
+msgid "Device"
+msgstr "设备"
+
 msgid "Disabled"
 msgstr "已禁用"
 
@@ -138,6 +174,12 @@ msgstr "错误"
 msgid "Ethernet"
 msgstr "以太网"
 
+msgid "Expected"
+msgstr "期望吞吐"
+
+msgid "Failed"
+msgstr "失败"
+
 msgid "Failed to set ping target"
 msgstr "设置 Ping 目标失败"
 
@@ -152,6 +194,9 @@ msgstr "硬件流量加速"
 
 msgid "FlowSense"
 msgstr "FlowSense"
+
+msgid "Forward transitions"
+msgstr "转发状态迁移"
 
 msgid "Frame Engine"
 msgstr "帧引擎"
@@ -264,8 +309,14 @@ msgstr "NPU 状态"
 msgid "NPU device ready"
 msgstr "NPU 设备就绪"
 
+msgid "NPU state"
+msgstr "NPU 状态"
+
 msgid "New Flow"
 msgstr "新连接"
+
+msgid "No"
+msgstr "否"
 
 msgid "No WAN IP detected"
 msgstr "未检测到 WAN IP"
@@ -288,6 +339,9 @@ msgstr "正常"
 msgid "Not Activated"
 msgstr "未激活"
 
+msgid "Not provided without wireless hardware"
+msgstr "无无线硬件时后端不返回"
+
 msgid "Offload Statistics"
 msgstr "卸载统计"
 
@@ -296,6 +350,9 @@ msgstr "加速占比"
 
 msgid "Original Flow"
 msgstr "原始连接"
+
+msgid "PHY rate"
+msgstr "协商速率"
 
 msgid "PLL Reading"
 msgstr "PLL 实测"
@@ -312,8 +369,17 @@ msgstr "PPE 硬件加速表"
 msgid "PPPoE Offload"
 msgstr "PPPoE 透传卸载"
 
+msgid "PSE port drops"
+msgstr "PSE 端口丢弃累计"
+
+msgid "PSE shared buffer"
+msgstr "PSE 共享缓冲"
+
 msgid "Pause"
 msgstr "暂停"
+
+msgid "Per-band airtime efficiency, negotiated and expected rates, failure counts and BND/UNB ownership."
+msgstr "每频段的空口效率、协商与期望速率、失败计数以及 BND/UNB 归属。"
 
 msgid "Physical Bottleneck"
 msgstr "物理瓶颈"
@@ -333,8 +399,17 @@ msgstr "较差"
 msgid "ROUTER MODE"
 msgstr "路由模式"
 
+msgid "RX dropped"
+msgstr "RX 丢弃"
+
+msgid "RX errors"
+msgstr "RX 错误"
+
 msgid "Real-time PPE hardware offload monitoring, link health and hardware offload status · source luci.airoha_flowsense (5 s poll)"
 msgstr "实时 PPE 硬件卸载监控、链路健康与硬件卸载状态 · 数据源 luci.airoha_flowsense（5 秒轮询）"
+
+msgid "Received"
+msgstr "累计接收"
 
 msgid "Refresh"
 msgstr "刷新"
@@ -351,11 +426,20 @@ msgstr "继续"
 msgid "Retransmit"
 msgstr "重传"
 
+msgid "Retry"
+msgstr "重传"
+
 msgid "Router mode restricted"
 msgstr "路由模式禁用"
 
 msgid "Save"
 msgstr "保存"
+
+msgid "Sent"
+msgstr "累计发送"
+
+msgid "Signal"
+msgstr "信号"
 
 msgid "SoC / NPU"
 msgstr "SoC / NPU"
@@ -372,6 +456,24 @@ msgstr "此处开关为写操作；同一份数值在 FlowSense 标签以只读�
 msgid "TX"
 msgstr "发送"
 
+msgid "TX Token Pool"
+msgstr "TX Token 池"
+
+msgid "TX dropped"
+msgstr "TX 丢弃"
+
+msgid "TX errors"
+msgstr "TX 错误"
+
+msgid "TX ring depth"
+msgstr "TX 环深度"
+
+msgid "TX ring depth / queued"
+msgstr "TX 环深度 / 排队"
+
+msgid "TX ring queued"
+msgstr "TX 环排队"
+
 msgid "Temperature"
 msgstr "温度"
 
@@ -380,6 +482,12 @@ msgstr "仪表行为 auto-fit 栅格：无无线硬件的机型上三个 WiFi �
 
 msgid "This tab is read-only: switches are operated on the SoC / NPU tab so a kernel switch has only one writable entry point."
 msgstr "本标签只读：开关统一在「SoC / NPU」标签操作，避免同一份内核开关出现两个可写入口。"
+
+msgid "Token pool"
+msgstr "Token 池"
+
+msgid "Token pool & TX rings"
+msgstr "Token 池与 TX 环"
 
 msgid "Total"
 msgstr "总计"
@@ -405,6 +513,9 @@ msgstr "更新于 %s"
 msgid "Upstream"
 msgstr "上游"
 
+msgid "Uptime"
+msgstr "在线时长"
+
 msgid "Use hardware flow offload in router mode"
 msgstr "路由模式下请改用硬件流量加速"
 
@@ -417,14 +528,23 @@ msgstr "WAN"
 msgid "WAN errors"
 msgstr "WAN 错误"
 
+msgid "WAN health"
+msgstr "WAN 健康"
+
 msgid "WEAK"
 msgstr "较弱"
 
 msgid "Warning"
 msgstr "警告"
 
+msgid "WiFi Band Details"
+msgstr "WiFi 频段明细"
+
 msgid "Working Mode"
 msgstr "工作模式"
+
+msgid "Yes"
+msgstr "是"
 
 msgid "alerts"
 msgstr "条告警"
@@ -458,6 +578,12 @@ msgstr "省电模式"
 
 msgid "samples"
 msgstr "个样本"
+
+msgid "showing"
+msgstr "显示"
+
+msgid "truncated"
+msgstr "已截断"
 
 msgid "used"
 msgstr "已用"

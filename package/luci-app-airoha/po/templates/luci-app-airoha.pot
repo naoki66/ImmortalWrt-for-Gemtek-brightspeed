@@ -19,6 +19,9 @@ msgstr ""
 msgid "Activated"
 msgstr ""
 
+msgid "Active"
+msgstr ""
+
 msgid "Airoha"
 msgstr ""
 
@@ -28,13 +31,22 @@ msgstr ""
 msgid "Airoha SoC Status"
 msgstr ""
 
+msgid "Airtime"
+msgstr ""
+
 msgid "Architecture"
 msgstr ""
 
 msgid "Auto-detected"
 msgstr ""
 
+msgid "BND = bound to hardware (NPU path); UNB = learning (CPU path). The client renders the first 100 rows."
+msgstr ""
+
 msgid "BND — bound to hardware"
+msgstr ""
+
+msgid "Band"
 msgstr ""
 
 msgid "Bands"
@@ -47,6 +59,24 @@ msgid "Bound"
 msgstr ""
 
 msgid "Bound / total PPE flows"
+msgstr ""
+
+msgid "Bridge & hardware buffer"
+msgstr ""
+
+msgid "Bridge / WAN / Token Details"
+msgstr ""
+
+msgid "Bridge RX dropped"
+msgstr ""
+
+msgid "Bridge RX packets"
+msgstr ""
+
+msgid "Bridge TX dropped"
+msgstr ""
+
+msgid "Bridge TX packets"
 msgstr ""
 
 msgid "CLEAN"
@@ -62,6 +92,9 @@ msgid "CPU LOAD"
 msgstr ""
 
 msgid "CPU PATH"
+msgstr ""
+
+msgid "CPU Temperature"
 msgstr ""
 
 msgid "CPU frequency, NPU and frame engine, hardware offload switches · source luci.airoha_npu (5 s poll)"
@@ -109,6 +142,9 @@ msgstr ""
 msgid "DROPPING"
 msgstr ""
 
+msgid "Device"
+msgstr ""
+
 msgid "Disabled"
 msgstr ""
 
@@ -133,6 +169,12 @@ msgstr ""
 msgid "Ethernet"
 msgstr ""
 
+msgid "Expected"
+msgstr ""
+
+msgid "Failed"
+msgstr ""
+
 msgid "Failed to set ping target"
 msgstr ""
 
@@ -146,6 +188,9 @@ msgid "Flow Offload"
 msgstr ""
 
 msgid "FlowSense"
+msgstr ""
+
+msgid "Forward transitions"
 msgstr ""
 
 msgid "Frame Engine"
@@ -259,7 +304,13 @@ msgstr ""
 msgid "NPU device ready"
 msgstr ""
 
+msgid "NPU state"
+msgstr ""
+
 msgid "New Flow"
+msgstr ""
+
+msgid "No"
 msgstr ""
 
 msgid "No WAN IP detected"
@@ -283,6 +334,9 @@ msgstr ""
 msgid "Not Activated"
 msgstr ""
 
+msgid "Not provided without wireless hardware"
+msgstr ""
+
 msgid "Offload Statistics"
 msgstr ""
 
@@ -290,6 +344,9 @@ msgid "Offload share"
 msgstr ""
 
 msgid "Original Flow"
+msgstr ""
+
+msgid "PHY rate"
 msgstr ""
 
 msgid "PLL Reading"
@@ -307,7 +364,16 @@ msgstr ""
 msgid "PPPoE Offload"
 msgstr ""
 
+msgid "PSE port drops"
+msgstr ""
+
+msgid "PSE shared buffer"
+msgstr ""
+
 msgid "Pause"
+msgstr ""
+
+msgid "Per-band airtime efficiency, negotiated and expected rates, failure counts and BND/UNB ownership."
 msgstr ""
 
 msgid "Physical Bottleneck"
@@ -328,7 +394,16 @@ msgstr ""
 msgid "ROUTER MODE"
 msgstr ""
 
+msgid "RX dropped"
+msgstr ""
+
+msgid "RX errors"
+msgstr ""
+
 msgid "Real-time PPE hardware offload monitoring, link health and hardware offload status · source luci.airoha_flowsense (5 s poll)"
+msgstr ""
+
+msgid "Received"
 msgstr ""
 
 msgid "Refresh"
@@ -346,10 +421,19 @@ msgstr ""
 msgid "Retransmit"
 msgstr ""
 
+msgid "Retry"
+msgstr ""
+
 msgid "Router mode restricted"
 msgstr ""
 
 msgid "Save"
+msgstr ""
+
+msgid "Sent"
+msgstr ""
+
+msgid "Signal"
 msgstr ""
 
 msgid "SoC / NPU"
@@ -367,6 +451,24 @@ msgstr ""
 msgid "TX"
 msgstr ""
 
+msgid "TX Token Pool"
+msgstr ""
+
+msgid "TX dropped"
+msgstr ""
+
+msgid "TX errors"
+msgstr ""
+
+msgid "TX ring depth"
+msgstr ""
+
+msgid "TX ring depth / queued"
+msgstr ""
+
+msgid "TX ring queued"
+msgstr ""
+
 msgid "Temperature"
 msgstr ""
 
@@ -374,6 +476,12 @@ msgid "The gauge row is an auto-fit grid: on a board without wireless the three 
 msgstr ""
 
 msgid "This tab is read-only: switches are operated on the SoC / NPU tab so a kernel switch has only one writable entry point."
+msgstr ""
+
+msgid "Token pool"
+msgstr ""
+
+msgid "Token pool & TX rings"
 msgstr ""
 
 msgid "Total"
@@ -400,6 +508,9 @@ msgstr ""
 msgid "Upstream"
 msgstr ""
 
+msgid "Uptime"
+msgstr ""
+
 msgid "Use hardware flow offload in router mode"
 msgstr ""
 
@@ -412,13 +523,22 @@ msgstr ""
 msgid "WAN errors"
 msgstr ""
 
+msgid "WAN health"
+msgstr ""
+
 msgid "WEAK"
 msgstr ""
 
 msgid "Warning"
 msgstr ""
 
+msgid "WiFi Band Details"
+msgstr ""
+
 msgid "Working Mode"
+msgstr ""
+
+msgid "Yes"
 msgstr ""
 
 msgid "alerts"
@@ -452,6 +572,12 @@ msgid "powersave"
 msgstr ""
 
 msgid "samples"
+msgstr ""
+
+msgid "showing"
+msgstr ""
+
+msgid "truncated"
 msgstr ""
 
 msgid "used"
