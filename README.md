@@ -18,14 +18,14 @@ XR1710G 与 XG2010G 设备维护的 Airoha AN7581 固件项目。
 当前维护两个相互隔离的硬件配置：
 
 - **XR1710G**：Brightspeed 10G Wi-Fi 7 路由器，使用 `1710.config`，包含 MT7996 无线、NPU 和 RTL8261BE 以太网支持。
-- **XG2010G**：10G XG(S)-PON 网关，使用 `2010.config`， 使用 EN7581 xPON 软件包,NPU 和 RTL8261BE 以太网支持。
+- **XG2010G**：Brightspeed 10G XG(S)-PON/XE-PON  网关，使用 `2010.config`， 使用 EN7581 xPON 软件包,NPU 和 RTL8261BE 以太网支持。
 
 ## 支持设备
 
 | 设备 | 构建配置 | 当前定位 | 设备树/镜像 |
 |------|----------|----------|------------|
 | Brightspeed/Gemtek XR1710G | [`1710.config`](1710.config) | Wi-Fi 7 路由器固件 | [`an7581-xr1710g-ubi.dts`](target/linux/airoha/dts/an7581-xr1710g-ubi.dts) |
-| Gemtek XG2010G | [`2010.config`](2010.config) | XG(S)-PON 网关移植基线 | [`an7581-gemtek-xg2010g-ubi.dts`](target/linux/airoha/dts/an7581-gemtek-xg2010g-ubi.dts) |
+| Brightspeed/Gemtek XG2010G | [`2010.config`](2010.config) | XG(S)-PON 网关移植基线 | [`an7581-gemtek-xg2010g-ubi.dts`](target/linux/airoha/dts/an7581-gemtek-xg2010g-ubi.dts) |
 
 ### XR1710G
 
