@@ -12,7 +12,7 @@
 
 	chosen {
 		rootdisk = <&ubi_fit>;
-		bootargs = "sdram_conf=0x00108893 vendor_name=ECONET Technologies Corp. product_name=xPON ONU ubi.mtd=ubi snmp_sysobjid=1.2.3.4.5 country_code=ff ether_gpio=0c power_gpio=1515 dsl_gpio=0b internet_gpio=02 multi_upgrade_gpio=0b020400000000000000000000000000 onu_type=71 qdma_init=69bb console=ttyS0,115200n8 earlycon bootflag=0 serdes_sel=0 serdes_pon=000 serdes_ethernet=411 serdes_wifi1=005 serdes_wifi2=413 serdes_usb1=111 serdes_usb2=000 ubi.block=0,fit root=/dev/fit0 rootwait ramdisk_size=65536 rdinit=/sbin/init";
+		bootargs = "console=ttyS0,115200 earlycon ubi.block=0,fit root=/dev/fit0 rootwait rdinit=/sbin/init";
 	};
 
 	scu@1fb00000 {
@@ -174,4 +174,111 @@
 	reg = <0x0 0x1FA20000 0x0 0x2C0
 	       0x0 0x1EFBE000 0x0 0x800>;
 	reg-names = "chip-scu", "mcucfg";
+};
+
+&mdio {
+	rtl8261n_lan1: ethernet-phy@5 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <5>;
+
+		reset-gpios = <&en7581_pinctrl 29 GPIO_ACTIVE_LOW>;
+		reset-assert-us = <200000>;
+		reset-deassert-us = <200000>;
+		reset-before-id-read;
+
+		realtek,sds-mode = <0x88c6>;
+		realtek,patch-rtk-serdes;
+	};
+
+	rtl8261n_lan2: ethernet-phy@8 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <8>;
+
+		reset-gpios = <&en7581_pinctrl 27 GPIO_ACTIVE_LOW>;
+		reset-assert-us = <200000>;
+		reset-deassert-us = <200000>;
+		reset-before-id-read;
+
+		realtek,sds-mode = <0x88c6>;
+		realtek,patch-rtk-serdes;
+	};
+};
+
+&gdm2 {
+	status = "okay";
+
+	phy-mode = "usxgmii";
+	managed = "in-band-status";
+
+	openwrt,netdev-name = "pon";
+};
+
+&pcie_pcs {
+	status = "okay";
+};
+
+&gdm4 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	eth_port0: eth-port@0 {
+		compatible = "airoha,eth-port";
+		reg = <0>;
+
+		pcs-handle = <&eth_pcs>;
+
+		phy-handle = <&rtl8261n_lan1>;
+		phy-mode = "usxgmii";
+		managed = "in-band-status";
+
+		openwrt,netdev-name = "lan1";
+
+		nvmem-cell-names = "mac-address";
+		nvmem-cells = <&macaddr_factory_3e (0)>;
+
+		status = "okay";
+	};
+
+	eth_port1: eth-port@1 {
+		compatible = "airoha,eth-port";
+		reg = <1>;
+
+		pcs-handle = <&usb_pcs>;
+
+		phy-handle = <&en8811>;
+		phy-mode = "2500base-x";
+
+		openwrt,netdev-name = "lan3";
+
+		status = "okay";
+	};
+};
+
+&usb_pcs {
+	status = "okay";
+};
+
+&eth {
+	gdm3: ethernet@3 {
+		compatible = "airoha,eth-mac";
+		reg = <3>;
+
+		pcs-handle = <&pcie_pcs 1>;
+
+		phy-handle = <&rtl8261n_lan2>;
+		phy-mode = "usxgmii";
+		managed = "in-band-status";
+
+		openwrt,netdev-name = "lan2";
+
+		status = "okay";
+	};
+};
+
+&gsw_port2 {
+	status = "disabled";
+};
+
+&gsw_port3 {
+	status = "disabled";
 };
