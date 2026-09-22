@@ -648,6 +648,15 @@ _apmode_has_vlan_filtering() {
 get_apmode_offload() {
 	local ipt ip6t arp vlan_filtering filter_vlan_tagged pass_vlan_indev filter_pppoe_tagged
 
+	# Mirrored by luci.airoha_flowsense's get_apmode_offload(); the two must
+	# stay identical. SYNC THESE SIX KEYS whenever either copy changes:
+	#   bridge-nf-call-iptables, bridge-nf-call-ip6tables,
+	#   bridge-nf-call-arptables, bridge-nf-filter-vlan-tagged,
+	#   bridge-nf-pass-vlan-input-dev, bridge-nf-filter-pppoe-tagged
+	# Mirror set_apmode_offload(): the VLAN pair is conditional on a
+	# VLAN-filtering bridge, but PPPoE passthrough is required unconditionally.
+	# Without the pppoe term the switch would read "on" while the setter had
+	# written it, and "off" after a reboot applied the conf without it.
 	ipt=$(cat /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null)
 	ip6t=$(cat /proc/sys/net/bridge/bridge-nf-call-ip6tables 2>/dev/null)
 	arp=$(cat /proc/sys/net/bridge/bridge-nf-call-arptables 2>/dev/null)
@@ -656,10 +665,6 @@ get_apmode_offload() {
 	pass_vlan_indev=$(cat /proc/sys/net/bridge/bridge-nf-pass-vlan-input-dev 2>/dev/null)
 	filter_pppoe_tagged=$(cat /proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged 2>/dev/null)
 
-	# Mirror set_apmode_offload(): the VLAN pair is conditional on a
-	# VLAN-filtering bridge, but PPPoE passthrough is required unconditionally.
-	# Without the pppoe term the switch would read "on" while the setter had
-	# written it, and "off" after a reboot applied the conf without it.
 	if [ "$ipt" = "1" ] && [ "$ip6t" = "1" ] && [ "$arp" = "1" ] && \
 	   [ "$filter_pppoe_tagged" = "1" ] && \
 	   { [ "$vlan_filtering" = "0" ] || { [ "$filter_vlan_tagged" = "1" ] && [ "$pass_vlan_indev" = "1" ]; }; }; then
