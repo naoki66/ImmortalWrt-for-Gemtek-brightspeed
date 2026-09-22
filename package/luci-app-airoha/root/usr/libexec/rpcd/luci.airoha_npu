@@ -646,7 +646,7 @@ _apmode_has_vlan_filtering() {
 }
 
 get_apmode_offload() {
-	local ipt ip6t arp vlan_filtering filter_vlan_tagged pass_vlan_indev
+	local ipt ip6t arp vlan_filtering filter_vlan_tagged pass_vlan_indev filter_pppoe_tagged
 
 	ipt=$(cat /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null)
 	ip6t=$(cat /proc/sys/net/bridge/bridge-nf-call-ip6tables 2>/dev/null)
@@ -654,8 +654,14 @@ get_apmode_offload() {
 	vlan_filtering=$(_apmode_has_vlan_filtering)
 	filter_vlan_tagged=$(cat /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null)
 	pass_vlan_indev=$(cat /proc/sys/net/bridge/bridge-nf-pass-vlan-input-dev 2>/dev/null)
+	filter_pppoe_tagged=$(cat /proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged 2>/dev/null)
 
+	# Mirror set_apmode_offload(): the VLAN pair is conditional on a
+	# VLAN-filtering bridge, but PPPoE passthrough is required unconditionally.
+	# Without the pppoe term the switch would read "on" while the setter had
+	# written it, and "off" after a reboot applied the conf without it.
 	if [ "$ipt" = "1" ] && [ "$ip6t" = "1" ] && [ "$arp" = "1" ] && \
+	   [ "$filter_pppoe_tagged" = "1" ] && \
 	   { [ "$vlan_filtering" = "0" ] || { [ "$filter_vlan_tagged" = "1" ] && [ "$pass_vlan_indev" = "1" ]; }; }; then
 		printf '{"enabled":1}'
 	else
@@ -682,22 +688,32 @@ set_apmode_offload() {
 	vlan_options=0
 	[ "$vlan_filtering" = "1" ] && vlan_options=$enabled
 
+	# AP-mode acceleration owns the bridge-layer offloads: VLAN filtering
+	# passthrough plus PPPoE passthrough. The VLAN pair stays conditional on a
+	# VLAN-filtering bridge existing (writing 1 there would be a no-op without
+	# one), but PPPoE passthrough is independent of bridge VLAN filtering, so it
+	# is written unconditionally from "$enabled". Reusing $vlan_options here
+	# would silently write 0 on boards with no VLAN bridge.
 	if ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null ||
 	   ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-call-ip6tables 2>/dev/null ||
 	   ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-call-arptables 2>/dev/null ||
 	   ! echo "$vlan_options" > /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null ||
-	   ! echo "$vlan_options" > /proc/sys/net/bridge/bridge-nf-pass-vlan-input-dev 2>/dev/null; then
+	   ! echo "$vlan_options" > /proc/sys/net/bridge/bridge-nf-pass-vlan-input-dev 2>/dev/null ||
+	   ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged 2>/dev/null; then
 		echo '{"error":"failed to configure bridge netfilter"}'
 		return
 	fi
 
 	if [ "$enabled" = "1" ]; then
+		modprobe nf_conntrack_pptp 2>/dev/null
+		modprobe nf_nat_pptp 2>/dev/null
 		{
 			echo 'net.bridge.bridge-nf-call-iptables=1'
 			echo 'net.bridge.bridge-nf-call-ip6tables=1'
 			echo 'net.bridge.bridge-nf-call-arptables=1'
 			echo "net.bridge.bridge-nf-filter-vlan-tagged=$vlan_options"
 			echo "net.bridge.bridge-nf-pass-vlan-input-dev=$vlan_options"
+			echo "net.bridge.bridge-nf-filter-pppoe-tagged=$enabled"
 		} > /etc/sysctl.d/12-apmode-offload.conf
 	else
 		rm -f /etc/sysctl.d/12-apmode-offload.conf 2>/dev/null
