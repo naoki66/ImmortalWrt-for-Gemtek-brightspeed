@@ -35,7 +35,11 @@ var BANDS = [
 /* The `.ai-*` component stylesheet (section C of the design reference). Page
  * tokens come from ds-tokens.js and are prepended by ensureCss(). */
 var COMPONENT_CSS = [
-	'.airoha-page{max-width:1120px;margin:0 auto;color:var(--ds-text);line-height:1.5}',
+	/* Width policy mirrors the fancontrol views: the page root carries NO
+	 * width rules at all — the layout inherits the theme's content width, so
+	 * a late-injected stylesheet can never change the page's geometry (no
+	 * width flash on first paint). */
+	'.airoha-page{color:var(--ds-text);line-height:1.5}',
 	'.airoha-page :focus-visible{outline:2px solid var(--ds-primary);outline-offset:1px}',
 
 	'.ai-pagehead h2{margin:0;font-size:var(--ds-fs-2xl);line-height:1.3;font-weight:650;color:var(--ds-text)}',
@@ -78,7 +82,7 @@ var COMPONENT_CSS = [
 	'.ai-num{font-family:var(--ds-mono);font-variant-numeric:tabular-nums;text-align:right}',
 	'.ai-err{color:var(--ds-error);font-weight:650}',
 
-	'.ai-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(13em,1fr));gap:1px;background:var(--ds-border);border:1px solid var(--ds-border);border-radius:var(--ds-r-md);overflow:hidden}',
+	'.ai-kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--ds-border);border:1px solid var(--ds-border);border-radius:var(--ds-r-md);overflow:hidden}',
 	'.ai-kv-item{display:flex;align-items:baseline;justify-content:space-between;gap:var(--ds-sp-2);padding:var(--ds-sp-2) var(--ds-sp-3);background:var(--ds-surface-sunken);font-size:var(--ds-fs-sm);min-width:0}',
 	'.ai-kv-k{color:var(--ds-text-muted);white-space:nowrap}',
 	'.ai-kv-v{font-family:var(--ds-mono);font-variant-numeric:tabular-nums;font-weight:650;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
@@ -175,6 +179,15 @@ var COMPONENT_CSS = [
 	'.airoha-page[data-wifi="false"] .ai-wifi-only{display:none}',
 
 	'@media (prefers-reduced-motion:reduce){.ai-skeleton,.ai-dot--live,.ai-bar-fill{animation:none;transition:none}}',
+
+	/* Theme interference guards: some themes decorate bare header/h2/h3
+	 * elements with primary-coloured bars/borders. Ours own their background
+	 * explicitly so no stray blue strip can appear above the sections. */
+	'.airoha-page header,.airoha-page header.ai-pagehead{background:transparent;border:0;box-shadow:none;padding:0;margin:0 0 var(--ds-sp-3)}',
+	'.airoha-page header::before,.airoha-page header::after{display:none}',
+	'.airoha-page h2,.airoha-page h3,.airoha-page .ai-lede{background:transparent;border:0;box-shadow:none;text-shadow:none}',
+	'.airoha-page .ai-section-head h3{background:transparent}',
+
 	'@media (max-width:720px){.ai-table--stack thead{display:none}.ai-table--stack,.ai-table--stack tbody,.ai-table--stack tr,.ai-table--stack td{display:block;width:100%}.ai-table--stack tr{padding:var(--ds-sp-2) 0;border-bottom:1px solid var(--ds-border)}.ai-table--stack td{border:0;padding:0}.ai-table--stack td:before{display:block;content:attr(data-label);color:var(--ds-text-muted);font-size:var(--ds-fs-xs);font-weight:650}.ai-kv,.ai-switch-row{grid-template-columns:1fr}}'
 ].join('\n');
 

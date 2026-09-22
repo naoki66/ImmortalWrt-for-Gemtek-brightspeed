@@ -60,11 +60,44 @@ msgstr "频段"
 msgid "Binding rate (BND / total)"
 msgstr "绑定率（BND / 总表项）"
 
+msgid "All"
+msgstr "全部"
+
 msgid "Bound"
 msgstr "已绑定"
 
 msgid "Bound / total PPE flows"
 msgstr "已绑定 / PPE 总表项"
+
+msgid "CPU model / temperature"
+msgstr "CPU 型号 / 温度"
+
+msgid "CPU freq / PLL"
+msgstr "CPU 频率 / PLL"
+
+msgid "Current frequency (cpuinfo_cur_freq)"
+msgstr "当前频率（cpuinfo_cur_freq）"
+
+msgid "Governor frequency (scaling_cur_freq)"
+msgstr "调度频率（scaling_cur_freq）"
+
+msgid "VLAN passthrough"
+msgstr "VLAN 包直通桥转发"
+
+msgid "Hardware flow offload (UCI firewall)"
+msgstr "硬件流量分载（UCI 防火墙）"
+
+msgid "Bridge firewall passthrough · PPPoE"
+msgstr "桥接包过防火墙 · PPPoE 直通"
+
+msgid "Weakest client"
+msgstr "最弱客户端"
+
+msgid "Signal grade: ≥ -75 good · -75 ~ -82 weak · < -82 poor (worst client RSSI)"
+msgstr "判定：≥ -75 良好 · -75 ~ -82 较弱 · < -82 差（取最弱客户端 RSSI）"
+
+msgid "Signal quality"
+msgstr "信号质量"
 
 msgid "Bridge & hardware buffer"
 msgstr "网桥与硬件缓冲"
@@ -74,6 +107,12 @@ msgstr "网桥 / PON / Token 明细"
 
 msgid "Bridge / WAN / Token Details"
 msgstr "网桥 / WAN / Token 明细"
+
+msgid "Bridge / Token Details"
+msgstr "网桥 / Token 明细"
+
+msgid "Bridge Details"
+msgstr "网桥明细"
 
 msgid "Bridge RX dropped"
 msgstr "桥 RX 丢弃"
@@ -546,9 +585,6 @@ msgstr "仪表行为 auto-fit 栅格：无无线硬件的机型上三个 WiFi �
 msgid "The per-band cards are indexed by wireless band and are skipped entirely on this board. The rest of the frame engine (PSE / GDM / CDM / NPU) is unaffected."
 msgstr "频段卡按无线频段索引，在此机型上整块跳过渲染；帧引擎的其余部分（PSE / GDM / CDM / NPU）不受影响。"
 
-msgid "This tab is read-only: switches are operated on the SoC / NPU tab so a kernel switch has only one writable entry point."
-msgstr "本标签只读：开关统一在「SoC / NPU」标签操作，避免同一份内核开关出现两个可写入口。"
-
 msgid "Token pool"
 msgstr "Token 池"
 
@@ -575,6 +611,12 @@ msgstr "有未保存的更改"
 
 msgid "Updated %s"
 msgstr "更新于 %s"
+
+msgid "Optical signal"
+msgstr "光信号"
+
+msgid "shared"
+msgstr "共享"
 
 msgid "Upstream"
 msgstr "上游"

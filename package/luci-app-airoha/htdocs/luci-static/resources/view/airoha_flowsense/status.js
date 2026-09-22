@@ -21,10 +21,18 @@ var _maxUnbSeen      = 8;     // UNB scale denominator — only grows, never shr
 var _cfgPingTarget = '';
 var _pingRefresh = null;
 
+/* ── PPE monitor state (module-level so the per-section filter selects can
+ * survive the 5 s rebuild) ── */
+var _ppeFull = null;                            // uncapped getPpeEntries payload
+var _ppeFilters = { bnd: 'all', unb: 'all' };   // per-section protocol filter
+var _ppeRefresh = null;                         // re-render cb installed by render()
+
 /* ── RPC Declarations ── */
 var callGetOverview  = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getOverview' });
 var callGetPingTarget = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getPingTarget' });
 var callSetPingTarget = rpc.declare({ object: 'luci.airoha_flowsense', method: 'setPingTarget', params: ['target'] });
+// Uncapped full entry list — the overview payload only carries a small slice.
+var callPpeEntries = rpc.declare({ object: 'luci.airoha_npu', method: 'getPpeEntries' });
 
 /* ── Token aliases ──
  * Every colour below resolves through the shared design tokens (ds-tokens.js),
@@ -636,8 +644,10 @@ function translateAlertMsg(msg) {
 
 function renderConflictAlerts(alertData) {
 	var alerts = (alertData && Array.isArray(alertData.alerts)) ? alertData.alerts : [];
+	// No conflicts → no section at all: "当前没有检测到冲突" as a permanent
+	// placeholder is just noise on a healthy system.
 	if (!alerts.length)
-		return aui.section({ title: _('Conflicts & Alerts'), body: aui.empty(_('No conflicts detected')) });
+		return null;
 	var items = alerts.map(function(a) {
 		return aui.banner(a.severity === 'error' ? 'error' : '', _(a.title || ''), translateAlertMsg(a.message || ''));
 	});
@@ -662,11 +672,13 @@ function renderLinkTiles(dm, bypass, st, wan, wifi, apo, flo, vo, mode, hasWifi,
 		aui.tile({ title: _('Working Mode'), value: mode === 'ap' ? _('AP MODE') : _('ROUTER MODE'), accent: mode === 'ap' ? C.npu : C.ok, sub: _('Auto-detected') + reason }),
 		aui.tile({ title: _('NPU Path'), value: pathText, accent: bypass.npu_active ? C.npu : C.warn, sub: (bypass.offload_bound || 0) + ' ' + _('Bound') }),
 		aui.tile({ title: _('Acceleration'), value: accOn + ' / 3', accent: C.warn, sub: 'Flow · AP · VLAN' }),
-		aui.tile({ title: _('CPU LOAD'), value: String(bypass.cpu_pct || 0), unit: '%', accent: C.load, sub: aui.fmtFreq(st.cpu_hw_freq) + ' · ' + (st.cpu_governor || '') }),
-		isPon
-			? aui.tile({ title: _('PON'), value: ponModeName(pon), accent: C.npu, sub: ponRateText(pon) })
-			: aui.tile({ title: mode === 'ap' ? _('Upstream') : _('WAN'), value: String(bypass.wan_mbps || 0), unit: 'Mbps', accent: C.ok, sub: (wan.device || '') + ' · ' + aui.fmtUptime(wan.uptime || 0) })
+		aui.tile({ title: _('CPU LOAD'), value: String(bypass.cpu_pct || 0), unit: '%', accent: C.load, sub: aui.fmtFreq(st.cpu_hw_freq) + ' · ' + (st.cpu_governor || '') })
 	];
+	if (isPon) {
+		tiles.push(aui.tile({ title: _('PON'), value: ponModeName(pon), accent: C.npu, sub: ponRateText(pon) }));
+	}
+	// The WAN / Upstream tile was removed entirely: in router mode it duplicated
+	// the WAN health block, in AP mode it sat at "0 Mbps · 0m" forever.
 	if (hasWifi) {
 		var parts = aui.BANDS.map(function(b, i) {
 			var ws = null;
@@ -699,7 +711,7 @@ function renderQuad(cs, bypass, jitter, wan, wifi, bridge, mode) {
 			? 'CPU: ' + cs.cpuPct + '%  |  PON: ' + ponModeName(cs.pon)
 			: 'CPU: ' + cs.cpuPct + '%  |  WAN: ' + cs.wanMbps + ' Mbps';
 
-	var eastVal, eastSub;
+	var eastVal, eastSub, eastTitle;
 	if (mode === 'router') {
 		if (cs.pon) {
 			// PON has no RX/TX error counters — report the optical link instead.
@@ -708,7 +720,7 @@ function renderQuad(cs, bypass, jitter, wan, wifi, bridge, mode) {
 			eastSub = _('PON') + ': ' + ponModeName(cs.pon);
 		} else {
 			eastVal = cs.eastAlarm ? cs.errCount + ' ' + _('ERROR') + (cs.errCount > 1 ? 'S' : '') : _('CLEAN');
-			eastSub = 'RX errors: ' + (wan.rx_errors || 0) + '  TX errors: ' + (wan.tx_errors || 0);
+			eastSub = _('RX errors') + ': ' + (wan.rx_errors || 0) + '  ' + _('TX errors') + ': ' + (wan.tx_errors || 0);
 		}
 	} else {
 		var ws = cs.worstSignal;
@@ -717,9 +729,13 @@ function renderQuad(cs, bypass, jitter, wan, wifi, bridge, mode) {
 		        : ws < -82               ? _('POOR')
 		        : ws < -75               ? _('WEAK')
 		        :                          _('CLEAN');
+		// Give the reading meaning: it is the WORST client's RSSI across all
+		// bands, graded ≥-75 good / -75…-82 weak / <-82 poor. The full rule is
+		// in the card tooltip, the sub-line names the weakest client.
 		eastSub = cs.wbDelta.length > 0
-			? cs.wbDelta.map(function(b) { return aui.BANDS[b.band].name + ': ' + b.signal + ' dBm'; }).join('  |  ')
+			? _('Weakest client') + ' · ' + cs.wbDelta.map(function(b) { return aui.BANDS[b.band].name + ': ' + b.signal + ' dBm'; }).join('  |  ')
 			: _('No clients');
+		eastTitle = cs.wbDelta.length > 0 ? _('Signal grade: ≥ -75 good · -75 ~ -82 weak · < -82 poor (worst client RSSI)') : null;
 	}
 
 	var hb = cs.hwBuf || {};
@@ -733,7 +749,7 @@ function renderQuad(cs, bypass, jitter, wan, wifi, bridge, mode) {
 	var latTarget = _cfgPingTarget || jitter.target || '';
 	var latSub   = _('Jitter') + ': ' + (jitter.jitter || 0).toFixed(1) + 'ms  |  ' + (jitter.samples || 0) + ' ' + _('samples') + '  |  ' + _('Ping') + ': ' + (latTarget || '—') + ' ✏';
 
-	function card(name, val, color, sub, onclick) {
+	function card(name, val, color, sub, onclick, title) {
 		var c = aui.card({
 			name: name, accent: color,
 			body: [
@@ -741,6 +757,7 @@ function renderQuad(cs, bypass, jitter, wan, wifi, bridge, mode) {
 				E('div', { 'class': 'ai-gauge-cap', 'style': 'text-align:left' }, sub)
 			]
 		});
+		if (title) c.title = title;
 		if (onclick) {
 			// Bind on the whole card, not only the sub-line: one small text line is
 			// a tiny hit target. The sub-line is a child, so in the browser a click
@@ -796,7 +813,7 @@ function renderQuad(cs, bypass, jitter, wan, wifi, bridge, mode) {
 
 	return E('div', { 'class': 'ai-grid ai-grid--4', 'style': 'margin-top:var(--ds-sp-3)' }, [
 		card(_('NPU Path'), northVal, northColor, northSub),
-		card(_('Integrity'), eastVal, cs.eastColor, eastSub),
+		card(mode === 'ap' ? _('Signal quality') : _('Integrity'), eastVal, cs.eastColor, eastSub, null, eastTitle),
 		card(_('Latency'), latVal, cs.latColor, latSub, pingClick),
 		card(_('HW Buffer'), southVal, hb.color || C.ok, southSub)
 	]);
@@ -972,25 +989,56 @@ function renderModeCards(dm, apo, flo, vo) {
 					E('div', { 'class': 'ai-gauge-cap', 'style': 'text-align:left' }, _('Auto-detected') + (reason ? ' — ' + reason : ''))
 				]
 			}),
-			accelCard(_('AP Mode Acceleration'), isOn(apo.enabled), 'br_netfilter'),
-			accelCard(_('Flow Offload'), isOn(flo.enabled), 'flow_offloading(_hw)'),
-			accelCard(_('VLAN Offload'), isOn(vo.enabled), 'bridge-nf-filter-vlan-tagged / pass-vlan-input-dev')
-		]),
-		E('p', { 'class': 'ai-hint', 'style': 'margin-top:var(--ds-sp-2)' }, _('This tab is read-only: switches are operated on the SoC / NPU tab so a kernel switch has only one writable entry point.'))
+			accelCard(_('AP Mode Acceleration'), isOn(apo.enabled), _('Bridge firewall passthrough · PPPoE') + ' · br_netfilter'),
+			accelCard(_('Flow Offload'), isOn(flo.enabled), _('Hardware flow offload (UCI firewall)') + ' · flow_offloading(_hw)'),
+			accelCard(_('VLAN Offload'), isOn(vo.enabled), _('VLAN passthrough') + ' · bridge-nf-filter-vlan-tagged / pass-vlan-input-dev')
+		])
 	]);
 }
 
 /* ── PPE Flow Monitor console ── */
-function flowSection(name, kind, stats, showV6) {
+/* Console style with one section per state (BND / UNB), each with its own
+ * IPv4/IPv6 filter dropdown and a scrollable table so more entries can be
+ * browsed than the overview slice carries. */
+var PPE_SHOWN_MAX = 300;
+
+function ppeProtoFilter(kind, entries) {
+	var f = _ppeFilters[kind] || 'all';
+	return entries.filter(function(e) {
+		if (f === 'all') return true;
+		var v6 = String(e.type || '').indexOf('IPv6') >= 0;
+		return f === 'v6' ? v6 : !v6;
+	});
+}
+
+function flowSection(name, kind, stats) {
 	stats = stats || {};
 	var acc = kind === 'bnd' ? C.npu : C.warn;
-	var total = stats.total || 0;
 	var entries = Array.isArray(stats.entries) ? stats.entries : [];
-	var head = name + ' · ' + total + ' ' + _('flows') + (showV6 ? '  (' + _('v4') + ': ' + (stats.ipv4 || 0) + ' · ' + _('v6') + ': ' + (stats.ipv6 || 0) + ')' : '');
+	var total = (stats.total != null) ? stats.total : entries.length;
+	var rows = ppeProtoFilter(kind, entries);
+	var shown = rows.slice(0, PPE_SHOWN_MAX);
+	var v4 = 0, v6 = 0;
+	entries.forEach(function(e) { if (String(e.type || '').indexOf('IPv6') >= 0) v6++; else v4++; });
+
+	var head = E('span', {}, name + ' · ' + rows.length + ' / ' + total + ' ' + _('flows')
+		+ ' (' + _('v4') + ': ' + v4 + ' · ' + _('v6') + ': ' + v6 + ')');
+	var sel = E('select', {
+		'class': 'cbi-input-select', 'style': 'min-width:8em',
+		'change': function(ev) {
+			_ppeFilters[kind] = ev.target.value;
+			if (_ppeRefresh) _ppeRefresh();
+		}
+	}, [
+		E('option', { 'value': 'all', 'selected': _ppeFilters[kind] === 'all' ? '' : null }, _('All')),
+		E('option', { 'value': 'v4', 'selected': _ppeFilters[kind] === 'v4' ? '' : null }, 'IPv4'),
+		E('option', { 'value': 'v6', 'selected': _ppeFilters[kind] === 'v6' ? '' : null }, 'IPv6')
+	]);
+
 	var tbl = aui.table({
 		mono: true, stack: true, emptyText: _('No entries'),
 		cols: [ { t: _('Index') }, { t: _('State') }, { t: _('Type') }, { t: _('Original Flow') }, { t: _('New Flow') }, { t: _('Ethernet') } ],
-		rows: entries.map(function(e) {
+		rows: shown.map(function(e) {
 			return [
 				E('span', { 'class': 'ai-muted' }, e.index || '?'),
 				kind === 'bnd' ? aui.badge('BND', 'bnd') : aui.badge('UNB', 'unb'),
@@ -1001,30 +1049,40 @@ function flowSection(name, kind, stats, showV6) {
 			];
 		})
 	});
-	var more = (total > entries.length) ? E('p', { 'class': 'ai-hint' }, '+' + (total - entries.length) + ' ' + _('more')) : null;
+	var more = (rows.length > shown.length)
+		? E('p', { 'class': 'ai-hint' }, _('showing') + ' ' + shown.length + ' / ' + rows.length + (rows.length > shown.length ? ' · ' + _('truncated') + ' ' + (rows.length - shown.length) : ''))
+		: null;
 	return E('div', { 'class': 'ppe-flow-section', 'style': 'margin-top:var(--ds-sp-4)' }, [
-		E('div', { 'class': 'ai-subhead', 'style': 'color:' + acc }, head),
+		E('div', { 'class': 'ai-subhead', 'style': 'display:flex;align-items:center;justify-content:space-between;gap:var(--ds-sp-2);color:' + acc }, [ head, sel ]),
 		tbl,
 		more
 	]);
 }
 
-function renderPpeConsoleBody(ppe) {
+function renderPpeConsoleBody(ppe, full) {
 	ppe = ppe || {};
-	var bnd = ppe.bnd || { total: 0, ipv4: 0, ipv6: 0, entries: [] };
-	var unb = ppe.unb || { total: 0, ipv4: 0, ipv6: 0, entries: [] };
-	var total = (bnd.total || 0) + (unb.total || 0);
-	var pct = total > 0 ? ((bnd.total || 0) / total * 100) : 0;
+	var bnd = ppe.bnd || {}, unb = ppe.unb || {};
+	var fullEntries = (full && Array.isArray(full.entries)) ? full.entries : null;
+
+	// The uncapped getPpeEntries payload wins when available; the overview's
+	// capped slice is the fallback.
+	var bndEntries = fullEntries ? fullEntries.filter(function(e) { return e && e.state === 'BND'; })
+		: (Array.isArray(bnd.entries) ? bnd.entries : []);
+	var unbEntries = fullEntries ? fullEntries.filter(function(e) { return e && e.state && e.state !== 'BND'; })
+		: (Array.isArray(unb.entries) ? unb.entries : []);
+	var bndTotal = fullEntries ? bndEntries.length : (bnd.total || bndEntries.length);
+	var unbTotal = fullEntries ? unbEntries.length : (unb.total || unbEntries.length);
+	var total = bndTotal + unbTotal;
+	var pct = total > 0 ? (bndTotal / total * 100) : 0;
+
 	return E('div', {}, [
-		aui.bar({ title: _('Binding rate (BND / total)'), right: aui.fmtPct(pct), pct: pct, accent: C.npu }),
-		E('div', {}, [
-			flowSection(_('BND — bound to hardware'), 'bnd', bnd, true),
-			flowSection(_('UNB — learning (CPU path)'), 'unb', unb, true)
-		])
+		aui.bar({ title: _('Binding rate (BND / total)'), right: aui.fmtPct(pct) + ' (' + bndTotal + ' / ' + total + ')', pct: pct, accent: C.npu }),
+		flowSection(_('BND — bound to hardware'), 'bnd', { total: bndTotal, entries: bndEntries }),
+		flowSection(_('UNB — learning (CPU path)'), 'unb', { total: unbTotal, entries: unbEntries })
 	]);
 }
 
-function renderPpeConsole(ppe) {
+function renderPpeConsole(ppe, full) {
 	return E('div', { 'class': 'ai-console' }, [
 		E('div', { 'class': 'ai-console-bar' }, [
 			E('span', { 'class': 'ai-dot ai-dot--live' }),
@@ -1032,7 +1090,7 @@ function renderPpeConsole(ppe) {
 			aui.badge(_('5 s refresh')),
 			E('span', { 'class': 'ai-spacer' })
 		]),
-		E('div', { 'class': 'ai-console-body', 'id': 'ppe-terminal-body' }, renderPpeConsoleBody(ppe))
+		E('div', { 'class': 'ai-console-body', 'id': 'ppe-terminal-body' }, renderPpeConsoleBody(ppe, full))
 	]);
 }
 
@@ -1046,8 +1104,12 @@ function isOn(value) {
 
 function txRingRows(ti, hasWifi) {
 	var q = Array.isArray(ti.tx_queues) ? ti.tx_queues : [];
-	if (!hasWifi || !q.length)
-		return [ [ _('TX ring depth / queued'), _('Not provided without wireless hardware') ] ];
+	// No queue payload from the backend (some builds never fill tx_queues even
+	// with radios present) → emit no rows at all instead of a row that claims
+	// "not provided without wireless hardware", which read as broken data on
+	// radio-equipped boards.
+	if (!q.length)
+		return [];
 	var byBand = {};
 	q.forEach(function(e) { byBand[e.band] = e; });
 	var depth = aui.BANDS.map(function(b, i) {
@@ -1072,6 +1134,13 @@ function renderDetailSection(bridge, wan, ti, fe, hasWifi, topo) {
 	var tokSize = Number(ti.token_size) || 0;
 	var tokPct = tokSize > 0 ? tokCount / tokSize * 100 : 0;
 
+	// A PON ONU has an optical, not an Ethernet, upstream — swap the WAN health
+	// block for a PON status block rather than printing meaningless WAN zeros.
+	var isPon = isPonTopo(topo);
+	var pon = isPon ? topo.pon : null;
+	var optical = isPon ? ponOpticalState(pon) : null;
+	var wanTitle = isPon ? _('PON status') : _('WAN health');
+
 	var bridgeKv = aui.kv([
 		[ _('Bridge RX packets'), aui.nf(bridge.rx_packets || 0) ],
 		[ _('Bridge TX packets'), aui.nf(bridge.tx_packets || 0) ],
@@ -1082,26 +1151,11 @@ function renderDetailSection(bridge, wan, ti, fe, hasWifi, topo) {
 		[ _('PSE port drops'), aui.fmtK(pseDrops) ]
 	]);
 
-	var wanKv = aui.kv([
-		[ _('Device'), wan.device || '—' ],
-		[ _('Uptime'), aui.fmtUptime(wan.uptime || 0) ],
-		[ _('Received'), aui.fmtGiB(wan.rx_bytes || 0) ],
-		[ _('Sent'), aui.fmtGiB(wan.tx_bytes || 0) ],
-		[ _('RX errors'), String(wan.rx_errors || 0) ],
-		[ _('TX errors'), String(wan.tx_errors || 0) ],
-		[ _('RX dropped'), String(wan.rx_dropped || 0) ],
-		[ _('TX dropped'), String(wan.tx_dropped || 0) ]
-	]);
-
-	// A PON ONU has an optical, not an Ethernet, upstream — swap the WAN health
-	// block for a PON status block rather than printing meaningless WAN zeros.
-	var isPon = isPonTopo(topo);
-	var pon = isPon ? topo.pon : null;
-	var optical = isPon ? ponOpticalState(pon) : null;
-	var wanTitle = isPon ? _('PON status') : _('WAN health');
-	// A PON ONU has no WAN uplink, so the section heading must not claim WAN
-	// either — keep the title in step with the sub-heading it introduces.
-	var detailTitle = isPon ? _('Bridge / PON / Token Details') : _('Bridge / WAN / Token Details');
+	// WAN health block only when the backend reports a usable WAN uplink. A
+	// dumb AP (mode "ap", wan.available === false) has none - printing the
+	// zero-filled block read as broken/unknown data on the device.
+	var wanOk = !isPon && wan && wan.available !== false &&
+		(wan.device || wan.uptime !== undefined || wan.rx_bytes !== undefined);
 	var wanBlock = isPon
 		? aui.kv([
 			[ _('PON mode'), ponModeName(pon) ],
@@ -1111,23 +1165,46 @@ function renderDetailSection(bridge, wan, ti, fe, hasWifi, topo) {
 			[ _('ONU state'), (pon.onu_state !== undefined && pon.onu_state !== null && pon.onu_state !== '') ? pon.onu_state : '—' ],
 			[ _('Device'), pon.netdev || '—' ]
 		])
-		: wanKv;
+		: aui.kv([
+			[ _('Device'), wan.device || '—' ],
+			[ _('Uptime'), aui.fmtUptime(wan.uptime || 0) ],
+			[ _('Received'), aui.fmtGiB(wan.rx_bytes || 0) ],
+			[ _('Sent'), aui.fmtGiB(wan.tx_bytes || 0) ],
+			[ _('RX errors'), String(wan.rx_errors || 0) ],
+			[ _('TX errors'), String(wan.tx_errors || 0) ],
+			[ _('RX dropped'), String(wan.rx_dropped || 0) ],
+			[ _('TX dropped'), String(wan.tx_dropped || 0) ]
+		]);
 
-	var tokKv = aui.kv([
-		[ _('Token pool'), tokSize > 0 ? (tokCount + ' / ' + tokSize + ' (' + aui.fmtPct(tokPct, 0) + ')') : '—' ],
-		[ _('NPU state'), isOn(ti.npu_active) ? _('Yes') : _('No') ]
-	].concat(txRingRows(ti, hasWifi)));
+	// Token rows: only emit rows backed by real data. The token probe on this
+	// build reports token_size 0 and a npu_active flag that contradicts the
+	// bypass report, so both are dropped rather than shown as "—" / wrong.
+	var tokRows = [];
+	if (tokSize > 0)
+		tokRows.push([ _('Token pool'), tokCount + ' / ' + tokSize + ' (' + aui.fmtPct(tokPct, 0) + ')' ]);
+	tokRows = tokRows.concat(txRingRows(ti, hasWifi));
+
+	var body = [
+		E('div', { 'class': 'ai-subhead' }, _('Bridge & hardware buffer')),
+		bridgeKv
+	];
+	if (isPon || wanOk) {
+		body.push(E('div', { 'class': 'ai-subhead' }, wanTitle));
+		body.push(wanBlock);
+	}
+	if (tokRows.length) {
+		body.push(E('div', { 'class': 'ai-subhead' }, _('Token pool & TX rings')));
+		body.push(aui.kv(tokRows));
+	}
+
+	var detailTitle = isPon ? _('Bridge / PON / Token Details')
+		: wanOk ? _('Bridge / WAN / Token Details')
+		: tokRows.length ? _('Bridge / Token Details')
+		: _('Bridge Details');
 
 	return aui.section({
 		title: detailTitle,
-		body: E('div', {}, [
-			E('div', { 'class': 'ai-subhead' }, _('Bridge & hardware buffer')),
-			bridgeKv,
-			E('div', { 'class': 'ai-subhead' }, wanTitle),
-			wanBlock,
-			E('div', { 'class': 'ai-subhead' }, _('Token pool & TX rings')),
-			tokKv
-		])
+		body: E('div', {}, body)
 	});
 }
 
@@ -1175,7 +1252,10 @@ function renderWifiTable(wifi, ppe, hasWifi) {
 /* ── Main View ── */
 return view.extend({
 	load: function() {
-		// Progressive rendering: don't block on RPC calls, let the page render immediately
+		// Progressive rendering: don't block on RPC calls, let the page render
+		// immediately. Stylesheet goes in here (not in render) so it is already
+		// applied when the view node is inserted — no width flash.
+		aui.ensureCss();
 		return Promise.resolve([]);
 	},
 
@@ -1193,7 +1273,6 @@ return view.extend({
 		// Wireless presence gates the three WiFi gauges and the clients tile.
 		// ui.hasWifiRadio() fails open, so one failed RPC never drops the gauges.
 		var hasWifi = aui.hasWifiRadio(wifi);
-		var ppePaused = false;
 		var latestPpe = ppe;
 		var latestEth = eth;
 		// Board topology (+ PON upstream) from getOverview; null = unknown, so
@@ -1206,27 +1285,10 @@ return view.extend({
 				updatedEl.textContent = _('Updated %s').format(new Date().toLocaleTimeString());
 		}
 
-		var refreshBtn = E('button', { 'type': 'button', 'class': 'ai-btn ai-btn--primary' }, _('Refresh'));
-		refreshBtn.addEventListener('click', function() {
-			var self = refreshBtn, orig = self.textContent;
-			self.disabled = true;
-			self.textContent = _('Refreshing…');
-			var done = function() { self.disabled = false; self.textContent = orig; };
-			Promise.resolve(fetchData()).then(done, done);
-		});
-
-		var pauseBtn = E('button', {
-			'type': 'button', 'class': 'ai-btn', 'title': _('Pause'), 'aria-pressed': 'false',
-			'click': function(ev) {
-				ppePaused = !ppePaused;
-				var label = ppePaused ? _('Resume') : _('Pause');
-				ev.currentTarget.textContent = label;
-				ev.currentTarget.title = label;
-				ev.currentTarget.setAttribute('aria-pressed', ppePaused ? 'true' : 'false');
-				ev.currentTarget.className = 'ai-btn' + (ppePaused ? ' ai-btn--active' : '');
-				if (!ppePaused) updateInto('ppe-console', [ renderPpeConsole(latestPpe) ]);
-			}
-		}, _('Pause'));
+		// The page auto-polls every 5 s; the only "refresh" affordance is the
+		// system-level updated-time stamp on the right. Manual Refresh /
+		// Pause-Resume buttons were removed — they conflicted with it.
+		updatedEl = E('span', { 'class': 'ai-updated' }, '');
 
 		function updateInto(id, nodes) {
 			var el = document.getElementById(id);
@@ -1257,12 +1319,13 @@ return view.extend({
 			return arr;
 		}
 
+		// Width policy mirrors the NPU tab / fancontrol: no width rules on the
+		// root, layout inherits the theme's content width (no width flash).
 		var view = E('div', { 'class': 'cbi-map airoha-page' }, [
 			E('header', { 'class': 'ai-pagehead' }, [
 				E('h2', {}, _('Airoha FlowSense')),
-				E('p', { 'class': 'ai-lede' }, _('Real-time PPE hardware offload monitoring, link health and hardware offload status · source luci.airoha_flowsense (5 s poll)'))
-			]),
-			E('div', { 'class': 'ai-toolbar' }, [ refreshBtn, pauseBtn, E('span', { 'class': 'ai-spacer' }), updatedEl = E('span', { 'class': 'ai-updated' }, '') ]),
+			E('p', { 'class': 'ai-lede' }, _('Real-time PPE hardware offload monitoring, link health and hardware offload status · source luci.airoha_flowsense (5 s poll)'))
+		]),
 
 			// Conflict alerts
 			E('div', { 'id': 'conflict-alerts' }, [ renderConflictAlerts(alertData) ]),
@@ -1290,7 +1353,7 @@ return view.extend({
 			// PPE flow monitor
 			aui.section({
 				title: _('PPE Flow Monitor'),
-				body: E('div', { 'id': 'ppe-console' }, [ renderPpeConsole(ppe) ])
+				body: E('div', { 'id': 'ppe-console' }, [ renderPpeConsole(ppe, _ppeFull) ])
 			}),
 
 			// Bridge / WAN / Token detail blocks
@@ -1304,8 +1367,21 @@ return view.extend({
 		// fill the row when the WiFi gauges are skipped. Updated on every poll.
 		view.setAttribute('data-wifi', hasWifi ? 'true' : 'false');
 
+		// Filter selects re-render just the monitor section through this callback.
+		_ppeRefresh = function() {
+			updateInto('ppe-console', [ renderPpeConsole(latestPpe, _ppeFull) ]);
+		};
+
 		// Data fetch + DOM update function — called immediately and via poll
 		var fetchData = L.bind(function() {
+			// Uncapped full PPE entry list, fetched in parallel so the monitor's
+			// filter dropdowns can browse beyond the overview's capped slice.
+			callPpeEntries().then(function(r) {
+				if (r && Array.isArray(r.entries)) {
+					_ppeFull = r;
+					updateInto('ppe-console', [ renderPpeConsole(latestPpe, _ppeFull) ]);
+				}
+			}).catch(function() {});
 			// One round trip for the page plus one tiny uci read for the configured
 			// ping target, so the Latency card stays correct even if the overview
 			// call fails and the daemon's /tmp result file is gone.
@@ -1362,7 +1438,7 @@ return view.extend({
 				updateInto('link-quad', [ renderQuad(cs, bypass, jitter, wan, wifi, bridge, mode) ]);
 				updateInto('conflict-alerts', [ renderConflictAlerts(alertData) ]);
 				updateInto('mode-cards', [ renderModeCards(dm, apo, flo, vo) ]);
-				if (!ppePaused) updateInto('ppe-console', [ renderPpeConsole(latestPpe) ]);
+				updateInto('ppe-console', [ renderPpeConsole(latestPpe) ]);
 				updateInto('detail-blocks', [ renderDetailSection(bridge, wan, ti, fe, hasWifi, latestTopo) ]);
 				updateInto('wifi-detail', [ renderWifiTable(wifi, ppe, hasWifi) ]);
 

@@ -252,6 +252,19 @@ airoha_pon_netdev() {
 	echo "$dev"
 }
 
+# Negotiated link speed (Mbps) of a netdev, empty when unavailable
+# (missing interface, driver error, link down with "-1" reporting).
+_airoha_netdev_speed_mbps() {
+	local dev="$1" s
+	[ -n "$dev" ] || return 0
+	[ -e "/sys/class/net/$dev" ] || return 0
+	s=$(cat "/sys/class/net/$dev/speed" 2>/dev/null)
+	case "$s" in ''|*[!0-9]*) return 0 ;; esac
+	[ "$s" -gt 0 ] 2>/dev/null || return 0
+	echo "$s"
+	return 0
+}
+
 # Resolve a GDM node's netdev: prefer openwrt,netdev-name; else the
 # /sys/class/net device whose of_node is that node.
 _airoha_gdm_netdev() {
@@ -282,7 +295,7 @@ airoha_port_topology_json() {
 	local ports="" port_n=0
 	local lan_raw="" wan_netdev=""
 	local lan_json="[]" lan_count=0 wan_count=0
-	local n rel netdev role mode key first x
+	local n rel netdev role mode key first x spd
 
 	# Enabled GDM ports: soc/ethernet@1fb50000/ethernet@N.
 	for n in 1 2 3 4; do
@@ -292,10 +305,13 @@ airoha_port_topology_json() {
 		mode=$(airoha_dt_read "$rel/phy-mode")
 		role="lan"
 		[ "$n" = "2" ] && role="wan"
+		spd=0
+		[ -n "$netdev" ] && spd=$(_airoha_netdev_speed_mbps "$netdev")
+		case "$spd" in ''|*[!0-9]*) spd=0 ;; esac
 		key="gdm$n"
 		port_n=$((port_n + 1))
 		[ "$port_n" -gt 1 ] && ports="${ports},"
-		ports="${ports}{\"key\":\"${key}\",\"kind\":\"gdm\",\"reg\":${n},\"pse\":$(airoha_pse_for_gdm "$n"),\"netdev\":\"$(_airoha_json_str "$netdev")\",\"role\":\"${role}\",\"mode\":\"$(_airoha_json_str "$mode")\"}"
+		ports="${ports}{\"key\":\"${key}\",\"kind\":\"gdm\",\"reg\":${n},\"pse\":$(airoha_pse_for_gdm "$n"),\"netdev\":\"$(_airoha_json_str "$netdev")\",\"role\":\"${role}\",\"mode\":\"$(_airoha_json_str "$mode")\",\"speed_mbps\":${spd}}"
 		if [ "$role" = "wan" ]; then
 			[ -n "$netdev" ] && wan_netdev="$netdev"
 		elif [ -n "$netdev" ]; then
@@ -313,10 +329,12 @@ airoha_port_topology_json() {
 		[ -n "$netdev" ] || continue
 		mode=$(airoha_dt_read "$rel/phy-mode")
 		[ -n "$mode" ] || mode="internal"
+		spd=$(_airoha_netdev_speed_mbps "$netdev")
+		case "$spd" in ''|*[!0-9]*) spd=0 ;; esac
 		key="gsw$n"
 		port_n=$((port_n + 1))
 		[ "$port_n" -gt 1 ] && ports="${ports},"
-		ports="${ports}{\"key\":\"${key}\",\"kind\":\"gsw\",\"port\":${n},\"pse\":1,\"netdev\":\"$(_airoha_json_str "$netdev")\",\"role\":\"lan\",\"mode\":\"$(_airoha_json_str "$mode")\"}"
+		ports="${ports}{\"key\":\"${key}\",\"kind\":\"gsw\",\"port\":${n},\"pse\":1,\"netdev\":\"$(_airoha_json_str "$netdev")\",\"role\":\"lan\",\"mode\":\"$(_airoha_json_str "$mode")\",\"speed_mbps\":${spd}}"
 		lan_raw="${lan_raw}${netdev}
 "
 	done

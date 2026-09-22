@@ -79,21 +79,14 @@ function getTxQueue(ti, b) {
 	return null;
 }
 
-function calcTotalMem(regions) {
-	var t = 0;
-	(regions || []).forEach(function(r) {
-		var m = (r.size || '').match(/(\d+)\s*(KiB|MiB|GiB)/i);
-		if (m) { var s = parseInt(m[1]); var u = m[2][0].toUpperCase(); t += u === 'G' ? s * 1048576 : u === 'M' ? s * 1024 : s; }
-	});
-	return t >= 1024 ? (t / 1024).toFixed(0) + ' MiB' : t + ' KiB';
-}
-
-/* ── Topology-derived port labels ─────────────────────────────────────────
- * The PSE/GDM/CDM layout is board-specific (the XR1710G has a USXGMII WAN and
- * a WiFi DMA path; the XG2010G is a PON ONU with no WAN and no WiFi at all),
- * so every port label is built from the getTopology facts instead of being
- * hardcoded for one board. Technical tokens (GDM1, USXGMII, 2500base-x, the
- * netdev names) stay untranslated, exactly as the file already treats them. */
+/* ── Port labels ──────────────────────────────────────────────────────────
+ * External port names are pinned per board model ("10G WAN", "2.5G LAN3"…)
+ * because they describe the port's design identity, not the momentary PHY
+ * result — a label must not change just because a link negotiated down.
+ * Boards are matched on the getTopology compatible/model string and ports on
+ * their netdev name; anything unmapped (unknown board or netdev) falls back
+ * to the topology-derived label. Technical tokens (GDM1, the netdev names)
+ * stay untranslated, exactly as the file already treats them. */
 
 /* Human-readable role/mode summary for one topology port. */
 function portLabel(p) {
@@ -113,6 +106,110 @@ function portLabel(p) {
 
 function portName(p) {
 	return String((p && p.key) || '').toUpperCase();
+}
+
+/* Link speed (Mbps) → compact tag: 10000 → "10G", 1000 → "1G". */
+function speedTag(mbps) {
+	mbps = Number(mbps) || 0;
+	if (mbps >= 10000) return '10G';
+	if (mbps >= 5000) return '5G';
+	if (mbps >= 2500) return '2.5G';
+	if (mbps >= 1000) return '1G';
+	if (mbps >= 100) return '100M';
+	return '';
+}
+
+/* Static per-mode speed fallback (Mbps) for ports whose link is down, so a
+ * "1G LAN4" label still reads as 1G before the PHY negotiates. */
+function modeFallbackMbps(mode) {
+	switch (String(mode || '').toLowerCase()) {
+		case 'usxgmii': case 'dxa': return 10000;
+		case '2500base-x': return 2500;
+		case 'sgmii': case 'internal': return 1000;
+		default: return 0;
+	}
+}
+
+/* Best-known speed tag for a port: negotiated speed wins, else the mode's
+ * static capability. */
+function portSpeedTag(p) {
+	return speedTag(p && p.speed_mbps) || speedTag(modeFallbackMbps(p && p.mode));
+}
+
+/* A port that fronts the internal switch CPU (no netdev of its own). */
+function isSwitchCpuPort(p) {
+	return !(p && p.netdev) || String(p.netdev) === 'cpu';
+}
+
+/* LAN netdevs behind the internal switch sharing a GDM's PSE index. */
+function switchLanNetdevs(pse, topo) {
+	var out = [];
+	(Array.isArray(topo && topo.ports) ? topo.ports : []).forEach(function(q) {
+		if (q && q.kind === 'gsw' && q.pse === pse && q.netdev) out.push(q.netdev);
+	});
+	return out;
+}
+
+/* Fixed per-board port labels, keyed by netdev. Speeds are the ports' design
+ * capability — deliberately not live negotiation, so a label never flips
+ * between "10G" and "1G" while a link renegotiates.
+ *   XR1710G: 10G WAN / 10G LAN2 / 1G LAN3 / 1G LAN4 (+WiFi via CDM4)
+ *   XG2010G: 10G LAN1 / 10G LAN2 / 2.5G LAN3 / 1G LAN4 (uplink is the PON card) */
+var BOARD_PORT_NAMES = {
+	xr1710: { wan: '10G WAN', lan2: '10G LAN2', lan3: '1G LAN3', lan4: '1G LAN4' },
+	xg2010: { lan1: '10G LAN1', lan2: '10G LAN2', lan3: '2.5G LAN3', lan4: '1G LAN4' }
+};
+
+/* Pick the fixed label table for this board, or null when the board is not
+ * one of the pinned models (unknown boards keep the topology-derived label). */
+function boardPortNames(topo) {
+	var id = (((topo && topo.compatible) || '') + ' ' + ((topo && topo.model) || '')).toLowerCase();
+	var keys = Object.keys(BOARD_PORT_NAMES);
+	for (var i = 0; i < keys.length; i++) {
+		if (id.indexOf(keys[i]) >= 0) return BOARD_PORT_NAMES[keys[i]];
+	}
+	return null;
+}
+
+/* Human-facing name for a topology port: "10G WAN", "10G LAN2", "1G LAN3". */
+function humanPortName(p, topo) {
+	p = p || {};
+	if (isSwitchCpuPort(p)) {
+		var lans = switchLanNetdevs(p.pse, topo);
+		if (!lans.length) return _('Internal Switch');
+		var fixedLans = boardPortNames(topo);
+		return 'LAN · ' + lans.map(function(x) {
+			return (fixedLans && fixedLans[String(x).toLowerCase()]) || x;
+		}).join(', ');
+	}
+	var fixed = boardPortNames(topo);
+	if (fixed) {
+		var nd = String(p.netdev || '').toLowerCase();
+		if (fixed[nd]) return fixed[nd];
+	}
+	var speed = portSpeedTag(p);
+	if (String(p.role || '').toLowerCase() === 'wan')
+		return (speed ? speed + ' ' : '') + 'WAN';
+	return (speed ? speed + ' ' : '') + 'LAN' + String(p.netdev).replace(/^lan/i, '');
+}
+
+/* The GDM port a CDM engine feeds, as { label, wan } — cdmN ↔ GDM reg N.
+ * Labels go through the same per-board fixed table as the GDM cards. */
+function cdmSide(n, topo) {
+	var g = (Array.isArray(topo && topo.ports) ? topo.ports : []).filter(function(p) {
+		return p && p.kind === 'gdm' && p.reg === n;
+	})[0];
+	if (!g) return null;
+	var fixed = boardPortNames(topo);
+	if (isSwitchCpuPort(g)) {
+		var lans = switchLanNetdevs(g.pse, topo);
+		if (!lans.length) return null;
+		return { label: lans.map(function(x) {
+			return (fixed && fixed[String(x).toLowerCase()]) || x;
+		}).join(', '), wan: false };
+	}
+	var nd = String(g.netdev || '');
+	return { label: (fixed && fixed[nd.toLowerCase()]) || nd, wan: String(g.role || '').toLowerCase() === 'wan' };
 }
 
 /* Accent colour for a GDM card: CPU/internal-facing MACs are amber, the
@@ -142,7 +239,7 @@ function buildPsePortMap(topo) {
 		if (!p || p.pse === undefined || p.pse === null) return;
 		var idx = Number(p.pse);
 		if (isNaN(idx) || map[idx]) return;
-		map[idx] = { name: portName(p), label: portLabel(p), color: portAccent(p) };
+		map[idx] = { name: portName(p), label: humanPortName(p, topo), color: portAccent(p) };
 	});
 	return map;
 }
@@ -154,7 +251,6 @@ function npuSummaryTiles(st, ti) {
 	var clock = st.npu_clock ? Math.round(st.npu_clock / 1000000) : 0;
 	var bound = st.offload_bound || 0;
 	var total = st.offload_total || 0;
-	var mem = Array.isArray(st.memory_regions) ? st.memory_regions : [];
 
 	// TX token pool — the hardware send tokens the NPU/WDMA draws from. This is
 	// the reading the old view never surfaced.
@@ -167,7 +263,7 @@ function npuSummaryTiles(st, ti) {
 
 	var temp = (st.cpu_temp && st.cpu_temp !== 'N/A') ? st.cpu_temp : '';
 
-	return {
+	var tiles = {
 		'npu-summary-status': aui.tile({
 			id: 'npu-summary-status', title: _('NPU Status'),
 			value: active ? _('Activated') : _('Not Activated'),
@@ -185,17 +281,8 @@ function npuSummaryTiles(st, ti) {
 			accent: total > 0 ? 'var(--ai-npu)' : 'var(--ds-text-muted)',
 			sub: _('Bound / total PPE flows')
 		}),
-		'npu-summary-memory': aui.tile({
-			id: 'npu-summary-memory', title: _('Reserved Memory'),
-			value: calcTotalMem(mem), accent: 'var(--ai-band-6)',
-			sub: mem.length + ' ' + _('memory regions')
-		}),
-		'npu-summary-token': aui.tile({
-			id: 'npu-summary-token', title: _('TX Token Pool'),
-			value: tokSize > 0 ? (tokCount + ' / ' + tokSize) : 'N/A',
-			accent: tokAccent,
-			sub: tokSize > 0 ? (_('used') + ' ' + aui.fmtPct(tokPct, 0)) : _('Unknown')
-		}),
+		// The reserved-memory regions tile was dropped: region count/size means
+		// nothing to an operator and the DTS never changes after boot.
 		'npu-summary-temp': aui.tile({
 			id: 'npu-summary-temp', title: _('CPU Temperature'),
 			value: temp ? temp.replace(/[^\d.]/g, '') : '—', unit: temp ? '°C' : '',
@@ -203,17 +290,31 @@ function npuSummaryTiles(st, ti) {
 			sub: (st.cpu_count || 0) + ' ' + _('cores') + ' · ' + (st.soc_compat || '')
 		})
 	};
+
+	// The TX token pool tile only carries meaning when the driver exposes the
+	// probe (mt76's token_info debugfs node). On builds without it the tile
+	// would sit at "N/A / Unknown" forever — hide it instead.
+	if (tokSize > 0) {
+		tiles['npu-summary-token'] = aui.tile({
+			id: 'npu-summary-token', title: _('TX Token Pool'),
+			value: tokCount + ' / ' + tokSize,
+			accent: tokAccent,
+			sub: _('used') + ' ' + aui.fmtPct(tokPct, 0)
+		});
+	}
+
+	return tiles;
 }
 
 var SUMMARY_IDS = [
 	'npu-summary-status', 'npu-summary-clock', 'npu-summary-flows',
-	'npu-summary-memory', 'npu-summary-token', 'npu-summary-temp'
+	'npu-summary-token', 'npu-summary-temp'
 ];
 
 function renderSummary(st, ti) {
 	var tiles = npuSummaryTiles(st, ti);
 	return E('div', { 'class': 'ai-grid ai-grid--tiles', 'id': 'npu-summary-grid' },
-		SUMMARY_IDS.map(function(id) { return tiles[id]; }));
+		SUMMARY_IDS.map(function(id) { return tiles[id]; }).filter(Boolean));
 }
 
 function updateSummary(st, ti) {
@@ -221,7 +322,7 @@ function updateSummary(st, ti) {
 	if (!grid) return;
 	var tiles = npuSummaryTiles(st, ti);
 	grid.innerHTML = '';
-	SUMMARY_IDS.forEach(function(id) { grid.appendChild(tiles[id]); });
+	SUMMARY_IDS.forEach(function(id) { if (tiles[id]) grid.appendChild(tiles[id]); });
 }
 
 /* ── CPU frequency ── */
@@ -236,7 +337,7 @@ function freqState(st) {
 function renderCpuInfo(st) {
 	st = st || {};
 	return aui.card({
-		name: _('CPU Info'), tag: 'cpuinfo / thermal', accent: 'var(--ai-npu)',
+		name: _('CPU Info'), tag: _('CPU model / temperature'), accent: 'var(--ai-npu)',
 		body: [
 			aui.row(_('Model'), st.soc_compat || ''),
 			aui.row(_('Architecture'), st.cpu_arch || ''),
@@ -250,10 +351,10 @@ function renderFreqCard(st) {
 	st = st || {};
 	var s = freqState(st);
 	return aui.card({
-		name: _('Current Frequency'), tag: 'cpufreq / PLL', accent: 'var(--ds-ok)',
+		name: _('Current Frequency'), tag: _('CPU freq / PLL'), accent: 'var(--ds-ok)',
 		body: [
 			aui.bar({
-				title: 'cpuinfo_cur_freq', right: aui.fmtFreq(s.freq) + ' / ' + aui.fmtFreq(s.max),
+				title: _('Current frequency (cpuinfo_cur_freq)'), right: aui.fmtFreq(s.freq) + ' / ' + aui.fmtFreq(s.max),
 				pct: (s.max > s.min) ? Math.round((s.freq - s.min) / (s.max - s.min) * 100) : 0,
 				accent: s.oc ? 'var(--ds-warn)' : 'var(--ds-ok)',
 				label: s.oc ? ((st.pll_freq_mhz || 0) + ' MHz (OC)') : aui.fmtFreq(s.freq),
@@ -261,24 +362,9 @@ function renderFreqCard(st) {
 			}),
 			aui.row(_('PLL Reading'), aui.fmtFreq((st.pll_freq_mhz || 0) * 1000)),
 			aui.row(_('Frequency Range'), aui.fmtFreq(st.cpu_min_freq) + ' – ' + aui.fmtFreq(st.cpu_max_freq)),
-			aui.row('scaling_cur_freq', aui.fmtFreq(st.cpu_cur_freq))
+			aui.row(_('Governor frequency (scaling_cur_freq)'), aui.fmtFreq(st.cpu_cur_freq))
 		]
 	});
-}
-
-function updateFreqCard(st) {
-	st = st || {};
-	var s = freqState(st);
-	var min = st.cpu_min_freq || 0;
-	var pct = (s.max > min) ? Math.round((s.freq - min) / (s.max - min) * 100) : 0;
-	pct = Math.max(0, Math.min(100, pct));
-	var fill = document.getElementById('cpu-freq-fill');
-	if (fill) {
-		fill.style.width = pct + '%';
-		fill.style.background = s.oc ? 'var(--ds-warn)' : 'var(--ds-ok)';
-	}
-	var text = document.getElementById('cpu-freq-text');
-	if (text) text.textContent = s.oc ? ((st.pll_freq_mhz || 0) + ' MHz (OC)') : aui.fmtFreq(s.freq);
 }
 
 /* ── CPU control settings (governor / max freq + save) ── */
@@ -495,7 +581,6 @@ function renderFeDiagram(fe, ti, st, ppe, topo) {
 	// topology, never from a fixed board layout, so the 2010 (no WAN, lan1 on
 	// GDM4, no GDM2) and the 1710 (USXGMII WAN on GDM2) both render correctly.
 	var topoPorts = Array.isArray(topo.ports) ? topo.ports : [];
-	var gdmPorts = topoPorts.filter(function(p) { return p && p.kind === 'gdm'; });
 	var psePortMap = buildPsePortMap(topo);
 
 	// The per-band cards (tx_queues / station_counts) are indexed by wireless
@@ -504,13 +589,13 @@ function renderFeDiagram(fe, ti, st, ppe, topo) {
 	// shared predicate fails open if the flag is missing.
 	var hasWifi = aui.hasWifiRadio({ has_wifi: ti.has_wifi });
 
-	function gdmCard(key, name, label, accent, pse) {
+	function gdmCard(key, name, tag, accent) {
 		var d = fe[key] || {};
 		var body = [ aui.row('TX', aui.fmtK(d.tx)), aui.row('RX', aui.fmtK(d.rx)) ];
 		if (d.tx_drop > 0) body.push(aui.row('TX Drop', aui.fmtK(d.tx_drop), 'ai-err'));
 		if (d.rx_drop > 0) body.push(aui.row('RX Drop', aui.fmtK(d.rx_drop), 'ai-err'));
 		body.push(aui.row(_('State'), (d.tx > 0 || d.rx > 0) ? _('Active') : _('Idle')));
-		return aui.card({ name: name, tag: pse + ' · ' + label, accent: accent, body: body });
+		return aui.card({ name: name, tag: tag, accent: accent, body: body });
 	}
 
 	function cdmCard(key, name, tag, pse) {
@@ -556,8 +641,13 @@ function renderFeDiagram(fe, ti, st, ppe, topo) {
 	] : [];
 
 	var p7 = ports[7] || { iq: 0, oq: 0, drops: 0 };
+	// CDM cards carry the real interfaces they feed: cdmN ↔ GDM reg N, so the
+	// XR1710G shows "CDM1 · LAN (lan3, lan4)" and "CDM2 · WAN" instead of bare
+	// engine names.
+	var cdm1Side = cdmSide(1, topo);
+	var cdm2Side = cdmSide(2, topo);
 	var cdm4WiFi = aui.card({
-		name: 'CDM4 / WDMA', tag: 'P7 WiFi DMA', accent: 'var(--ai-band-6)',
+		name: 'CDM4 · WiFi', tag: 'P7 WiFi DMA', accent: 'var(--ai-band-6)',
 		body: [
 			aui.bar({ title: 'IQ / OQ', right: 'IQ ' + p7.iq + ' · OQ ' + p7.oq, pct: (p7.oq / 256 * 100), accent: 'var(--ai-band-6)' })
 		].concat(bandBlock)
@@ -592,8 +682,11 @@ function renderFeDiagram(fe, ti, st, ppe, topo) {
 	var pseP = pseT > 0 ? (fe.pse_used / pseT) * 100 : 0;
 	var pseCol = pseP > 80 ? 'var(--ds-error)' : pseP > 50 ? 'var(--ds-warn)' : 'var(--ds-ok)';
 
-	var portCells = ports.filter(function(p) { return p.port !== 7; }).map(function(p) {
-		var info = psePortMap[p.port] || { name: 'P' + p.port, label: '?', color: 'var(--ds-text-muted)' };
+	// A PSE port without a topology mapping (e.g. P3 on the XR1710G, reserved)
+	// carries no interpretable label or queue data - rendering it produced a
+	// "P3 ?" tile that read as broken data. Skip unmapped ports entirely.
+	var portCells = ports.filter(function(p) { return p.port !== 7 && psePortMap[p.port]; }).map(function(p) {
+		var info = psePortMap[p.port];
 		return aui.tile({
 			title: 'P' + p.port + ' ' + info.name,
 			value: p.iq + ' / ' + p.oq,
@@ -602,11 +695,11 @@ function renderFeDiagram(fe, ti, st, ppe, topo) {
 		});
 	});
 
-	// Reserved-memory regions — surfaced as a collapsible table so the addresses
-	// behind the summary tile's total are inspectable without cluttering the page.
-	var mem = Array.isArray(st.memory_regions) ? st.memory_regions : [];
-	var memRows = mem.map(function(r) {
-		return [ (r.name || '') + ' (' + (r.size || '') + ')', (r.start || '—') + ' → ' + (r.end || '—') ];
+	// The PSE per-port IQ/OQ readout is constant "2 / 0" while idle — pure
+	// noise. Show the grid only when at least one mapped port has queued
+	// output or drops; while idle the whole subsection stays hidden.
+	var pseActive = ports.some(function(p) {
+		return p.port !== 7 && psePortMap[p.port] && ((p.oq || 0) > 0 || (p.drops || 0) > 0);
 	});
 
 	return E('div', { 'id': 'fe-diagram' }, [
@@ -616,19 +709,52 @@ function renderFeDiagram(fe, ti, st, ppe, topo) {
 			pct: pseP, accent: pseCol
 		}),
 		E('div', { 'class': 'ai-subhead' }, 'GDM Ports'),
-		E('div', { 'class': 'ai-grid ai-grid--3' }, gdmPorts.map(function(p) {
-			var pse = (p.pse !== undefined && p.pse !== null) ? p.pse : '?';
-			return gdmCard(p.key, portName(p), portLabel(p), portAccent(p), 'P' + pse);
-		})),
+		E('div', { 'class': 'ai-grid ai-grid--3' }, (function() {
+			// One card per external port so the device's full port list is
+			// visible: each GDM-backed port uses its own FE counters, each
+			// internal-switch user port (gsw*) surfaces the shared GDM
+			// counters, and a PON board gets a PON uplink card.
+			var cards = [];
+			topoPorts.forEach(function(p) {
+				if (!p) return;
+				var pse = (p.pse !== undefined && p.pse !== null) ? p.pse : '?';
+				if (p.kind === 'gdm') {
+					if (isSwitchCpuPort(p) && topoPorts.some(function(q) {
+						return q && q.kind === 'gsw' && q.pse === p.pse;
+					})) return; // user ports below carry the visible labels
+					cards.push(gdmCard(p.key, humanPortName(p, topo), portName(p) + ' · P' + pse, portAccent(p)));
+				} else if (p.kind === 'gsw') {
+					var conduit = topoPorts.filter(function(q) {
+						return q && q.kind === 'gdm' && q.pse === p.pse;
+					})[0];
+					var feKey = conduit ? conduit.key : 'gdm1';
+					cards.push(gdmCard(feKey, humanPortName(p, topo),
+						portName(p) + ' · P' + pse + ' · ' + feKey.toUpperCase() + ' ' + _('shared'),
+						portAccent(p)));
+				}
+			});
+			if (topo.pon) {
+				cards.unshift(aui.card({
+					name: 'PON', tag: 'pon · ' + (topo.pon.mode_name || ''),
+					accent: 'var(--ai-npu)',
+					body: [
+						aui.row(_('ONU state'), topo.pon.onu_state || '—'),
+						aui.row(_('Optical signal'), (topo.pon.los === 1) ? 'LOS' : 'OK'),
+						aui.row(_('Downstream'), (topo.pon.down_mbps || 0) + ' Mbps'),
+						aui.row(_('Upstream'), (topo.pon.up_mbps || 0) + ' Mbps')
+					]
+				}));
+			}
+			return cards;
+		})()),
 		E('div', { 'class': 'ai-subhead' }, hasWifi ? 'CPU DMA / WiFi DMA' : 'CPU DMA'),
 		E('div', { 'class': 'ai-grid ai-grid--3' }, [
-			cdmCard('cdm1', 'CDM1', 'CPU DMA 1', 'P0'),
-			cdmCard('cdm2', 'CDM2', 'CPU DMA 2', 'P5')
+			cdmCard('cdm1', cdm1Side ? 'CDM1 · LAN' : 'CDM1', 'P0 · ' + (cdm1Side ? cdm1Side.label : 'CPU DMA 1'), 'P0'),
+			cdmCard('cdm2', cdm2Side ? 'CDM2 · ' + (cdm2Side.wan ? 'WAN' : 'LAN') : 'CDM2', 'P5 · ' + (cdm2Side ? cdm2Side.label : 'CPU DMA 2'), 'P5')
 		].concat(hasWifi ? [ cdm4WiFi ] : [])),
 		E('div', { 'class': 'ai-grid ai-grid--2', 'style': 'margin-top:var(--ds-sp-2)' }, [ ppeCard, npuCard ]),
-		E('div', { 'class': 'ai-subhead' }, 'PSE Port Queue Status'),
-		E('div', { 'class': 'ai-grid ai-grid--pse' }, portCells),
-		mem.length ? aui.details(_('Reserved Memory') + ' · ' + mem.length + ' ' + _('memory regions'), aui.kv(memRows)) : null
+		pseActive ? E('div', { 'class': 'ai-subhead' }, 'PSE Port Queue Status') : null,
+		pseActive ? E('div', { 'class': 'ai-grid ai-grid--pse' }, portCells) : null
 	]);
 }
 
@@ -695,7 +821,11 @@ function updatePpeTable(entries) {
 /* ── Main view ── */
 return view.extend({
 	load: function() {
-		// Progressive rendering: don't block on RPC calls, let the page render immediately
+		// Progressive rendering: don't block on RPC calls, let the page render
+		// immediately. Stylesheet goes in here (not in render) so it is already
+		// applied when the view node is inserted — no width flash, matching the
+		// fancontrol views' approach.
+		aui.ensureCss();
 		return Promise.resolve([]);
 	},
 
@@ -717,7 +847,6 @@ return view.extend({
 		var vo = data[8] || { enabled: 0 };
 		var bridgeBlocked = isBridgeOffloadBlocked(dm);
 		var entries = Array.isArray(ppe.entries) ? ppe.entries : [];
-		var ppeUpdatesPaused = false;
 		var latestPpeEntries = entries;
 		var ppeRequestSequence = 0;
 		var latestPpeRequest = 0;
@@ -733,41 +862,21 @@ return view.extend({
 				updatedEl.textContent = _('Updated %s').format(new Date().toLocaleTimeString());
 		}
 
-		var refreshBtn = E('button', { 'type': 'button', 'class': 'ai-btn ai-btn--primary' }, _('Refresh'));
-		refreshBtn.addEventListener('click', function() {
-			var self = refreshBtn, orig = self.textContent;
-			self.disabled = true;
-			self.textContent = _('Refreshing…');
-			var done = function() { self.disabled = false; self.textContent = orig; };
-			Promise.resolve(fetchData()).then(done, done);
-		});
-
-		var ppePauseButton = E('button', {
-			'type': 'button',
-			'class': 'ai-btn',
-			'title': _('Pause'),
-			'aria-pressed': 'false',
-			'click': function(ev) {
-				ppeUpdatesPaused = !ppeUpdatesPaused;
-				var label = ppeUpdatesPaused ? _('Resume') : _('Pause');
-				ev.currentTarget.textContent = label;
-				ev.currentTarget.title = label;
-				ev.currentTarget.setAttribute('aria-pressed', ppeUpdatesPaused ? 'true' : 'false');
-				ev.currentTarget.className = 'ai-btn' + (ppeUpdatesPaused ? ' ai-btn--active' : '');
-				if (!ppeUpdatesPaused) updatePpeTable(latestPpeEntries);
-			}
-		}, _('Pause'));
-
+		// The page auto-polls every 5 s; the only "refresh" affordance is the
+		// system-level updated-time stamp on the right. Manual Refresh /
+		// Pause-Resume buttons were removed — they conflicted with it.
 		updatedEl = E('span', { 'class': 'ai-updated' }, '');
 
+		// Width policy: the root carries no width rules of its own (fancontrol
+		// style) — the layout inherits the theme's content width, so the
+		// late-injected stylesheet never changes geometry (no width flash).
 		var view = E('div', { 'class': 'cbi-map airoha-page' }, [
 			E('header', { 'class': 'ai-pagehead' }, [
 				E('h2', {}, _('Airoha SoC Status')),
-				E('p', { 'class': 'ai-lede' }, _('CPU frequency, NPU and frame engine, hardware offload switches · source luci.airoha_npu (5 s poll)'))
-			]),
-			E('div', { 'class': 'ai-toolbar' }, [ refreshBtn, ppePauseButton, E('span', { 'class': 'ai-spacer' }), updatedEl ]),
+			E('p', { 'class': 'ai-lede' }, _('CPU frequency, NPU and frame engine, hardware offload switches · source luci.airoha_npu (5 s poll)'))
+		]),
 
-			// CPU Frequency
+		// CPU Frequency
 			aui.section({
 				title: _('CPU Frequency'),
 				body: E('div', {}, [
@@ -788,9 +897,9 @@ return view.extend({
 				body: E('div', {}, [
 					renderSummary(st, ti),
 					E('div', { 'class': 'ai-grid ai-grid--2', 'style': 'margin-top:var(--ds-sp-3)' }, [
-						renderOffloadSwitch({ rowId: 'vlan-offload-row', inputId: 'vlan-offload-select', badgeId: 'vlan-offload-badge', name: _('VLAN Offload'), note: 'bridge-nf-filter-vlan-tagged / pass-vlan-input-dev', enabled: vo.enabled, blocked: bridgeBlocked, callFn: function(v) { return callSetVlanOffload(v); } }),
-						renderOffloadSwitch({ rowId: 'flow-offload-row', inputId: 'flow-offload-select', badgeId: 'flow-offload-badge', name: _('Flow Offload'), note: 'firewall.flow_offloading + _hw', enabled: flo.enabled, blocked: false, callFn: function(v) { return callSetFlowOffload(v); } }),
-						renderOffloadSwitch({ rowId: 'apmode-offload-row', inputId: 'apmode-offload-select', badgeId: 'apmode-offload-badge', name: _('AP Mode Acceleration'), note: 'br_netfilter · PPPoE passthrough', enabled: apo.enabled, blocked: bridgeBlocked, callFn: function(v) { return callSetApModeOffload(v); } })
+						renderOffloadSwitch({ rowId: 'vlan-offload-row', inputId: 'vlan-offload-select', badgeId: 'vlan-offload-badge', name: _('VLAN Offload'), note: _('VLAN passthrough') + ' · bridge-nf-filter-vlan-tagged / pass-vlan-input-dev', enabled: vo.enabled, blocked: bridgeBlocked, callFn: function(v) { return callSetVlanOffload(v); } }),
+						renderOffloadSwitch({ rowId: 'flow-offload-row', inputId: 'flow-offload-select', badgeId: 'flow-offload-badge', name: _('Flow Offload'), note: _('Hardware flow offload (UCI firewall)') + ' · firewall.flow_offloading + _hw', enabled: flo.enabled, blocked: false, callFn: function(v) { return callSetFlowOffload(v); } }),
+						renderOffloadSwitch({ rowId: 'apmode-offload-row', inputId: 'apmode-offload-select', badgeId: 'apmode-offload-badge', name: _('AP Mode Acceleration'), note: _('Bridge firewall passthrough · PPPoE') + ' · br_netfilter', enabled: apo.enabled, blocked: bridgeBlocked, callFn: function(v) { return callSetApModeOffload(v); } })
 					]),
 					E('div', { 'class': 'ai-subhead' }, _('Frame Engine')),
 					E('div', { 'id': 'fe-container' }, renderFeDiagram(fe, ti, st, ppe, topo))
@@ -839,7 +948,7 @@ return view.extend({
 				if (requestSequence > latestPpeRequest) {
 					latestPpeRequest = requestSequence;
 					latestPpeEntries = entries;
-					if (!ppeUpdatesPaused) updatePpeTable(latestPpeEntries);
+					updatePpeTable(latestPpeEntries);
 				}
 				updateSummary(st, ti);
 
@@ -847,14 +956,11 @@ return view.extend({
 				var ci = document.getElementById('cpu-info-content');
 				if (ci) { ci.innerHTML = ''; ci.appendChild(renderCpuInfo(st)); }
 
-				// Freq card — update the bar in place if present, else rebuild the card
-				var freqText = document.getElementById('cpu-freq-text');
-				if (freqText) {
-					updateFreqCard(st);
-				} else {
-					var fc = document.getElementById('cpu-freq-card');
-					if (fc) { fc.innerHTML = ''; fc.appendChild(renderFreqCard(st)); }
-				}
+				// Freq card — always rebuild. The old in-place path only updated
+				// the bar fill/label, so the text rows (PLL Reading, Frequency
+				// Range, scaling_cur_freq) kept the first-render N/A forever.
+				var fc = document.getElementById('cpu-freq-card');
+				if (fc) { fc.innerHTML = ''; fc.appendChild(renderFreqCard(st)); }
 
 				// Control settings — the selects now always exist, so their presence can
 				// no longer signal "not rendered yet". Rebuild the container whenever the

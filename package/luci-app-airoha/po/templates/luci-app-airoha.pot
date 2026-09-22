@@ -55,10 +55,43 @@ msgstr ""
 msgid "Binding rate (BND / total)"
 msgstr ""
 
+msgid "All"
+msgstr ""
+
 msgid "Bound"
 msgstr ""
 
 msgid "Bound / total PPE flows"
+msgstr ""
+
+msgid "CPU model / temperature"
+msgstr ""
+
+msgid "CPU freq / PLL"
+msgstr ""
+
+msgid "Current frequency (cpuinfo_cur_freq)"
+msgstr ""
+
+msgid "Governor frequency (scaling_cur_freq)"
+msgstr ""
+
+msgid "VLAN passthrough"
+msgstr ""
+
+msgid "Hardware flow offload (UCI firewall)"
+msgstr ""
+
+msgid "Bridge firewall passthrough · PPPoE"
+msgstr ""
+
+msgid "Weakest client"
+msgstr ""
+
+msgid "Signal grade: ≥ -75 good · -75 ~ -82 weak · < -82 poor (worst client RSSI)"
+msgstr ""
+
+msgid "Signal quality"
 msgstr ""
 
 msgid "Bridge & hardware buffer"
@@ -68,6 +101,12 @@ msgid "Bridge / PON / Token Details"
 msgstr ""
 
 msgid "Bridge / WAN / Token Details"
+msgstr ""
+
+msgid "Bridge / Token Details"
+msgstr ""
+
+msgid "Bridge Details"
 msgstr ""
 
 msgid "Bridge RX dropped"
@@ -541,9 +580,6 @@ msgstr ""
 msgid "The per-band cards are indexed by wireless band and are skipped entirely on this board. The rest of the frame engine (PSE / GDM / CDM / NPU) is unaffected."
 msgstr ""
 
-msgid "This tab is read-only: switches are operated on the SoC / NPU tab so a kernel switch has only one writable entry point."
-msgstr ""
-
 msgid "Token pool"
 msgstr ""
 
@@ -569,6 +605,12 @@ msgid "Unsaved changes"
 msgstr ""
 
 msgid "Updated %s"
+msgstr ""
+
+msgid "Optical signal"
+msgstr ""
+
+msgid "shared"
 msgstr ""
 
 msgid "Upstream"
