@@ -8,7 +8,9 @@
 # 默认只启用 VERSION_NUMBER，保证固件名短且可定位。
 #
 # 可用环境变量覆盖：
-#   VERSION_DIST            发行版名（默认 "ImmortalWrt naoki66"）
+#   VERSION_DIST            发行版名（默认 "ImmortalWrt naoki66"，若能从
+#                           CONFIG_TARGET_PROFILE 推导出设备型号则追加，如
+#                           "ImmortalWrt naoki66 XG2010G" / "ImmortalWrt naoki66 XR1710G"）
 #   BUILD_TZ                日期时区（默认 Asia/Shanghai）
 #   BUILD_DATE / BUILD_TIME 构建日期 YYYYMMDD（默认取当前时间）
 #   REPO_COMMIT / UPSTREAM_COMMIT / BUILD_ID  手动指定 commit / 构建号
@@ -20,7 +22,24 @@
 set -euo pipefail
 
 config_file="${1:-.config}"
-version_dist="${VERSION_DIST:-ImmortalWrt naoki66}"
+
+# 从 CONFIG_TARGET_PROFILE 推导设备型号，写入 VERSION_DIST 让固件自识别。
+# 例：DEVICE_gemtek_xg2010g-ubi -> XG2010G；DEVICE_gemtek_xr1710g-ubi -> XR1710G
+# 推导不到时返回空串（保持原默认 "ImmortalWrt naoki66"）。
+detect_device_model() {
+	local profile model
+	profile="$(sed -n -e 's/^CONFIG_TARGET_PROFILE="\(.*\)"$/\1/p' "$config_file" | head -n 1)"
+	[ -n "$profile" ] || profile="$(sed -n -e 's/^CONFIG_TARGET_PROFILE=\(.*\)$/\1/p' "$config_file" | head -n 1)"
+	[[ "$profile" =~ DEVICE_([A-Za-z0-9_+-]+) ]] || return 1
+	model="${BASH_REMATCH[1]}"
+	model="${model#gemtek_}"
+	model="${model%-ubi}"
+	[ -n "$model" ] || return 1
+	printf '%s' "$model" | tr '[:lower:]' '[:upper:]'
+}
+
+device_model="$(detect_device_model || true)"
+version_dist="${VERSION_DIST:-ImmortalWrt naoki66${device_model:+ $device_model}}"
 build_tz="${BUILD_TZ:-Asia/Shanghai}"
 commit_len="${COMMIT_LEN:-8}"
 version_filenames="${VERSION_FILENAMES:-y}"
