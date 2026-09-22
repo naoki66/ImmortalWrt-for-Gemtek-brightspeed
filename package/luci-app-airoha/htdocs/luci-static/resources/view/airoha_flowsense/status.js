@@ -1303,7 +1303,14 @@ return view.extend({
 					overview.status, overview.ppe, overview.token, overview.frame,
 					overview.vlan, overview.tx, overview.mode, overview.bypass,
 					overview.wan, overview.jitter, overview.alerts, overview.wifi,
-					overview.bridge, overview.flow, overview.pppoe, overview.apmode,
+					overview.bridge, overview.flow,
+					// overview.pppoe is a RESERVED slot: PPPoE passthrough is now
+					// owned by AP Mode Acceleration, so nothing destructures d[14]
+					// any more. Keep the entry in place to hold the indexes of the
+					// slots after it (d[15] apmode, d[16] eth) stable - dropping
+					// the item would shift every later slot and silently mis-slot
+					// real data.
+					overview.pppoe, overview.apmode,
 					overview.eth
 				];
 				aui.ensureCss();

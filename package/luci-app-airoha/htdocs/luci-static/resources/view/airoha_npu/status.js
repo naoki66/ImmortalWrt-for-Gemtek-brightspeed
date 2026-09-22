@@ -702,11 +702,19 @@ return view.extend({
 	render: function(data) {
 		data = data || [];
 		aui.ensureCss();
+		// These first-render defaults must mirror the live Promise.all slot order
+		// further down, slot for slot. They are only ever fed the empty array
+		// today (load() returns Promise.resolve([])), so a mismatch would NOT
+		// surface here - it would silently mis-slot real data (e.g. show the
+		// Flow Offload value in the VLAN slot) the moment load() starts
+		// returning data. Whenever the Promise.all order below changes, update
+		// this block in the same commit.
 		var st = data[0] || {}, ppe = data[1] || {}, ti = data[2] || {}, fe = data[3] || {};
-		var vo = data[4] || { enabled: 0 }, flo = data[6] || { enabled: 0 };
-		var apo = data[7] || { enabled: 0 };
-		var dm = data[8] || {};
-		var topo = data[9] || {};
+		var flo = data[4] || { enabled: 0 };
+		var apo = data[5] || { enabled: 0 };
+		var dm = data[6] || {};
+		var topo = data[7] || {};
+		var vo = data[8] || { enabled: 0 };
 		var bridgeBlocked = isBridgeOffloadBlocked(dm);
 		var entries = Array.isArray(ppe.entries) ? ppe.entries : [];
 		var ppeUpdatesPaused = false;
