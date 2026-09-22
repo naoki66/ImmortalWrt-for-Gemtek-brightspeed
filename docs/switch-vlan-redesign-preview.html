@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>switch-vlan 重设计预览 (V3 + 描述列)</title>
+<style>
+  :root{
+    /* 取自 docs/design-luci-vlan-ui.md §2.3 设计令牌 */
+    --svc-bg: #ffffff;
+    --svc-panel: #f7f8fa;
+    --svc-border: #d6dae0;
+    --svc-border-strong: #b6bcc6;
+    --svc-text: #1f2933;
+    --svc-text-dim: #66707a;
+    --svc-accent: #2563eb;
+    --svc-vlan-untagged: #0f766e;   /* WCAG-AA 校验通过 */
+    --svc-vlan-tagged: #92400e;     /* WCAG-AA 校验通过 */
+    --svc-pvid: #7c3aed;
+    --svc-danger: #b91c1c;
+    --svc-radius: 6px;
+    --svc-font: -apple-system, "Segoe UI", Roboto, "Noto Sans CJK SC", sans-serif;
+    --svc-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:28px; background:var(--svc-panel); color:var(--svc-text);
+    font-family:var(--svc-font); font-size:13px; line-height:1.5;
+  }
+  h1{font-size:19px; margin:0 0 4px;}
+  h2{font-size:15px; margin:24px 0 8px; border-left:3px solid var(--svc-accent); padding-left:8px;}
+  .sub{color:var(--svc-text-dim); margin:0 0 18px;}
+  .panel{background:var(--svc-bg); border:1px solid var(--svc-border); border-radius:var(--svc-radius); padding:16px; margin-bottom:18px;}
+  .model-note{background:#eef4ff; border:1px solid #cfe0ff; border-radius:var(--svc-radius); padding:12px 14px; color:#243b6b; margin-bottom:18px;}
+  .model-note b{color:#1e3a8a;}
+  /* 端口状态瓦片（只读） */
+  .tiles{display:flex; gap:10px; flex-wrap:wrap;}
+  .tile{border:1px solid var(--svc-border); border-radius:var(--svc-radius); padding:8px 10px; min-width:118px; background:var(--svc-panel); display:flex; flex-direction:column; gap:3px;}
+  .tile .nm{font-weight:600;}
+  .tile .st{font-size:11px; color:var(--svc-text-dim); margin-top:2px;}
+  .tile .pvid{font-size:11px; color:var(--svc-pvid); margin-top:2px;}
+  .port-note-input{width:100%; margin-top:4px; padding:3px 5px; font-size:11px; border:1px solid var(--svc-border); border-radius:4px; background:#fff; color:var(--svc-text);}
+  .port-note-input::placeholder{color:#9aa3ad;}
+  /* 表格 */
+  table{border-collapse:collapse; width:100%; background:var(--svc-bg);}
+  th,td{border:1px solid var(--svc-border); padding:6px 8px; text-align:center; vertical-align:middle;}
+  th{background:var(--svc-panel); font-weight:600; font-size:12px;}
+  .col-vid{width:64px;}
+  .col-local{width:64px;}
+  .col-desc{width:260px; text-align:left;}
+  .port-col{width:118px;}
+  .cell{display:flex; flex-direction:column; align-items:center; gap:5px;}
+  select.svc-role{
+    width:100%; padding:4px 6px; border:1px solid var(--svc-border-strong); border-radius:var(--svc-radius);
+    font-size:12px; background:#fff; color:var(--svc-text); cursor:pointer;
+  }
+  select.svc-role[data-role="tagged"]{color:var(--svc-vlan-tagged); border-color:var(--svc-vlan-tagged);}
+  select.svc-role[data-role="untagged"]{color:var(--svc-vlan-untagged); border-color:var(--svc-vlan-untagged);}
+  .svc-pvid-btn{
+    border:1px solid var(--svc-border-strong); background:#fff; color:var(--svc-text-dim);
+    border-radius:var(--svc-radius); padding:2px 8px; font-size:11px; cursor:pointer; white-space:nowrap;
+  }
+  .svc-pvid-btn.set{color:var(--svc-pvid); border-color:var(--svc-pvid);}
+  .svc-pvid-btn.active{background:var(--svc-pvid); color:#fff; border-color:var(--svc-pvid); font-weight:600;}
+  .svc-pvid-btn:disabled{opacity:.4; cursor:not-allowed;}
+  .svc-desc-input{width:100%; padding:4px 6px; border:1px solid var(--svc-border); border-radius:var(--svc-radius); font-size:12px;}
+  .vid-input{width:52px; padding:3px 4px; border:1px solid var(--svc-border-strong); border-radius:var(--svc-radius); text-align:center;}
+  .btn-row{margin-top:10px; display:flex; gap:8px;}
+  .btn{border:1px solid var(--svc-accent); background:var(--svc-accent); color:#fff; border-radius:var(--svc-radius); padding:6px 12px; font-size:12px; cursor:pointer;}
+  .btn.ghost{background:#fff; color:var(--svc-accent);}
+  .table-scroll{overflow-x:auto;}
+  .col-del{width:32px;}
+  .btn.del{border-color:var(--svc-danger); background:#fff; color:var(--svc-danger); padding:2px 6px; font-size:12px; line-height:1.4;}
+  .local-cb{width:15px; height:15px;}
+  /* UCI 预览 */
+  pre.uci{
+    background:#0f172a; color:#e2e8f0; padding:16px; border-radius:var(--svc-radius); overflow:auto;
+    font-family:var(--svc-mono); font-size:12px; line-height:1.55; margin:0; white-space:pre;
+  }
+  pre.uci .c-comment{color:#86efac;}
+  pre.uci .c-sec{color:#fbbf24; font-weight:600;}
+  pre.uci .c-opt{color:#93c5fd;}
+  pre.uci .c-val{color:#e2e8f0;}
+  .legend{display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; font-size:11px; color:var(--svc-text-dim);}
+  .legend span{display:inline-flex; align-items:center; gap:5px;}
+  .dot{width:10px; height:10px; border-radius:2px; display:inline-block;}
+</style>
+</head>
+<body>
+  <h1>switch-vlan 重设计预览 — V3 布局 + 描述列</h1>
+  <p class="sub">对 <code>/cgi-bin/luci/admin/network/switch-vlan</code> 的 DSA bridge-vlan 视图的视觉与交互原型。回退到 V3：每格一个 3 态下拉（非成员 / 标记 / 不标记）+ 内联 PVID 按钮；并新增每个 VLAN 的描述列，序列化时在 <code>config bridge-vlan</code> 之后写入 <code>#</code> 注释。</p>
+
+  <div class="model-note">
+    <b>双轴模型（重要）：</b><br/>
+    轴 1 · 成员方式（按 端口 × VLAN）→ <b>非成员 / 标记(tag) / 不标记(untag)</b>，描述端口"如何处理"这个 VLAN。<br/>
+    轴 2 · 主 VLAN / PVID（按 <b>端口</b>，全局唯一）→ 该端口的入站缺省 VLAN 身份。仅可与 <b>不标记</b> 共存（→ <code>:u*</code>，即裸 <code>lanN</code>）；<b>不可与 标记 共存（<code>:t*</code> 不被允许），绝不可与 非成员 共存（<code>:*</code>）</b>。<br/>
+    序列化规则：裸 <code>lanN</code>=不标记+PVID，<code>lanN:u</code>=不标记，<code>lanN:t</code>=标记。（<code>lanN:t*</code> 标记+PVID 不被允许）
+  </div>
+
+  <div class="panel">
+    <h2>桥接设备</h2>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <label><input type="checkbox" id="vlanFilter" checked /> 在 br-lan 上启用 VLAN 过滤</label>
+      <span style="color:var(--svc-text-dim);">device: <b>br-lan</b></span>
+    </div>
+
+    <h2>端口状态与连接备注</h2>
+    <div class="tiles" id="portTiles"></div>
+  </div>
+
+  <div class="panel">
+    <h2>VLAN 分配表</h2>
+    <div class="table-scroll">
+    <table id="vlanTable">
+      <thead>
+        <tr>
+          <th class="col-vid">VLAN</th>
+          <th class="col-local">Local</th>
+          <th class="port-col" colspan="1" id="portHead"></th>
+          <th class="col-desc">描述</th>
+          <th style="width:48px;"></th>
+        </tr>
+      </thead>
+      <tbody id="vlanBody"></tbody>
+    </table>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="addVlan">+ 新增 VLAN</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>UCI 预览（/etc/config/network 片段）</h2>
+    <pre class="uci" id="uciPreview"></pre>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--svc-vlan-untagged)"></i>不标记</span>
+      <span><i class="dot" style="background:var(--svc-vlan-tagged)"></i>标记</span>
+      <span><i class="dot" style="background:var(--svc-pvid)"></i>主 VLAN (PVID)</span>
+    </div>
+  </div>
+
+<script>
+  const PORTS = ['lan1','lan2','lan3','lan4','lan5'];
+
+  // 状态：role[vid][port] = 'off' | 'tagged' | 'untagged' ；pvid[port] = vid | null
+  let rows = [
+    { vid:1,  local:true,  desc:'管理 / 设备本机 IP',   role:{lan1:'untagged',lan2:'untagged',lan3:'untagged',lan4:'untagged',lan5:'tagged'}, pvid:{lan1:1,lan2:1,lan3:1,lan4:1} },
+    { vid:10, local:true,  desc:'家庭有线网',          role:{lan1:'off',lan2:'tagged',lan3:'off',lan4:'off',lan5:'tagged'}, pvid:{} },
+    { vid:20, local:false, desc:'访客网络（仅 L2 透传）', role:{lan1:'off',lan2:'off',lan3:'off',lan4:'untagged',lan5:'tagged'}, pvid:{} },
+  ];
+
+  // 端口连接备注：per 端口自由文本，序列化时作为 # 注释输出
+  const portNotes = {}; PORTS.forEach(p=> portNotes[p]='');
+
+  // 端口瓦片（只读状态 + 可编辑连接备注）
+  function renderTiles(){
+    const wrap = document.getElementById('portTiles');
+    wrap.innerHTML = '';
+    PORTS.forEach(p=>{
+      const memberOf = rows.filter(r=>r.role[p] && r.role[p]!=='off');
+      const pvidVid = (()=>{ const f = rows.find(r=>r.pvid[p]===r.vid); return f?f.vid:null; })();
+      const st = memberOf.length ? memberOf.map(r=>`VLAN${r.vid}:${r.role[p]==='tagged'?'tag':'untag'}`).join(' ') : '非成员';
+      const div = document.createElement('div');
+      div.className='tile';
+      div.innerHTML = `<div class="nm">${p}</div><div class="st">${st}</div>` +
+        (pvidVid?`<div class="pvid">PVID → VLAN ${pvidVid}</div>`:`<div class="pvid" style="color:var(--svc-text-dim)">无 PVID</div>`);
+      const note=document.createElement('input');
+      note.className='port-note-input'; note.type='text'; note.placeholder='备注链接…';
+      note.value=portNotes[p]||'';
+      note.oninput=()=>{ portNotes[p]=note.value; renderPreview(); };
+      div.appendChild(note);
+      wrap.appendChild(div);
+    });
+  }
+
+  function renderTable(){
+    // 重建表头：VLAN | Local | lan1..lanN | 描述 | (删除)
+    const thead = document.querySelector('#vlanTable thead tr');
+    thead.innerHTML='';
+    const mk=(cls,txt)=>{ const th=document.createElement('th'); th.className=cls||''; th.textContent=txt; return th; };
+    thead.appendChild(mk('col-vid','VLAN'));
+    thead.appendChild(mk('col-local','Local'));
+    PORTS.forEach(p=> thead.appendChild(mk('port-col',p)));
+    thead.appendChild(mk('col-desc','描述'));
+    thead.appendChild(mk('col-del',''));
+
+    const body = document.getElementById('vlanBody');
+    body.innerHTML='';
+    rows.forEach((r,idx)=>{
+      const tr=document.createElement('tr');
+      // VLAN id
+      const tdVid=document.createElement('td');
+      const vidInput=document.createElement('input');
+      vidInput.className='vid-input'; vidInput.type='number'; vidInput.value=r.vid; vidInput.min=1; vidInput.max=4094;
+      vidInput.onchange=()=>{ const v=parseInt(vidInput.value,10); if(v>=1&&v<=4094){ // 同步 pvid 键
+        const old=r.vid; if(r.pvid){Object.keys(r.pvid).forEach(p=>{ if(r.pvid[p]===old) r.pvid[p]=v; });}
+        r.vid=v; rekeyRoleAfterVidChange(r,old,v); rerender(); } };
+      tdVid.appendChild(vidInput);
+      tr.appendChild(tdVid);
+
+      // Local
+      const tdLocal=document.createElement('td');
+      const cb=document.createElement('input');
+      cb.type='checkbox'; cb.className='local-cb'; cb.checked=r.local;
+      cb.onchange=()=>{ r.local=cb.checked; renderPreview(); };
+      tdLocal.appendChild(cb);
+      tr.appendChild(tdLocal);
+
+      // 端口单元格
+      PORTS.forEach(p=>{
+        const td=document.createElement('td');
+        const cell=document.createElement('div'); cell.className='cell';
+        const sel=document.createElement('select');
+        sel.className='svc-role';
+        [['off','非成员'],['tagged','标记'],['untagged','不标记']].forEach(([v,label])=>{
+          const o=document.createElement('option'); o.value=v; o.textContent=label; if(r.role[p]===v)o.selected=true; sel.appendChild(o);
+        });
+        sel.dataset.role=r.role[p]||'off';
+        sel.onchange=()=>{
+          const newRole=sel.value;
+          // 守卫：切到 非成员 或 标记 时，清除该端口在此 VLAN 上的 PVID（:t* / :* 不被允许）
+          if((newRole==='off' || newRole==='tagged') && r.pvid[p]===r.vid){ r.pvid[p]=null; }
+          r.role[p]=newRole;
+          rerender();
+        };
+        cell.appendChild(sel);
+
+        const pbtn=document.createElement('button');
+        pbtn.className='svc-pvid-btn';
+        const isPvid = (r.pvid[p]===r.vid);
+        if(r.role[p]==='off'){
+          pbtn.textContent='＋主VLAN'; pbtn.disabled=true; pbtn.title='非成员不可设主VLAN';
+        } else if(r.role[p]==='tagged'){
+          pbtn.textContent='设主VLAN'; pbtn.disabled=true; pbtn.title=':t*（标记+主VLAN）不被允许';
+        } else if(isPvid){
+          pbtn.textContent='★ 主VLAN'; pbtn.classList.add('active');
+        } else {
+          pbtn.textContent='设主VLAN'; pbtn.classList.add('set');
+        }
+        pbtn.onclick=()=>{
+          if(r.role[p]==='off' || r.role[p]==='tagged') return; // 守卫：非成员 / 标记 不可设 PVID
+          if(r.pvid[p]===r.vid){ r.pvid[p]=null; } else { r.pvid[p]=r.vid; }
+          rerender();
+        };
+        cell.appendChild(pbtn);
+        td.appendChild(cell);
+        tr.appendChild(td);
+      });
+
+      // 描述列
+      const tdDesc=document.createElement('td'); tdDesc.className='col-desc';
+      const dinput=document.createElement('input');
+      dinput.className='svc-desc-input'; dinput.type='text'; dinput.placeholder='VLAN 用途说明…'; dinput.value=r.desc||'';
+      dinput.oninput=()=>{ r.desc=dinput.value; renderPreview(); };
+      tdDesc.appendChild(dinput);
+      tr.appendChild(tdDesc);
+
+      // 删除
+      const tdDel=document.createElement('td'); tdDel.className='col-del';
+      const del=document.createElement('button'); del.className='btn del'; del.textContent='✕';
+      del.onclick=()=>{ rows.splice(idx,1); rerender(); };
+      tdDel.appendChild(del); tr.appendChild(tdDel);
+
+      body.appendChild(tr);
+    });
+  }
+
+  function rekeyRoleAfterVidChange(){ /* pvid 已内联同步，无需额外处理 */ }
+
+  function rerender(){ renderTable(); renderTiles(); renderPreview(); }
+
+  function renderPreview(){
+    const lines=[];
+    lines.push('# 设备 / 桥接（示意）');
+    lines.push('config device');
+    lines.push("\toption name 'br-lan'");
+    lines.push("\toption type 'bridge'");
+    lines.push("\toption vlan_filtering '1'");
+    lines.push('');
+
+    // 端口连接备注 → 作为 # 注释输出
+    const noted = PORTS.filter(p=>portNotes[p] && portNotes[p].trim());
+    if(noted.length){
+      lines.push('# 端口连接备注');
+      noted.forEach(p=> lines.push('# ' + p + ': ' + portNotes[p].trim()));
+      lines.push('');
+    }
+
+    rows.forEach(r=>{
+      lines.push('config bridge-vlan');            // 段头
+      if(r.desc && r.desc.trim()) lines.push('\t# ' + r.desc.trim()); // 描述注释：紧跟 config bridge-vlan
+      lines.push("\toption device 'br-lan'");
+      lines.push("\toption vlan '" + r.vid + "'");
+      // 端口规约
+      const specs=[];
+      PORTS.forEach(p=>{
+        const role=r.role[p]; if(!role||role==='off') return;
+        const isPvid = (r.pvid[p]===r.vid);
+        if(role==='untagged' && isPvid) specs.push(p);            // 裸 = :u*（不标记 + PVID）
+        else if(role==='untagged' && !isPvid) specs.push(p+':u');
+        else if(role==='tagged') specs.push(p+':t');              // 标记（:t* 不被允许，PVID 仅限不标记）
+      });
+      lines.push("\toption ports '" + specs.join(' ') + "'");
+      lines.push("\toption local '" + (r.local?1:0) + "'");
+      lines.push('');
+    });
+    // 高亮渲染
+    const pre=document.getElementById('uciPreview');
+    pre.innerHTML = lines.map(line=>{
+      if(/^#/.test(line)) return `<span class="c-comment">${esc(line)}</span>`;
+      if(/^config /.test(line)) return `<span class="c-sec">${esc(line)}</span>`;
+      if(/^\toption /.test(line)){
+        const m=line.match(/^(\toption [^ ]+) ?('?[^']*'?)$/);
+        if(m) return `<span class="c-opt">${esc(m[1])}</span> <span class="c-val">${esc(m[2])}</span>`;
+      }
+      return esc(line);
+    }).join('\n');
+  }
+
+  function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  document.getElementById('addVlan').onclick=()=>{
+    const used=new Set(rows.map(r=>r.vid));
+    let nv=2; while(used.has(nv)) nv++;
+    const role={}; PORTS.forEach(p=>role[p]='off');
+    rows.push({vid:nv, local:true, desc:'', role, pvid:{}});
+    rerender();
+  };
+
+  rerender();
+</script>
+</body>
+</html>
