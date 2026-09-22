@@ -1,0 +1,15 @@
+{
+	"luci-app-pon": {
+		"description": "Grant access to the Airoha PON management pages",
+		"read": {
+			"ubus": {
+				"luci.pon": [ "getStatus", "getProto", "getModes", "getConfig", "getLogs" ]
+			}
+		},
+		"write": {
+			"ubus": {
+				"luci.pon": [ "setConfig", "setMode", "apply" ]
+			}
+		}
+	}
+}

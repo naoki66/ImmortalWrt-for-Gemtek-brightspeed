@@ -1,0 +1,56 @@
+{
+	"admin/network/pon": {
+		"title": "PON",
+		"order": 25,
+		"action": {
+			"type": "firstchild"
+		},
+		"depends": {
+			"acl": [ "luci-app-pon" ]
+		}
+	},
+	"admin/network/pon/status": {
+		"title": "Line Status",
+		"order": 10,
+		"action": {
+			"type": "view",
+			"path": "pon/status"
+		},
+		"depends": {
+			"acl": [ "luci-app-pon" ]
+		}
+	},
+	"admin/network/pon/auth": {
+		"title": "Authentication",
+		"order": 20,
+		"action": {
+			"type": "view",
+			"path": "pon/auth"
+		},
+		"depends": {
+			"acl": [ "luci-app-pon" ]
+		}
+	},
+	"admin/network/pon/mode": {
+		"title": "Mode",
+		"order": 30,
+		"action": {
+			"type": "view",
+			"path": "pon/mode"
+		},
+		"depends": {
+			"acl": [ "luci-app-pon" ]
+		}
+	},
+	"admin/network/pon/advanced": {
+		"title": "Advanced",
+		"order": 40,
+		"action": {
+			"type": "view",
+			"path": "pon/advanced"
+		},
+		"depends": {
+			"acl": [ "luci-app-pon" ]
+		}
+	}
+}

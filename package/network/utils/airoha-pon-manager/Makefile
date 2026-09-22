@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=airoha-pon-manager
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 PKG_LICENSE:=GPL-2.0-only
 
 include $(INCLUDE_DIR)/package.mk
@@ -46,6 +46,7 @@ define Package/airoha-pon-manager/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_DIR) $(1)/sbin
 	$(INSTALL_BIN) ./files/usr/sbin/ponctl $(1)/usr/sbin/ponctl
+	$(INSTALL_BIN) ./files/usr/sbin/pondctl $(1)/usr/sbin/pondctl
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ponctl-helper $(1)/usr/sbin/ponctl-helper
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/dsdctl $(1)/usr/sbin/dsdctl
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ecnt_sys $(1)/sbin/ecnt_sys

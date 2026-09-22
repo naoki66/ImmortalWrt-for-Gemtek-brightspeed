@@ -1,0 +1,681 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# LuCI RPC backend for the Airoha PON management pages (Gemtek XG2010G).
+#
+# Every read and write the frontend needs goes through this backend, matching
+# the other LuCI applications in this tree (luci-app-netmode, luci-app-meshconf,
+# luci-app-airoha-factory). The package therefore needs only a `ubus.luci.pon`
+# ACL and no extra `uci` grant.
+#
+# Read-only line state is delegated to /usr/sbin/pondctl, which never invokes
+# the vendor CLI. Configuration writes are validated against a whitelist
+# before they reach `uci`.
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+# Overridable so the validation and JSON layers can be exercised off-device,
+# following the same convention as pondctl.
+PONDCTL="${PON_PONDCTL:-/usr/sbin/pondctl}"
+PONCTL="${PON_PONCTL:-/usr/sbin/ponctl}"
+INITD="${PON_INITD:-/etc/init.d/pon}"
+UCI="${PON_UCI:-uci}"
+UCI_CONFIG="${PON_UCI_CONFIG:-/etc/config/pon}"
+
+# ------------------------------------------------------------------ utilities
+
+# Escape arbitrary text into a JSON string body. Kernel logs routinely contain
+# quotes, backslashes and tabs, all of which would otherwise emit invalid JSON.
+#
+# The escaping is done character by character rather than with gsub, because
+# the meaning of a backslash in a gsub *replacement* differs between awks
+# (busybox awk and gawk disagree), and JSON escaping cannot depend on that.
+json_escape() {
+	printf '%s' "$1" | awk '
+		BEGIN { ORS = "" }
+		{
+			if (NR > 1) printf "\\n"
+
+			out = ""
+			for (i = 1; i <= length($0); i++) {
+				c = substr($0, i, 1)
+				if (c == "\\") out = out "\\\\"
+				else if (c == "\"") out = out "\\\""
+				else if (c == "\t") out = out "\\t"
+				else if (c == "\r") continue
+				else if (c ~ /[[:cntrl:]]/) continue
+				else out = out c
+			}
+			printf "%s", out
+		}'
+}
+
+json_str() { printf '"%s"' "$(json_escape "$1")"; }
+
+# Truthiness of an arbitrary string. (pondctl's json_bool only understands a
+# fixed vocabulary, so a serial number would come back as null through it.)
+json_bool_str() { [ -n "${1:-}" ] && printf true || printf false; }
+
+json_rc_bool() { [ "${1:-1}" -eq 0 ] && printf true || printf false; }
+
+json_or_null_dec() {
+	if [ -n "${1:-}" ]; then
+		printf '%s' "$1"
+	else
+		printf null
+	fi
+}
+
+def_val() { [ -n "${1:-}" ] && printf '%s' "$1" || printf '%s' "${2:-}"; }
+
+# --- payload access -------------------------------------------------------
+#
+# rpcd hands us a flat JSON object on stdin. Only keys this backend knows are
+# ever read, and every value is re-validated below, so an embedded quote or
+# backslash cannot smuggle anything through. The exclusion of " and \ in the
+# character class is deliberate: a value containing them reads as absent.
+
+json_field() {
+	sed -n 's/.*"'"$1"'"[[:space:]]*:[[:space:]]*"\([^"\\]*\)".*/\1/p'
+}
+
+json_int_field() {
+	sed -n 's/.*"'"$1"'"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p'
+}
+
+# Present-but-empty has to be distinguishable from absent, because for the
+# non-secret string fields an empty value means "clear this option".
+has_key() {
+	printf '%s' "$1" | grep -q "\"$2\"[[:space:]]*:"
+}
+
+# read_str_field <payload> <key> -- prints the value.
+#
+#   0  key present, value is a plain string
+#   1  key present, but the value contains a quote or a backslash and so cannot
+#      be represented by the flat reader. Reporting this separately matters:
+#      json_field stops at the backslash and would return "", which the caller
+#      would otherwise treat as "clear the field" and silently wipe it.
+#   2  key absent
+read_str_field() {
+	if ! has_key "$1" "$2"; then
+		return 2
+	fi
+
+	printf '%s' "$1" | grep -q "\"$2\"[[:space:]]*:[[:space:]]*\"[^\"\\\\]*\"" || return 1
+
+	printf '%s' "$1" | json_field "$2"
+	return 0
+}
+
+# add_str <payload> <key> <uci option> <maxlen>
+add_str() {
+	local v rc
+
+	v="$(read_str_field "$1" "$2")"
+	rc=$?
+
+	case "$rc" in
+		2) return 0 ;;
+		1) add_error "$2"; return 0 ;;
+	esac
+
+	if is_safe_text "$v" && len_le "$v" "$4"; then
+		add_change "$3=$v"
+	else
+		add_error "$2"
+	fi
+}
+
+cfg() { $UCI -q get "pon.$1.$2" 2>/dev/null; }
+
+# Run a command under a wall-clock deadline. The vendor ioctls behind the PON
+# character devices are known to block in D state, and `dmesg` can stall on a
+# flooded ring buffer; without this a single bad read would pin rpcd forever.
+run_with_deadline() {
+	local secs="$1" out="$2" pid rc i=0
+	shift 2
+
+	rm -f "$out"
+	"$@" >"$out" 2>/dev/null &
+	pid=$!
+
+	while [ "$i" -lt "$secs" ]; do
+		kill -0 "$pid" 2>/dev/null || break
+		sleep 1
+		i=$((i + 1))
+	done
+
+	if kill -0 "$pid" 2>/dev/null; then
+		kill -9 "$pid" 2>/dev/null
+		wait "$pid" 2>/dev/null
+		return 124
+	fi
+
+	wait "$pid" 2>/dev/null
+	rc=$?
+	return "$rc"
+}
+
+# ----------------------------------------------------------------- validation
+
+# Letters, digits and . _ : - only, or empty. Serial numbers, LOIDs and
+# passwords are opaque vendor strings, but none of them legitimately needs a
+# shell metacharacter, a quote or whitespace.
+is_safe_text() {
+	case "$1" in
+		*[!A-Za-z0-9._:-]*) return 1 ;;
+	esac
+	return 0
+}
+
+is_hex() {
+	case "$1" in
+		*[!0-9a-fA-F]*) return 1 ;;
+	esac
+	return 0
+}
+
+is_mac() {
+	case "${1:-}" in
+		'') return 0 ;;
+	esac
+
+	printf '%s' "$1" | awk -F: '
+		NF != 6 { exit 1 }
+		{
+			for (i = 1; i <= 6; i++) {
+				if (length($i) < 1 || length($i) > 2) exit 1
+				if ($i !~ /^[0-9a-fA-F][0-9a-fA-F]?$/) exit 1
+			}
+		}
+		{ exit 0 }'
+}
+
+is_password_format() {
+	case "$1" in
+		ascii|hex) return 0 ;;
+	esac
+	return 1
+}
+
+is_bool01() {
+	case "$1" in
+		0|1) return 0 ;;
+	esac
+	return 1
+}
+
+in_range() { # value min max
+	# Validate the value first: "[ '' -ge 0 ]" exits 2 rather than 1, which
+	# would leak a surprising status to a caller doing `rc=$?`.
+	case "${1:-}" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+
+	[ "$1" -ge "$2" ] 2>/dev/null && [ "$1" -le "$3" ] 2>/dev/null
+}
+
+len_le() { # string max
+	case "${2:-}" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+
+	[ "${#1}" -le "$2" ] 2>/dev/null
+}
+
+mode_is_supported() {
+	local map
+
+	[ -x "$PONCTL" ] || return 1
+	map="$($PONCTL mode-map 2>/dev/null)"
+
+	case "$map" in
+		*"mode.$1="*) return 0 ;;
+	esac
+
+	return 1
+}
+
+mode_param() {
+	$PONCTL mode-map 2>/dev/null |
+		sed -n "s/^mode\\.$1=\\([0-9][0-9]*\\)$/\\1/p" | head -n 1
+}
+
+# ------------------------------------------------------------------ reporting
+
+pon_env_json() {
+	local ks=0
+
+	{ [ -d /proc/xgpon ] || [ -d /proc/epon ]; } && ks=1
+
+	printf '{"pondctl":%s,"ponctl":%s,"initd":%s,"uci_config":%s,"kernel_support":%s}' \
+		"$(json_bool_str "$([ -x "$PONDCTL" ] && printf 1)")" \
+		"$(json_bool_str "$([ -x "$PONCTL" ] && printf 1)")" \
+		"$(json_bool_str "$([ -x "$INITD" ] && printf 1)")" \
+		"$(json_bool_str "$([ -f "$UCI_CONFIG" ] && printf 1)")" \
+		"$(json_bool_str "$ks")"
+}
+
+# Shared body for the delegating status/proto probes.
+probe_report() { # subcommand label
+	local sub="$1" label="$2" out="/tmp/luci-pon.$1.$$" rc=0 report=null
+
+	if [ ! -x "$PONDCTL" ]; then
+		rc=1
+	elif run_with_deadline 12 "$out" "$PONDCTL" "$sub" --json && [ -s "$out" ]; then
+		report="$(cat "$out")"
+	else
+		rc=1
+	fi
+	rm -f "$out"
+
+	printf '{"ok":%s,"error":%s,"env":%s,"report":%s}' \
+		"$(json_rc_bool "$rc")" \
+		"$([ "$rc" -eq 0 ] && printf null ||
+			json_str "$label failed or exceeded 12s")" \
+		"$(pon_env_json)" "$report"
+}
+
+get_status() { probe_report line 'PON status collection'; }
+get_proto() { probe_report proto 'PON protocol plane probe'; }
+
+get_modes() {
+	local pairs line name num sep=''
+
+	if [ ! -x "$PONCTL" ]; then
+		printf '{"ok":false,"error":%s,"modes":[]}' \
+			"$(json_str 'ponctl is not installed')"
+		return 0
+	fi
+
+	pairs="$($PONCTL mode-map 2>/dev/null)"
+	if [ -z "$pairs" ]; then
+		printf '{"ok":false,"error":%s,"modes":[]}' \
+			"$(json_str 'ponctl mode-map produced no output')"
+		return 0
+	fi
+
+	printf '{"ok":true,"error":null,"modes":['
+	# printf adds the trailing newline that the command substitution stripped:
+	# without it `read` returns non-zero on the last line and the final mode
+	# would be silently dropped.
+	printf '%s\n' "$pairs" | while IFS= read -r line; do
+		case "$line" in
+			mode.*=*) ;;
+			*) continue ;;
+		esac
+		num="${line##*=}"
+		name="${line#mode.}"
+		name="${name%%=*}"
+		[ -n "$name" ] || continue
+		printf '%s{"value":%s,"param":%s}' "$sep" \
+			"$(json_str "$name")" "${num:-0}"
+		sep=','
+	done
+	printf ']}'
+}
+
+get_logs() {
+	read -r input
+	local n kern sys out="/tmp/luci-pon.logs.$$"
+
+	n="$(printf '%s' "$input" | json_int_field lines)"
+	[ -n "$n" ] || n=200
+	in_range "$n" 1 2000 || n=2000
+
+	# DDM values only ever reach userspace through printk, so the kernel
+	# filter has to keep the en7572 reply field names.
+	if run_with_deadline 10 "$out" dmesg; then
+		kern="$(grep -iE 'xpon|epon|gpon|omci|oam|pon_phy|lddla|en7572|VccT|Ibias|Imod|TxPwr|RxPwr|BOSA|Temp' \
+			"$out" 2>/dev/null | tail -n "$n")"
+	else
+		kern=""
+	fi
+	rm -f "$out"
+
+	sys="$(logread 2>/dev/null | grep -iE 'xpon|epon|gpon|omci|oam|pon' |
+		tail -n "$n")"
+
+	printf '{"ok":true,"lines":%d,"kernel":%s,"syslog":%s}' \
+		"$n" "$(json_str "$kern")" "$(json_str "$sys")"
+}
+
+# --- configuration ---------------------------------------------------------
+#
+# Secrets are only returned when the caller asks for them (`reveal`), and a
+# secret is only overwritten when the payload actually carries one or when the
+# matching `*_clear` flag is set. That stops a page which merely re-submits the
+# form from wiping a password it never displayed.
+
+secret_or_null() { # value reveal
+	if [ "${2:-0}" = "1" ]; then
+		json_str "$1"
+	else
+		printf null
+	fi
+}
+
+get_config() {
+	read -r input
+	local reveal mode auto_start device omci_device oam_device
+
+	reveal="$(printf '%s' "$input" | json_int_field reveal)"
+
+	mode="$(cfg line0 mode)"
+	[ -n "$mode" ] || mode="$(cfg global mode)"
+	[ -n "$mode" ] || mode=auto
+
+	auto_start="$(cfg line0 auto_start)"
+	[ -n "$auto_start" ] || auto_start="$(cfg global auto_start)"
+	[ -n "$auto_start" ] || auto_start=1
+
+	device="$(cfg line0 device)"
+	[ -n "$device" ] || device=pon
+	omci_device="$(cfg line0 omci_device)"
+	[ -n "$omci_device" ] || omci_device=omci
+	oam_device="$(cfg line0 oam_device)"
+	[ -n "$oam_device" ] || oam_device=oam
+
+	printf '{"ok":true,"reveal":%s,"line":{' \
+		"$([ "${reveal:-0}" = "1" ] && printf true || printf false)"
+	printf '"mode":%s,"mode_param":%s,"auto_start":%s,' \
+		"$(json_str "$mode")" \
+		"$(json_or_null_dec "$(mode_param "$mode")")" \
+		"$(json_bool_str "$auto_start")"
+	printf '"device":%s,"omci_device":%s,"oam_device":%s},' \
+		"$(json_str "$device")" "$(json_str "$omci_device")" \
+		"$(json_str "$oam_device")"
+
+	printf '"gpon":{"serial":%s,"password":%s,"password_set":%s,' \
+		"$(json_str "$(cfg line0_gpon serial)")" \
+		"$(secret_or_null "$(cfg line0_gpon password)" "$reveal")" \
+		"$(json_bool_str "$(cfg line0_gpon password)")"
+	printf '"password_format":%s,"loid":%s,"loid_password":%s,' \
+		"$(json_str "$(def_val "$(cfg line0_gpon password_format)" ascii)")" \
+		"$(json_str "$(cfg line0_gpon loid)")" \
+		"$(secret_or_null "$(cfg line0_gpon loid_password)" "$reveal")"
+	printf '"loid_password_set":%s},' \
+		"$(json_bool_str "$(cfg line0_gpon loid_password)")"
+
+	printf '"epon":{"llid_index":%s,"llid_mask":%s,"mac":%s,' \
+		"$(json_or_null_dec "$(def_val "$(cfg line0_epon llid_index)" 0)")" \
+		"$(json_bool_str "$(cfg line0_epon llid_mask)")" \
+		"$(json_str "$(cfg line0_epon mac)")"
+	printf '"loid":%s,"loid_password":%s,"loid_password_set":%s,' \
+		"$(json_str "$(cfg line0_epon loid)")" \
+		"$(secret_or_null "$(cfg line0_epon loid_password)" "$reveal")" \
+		"$(json_bool_str "$(cfg line0_epon loid_password)")"
+	printf '"ctc_oam":%s,"dying_gasp":%s,"rx_fec":%s,"tx_fec":%s,' \
+		"$(json_bool_str "$(cfg line0_epon ctc_oam)")" \
+		"$(json_bool_str "$(def_val "$(cfg line0_epon dying_gasp)" 1)")" \
+		"$(json_bool_str "$(cfg line0_epon rx_fec)")" \
+		"$(json_bool_str "$(cfg line0_epon tx_fec)")"
+	printf '"rate_mode":%s}}' "$(json_str "$(cfg line0_epon rate_mode)")"
+}
+
+# Accumulators for set_config. add_change emits a complete `uci batch`
+# command and never a leading space, because CHANGES is fed to `uci batch`
+# line by line and each line must already be valid on its own.
+CHANGES=''
+ERRORS=''
+NCHANGES=0
+NERRORS=0
+
+add_change() {
+	CHANGES="${CHANGES}set $1
+"
+	NCHANGES=$((NCHANGES + 1))
+}
+
+add_error() {
+	ERRORS="$ERRORS$1
+"
+	NERRORS=$((NERRORS + 1))
+}
+
+# add_bool <payload> <json key> <uci option>
+add_bool() {
+	local v
+
+	has_key "$1" "$2" || return 0
+	v="$(printf '%s' "$1" | json_int_field "$2")"
+	if is_bool01 "$v"; then
+		add_change "$3=$v"
+	else
+		add_error "$2"
+	fi
+}
+
+
+
+# set_config <payload>
+#
+# Writes and commits UCI but deliberately does not re-apply: applying reloads
+# kernel modules and drops the link, so it stays an explicit user action
+# (`apply`).
+set_config() {
+	local input="$1" err v rc fmt
+
+	CHANGES=''
+	ERRORS=''
+	NCHANGES=0
+	NERRORS=0
+
+	# --- line0 ----------------------------------------------------------
+	# read_str_field separates absent (2) from malformed (1) from a usable
+	# value (0). Malformed must be an error: json_field stops at the offending
+	# character and would otherwise return "", which reads as "clear".
+	v="$(read_str_field "$input" mode)"; rc=$?
+	if [ "$rc" -eq 0 ]; then
+		if mode_is_supported "$v"; then
+			add_change "pon.line0.mode=$v"
+		else
+			add_error mode
+		fi
+	elif [ "$rc" -eq 1 ]; then
+		add_error mode
+	fi
+
+	add_bool "$input" auto_start pon.line0.auto_start
+
+	# --- GPON identity --------------------------------------------------
+	add_str "$input" gpon_serial pon.line0_gpon.serial 32
+	add_str "$input" gpon_loid pon.line0_gpon.loid 128
+
+	# The password character set depends on the declared format, so the format
+	# is resolved first: from the payload when present, otherwise from UCI.
+	fmt="$(def_val "$(cfg line0_gpon password_format)" ascii)"
+	v="$(read_str_field "$input" gpon_password_format)"; rc=$?
+	if [ "$rc" -eq 0 ]; then
+		if is_password_format "$v"; then
+			add_change "pon.line0_gpon.password_format=$v"
+			fmt="$v"
+		else
+			add_error gpon_password_format
+		fi
+	elif [ "$rc" -eq 1 ]; then
+		add_error gpon_password_format
+	fi
+
+	v="$(read_str_field "$input" gpon_password)"; rc=$?
+	if [ "$rc" -eq 0 ]; then
+		if len_le "$v" 64 &&
+			{ [ -z "$v" ] || { [ "$fmt" = "hex" ] && is_hex "$v"; } ||
+				{ [ "$fmt" = "ascii" ] && is_safe_text "$v"; }; }; then
+			add_change "pon.line0_gpon.password=$v"
+		else
+			add_error gpon_password
+		fi
+	elif [ "$rc" -eq 1 ]; then
+		add_error gpon_password
+	elif [ "$(printf '%s' "$input" | json_int_field gpon_password_clear)" = "1" ]; then
+		add_change 'pon.line0_gpon.password='
+	fi
+
+	v="$(read_str_field "$input" gpon_loid_password)"; rc=$?
+	if [ "$rc" -eq 0 ]; then
+		if is_safe_text "$v" && len_le "$v" 64; then
+			add_change "pon.line0_gpon.loid_password=$v"
+		else
+			add_error gpon_loid_password
+		fi
+	elif [ "$rc" -eq 1 ]; then
+		add_error gpon_loid_password
+	elif [ "$(printf '%s' "$input" | json_int_field gpon_loid_password_clear)" = "1" ]; then
+		add_change 'pon.line0_gpon.loid_password='
+	fi
+
+	# --- EPON identity --------------------------------------------------
+	v="$(printf '%s' "$input" | json_int_field epon_llid_index)"
+	if has_key "$input" epon_llid_index; then
+		if in_range "$v" 0 65534; then
+			add_change "pon.line0_epon.llid_index=$v"
+		else
+			add_error epon_llid_index
+		fi
+	fi
+
+	add_bool "$input" epon_llid_mask pon.line0_epon.llid_mask
+
+	v="$(read_str_field "$input" epon_mac)"; rc=$?
+	if [ "$rc" -eq 0 ]; then
+		if is_mac "$v"; then
+			add_change "pon.line0_epon.mac=$v"
+		else
+			add_error epon_mac
+		fi
+	elif [ "$rc" -eq 1 ]; then
+		add_error epon_mac
+	fi
+
+	add_str "$input" epon_loid pon.line0_epon.loid 128
+
+	v="$(read_str_field "$input" epon_loid_password)"; rc=$?
+	if [ "$rc" -eq 0 ]; then
+		if is_safe_text "$v" && len_le "$v" 64; then
+			add_change "pon.line0_epon.loid_password=$v"
+		else
+			add_error epon_loid_password
+		fi
+	elif [ "$rc" -eq 1 ]; then
+		add_error epon_loid_password
+	elif [ "$(printf '%s' "$input" | json_int_field epon_loid_password_clear)" = "1" ]; then
+		add_change 'pon.line0_epon.loid_password='
+	fi
+
+	# --- EPON feature flags --------------------------------------------
+	add_bool "$input" epon_ctc_oam pon.line0_epon.ctc_oam
+	add_bool "$input" epon_dying_gasp pon.line0_epon.dying_gasp
+	add_bool "$input" epon_rx_fec pon.line0_epon.rx_fec
+	add_bool "$input" epon_tx_fec pon.line0_epon.tx_fec
+
+	add_str "$input" epon_rate_mode pon.line0_epon.rate_mode 16
+
+	# --- commit ---------------------------------------------------------
+	if [ "$NERRORS" -gt 0 ]; then
+		printf '{"ok":false,"error":"validation failed","invalid_fields":['
+		printf '%s' "$ERRORS" | grep -v '^$' | while IFS= read -r v; do
+			printf '%s%s' "${sep:-}" "$(json_str "$v")"
+			sep=','
+		done
+		printf ']}'
+		return 0
+	fi
+
+	if [ "$NCHANGES" -gt 0 ]; then
+		# One atomic batch: a half-written section is never visible to the
+		# init script. `2>&1 >/dev/null` keeps stderr for the error message
+		# while dropping stdout, which would otherwise corrupt the reply.
+		err="$(printf '%scommit pon\n' "$CHANGES" | $UCI batch 2>&1 >/dev/null)"
+		rc=$?
+		if [ "$rc" -ne 0 ] || [ -n "$err" ]; then
+			printf '{"ok":false,"error":%s,"uci_output":%s}' \
+				"$(json_str 'uci batch failed')" "$(json_str "$err")"
+			return 0
+		fi
+	fi
+
+	printf '{"ok":true,"error":null,"applied":%d,"config":%s}' \
+		"$NCHANGES" "$(printf '{"reveal":0}' | get_config)"
+}
+
+# --- mode switch ------------------------------------------------------------
+
+set_mode() {
+	local input="$1" mode out="/tmp/luci-pon.apply.$$" rc
+
+	mode="$(printf '%s' "$input" | json_field mode)"
+	if [ -z "$mode" ]; then
+		printf '{"ok":false,"error":%s}' "$(json_str 'mode is required')"
+		return 0
+	fi
+
+	if ! mode_is_supported "$mode"; then
+		printf '{"ok":false,"error":%s,"mode":%s}' \
+			"$(json_str 'unsupported mode')" "$(json_str "$mode")"
+		return 0
+	fi
+
+	if ! printf 'set pon.line0.mode=%s\ncommit pon\n' "$mode" | $UCI batch >/dev/null 2>&1; then
+		printf '{"ok":false,"error":%s}' "$(json_str 'uci batch failed')"
+		return 0
+	fi
+
+	# A mode change reloads the PON kernel modules, which is exactly the case
+	# the deadline exists for.
+	if [ -x "$INITD" ]; then
+		run_with_deadline 60 "$out" "$INITD" apply
+		rc=$?
+	else
+		rc=127
+	fi
+
+	printf '{"ok":%s,"mode":%s,"mode_param":%s,"apply_rc":%d,"apply_output":%s}' \
+		"$(json_rc_bool "$rc")" "$(json_str "$mode")" \
+		"$(json_or_null_dec "$(mode_param "$mode")")" "$rc" \
+		"$(json_str "$(tail -n 20 "$out" 2>/dev/null)")"
+	rm -f "$out"
+}
+
+apply_config() {
+	local out="/tmp/luci-pon.apply.$$" rc
+
+	if [ ! -x "$INITD" ]; then
+		printf '{"ok":false,"error":%s,"rc":127}' \
+			"$(json_str '/etc/init.d/pon is not installed')"
+		return 0
+	fi
+
+	run_with_deadline 60 "$out" "$INITD" apply
+	rc=$?
+
+	printf '{"ok":%s,"error":%s,"rc":%d,"output":%s}' \
+		"$(json_rc_bool "$rc")" \
+		"$([ "$rc" -eq 0 ] && printf null ||
+			json_str 'apply failed or exceeded 60s')" \
+		"$rc" "$(json_str "$(tail -n 40 "$out" 2>/dev/null)")"
+	rm -f "$out"
+}
+
+# ---------------------------------------------------------------------- main
+
+case "$1" in
+	list)
+		echo '{"getStatus":{},"getProto":{},"getModes":{},"getConfig":{"reveal":"int"},"setConfig":{},"setMode":{"mode":"str"},"apply":{},"getLogs":{"lines":"int"}}'
+		;;
+	call)
+		case "$2" in
+			getStatus) get_status ;;
+			getProto) get_proto ;;
+			getModes) get_modes ;;
+			getLogs) get_logs ;;
+			getConfig) get_config ;;
+			setConfig) read -r input; set_config "$input" ;;
+			setMode) read -r input; set_mode "$input" ;;
+			apply) apply_config ;;
+			*) echo '{"ok":false,"error":"Invalid method"}' ;;
+		esac
+		;;
+esac

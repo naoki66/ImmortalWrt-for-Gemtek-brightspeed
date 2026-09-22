@@ -1,0 +1,872 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# pondctl - read-only Airoha PON status collector.
+#
+# Shared collection layer for LuCI and for `/usr/sbin/ponctl status --json`.
+# It never changes PON state: the only write performed is the `bob_info` /
+# `bosa_info` request the en7572 driver expects on /proc/lddla/debug, whose
+# answer the driver emits through the kernel log.
+#
+# Interface contract (schema_version 1):
+#   pondctl line  [--json] [--device DEV]   line, optics, registration, counters
+#   pondctl proto [--json] [--line NAME]    GPON OMCI / EPON OAM protocol plane
+#   pondctl ddm   [--json]                  optical module DDM only
+#   pondctl caps  [--json]                  capability probe (which sources exist)
+#   pondctl status[--json]                  combined report
+#
+# Source redirection for fixture testing follows the DSD_DEVICE /
+# EN7572_BOB_PATH convention used by ecnt_sys:
+#   PON_PROC_ROOT        default /proc
+#   PON_SYS_MODULE_ROOT  default /sys/module
+#   PON_DMESG_CMD        default dmesg   (empty string disables log recovery)
+#   PON_IP_CMD           default ip      (empty string disables link probing)
+
+PON_PROC_ROOT="${PON_PROC_ROOT:-/proc}"
+PON_SYS_MODULE_ROOT="${PON_SYS_MODULE_ROOT:-/sys/module}"
+PON_DMESG_CMD="${PON_DMESG_CMD-dmesg}"
+PON_IP_CMD="${PON_IP_CMD-ip}"
+
+XGPON_DIR="$PON_PROC_ROOT/xgpon"
+EPON_DIR="$PON_PROC_ROOT/epon"
+PHY_DIR="$PON_PROC_ROOT/pon_phy"
+LDDLA_FILE="$PON_PROC_ROOT/lddla/debug"
+# phy_10g prints LOS as its own node; see phy_los_status() for the polarity.
+LOS_FILE="$PON_PROC_ROOT/tc3162/los_status"
+MODE_FILE="$PON_SYS_MODULE_ROOT/xpon_10g/parameters/mode"
+
+usage() {
+	cat <<'EOF'
+Usage: pondctl <line|proto|ddm|caps|status> [--json] [--device DEV] [--line NAME]
+
+  line    line state, optics, registration, counters, capabilities
+  proto   GPON OMCI / EPON OAM protocol plane
+  ddm     optical module DDM only
+  caps    static capability probe (which data sources exist)
+  status  combined report
+
+  --json          emit JSON (schema_version 1)
+  --device DEV    override the line netdev (default: uci pon.line0.device)
+EOF
+}
+
+# ---------------------------------------------------------------- JSON helpers
+
+json_str() {
+	# Values are single-line by construction, so control characters that
+	# would need \u escapes are stripped rather than emitted.
+	printf '"%s"' "$(printf '%s' "$1" |
+		tr -d '\r\n\t' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"
+}
+
+json_num() {
+	case "${1:-}" in
+		''|*[!0-9.eE+-]*) printf null ;;
+		*[0-9]*) printf '%s' "$1" ;;
+		*) printf null ;;
+	esac
+}
+
+json_int() {
+	case "${1:-}" in
+		''|*[!0-9]*) printf null ;;
+		*) printf '%s' "$1" ;;
+	esac
+}
+
+# Same as json_int but normalises "03" -> 3, because JSON forbids leading
+# zeros while the vendor happily prints them.
+json_dec() {
+	if [ -n "${1:-}" ]; then
+		to_dec "$1" || printf null
+	else
+		printf null
+	fi
+}
+
+json_bool() {
+	case "${1:-}" in
+		true|1|on|yes|configured) printf true ;;
+		false|0|off|no|none|unset) printf false ;;
+		*) printf null ;;
+	esac
+}
+
+json_or_null_str() {
+	if [ -z "${1:-}" ]; then
+		printf null
+	else
+		json_str "$1"
+	fi
+}
+
+# Truthiness of an arbitrary string: json_bool only understands a fixed
+# vocabulary, so a serial number or LOID would come back as null through it.
+json_configured() {
+	if [ -n "${1:-}" ]; then
+		printf true
+	else
+		printf false
+	fi
+}
+
+kv() { printf '"%s":%s' "$1" "$2"; }
+
+# ------------------------------------------------------------- source probing
+
+have() { [ -e "$1" ] && printf true || printf false; }
+
+read_first() {
+	local f
+
+	for f in "$@"; do
+		[ -r "$f" ] || continue
+		cat "$f" 2>/dev/null
+		return 0
+	done
+
+	return 1
+}
+
+uci_get() { uci -q get "$1" 2>/dev/null; }
+
+link_up() {
+	local dev="$1"
+
+	[ -n "$dev" ] || {
+		printf false
+		return 0
+	}
+	[ -n "$PON_IP_CMD" ] || {
+		have "/sys/class/net/$dev"
+		return 0
+	}
+	$PON_IP_CMD link show dev "$dev" >/dev/null 2>&1 && printf true || printf false
+}
+
+line_device() {
+	local dev
+
+	# `--device DEV` overrides the UCI-configured line device, matching the
+	# `ponctl --device <dev> status` contract.
+	if [ -n "${LINE_DEVICE_OVERRIDE:-}" ]; then
+		printf '%s' "$LINE_DEVICE_OVERRIDE"
+		return 0
+	fi
+
+	dev="$(uci_get pon.line0.device)"
+	[ -n "$dev" ] || dev=pon
+	printf '%s' "$dev"
+}
+
+omci_device() {
+	local dev
+
+	dev="$(uci_get pon.line0.omci_device)"
+	[ -n "$dev" ] || dev=omci
+	printf '%s' "$dev"
+}
+
+oam_device() {
+	local dev
+
+	dev="$(uci_get pon.line0.oam_device)"
+	[ -n "$dev" ] || dev=oam
+	printf '%s' "$dev"
+}
+
+module_mode() { read_first "$MODE_FILE"; }
+
+mode_name() {
+	case "${1:-}" in
+		'') printf '' ;;
+		0|auto) printf auto ;;
+		1) printf gpon ;;
+		2) printf epon ;;
+		3) printf 10g-1g-epon ;;
+		4) printf 10g-10g-epon ;;
+		5) printf 1g-1g-epon ;;
+		6) printf xgpon ;;
+		7) printf xgspon ;;
+		8) printf ngpon2-10g-10g ;;
+		9) printf ngpon2-10g-2g ;;
+		10) printf ngpon2-2g-2g ;;
+		11) printf gpon-sym ;;
+		12) printf turbo-epon ;;
+		*) printf '%s' "$1" ;;
+	esac
+}
+
+is_epon_mode() {
+	case "${1:-}" in
+		epon) return 0 ;;
+		*epon) return 0 ;;
+	esac
+
+	return 1
+}
+
+# ------------------------------------------------------------------ DDM (optics)
+
+ddm_query() {
+	# The en7572 driver answers bob_info / bosa_info through printk, so the
+	# reply has to be recovered from the kernel log.
+	local cmd="$1" before delta
+
+	[ -e "$LDDLA_FILE" ] || return 1
+	[ -n "$PON_DMESG_CMD" ] || return 1
+
+	before="$($PON_DMESG_CMD 2>/dev/null </dev/null | wc -l)"
+	printf '%s' "$cmd" > "$LDDLA_FILE" 2>/dev/null
+	delta="$($PON_DMESG_CMD 2>/dev/null </dev/null | tail -n +$((before + 1)) |
+		sed -e 's/^\[[[:space:]]*[0-9][0-9]*\.[0-9][0-9]*\][[:space:]]*//')"
+
+	case "$delta" in
+		*TxPwr*|*RxPwr*|*VccT*|*BOSA*) ;;
+		*)
+			# The increment can be lost when the log is flooded; fall back
+			# to the most recent matching output.
+			delta="$($PON_DMESG_CMD 2>/dev/null </dev/null |
+				grep -E 'VccT|Ibias|Imod|TxPwr|RxPwr|BOSA|bob_info' | tail -n 25)"
+			;;
+	esac
+
+	printf '%s' "$delta"
+}
+
+ddm_field() {
+	printf '%s' "$1" |
+		sed -n "s/.*$2 = \(-*[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p" | tail -n 1
+}
+
+ddm_collect() {
+	# Sets: DDM_LOS DDM_TEMP DDM_VCC DDM_IBIAS DDM_IMOD DDM_TXPWR DDM_RXPWR
+	#       DDM_BOSA DDM_PHYTEMP DDM_RAW DDM_ERROR DDM_CAL
+	#
+	# Reading DDM costs two kernel-log scans per query, so the result is
+	# collected at most once per process. This matters because callers run
+	# inside command substitutions: line_json runs in a subshell, and the
+	# values it collects must stay valid for the parent that renders
+	# frontend/ddm_json afterwards.
+	local bob bosa phy raw
+
+	[ -z "${DDM_COLLECTED:-}" ] || return 0
+	DDM_COLLECTED=1
+
+	DDM_RAW=''
+	DDM_ERROR=''
+	# '' = no DDM reply at all, and therefore unknown.
+	DDM_CAL=''
+	DDM_LOS=''
+	DDM_TEMP=''
+	DDM_VCC=''
+	DDM_IBIAS=''
+	DDM_IMOD=''
+	DDM_TXPWR=''
+	DDM_RXPWR=''
+	DDM_BOSA=''
+	DDM_PHYTEMP=''
+
+	if [ -e "$LDDLA_FILE" ]; then
+		bob="$(ddm_query bob_info)"
+		raw="$bob"
+		DDM_LOS="$(printf '%s' "$bob" |
+			sed -n 's/.*LOS = \([0-9][0-9]*\).*/\1/p' | tail -n 1)"
+		DDM_TEMP="$(ddm_field "$bob" Temp)"
+		DDM_VCC="$(ddm_field "$bob" VccT)"
+		DDM_IBIAS="$(ddm_field "$bob" Ibias)"
+		DDM_IMOD="$(ddm_field "$bob" Imod)"
+		DDM_TXPWR="$(ddm_field "$bob" TxPwr)"
+		DDM_RXPWR="$(ddm_field "$bob" RxPwr)"
+		bosa="$(ddm_query bosa_info)"
+		DDM_BOSA="$(printf '%s' "$bosa" |
+			sed -n 's/.*BOSA Temp = \(-*[0-9][0-9]*\).*/\1/p' | tail -n 1)"
+		case "$bosa" in
+			'') : ;;
+			*cal*) DDM_CAL=ready ;;
+			*) DDM_CAL=uncalibrated ;;
+		esac
+		[ -z "$raw" ] || DDM_RAW="$raw"
+		case "$bob" in
+			'') DDM_ERROR='no DDM reply from /proc/lddla/debug' ;;
+			*TxPwr*|*RxPwr*)
+				[ -n "$DDM_TXPWR$DDM_RXPWR" ] ||
+					DDM_ERROR='DDM reply present but power fields unparsed'
+				;;
+			*) DDM_ERROR='optical module did not report power' ;;
+		esac
+	else
+		DDM_ERROR='BoB driver (/proc/lddla/debug) is not loaded'
+	fi
+
+	phy="$(read_first "$PHY_DIR/temperature")"
+	if [ -n "$phy" ]; then
+		# phy_10g prints whole degrees as hex: 0x2c == 44'C. Values above
+		# 0x7f are 8 bit two's complement (0xfc == -4'C), and there is no
+		# tenths scaling to apply.
+		# </dev/null keeps awk from blocking on inherited stdin.
+		DDM_PHYTEMP="$(printf '%s' "$phy" |
+			sed -n 's/.*0[xX]\([0-9a-fA-F]\{1,4\}\).*/\1/p' | head -n 1)"
+		if [ -n "$DDM_PHYTEMP" ]; then
+			DDM_PHYTEMP="$(awk -v v="$((0x$DDM_PHYTEMP))" 'BEGIN {
+				if (v > 127) v -= 256;
+				printf "%d", v
+			}' </dev/null)"
+		fi
+	fi
+}
+
+ddm_json() {
+	# Idempotent: a no-op when the caller already ran ddm_collect.
+	ddm_collect
+	printf '{'
+	printf '%s' "$(kv source "$(json_str lddla)")"
+	printf ',%s' "$(kv available "$(if [ -e "$LDDLA_FILE" ]; then printf true; else printf false; fi)")"
+	printf ',%s' "$(kv error "$(json_or_null_str "$DDM_ERROR")")"
+	printf ',%s' "$(kv los "$(json_bool "$DDM_LOS")")"
+	printf ',%s' "$(kv temperature_celsius "$(json_num "$DDM_TEMP")")"
+	printf ',%s' "$(kv phy_temperature_celsius "$(json_num "$DDM_PHYTEMP")")"
+	printf ',%s' "$(kv bosa_temperature_celsius "$(json_num "$DDM_BOSA")")"
+	printf ',%s' "$(kv rx_power_dbm "$(json_num "$DDM_RXPWR")")"
+	printf ',%s' "$(kv tx_power_dbm "$(json_num "$DDM_TXPWR")")"
+	printf ',%s' "$(kv vcc_volts "$(json_num "$DDM_VCC")")"
+	printf ',%s' "$(kv ibias_ma "$(json_num "$DDM_IBIAS")")"
+	printf ',%s' "$(kv imod_ma "$(json_num "$DDM_IMOD")")"
+	printf ',%s' "$(kv calibration "$(json_or_null_str "$DDM_CAL")")"
+	printf '}'
+}
+
+# ------------------------------------------------------- PHY (xpon_phy_10g) ----
+#
+# phy_10g exposes four nodes under /proc/pon_phy plus one outside it:
+#   debug        read+write, command interpreter
+#   err_cnt      "0x1FA8B37C = 0x%x"  - BER error counter (all-ones while LOS)
+#   rogue        "rogueonu %x"        - rogue ONU detection flag
+#   temperature  "0x2c"               - whole degrees, 8 bit two's complement
+#   /proc/tc3162/los_status  "0" or "1"
+#
+# los_status polarity is inverted with respect to the driver's internal flag:
+# the node prints 0 when LOS (no light) is asserted and 1 when light is present.
+
+phy_los_status() { read_first "$LOS_FILE"; }
+
+phy_json() {
+	local los raw err rogue rval
+
+	los="$(phy_los_status)"
+	raw="$(read_first "$PHY_DIR/err_cnt")"
+	rogue="$(read_first "$PHY_DIR/rogue")"
+
+	err="$(printf '%s' "$raw" |
+		sed -n 's/.*=[[:space:]]*\(0[xX][0-9a-fA-F]\{1,\}\).*/\1/p' | head -n 1)"
+	rval="$(printf '%s' "$rogue" |
+		sed -n 's/.*rogueonu[^0-9a-fA-F]*\([0-9a-fA-F]\{1,\}\).*/\1/p' | head -n 1)"
+
+	printf '{'
+	printf '%s' "$(kv available "$(have "$PHY_DIR")")"
+	printf ',%s' "$(kv los_status "$(json_int "$los")")"
+	# 1 = light present, 0 = LOS; null when the node is absent.
+	printf ',%s' "$(kv optical_signal "$(json_bool "$(
+		case "$los" in
+			1) printf true ;;
+			0) printf false ;;
+			*) printf '' ;;
+		esac
+	)")")"
+	printf ',%s' "$(kv err_cnt "$(json_or_null_str "$(printf '%s' "$raw" | tr '\n' ' ')")")"
+	printf ',%s' "$(kv err_cnt_value "$(json_dec "$err")")"
+	printf ',%s' "$(kv rogue_onu "$(json_bool "$(
+		if [ -n "$rval" ]; then
+			v="$(to_dec "0x$rval")" || v=''
+			if [ -n "$v" ] && [ "$v" -ne 0 ]; then printf true; else printf false; fi
+		else
+			printf ''
+		fi
+	)")")"
+	printf ',%s' "$(kv rogue_raw "$(json_or_null_str "$(printf '%s' "$rogue" | tr '\n' ' ')")")"
+	printf '}'
+}
+
+# ------------------------------------------------------------ proc text parsing
+
+# Prints every LLID the text could be reporting, one per line, in order of
+# appearance. The vendor prints both "llid = 5" and "LLID[0] = 5", so the
+# bracketed index has to be skipped explicitly: a naive "[^0-9]*\([0-9]*\)"
+# captures the *index* ("0"), and can also walk forward into an adjacent MAC
+# ("mac 00:11:22..." -> "11"). Requiring the separator to follow the optional
+# bracket keeps both false positives out.
+epon_llid_candidates() {
+	printf '%s' "$1" | tr 'A-Z' 'a-z' |
+		grep -o -E 'llid[[:space:]]*(\[[^]]*\])?[[:space:]]*[:=][[:space:]]*(0x[0-9a-f]+|[0-9]+)|llid[[:space:]]+(0x[0-9a-f]+|[0-9]+)' |
+		sed -e 's/.*[^0-9a-fx]//'
+}
+
+# 0x.. via the shell, plain decimal via awk: awk avoids the leading-zero
+# octal trap that "$(( 08 ))" hits.
+to_dec() {
+	case "${1:-}" in
+		'') return 1 ;;
+		0[xX]*) printf '%d' "$(( $1 ))" ;;
+		*[!0-9]*) return 1 ;;
+		*) awk -v v="$1" 'BEGIN { printf "%d", v + 0 }' </dev/null ;;
+	esac
+}
+
+# First LLID in 1..65534. LLID 0 is the discovery/broadcast id the OLT uses
+# before registration, so it is not treated as a result.
+epon_llid() {
+	local c v
+
+	for c in $(epon_llid_candidates "$1"); do
+		v="$(to_dec "$c")" || continue
+		[ "$v" -gt 0 ] 2>/dev/null || continue
+		[ "$v" -lt 65535 ] 2>/dev/null || continue
+		printf '%s' "$v"
+		return 0
+	done
+
+	return 1
+}
+
+# MPCP registration state. "deregistered"/"unregistered" contain "registered"
+# as a substring, so they must be tested first.
+epon_mpcp_state() {
+	local t
+
+	t="$(printf '%s' "$1" | tr 'A-Z' 'a-z')"
+	case "$t" in
+		*de_register*|*de-register*|*deregister*|*unregister*|*un-register*)
+			printf deregistered ;;
+		*register*request*|*request*)
+			printf register-request ;;
+		*discover*)
+			printf registering ;;
+		*registered*)
+			printf registered ;;
+		*)
+			printf '' ;;
+	esac
+}
+
+# GPON ONU state (O1..O7, O5 meaning operational). Prefers an explicit
+# "state = Ox" assignment and falls back to the first bare Ox token.
+gpon_onu_state() {
+	local t s
+
+	t="$(printf '%s' "$1" | tr 'A-Z' 'a-z')"
+	s="$(printf '%s' "$t" |
+		sed -n 's/.*state[^:=]*[:=][[:space:]]*\(o[0-9]\(_[0-9]\)\?\).*/\1/p' | head -n 1)"
+	[ -n "$s" ] || s="$(printf '%s' "$t" | grep -o -E 'o[0-9](_[0-9])?' | head -n 1)"
+	printf '%s' "$s" | tr 'a-z' 'A-Z'
+}
+
+# First run of digits in a short dump. Used for dedicated nodes that print a
+# bare value, such as /proc/xgpon/onuid.
+plain_uint() {
+	printf '%s' "${1:-}" |
+		awk '{
+			n = ""
+			for (i = 1; i <= length($0); i++) {
+				c = substr($0, i, 1)
+				if (c >= "0" && c <= "9")
+					n = n c
+				else if (n != "")
+					break
+			}
+				printf "%s", n
+			}'
+	# No </dev/null here: awk has to read the pipe, not an empty stdin.
+}
+
+onu_id_from_text() {
+	local t s
+
+	t="$(printf '%s' "$1" | tr 'A-Z' 'a-z')"
+	# [-_ ] keeps the '-' literal; "_- " or " -_" would parse as a range.
+	s="$(printf '%s' "$t" |
+		sed -n 's/.*onu[-_ ]*id[[:space:]]*[:=][[:space:]]*\([0-9][0-9]*\).*/\1/p' |
+		head -n 1)"
+	[ -n "$s" ] || s="$(printf '%s' "$t" |
+		sed -n 's/.*onu[-_ ]*id[[:space:]][[:space:]]*\([0-9][0-9]*\).*/\1/p' |
+		head -n 1)"
+	printf '%s' "$s"
+}
+
+parse_registration() {
+	# Sets REG_MPCP / REG_LLID / REG_ONU_STATE / REG_ONU_ID (empty = unknown)
+	# and REG_NOTE (why a field could not be read, when that is known).
+	local text active
+
+	REG_MPCP=''
+	REG_LLID=''
+	REG_ONU_STATE=''
+	REG_ONU_ID=''
+	REG_NOTE=''
+	active="$(mode_name "$(module_mode)")"
+
+	if is_epon_mode "$active"; then
+		text="$(read_first "$EPON_DIR/debug")"
+		if [ -z "$text" ]; then
+			# xpon_10g registers /proc/epon/debug with read_proc = NULL: the
+			# node only accepts `epon <subcmd>` writes and answers through
+			# printk. A read therefore always returns EOF, which is why MPCP
+			# state is unavailable instead of merely empty -- and triggering
+			# the dump would mean writing to the driver, which this
+			# collector does not do.
+			[ -e "$EPON_DIR/debug" ] && REG_NOTE=epon_debug_write_only
+			return 0
+		fi
+		REG_LLID="$(epon_llid "$text")"
+		REG_MPCP="$(epon_mpcp_state "$text")"
+		return 0
+	fi
+
+	# /proc/xgpon/state and /proc/xgpon/onuid are dedicated read-only nodes,
+	# but they are only compiled in when CONFIG_TP_IMAGE is set, so both the
+	# nodes and the free-form `debug` dump have to be tried.
+	REG_ONU_STATE="$(gpon_onu_state "$(read_first "$XGPON_DIR/state")")"
+	REG_ONU_ID="$(plain_uint "$(read_first "$XGPON_DIR/onuid")")"
+
+	text="$(read_first "$XGPON_DIR/debug")"
+	[ -n "$REG_ONU_STATE" ] || REG_ONU_STATE="$(gpon_onu_state "$text")"
+	[ -n "$REG_ONU_ID" ] || REG_ONU_ID="$(onu_id_from_text "$text")"
+}
+
+# ------------------------------------------------------------------- sections
+
+line_json() {
+	local dev configured loaded active pending lifecycle optical auto_start
+
+	dev="$(line_device)"
+	configured="$(uci_get pon.line0.mode)"
+	[ -n "$configured" ] || configured="$(uci_get pon.global.mode)"
+	[ -n "$configured" ] || configured=auto
+	loaded="$(module_mode)"
+	active="$(mode_name "$loaded")"
+	[ -n "$active" ] || active="$configured"
+	if [ -n "$loaded" ] && [ "$active" != "$configured" ]; then
+		pending=true
+	else
+		pending=false
+	fi
+
+	ddm_collect
+	optical=''
+	case "${DDM_LOS:-}" in
+		0) optical=true ;;
+		1) optical=false ;;
+	esac
+	# The PHY's own LOS node is authoritative when the optical module did not
+	# answer the DDM query at all (no bob_info reply, no BoB driver).
+	if [ -z "$optical" ]; then
+		case "$(phy_los_status)" in
+			1) optical=true ;;
+			0) optical=false ;;
+		esac
+	fi
+	[ -n "$optical" ] || [ -z "$DDM_RXPWR" ] || optical=true
+
+	auto_start="$(uci_get pon.line0.auto_start)"
+	[ -n "$auto_start" ] || auto_start="$(uci_get pon.global.auto_start)"
+
+	if [ "$optical" = false ]; then
+		lifecycle=wait-optical-signal
+	else
+		parse_registration
+		if is_epon_mode "$active"; then
+			# MPCP registration is *not* authentication: the OLT still has to
+			# finish the CTC/OAM exchange before it forwards traffic, and that
+			# verdict is only reachable through the vendor CLI, which this
+			# collector deliberately never calls. So a registered LLID is
+			# reported as mpcp-registered rather than operational.
+			case "$REG_MPCP" in
+				registered) lifecycle=mpcp-registered ;;
+				register-request|registering) lifecycle=registering ;;
+				deregistered) lifecycle=down ;;
+				*) lifecycle=unknown ;;
+			esac
+		else
+			# G.984.3 clause 10 activation state machine:
+			#   O1  initial          -> waiting for downstream sync
+			#   O2/O3 serial number -> ONU-ID / serial number acquisition
+			#   O4  ranging          -> equalization delay negotiation
+			#   O5  operation        -> normal traffic
+			#   O6  intermittent LODS -> was up, lost downstream sync; back to
+			#      O5 if re-synced within TO2, otherwise falls back to O1
+			#   O7  emergency stop   -> OLT sent Disable_Serial_Number(disable);
+			#      laser forced off and the state survives reboot/power-cycle
+			#      until the OLT sends enable again
+			# O8/O9 are NG-PON2 wavelength tuning only; GPON/XGS-PON never
+			# reaches them, so they stay under the generic activating branch.
+			case "$REG_ONU_STATE" in
+				O5|O5_1|O5_2|O5_3) lifecycle=operational ;;
+				O6|O6_1|O6_2|O6_3) lifecycle=intermittent-lods ;;
+				O7|O7_1|O7_2|O7_3) lifecycle=emergency-stop ;;
+				O1|O1_1|O1_2|O1_3) lifecycle=wait-downstream-sync ;;
+				O2|O2_1|O2_2|O2_3|O3|O3_1|O3_2|O3_3) lifecycle=serial-number ;;
+				O4|O4_1|O4_2|O4_3) lifecycle=ranging ;;
+				O[0-9]*) lifecycle=activating ;;
+				*) lifecycle=unknown ;;
+			esac
+		fi
+	fi
+
+	printf '{'
+	printf '%s' "$(kv device "$(json_str "$dev")")"
+	printf ',%s' "$(kv configured_mode "$(json_str "$configured")")"
+	printf ',%s' "$(kv loaded_mode "$(json_num "$loaded")")"
+	printf ',%s' "$(kv active_mode "$(json_str "$active")")"
+	printf ',%s' "$(kv mode_pending "$(json_bool "$pending")")"
+	printf ',%s' "$(kv auto_start "$(json_bool "$auto_start")")"
+	printf ',%s' "$(kv lifecycle "$(json_str "$lifecycle")")"
+	printf ',%s' "$(kv lifecycle_source "$(json_str derived)")"
+	printf ',%s' "$(kv optical_signal "$(json_bool "$optical")")"
+	printf '}'
+}
+
+registration_json() {
+	local active plane evidence
+
+	active="$(mode_name "$(module_mode)")"
+	if is_epon_mode "$active"; then
+		plane=epon
+		evidence="$EPON_DIR/debug"
+	else
+		plane=gpon
+		evidence="$XGPON_DIR/debug"
+	fi
+	[ -e "$evidence" ] || evidence=''
+
+	parse_registration
+
+	printf '{'
+	printf '%s' "$(kv plane "$(json_str "$plane")")"
+	if [ "$plane" = epon ]; then
+		# No ONU-id / O-state on the EPON side: CTC ONUSN is a 6 byte serial,
+		# not the GPON PLOAM ONU-ID, so reporting one here would be invented.
+		printf ',%s' "$(kv onu_state null)"
+		printf ',%s' "$(kv mpcp_state "$(json_or_null_str "$REG_MPCP")")"
+		printf ',%s' "$(kv llid "$(json_dec "$REG_LLID")")"
+		printf ',%s' "$(kv onu_id null)"
+		printf ',%s' "$(kv oam_auth "$(json_str unknown)")"
+	else
+		printf ',%s' "$(kv onu_state "$(json_or_null_str "$REG_ONU_STATE")")"
+		printf ',%s' "$(kv mpcp_state null)"
+		printf ',%s' "$(kv llid null)"
+		printf ',%s' "$(kv onu_id "$(json_dec "$REG_ONU_ID")")"
+		printf ',%s' "$(kv oam_auth null)"
+	fi
+	printf ',%s' "$(kv evidence "$(json_or_null_str "$evidence")")"
+	printf ',%s' "$(kv note "$(json_or_null_str "$REG_NOTE")")"
+	printf '}'
+}
+
+datapath_json() {
+	local dev pon0 omci oam links
+
+	dev="$(line_device)"
+	omci="$(omci_device)"
+	oam="$(oam_device)"
+	pon0="$(link_up pon0)"
+	links="{$(kv "$dev" "$(json_bool "$(link_up "$dev")")"),$(kv pon0 "$(json_bool "$pon0")"),$(kv "$omci" "$(json_bool "$(link_up "$omci")")"),$(kv "$oam" "$(json_bool "$(link_up "$oam")")")}"
+
+	printf '{'
+	printf '%s' "$(kv pon0_device_configured "$(json_bool "$pon0")")"
+	printf ',%s' "$(kv links "$links")"
+	printf ',%s' "$(kv mode_source "$(if [ -e "$MODE_FILE" ]; then json_str "$MODE_FILE"; else printf null; fi)")"
+	printf '}'
+}
+
+counters_json() {
+	local text first=1 f
+
+	for f in counter errcnt errsts; do
+		text="$(read_first "$XGPON_DIR/$f")"
+		[ -n "$text" ] || continue
+		[ "$first" -eq 1 ] || printf ','
+		first=0
+		printf '%s' "$(kv "$f" "$(json_str "$(printf '%s' "$text" | tr '\n' ' ')")")"
+	done
+}
+
+capabilities_json() {
+	local vendor=false c d
+
+	for c in omcicfgCmd oamcfgCmd; do
+		for d in /userfs/bin /usr/sbin /usr/bin /bin; do
+			[ -x "$d/$c" ] && vendor=true
+		done
+	done
+
+	printf '{'
+	printf '%s' "$(kv proc_xgpon "$(have "$XGPON_DIR")")"
+	printf ',%s' "$(kv proc_epon "$(have "$EPON_DIR")")"
+	printf ',%s' "$(kv proc_pon_phy "$(have "$PHY_DIR")")"
+	printf ',%s' "$(kv proc_tc3162_los "$(have "$LOS_FILE")")"
+	printf ',%s' "$(kv proc_lddla "$(have "$LDDLA_FILE")")"
+	printf ',%s' "$(kv sysfs_module_mode "$(have "$MODE_FILE")")"
+	printf ',%s' "$(kv vendor_cli "$(json_bool "$vendor")")"
+	printf ',%s' "$(kv omci_engine "$(json_str unavailable)")"
+	printf ',%s' "$(kv oam_engine "$(json_str unavailable)")"
+	printf '}'
+}
+
+unsupported_json() {
+	printf '['
+	printf '%s' "$(json_str 'registration.oam_auth：EPON 的 OAM 认证状态只能通过厂商 CLI 读取，本只读采集器不调用它')"
+	printf ',%s' "$(json_str 'datapath.omci：本仓库没有 OMCI 用户态引擎，omci0 只反映传输口是否存在')"
+	printf ',%s' "$(json_str 'protocol.oam：本仓库没有 EPON OAM 用户态引擎')"
+	printf ',%s' "$(json_str 'frontend.*：DDM 依赖 en7572 驱动通过内核日志回答 bob_info/bosa_info，没有该驱动时整段为 null')"
+	# Pages the stock Airoha UI has that this build has no data source for.
+	# They are listed rather than silently omitted: the drivers behind them
+	# (gpon-en757x + the /userfs vendor partition) are not the ones this
+	# device runs, and inventing controls would be worse than saying so.
+	printf ',%s' "$(json_str 'OMCI 页：本仓库没有 OMCI 引擎，gpon-en757x/xpon/src/omci 下只有 ME 辅助文件，缺 omci.c / omci_dbg_srv.c')"
+	printf ',%s' "$(json_str 'OAM 页：/userfs/bin/oamcfgCmd 属于 gpon-en757x 那套 vendor rootfs，2010 跑的 xpon_10g 不带它')"
+	printf ',%s' "$(json_str '语音页：本 target 不提供 /proc/fxs（FXS/FXO 通道数），无语音数据源')"
+	printf ',%s' "$(json_str 'VLAN / 组播 / 业务页：原生界面靠 /userfs/bin/{omcicfgCmd,xponigmpcmd,tcapi} 驱动，本构建不安装这些二进制')"
+	printf ']'
+}
+
+line_report_json() {
+	# Collect in *this* shell first: line_json below runs in a command
+	# substitution, so anything it collected itself would be discarded before
+	# ddm_json renders the frontend section.
+	ddm_collect
+
+	printf '{'
+	printf '%s' "$(kv schema_version 1)"
+	printf ',%s' "$(kv generated "$(date +%s)")"
+	printf ',%s' "$(kv device "$(json_str "$(line_device)")")"
+	printf ',%s' "$(kv line "$(line_json)")"
+	printf ',%s' "$(kv frontend "$(ddm_json)")"
+	printf ',%s' "$(kv phy "$(phy_json)")"
+	printf ',%s' "$(kv registration "$(registration_json)")"
+	printf ',%s' "$(kv datapath "$(datapath_json)")"
+	printf ',%s' "$(kv counters "{$(counters_json)}")"
+	printf ',%s' "$(kv capabilities "$(capabilities_json)")"
+	printf ',%s' "$(kv unsupported "$(unsupported_json)")"
+	printf '}'
+}
+
+proto_report_json() {
+	local active omci oam line omci_json oam_json gpon_id epon_id
+
+	active="$(mode_name "$(module_mode)")"
+	omci="$(omci_device)"
+	oam="$(oam_device)"
+	line="$(line_device)"
+
+	# "configured" means the line carries the identity the protocol plane
+	# needs, taken only from the UCI sections this repository actually ships
+	# (there is no pon.oam section here, so no operator/vendor fields).
+	gpon_id="$(uci_get pon.line0_gpon.serial)"
+	[ -n "$gpon_id" ] || gpon_id="$(uci_get pon.line0_gpon.loid)"
+	epon_id="$(uci_get pon.line0_epon.loid)"
+	[ -n "$epon_id" ] || epon_id="$(uci_get pon.line0_epon.mac)"
+
+	omci_json="{$(kv configured "$(json_configured "$gpon_id")"),$(kv device "$(json_str "$omci")"),$(kv transport "$(json_bool "$(link_up "$omci")")"),$(kv runtime "$(json_str unavailable)")}"
+	oam_json="{$(kv configured "$(json_configured "$epon_id")"),$(kv device "$(json_str "$oam")"),$(kv ctc_oam "$(json_bool "$(uci_get pon.line0_epon.ctc_oam)")"),$(kv transport "$(json_bool "$(link_up "$oam")")"),$(kv runtime "$(json_str unavailable)")}"
+
+	printf '{'
+	printf '%s' "$(kv schema_version 1)"
+	printf ',%s' "$(kv generated "$(date +%s)")"
+	printf ',%s' "$(kv line "$(json_str "$line")")"
+	printf ',%s' "$(kv mode "$(json_str "$active")")"
+	printf ',%s' "$(kv omci "$omci_json")"
+	printf ',%s' "$(kv oam "$oam_json")"
+	printf '}'
+}
+
+# ---------------------------------------------------------------------- output
+
+text_report() {
+	local configured active dev
+
+	dev="$(line_device)"
+	configured="$(uci_get pon.line0.mode)"
+	[ -n "$configured" ] || configured=auto
+	active="$(mode_name "$(module_mode)")"
+	[ -n "$active" ] || active="$configured"
+
+	printf 'PON line %s\n' "$dev"
+	printf '  configured mode : %s\n' "$configured"
+	printf '  loaded mode     : %s (%s)\n' "$(module_mode)" "$active"
+	ddm_collect
+	printf '  optical signal  : %s\n' "${DDM_LOS:-unknown}"
+	printf '  Rx / Tx power   : %s / %s dBm\n' "${DDM_RXPWR:-n/a}" "${DDM_TXPWR:-n/a}"
+	printf '  module temp     : %s C (BOSA %s C)\n' "${DDM_TEMP:-n/a}" "${DDM_BOSA:-n/a}"
+	[ -z "$DDM_ERROR" ] || printf '  DDM note        : %s\n' "$DDM_ERROR"
+}
+
+cmd=''
+json=0
+device=''
+line=''
+LINE_DEVICE_OVERRIDE=''
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+		--json) json=1 ;;
+		--device) device="${2:-}"; LINE_DEVICE_OVERRIDE="$device"; [ $# -gt 1 ] && shift ;;
+		--device=*) device="${1#--device=}"; LINE_DEVICE_OVERRIDE="$device" ;;
+		--line) line="${2:-}"; [ $# -gt 1 ] && shift ;;
+		--line=*) line="${1#--line=}" ;;
+		*) [ -n "$cmd" ] || cmd="$1" ;;
+	esac
+	shift
+done
+
+case "$cmd" in
+	line)
+		if [ "$json" -eq 1 ]; then
+			line_report_json
+			printf '\n'
+		else
+			text_report
+		fi
+		;;
+	proto)
+		proto_report_json
+		printf '\n'
+		;;
+	ddm)
+		ddm_collect
+		if [ "$json" -eq 1 ]; then
+			ddm_json
+			printf '\n'
+		else
+			printf 'LOS=%s Temp=%s RxPwr=%s TxPwr=%s\n' \
+				"${DDM_LOS:-?}" "${DDM_TEMP:-?}" \
+				"${DDM_RXPWR:-?}" "${DDM_TXPWR:-?}"
+			[ -z "$DDM_ERROR" ] || printf 'note: %s\n' "$DDM_ERROR"
+		fi
+		;;
+	caps)
+		if [ "$json" -eq 1 ]; then
+			capabilities_json
+			printf '\n'
+		else
+			capabilities_json | tr ',' '\n'
+		fi
+		;;
+	status)
+		if [ "$json" -eq 1 ]; then
+			line_report_json
+			printf '\n'
+		else
+			text_report
+			printf '\ncapabilities:\n'
+			capabilities_json | tr ',' '\n' | sed 's/^/  /'
+		fi
+		;;
+	''|-h|--help|help)
+		usage
+		;;
+	*)
+		usage >&2
+		exit 1
+		;;
+esac
+
+exit 0
