@@ -12,10 +12,12 @@ var callTokenInfo = rpc.declare({ object: 'luci.airoha_npu', method: 'getTokenIn
 var callFrameEngine = rpc.declare({ object: 'luci.airoha_npu', method: 'getFrameEngine' });
 var callSetGovernor = rpc.declare({ object: 'luci.airoha_npu', method: 'setGovernor', params: ['governor'] });
 var callSetMaxFreq = rpc.declare({ object: 'luci.airoha_npu', method: 'setMaxFreq', params: ['freq'] });
+// VLAN Offload is an independent switch again (it owns the VLAN passthrough
+// pair), so its declares are live here. PPPoE passthrough is owned by AP Mode
+// Acceleration on this page - nothing below drives setPppoeOffload, so this
+// view keeps no PPPoE declares at all.
 var callGetVlanOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getVlanOffload' });
 var callSetVlanOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setVlanOffload', params: ['enabled'] });
-var callGetPppoeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getPppoeOffload' });
-var callSetPppoeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setPppoeOffload', params: ['enabled'] });
 var callGetFlowOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getFlowOffload' });
 var callSetFlowOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setFlowOffload', params: ['enabled'] });
 var callGetApModeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getApModeOffload' });
@@ -700,11 +702,19 @@ return view.extend({
 	render: function(data) {
 		data = data || [];
 		aui.ensureCss();
+		// These first-render defaults must mirror the live Promise.all slot order
+		// further down, slot for slot. They are only ever fed the empty array
+		// today (load() returns Promise.resolve([])), so a mismatch would NOT
+		// surface here - it would silently mis-slot real data (e.g. show the
+		// Flow Offload value in the VLAN slot) the moment load() starts
+		// returning data. Whenever the Promise.all order below changes, update
+		// this block in the same commit.
 		var st = data[0] || {}, ppe = data[1] || {}, ti = data[2] || {}, fe = data[3] || {};
-		var vo = data[4] || { enabled: 0 }, ppo = data[5] || { enabled: 0 }, flo = data[6] || { enabled: 0 };
-		var apo = data[7] || { enabled: 0 };
-		var dm = data[8] || {};
-		var topo = data[9] || {};
+		var flo = data[4] || { enabled: 0 };
+		var apo = data[5] || { enabled: 0 };
+		var dm = data[6] || {};
+		var topo = data[7] || {};
+		var vo = data[8] || { enabled: 0 };
 		var bridgeBlocked = isBridgeOffloadBlocked(dm);
 		var entries = Array.isArray(ppe.entries) ? ppe.entries : [];
 		var ppeUpdatesPaused = false;
@@ -778,10 +788,9 @@ return view.extend({
 				body: E('div', {}, [
 					renderSummary(st, ti),
 					E('div', { 'class': 'ai-grid ai-grid--2', 'style': 'margin-top:var(--ds-sp-3)' }, [
-						renderOffloadSwitch({ rowId: 'vlan-offload-row', inputId: 'vlan-offload-select', badgeId: 'vlan-offload-badge', name: _('VLAN Offload'), note: 'bridge-nf-filter-vlan-tagged', enabled: vo.enabled, blocked: bridgeBlocked, callFn: function(v) { return callSetVlanOffload(v); } }),
-						renderOffloadSwitch({ rowId: 'pppoe-offload-row', inputId: 'pppoe-offload-select', badgeId: 'pppoe-offload-badge', name: _('PPPoE Offload'), note: 'bridge-nf-filter-pppoe-tagged', enabled: ppo.enabled, blocked: bridgeBlocked, callFn: function(v) { return callSetPppoeOffload(v); } }),
+						renderOffloadSwitch({ rowId: 'vlan-offload-row', inputId: 'vlan-offload-select', badgeId: 'vlan-offload-badge', name: _('VLAN Offload'), note: 'bridge-nf-filter-vlan-tagged / pass-vlan-input-dev', enabled: vo.enabled, blocked: bridgeBlocked, callFn: function(v) { return callSetVlanOffload(v); } }),
 						renderOffloadSwitch({ rowId: 'flow-offload-row', inputId: 'flow-offload-select', badgeId: 'flow-offload-badge', name: _('Flow Offload'), note: 'firewall.flow_offloading + _hw', enabled: flo.enabled, blocked: false, callFn: function(v) { return callSetFlowOffload(v); } }),
-						renderOffloadSwitch({ rowId: 'apmode-offload-row', inputId: 'apmode-offload-select', badgeId: 'apmode-offload-badge', name: _('AP Mode Acceleration'), note: 'br_netfilter + VLAN passthrough', enabled: apo.enabled, blocked: bridgeBlocked, callFn: function(v) { return callSetApModeOffload(v); } })
+						renderOffloadSwitch({ rowId: 'apmode-offload-row', inputId: 'apmode-offload-select', badgeId: 'apmode-offload-badge', name: _('AP Mode Acceleration'), note: 'br_netfilter · PPPoE passthrough', enabled: apo.enabled, blocked: bridgeBlocked, callFn: function(v) { return callSetApModeOffload(v); } })
 					]),
 					E('div', { 'class': 'ai-subhead' }, _('Frame Engine')),
 					E('div', { 'id': 'fe-container' }, renderFeDiagram(fe, ti, st, ppe, topo))
@@ -810,19 +819,21 @@ return view.extend({
 				_safeCall(callPpeEntries(), { entries: [] }),
 				_safeCall(callTokenInfo(), {}),
 				_safeCall(callFrameEngine(), {}),
-				_safeCall(callGetVlanOffload(), { enabled: 0 }),
-				_safeCall(callGetPppoeOffload(), { enabled: 0 }),
 				_safeCall(callGetFlowOffload(), { enabled: 0 }),
 				_safeCall(callGetApModeOffload(), { enabled: 0 }),
 				_safeCall(callGetDeviceMode(), { bridge_offload_blocked: false }),
-				_safeCall(callGetTopology(), {})
+				_safeCall(callGetTopology(), {}),
+				// VLAN Offload rejoined as an independent switch; appended at the
+				// END so every existing d[n] index below keeps its meaning.
+				_safeCall(callGetVlanOffload(), { enabled: 0 })
 			]).then(L.bind(function(d) {
 				aui.ensureCss();
 				var st = d[0] || {}, ppe = d[1] || {}, ti = d[2] || {}, fe = d[3] || {};
-				var vo = d[4] || { enabled: 0 }, ppo = d[5] || { enabled: 0 }, flo = d[6] || { enabled: 0 };
-				var apo = d[7] || { enabled: 0 };
-				var dm = d[8] || {};
-				var topo = d[9] || {};
+				var flo = d[4] || { enabled: 0 };
+				var apo = d[5] || { enabled: 0 };
+				var dm = d[6] || {};
+				var topo = d[7] || {};
+				var vo = d[8] || { enabled: 0 };
 				var bridgeBlocked = isBridgeOffloadBlocked(dm);
 				var entries = Array.isArray(ppe.entries) ? ppe.entries : [];
 				if (requestSequence > latestPpeRequest) {
@@ -863,7 +874,6 @@ return view.extend({
 				}
 
 				updateOffloadControl('vlan-offload-select', 'vlan-offload-badge', 'vlan-offload-row', vo.enabled, bridgeBlocked);
-				updateOffloadControl('pppoe-offload-select', 'pppoe-offload-badge', 'pppoe-offload-row', ppo.enabled, bridgeBlocked);
 				updateOffloadControl('flow-offload-select', 'flow-offload-badge', 'flow-offload-row', flo.enabled, false);
 				updateOffloadControl('apmode-offload-select', 'apmode-offload-badge', 'apmode-offload-row', apo.enabled, bridgeBlocked);
 

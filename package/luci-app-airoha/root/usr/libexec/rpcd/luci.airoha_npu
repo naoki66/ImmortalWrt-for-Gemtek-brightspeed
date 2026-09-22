@@ -543,9 +543,17 @@ get_frame_engine() {
 }
 
 get_vlan_offload() {
-	local val
-	val=$(cat /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null)
-	printf '{"enabled":%d}' "${val:-0}"
+	local tagged indev
+	# Mirror of this pair's owner semantics (set_vlan_offload): the two keys
+	# are one unit, so enabled is reported only when BOTH read 1. Also kept in
+	# sync with luci.airoha_flowsense's get_vlan_offload() copy.
+	tagged=$(cat /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null)
+	indev=$(cat /proc/sys/net/bridge/bridge-nf-pass-vlan-input-dev 2>/dev/null)
+	if [ "$tagged" = "1" ] && [ "$indev" = "1" ]; then
+		printf '{"enabled":1}'
+	else
+		printf '{"enabled":0}'
+	fi
 }
 
 set_vlan_offload() {
@@ -560,11 +568,23 @@ set_vlan_offload() {
 		_bridge_offload_block_error
 		return
 	fi
-	if ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null; then
+	# Owner of the VLAN passthrough pair (bridge-nf-filter-vlan-tagged +
+	# bridge-nf-pass-vlan-input-dev). BOTH keys are written unconditionally
+	# from "$enabled": VLAN filtering can be turned on AFTER this switch, and
+	# the pair must already be in place when that happens - conditioning on a
+	# VLAN-filtering bridge existing left a stale =0 snapshot behind on exactly
+	# that path. br_netfilter is loaded so the switch can bootstrap itself
+	# without AP-mode acceleration.
+	modprobe br_netfilter 2>/dev/null
+	if ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null ||
+	   ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-pass-vlan-input-dev 2>/dev/null; then
 		echo '{"error":"failed - bridge module may not be loaded"}'
 		return
 	fi
-	echo "net.bridge.bridge-nf-filter-vlan-tagged=$enabled" > /etc/sysctl.d/14-vlan-offload.conf
+	{
+		echo "net.bridge.bridge-nf-filter-vlan-tagged=$enabled"
+		echo "net.bridge.bridge-nf-pass-vlan-input-dev=$enabled"
+	} > /etc/sysctl.d/14-vlan-offload.conf
 	printf '{"result":"ok","enabled":%d}' "$enabled"
 }
 
@@ -633,30 +653,24 @@ set_flow_offload() {
 	printf '{"result":"ok","enabled":%d}' "$enabled"
 }
 
-_apmode_has_vlan_filtering() {
-	local path value
-
-	for path in /sys/class/net/*/bridge/vlan_filtering; do
-		[ -r "$path" ] || continue
-		value=$(cat "$path" 2>/dev/null)
-		[ "$value" = "1" ] && { echo 1; return; }
-	done
-
-	echo 0
-}
-
 get_apmode_offload() {
-	local ipt ip6t arp vlan_filtering filter_vlan_tagged pass_vlan_indev
+	local ipt ip6t arp filter_pppoe_tagged
 
+	# Mirrored by luci.airoha_flowsense's get_apmode_offload(); the two must
+	# stay identical. SYNC THESE FOUR KEYS whenever either copy changes:
+	#   bridge-nf-call-iptables, bridge-nf-call-ip6tables,
+	#   bridge-nf-call-arptables, bridge-nf-filter-pppoe-tagged
+	# Mirrors set_apmode_offload() exactly. The VLAN passthrough pair is NOT
+	# part of this verdict - it is owned by set/get_vlan_offload, and its
+	# state must never influence the AP-mode readout (a stale or disabled VLAN
+	# pair would otherwise drag the AP-mode switch down with it).
 	ipt=$(cat /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null)
 	ip6t=$(cat /proc/sys/net/bridge/bridge-nf-call-ip6tables 2>/dev/null)
 	arp=$(cat /proc/sys/net/bridge/bridge-nf-call-arptables 2>/dev/null)
-	vlan_filtering=$(_apmode_has_vlan_filtering)
-	filter_vlan_tagged=$(cat /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null)
-	pass_vlan_indev=$(cat /proc/sys/net/bridge/bridge-nf-pass-vlan-input-dev 2>/dev/null)
+	filter_pppoe_tagged=$(cat /proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged 2>/dev/null)
 
 	if [ "$ipt" = "1" ] && [ "$ip6t" = "1" ] && [ "$arp" = "1" ] && \
-	   { [ "$vlan_filtering" = "0" ] || { [ "$filter_vlan_tagged" = "1" ] && [ "$pass_vlan_indev" = "1" ]; }; }; then
+	   [ "$filter_pppoe_tagged" = "1" ]; then
 		printf '{"enabled":1}'
 	else
 		printf '{"enabled":0}'
@@ -664,7 +678,7 @@ get_apmode_offload() {
 }
 
 set_apmode_offload() {
-	local enabled vlan_filtering vlan_options
+	local enabled
 
 	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
 	[ -z "$enabled" ] && enabled="0"
@@ -678,32 +692,35 @@ set_apmode_offload() {
 	fi
 
 	modprobe br_netfilter 2>/dev/null
-	vlan_filtering=$(_apmode_has_vlan_filtering)
-	vlan_options=0
-	[ "$vlan_filtering" = "1" ] && vlan_options=$enabled
 
+	# AP-mode acceleration owns exactly FOUR unconditional keys: the three
+	# bridge-nf-call-* passthroughs plus PPPoE passthrough, all written from
+	# "$enabled". VLAN passthrough deliberately is NOT here: VLAN filtering can
+	# be enabled after this switch, and a vlan_options snapshot taken now would
+	# go stale (=0) on the next reboot. The VLAN pair belongs to
+	# set_vlan_offload instead.
 	if ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null ||
 	   ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-call-ip6tables 2>/dev/null ||
 	   ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-call-arptables 2>/dev/null ||
-	   ! echo "$vlan_options" > /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null ||
-	   ! echo "$vlan_options" > /proc/sys/net/bridge/bridge-nf-pass-vlan-input-dev 2>/dev/null; then
+	   ! echo "$enabled" > /proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged 2>/dev/null; then
 		echo '{"error":"failed to configure bridge netfilter"}'
 		return
 	fi
 
 	if [ "$enabled" = "1" ]; then
+		modprobe nf_conntrack_pptp 2>/dev/null
+		modprobe nf_nat_pptp 2>/dev/null
 		{
 			echo 'net.bridge.bridge-nf-call-iptables=1'
 			echo 'net.bridge.bridge-nf-call-ip6tables=1'
 			echo 'net.bridge.bridge-nf-call-arptables=1'
-			echo "net.bridge.bridge-nf-filter-vlan-tagged=$vlan_options"
-			echo "net.bridge.bridge-nf-pass-vlan-input-dev=$vlan_options"
+			echo "net.bridge.bridge-nf-filter-pppoe-tagged=$enabled"
 		} > /etc/sysctl.d/12-apmode-offload.conf
 	else
 		rm -f /etc/sysctl.d/12-apmode-offload.conf 2>/dev/null
 	fi
 
-	printf '{"result":"ok","enabled":%d,"vlan_filtering":%d}' "$enabled" "$vlan_filtering"
+	printf '{"result":"ok","enabled":%d}' "$enabled"
 }
 
 case "$1" in
