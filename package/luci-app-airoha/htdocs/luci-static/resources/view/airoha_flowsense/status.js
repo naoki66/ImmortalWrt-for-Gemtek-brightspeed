@@ -628,11 +628,11 @@ function renderConflictAlerts(alertData) {
 }
 
 /* ── Link overview tiles ── */
-function renderLinkTiles(dm, bypass, st, wan, wifi, apo, flo, vo, ppo, mode, hasWifi, topo) {
+function renderLinkTiles(dm, bypass, st, wan, wifi, apo, flo, mode, hasWifi, topo) {
 	bypass = bypass || {}; st = st || {}; wan = wan || {}; wifi = wifi || {};
 	var pathText = bypass.npu_active ? _('HW ACCELERATED') : (bypass.hw_offload_enabled ? _('NPU IDLE') : _('CPU PATH'));
 	var ppeBound = (bypass.offload_bound || 0);
-	var accOn = [vo, flo, ppo, apo].filter(function(x) { return x && (x.enabled === true || x.enabled === 1 || x.enabled === '1'); }).length;
+	var accOn = [flo, apo].filter(function(x) { return x && (x.enabled === true || x.enabled === 1 || x.enabled === '1'); }).length;
 	var wifiCount = (wifi.bands || []).reduce(function(a, x) { return a + (x.stations || 0); }, 0);
 	var errCount = (wan.rx_errors || 0) + (wan.tx_errors || 0);
 	var reason = dm.reason ? (' — ' + dm.reason) : '';
@@ -644,7 +644,7 @@ function renderLinkTiles(dm, bypass, st, wan, wifi, apo, flo, vo, ppo, mode, has
 	var tiles = [
 		aui.tile({ title: _('Working Mode'), value: mode === 'ap' ? _('AP MODE') : _('ROUTER MODE'), accent: mode === 'ap' ? C.npu : C.ok, sub: _('Auto-detected') + reason }),
 		aui.tile({ title: _('NPU Path'), value: pathText, accent: bypass.npu_active ? C.npu : C.warn, sub: (bypass.offload_bound || 0) + ' ' + _('Bound') }),
-		aui.tile({ title: _('Acceleration'), value: accOn + ' / 4', accent: C.warn, sub: 'VLAN · PPPoE · Flow · AP' }),
+		aui.tile({ title: _('Acceleration'), value: accOn + ' / 2', accent: C.warn, sub: 'Flow · AP' }),
 		aui.tile({ title: _('CPU LOAD'), value: String(bypass.cpu_pct || 0), unit: '%', accent: C.load, sub: aui.fmtFreq(st.cpu_hw_freq) + ' · ' + (st.cpu_governor || '') }),
 		isPon
 			? aui.tile({ title: _('PON'), value: ponModeName(pon), accent: C.npu, sub: ponRateText(pon) })
@@ -930,8 +930,8 @@ function getModeReasonText(reason) {
 	return reasonMap[reason] || '';
 }
 
-function renderModeCards(dm, apo, flo, vo, ppo) {
-	dm = dm || {}; apo = apo || {}; flo = flo || {}; vo = vo || {}; ppo = ppo || {};
+function renderModeCards(dm, apo, flo) {
+	dm = dm || {}; apo = apo || {}; flo = flo || {};
 	function isOn(value) { return value === true || value === 1 || value === '1'; }
 	var mode = dm.mode || '';
 	var reason = getModeReasonText(dm.reason || '');
@@ -956,9 +956,7 @@ function renderModeCards(dm, apo, flo, vo, ppo) {
 				]
 			}),
 			accelCard(_('AP Mode Acceleration'), isOn(apo.enabled), 'br_netfilter'),
-			accelCard(_('Flow Offload'), isOn(flo.enabled), 'flow_offloading(_hw)'),
-			accelCard(_('VLAN Offload'), isOn(vo.enabled), 'bridge-nf-filter-vlan-tagged'),
-			accelCard(_('PPPoE Offload'), isOn(ppo.enabled), 'bridge-nf-filter-pppoe-tagged')
+			accelCard(_('Flow Offload'), isOn(flo.enabled), 'flow_offloading(_hw)')
 		]),
 		E('p', { 'class': 'ai-hint', 'style': 'margin-top:var(--ds-sp-2)' }, _('This tab is read-only: switches are operated on the SoC / NPU tab so a kernel switch has only one writable entry point.'))
 	]);
@@ -1167,11 +1165,11 @@ return view.extend({
 		data = data || [];
 		aui.ensureCss();
 		var st = data[0] || {}, ppe = data[1] || {}, ti = data[2] || {}, fe = data[3] || {};
-		var vo = data[4] || {}, txs = data[5] || {}, dm = data[6] || {};
+		var txs = data[5] || {}, dm = data[6] || {};
 		var bypass = data[7] || {}, wan = data[8] || {};
 		var jitter = data[9] || {}, alertData = data[10] || {};
 		var wifi = data[11] || {}, bridge = data[12] || {};
-		var flo = data[13] || {}, ppo = data[14] || {}, apo = data[15] || {};
+		var flo = data[13] || {}, apo = data[15] || {};
 		var eth = data[16] || {};
 		var mode = dm.mode || 'router';
 		// Wireless presence gates the three WiFi gauges and the clients tile.
@@ -1256,7 +1254,7 @@ return view.extend({
 				title: _('Link Overview'),
 				hint: _('The gauge row is an auto-fit grid: on a board without wireless the three WiFi gauges are not built at all, so the remainder reflows to fill the row.'),
 				body: E('div', {}, [
-					E('div', { 'id': 'link-tiles' }, [ renderLinkTiles(dm, bypass, st, wan, wifi, apo, flo, vo, ppo, mode, hasWifi, latestTopo) ]),
+					E('div', { 'id': 'link-tiles' }, [ renderLinkTiles(dm, bypass, st, wan, wifi, apo, flo, mode, hasWifi, latestTopo) ]),
 					E('div', { 'id': 'gauge-row', 'class': 'ai-gauge-row', 'style': 'margin-top:var(--ds-sp-3)' }, renderGaugeRow()),
 					E('div', { 'id': 'link-quad' }, [
 						renderQuad(compassState(bypass, hwBufferState(fe, ppe, mode), jitter, wan, wifi, bridge, mode, latestTopo), bypass, jitter, wan, wifi, bridge, mode)
@@ -1268,7 +1266,7 @@ return view.extend({
 			// Mode & acceleration (read-only mirror)
 			aui.section({
 				title: _('Mode & Acceleration Status'),
-				body: E('div', { 'id': 'mode-cards' }, [ renderModeCards(dm, apo, flo, vo, ppo) ])
+				body: E('div', { 'id': 'mode-cards' }, [ renderModeCards(dm, apo, flo) ])
 			}),
 
 			// PPE flow monitor
@@ -1309,11 +1307,11 @@ return view.extend({
 				];
 				aui.ensureCss();
 				var st = d[0] || {}, ppe = d[1] || {}, ti = d[2] || {}, fe = d[3] || {};
-				var vo = d[4] || {}, txs = d[5] || {}, dm = d[6] || {};
+				var txs = d[5] || {}, dm = d[6] || {};
 				var bypass = d[7] || {}, wan = d[8] || {};
 				var jitter = d[9] || {}, alertData = d[10] || {};
 				var wifi = d[11] || {}, bridge = d[12] || {};
-				var flo = d[13] || {}, ppo = d[14] || {}, apo = d[15] || {};
+				var flo = d[13] || {}, apo = d[15] || {};
 				var eth = d[16] || {};
 				var mode = dm.mode || 'router';
 				hasWifi = aui.hasWifiRadio(wifi);
@@ -1326,7 +1324,7 @@ return view.extend({
 				var cs = compassState(bypass, hwBuf, jitter, wan, wifi, bridge, mode, latestTopo);
 
 				// Per-port Mbps deltas from cumulative byte counters
-				updateInto('link-tiles', [ renderLinkTiles(dm, bypass, st, wan, wifi, apo, flo, vo, ppo, mode, hasWifi, latestTopo) ]);
+				updateInto('link-tiles', [ renderLinkTiles(dm, bypass, st, wan, wifi, apo, flo, mode, hasWifi, latestTopo) ]);
 
 				// Rebuild the gauge row (SVG gauges have no interactive state, so a
 				// full rebuild is cheaper to reason about than in-place patching).
@@ -1338,7 +1336,7 @@ return view.extend({
 
 				updateInto('link-quad', [ renderQuad(cs, bypass, jitter, wan, wifi, bridge, mode) ]);
 				updateInto('conflict-alerts', [ renderConflictAlerts(alertData) ]);
-				updateInto('mode-cards', [ renderModeCards(dm, apo, flo, vo, ppo) ]);
+				updateInto('mode-cards', [ renderModeCards(dm, apo, flo) ]);
 				if (!ppePaused) updateInto('ppe-console', [ renderPpeConsole(latestPpe) ]);
 				updateInto('detail-blocks', [ renderDetailSection(bridge, wan, ti, fe, hasWifi, latestTopo) ]);
 				updateInto('wifi-detail', [ renderWifiTable(wifi, ppe, hasWifi) ]);
