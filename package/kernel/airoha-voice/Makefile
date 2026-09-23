@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=airoha-voice
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 PKG_LICENSE:=GPL-2.0-only
 
 include $(INCLUDE_DIR)/package.mk
@@ -18,7 +18,8 @@ define KernelPackage/airoha-en7581-pcm-spi
 endef
 
 define KernelPackage/airoha-en7581-pcm-spi/description
- XG2010G-only EN7581 PCM-SPI control transport and Si32192 identity probe.
+ XG2010G-only EN7581 PCM controller init, PCM-SPI control transport and
+ Si32192 identity probe.
 endef
 
 define Build/Prepare

@@ -417,6 +417,7 @@
 		afe: afe@1fbe2200 {
 			compatible = "airoha,an7581-afe";
 			reg = <0x0 0x1fbe2200 0x0 0x9000>;
+			resets = <&scuclk EN7581_I2S_RST>;
 
 			interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";

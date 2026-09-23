@@ -160,6 +160,12 @@
 /* XG2010G stock firmware also starts the generic EN7581 NPU. */
 &npu { status = "okay"; };
 
+/* Stock firmware brings up the EN7581 AFE/PCM audio block before the ProSLIC.
+ * Keep the I2S/ETDM DAI available for the XG2010G voice stack while the
+ * Si32192 control path stays owned by the PCM-SPI driver above.
+ */
+&afe { status = "okay"; };
+
 /* Let the mainline Ethernet owner expose the legacy PON register ABI. */
 &eth {
 	airoha,pon-compat;
