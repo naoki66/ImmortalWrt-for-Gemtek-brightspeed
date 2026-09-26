@@ -1,0 +1,543 @@
+diff --git a/modules/luci-mod-status/htdocs/luci-static/resources/view/status/channel_analysis.js b/modules/luci-mod-status/htdocs/luci-static/resources/view/status/channel_analysis.js
+index 30dc22f..0f305e5 100644
+--- a/modules/luci-mod-status/htdocs/luci-static/resources/view/status/channel_analysis.js
++++ b/modules/luci-mod-status/htdocs/luci-static/resources/view/status/channel_analysis.js
+@@ -22,6 +22,25 @@ return view.extend({
+ 		expect: { }
+ 	}),
+ 
++	callScanList: rpc.declare({
++		object: 'iwinfo',
++		method: 'scan',
++		params: [ 'device' ],
++		nobatch: true,
++		expect: { results: [] }
++	}),
++
++	/*
++	 * 'network.wireless' is not granted by any rpcd ACL, so calling it from the
++	 * web UI is rejected with "Access denied". Ask luci-rpc for the wireless
++	 * state instead, which is the same call LuCI uses to build the radio list.
++	 */
++	callWirelessStatus: rpc.declare({
++		object: 'luci-rpc',
++		method: 'getWirelessDevices',
++		expect: { '': {} }
++	}),
++
+ 	render_signal_badge(signalPercent, signalValue) {
+ 		let icon, title, value;
+ 
+@@ -193,203 +212,285 @@ return view.extend({
+ 		}, this));
+ 	},
+ 
++	/*
++	 * The UCI radio name (radio1) is not a netdev: iwinfo resolves it to the
++	 * first interface of the phy, so scanning through it returns the neighbours
++	 * of a different band (e.g. no 5 GHz APs above channel 64). Resolve the real
++	 * interface name (phy0.1-ap0) for the band of the selected tab.
++	 */
++	getRealDevice(ifname, band) {
++		if (!this._wlr)
++			this._wlr = L.resolveDefault(this.callWirelessStatus(), {});
++
++		return this._wlr.then(function(status) {
++			const want = band + 'g';
++			status = status || {};
++
++			const pick = function(entry) {
++				const ifaces = (entry && entry.interfaces) || [];
++				return (ifaces[0] && ifaces[0].ifname) ? ifaces[0].ifname : null;
++			};
++
++			const own = pick(status[ifname]);
++			if (own)
++				return own;
++
++			for (let radioname in status) {
++				const entry = status[radioname] || {}, cfg = entry.config || {};
++
++				if (cfg.band === want) {
++					const alt = pick(entry);
++					if (alt)
++						return alt;
++				}
++			}
++
++			return ifname;
++		});
++	},
++
+ 	handleScanRefresh() {
+ 		if (!this.active_tab)
+ 			return;
+ 
+ 		const radio = this.radios[this.active_tab];
++
++		/* The poll callback re-enters this function while a scan is running. */
++		if (radio.scanning)
++			return;
++
++		const radioname = radio.dev.getName();
++		radio.scanning = true;
++
++		return this.getRealDevice(radioname, radio.band).then(L.bind(function(device) {
++			const local_wifi = L.resolveDefault(this.callInfo(device), {});
++
++			/*
++			 * A full scan of the phy walks every channel of all bands and takes
++			 * 20+ seconds on 6 GHz, which can exceed the 30 second ubus timeout.
++			 * The page used to be left spinning forever in that case: show the
++			 * cached scan list right away and refresh it with the fresh scan once
++			 * that one returns.
++			 */
++			return Promise.all([
++				L.resolveDefault(this.callScanList(radioname), null),
++				local_wifi
++			]).then(L.bind(function([cached, local]) {
++				if (cached) {
++					this.updateScanTable(radio, cached, local);
++					radio.renderedOnce = true;
++				}
++
++				return Promise.all([
++					L.resolveDefault(this.callScanList(device), null),
++					local_wifi
++				]);
++			}, this)).then(L.bind(function([results, local]) {
++				if (results) {
++					this.updateScanTable(radio, results, local);
++					radio.renderedOnce = true;
++				}
++				else if (!radio.renderedOnce) {
++					cbi_update_table(radio.table, [], E('em', {}, 'Scan failed / 扫描失败，请重试'));
++				}
++
++				radio.loadedOnce = true;
++				poll.stop();
++			}, this));
++		}, this)).catch(L.bind(function() {
++			radio.loadedOnce = true;
++			poll.stop();
++
++			if (!radio.renderedOnce)
++				cbi_update_table(radio.table, [], E('em', {}, 'Scan failed / 扫描失败，请重试'));
++		}, this)).then(function() {
++			radio.scanning = false;
++		});
++	},
++
++	updateScanTable(radio, results, local_wifi) {
+ 		let q;
+ 
+-		return Promise.all([
+-			radio.dev.getScanList(),
+-			this.callInfo(radio.dev.getName())
+-		]).then(L.bind(function([results, local_wifi]) {
+-			const table = radio.table;
+-			const chan_analysis = radio.graph;
+-			const scanCache = radio.scanCache;
+-			const band = radio.band;
+-
+-			const rows = [];
+-
+-			for (let res of results) {
+-				if (scanCache[res.bssid] == null)
+-					scanCache[res.bssid] = {};
+-
+-				scanCache[res.bssid].data = res;
+-				scanCache[res.bssid].data.stale = false;
+-			}
++		const table = radio.table;
++		const chan_analysis = radio.graph;
++		const scanCache = radio.scanCache;
++		const band = radio.band;
+ 
+-			if (band + 'g' == radio.dev.get('band')) {
+-				if (scanCache[local_wifi.bssid] == null)
+-					scanCache[local_wifi.bssid] = {};
++		const rows = [];
+ 
+-				scanCache[local_wifi.bssid].data = local_wifi;
++		for (let res of results) {
++			if (scanCache[res.bssid] == null)
++				scanCache[res.bssid] = {};
+ 
+-				if (chan_analysis.offset_tbl[local_wifi.channel] != null && local_wifi.center_chan1) {
+-					const center_channels = [local_wifi.center_chan1];
+-					const chan_width_text = local_wifi.htmode.replace(/[EV]*H[TE]/,''); /* Handle HT VHT HE EHT */
+-					let chan_width = parseInt(chan_width_text)/10;
++			scanCache[res.bssid].data = res;
++			scanCache[res.bssid].data.stale = false;
++		}
+ 
+-					if (local_wifi.center_chan2) {
+-						center_channels.push(local_wifi.center_chan2);
+-						chan_width = 8;
+-					}
++		if (band + 'g' == radio.dev.get('band') && local_wifi && local_wifi.bssid) {
++			if (scanCache[local_wifi.bssid] == null)
++				scanCache[local_wifi.bssid] = {};
+ 
+-					local_wifi.signal = -10;
+-					local_wifi.ssid = 'Local Interface';
+-					q = Math.min((local_wifi.signal + 110) / 70 * 100, 100);
+-
+-					this.add_wifi_to_graph(chan_analysis, local_wifi, scanCache, center_channels, chan_width);
+-					rows.push([
+-						this.render_signal_badge(q, local_wifi.signal),
+-						[
+-							E('span', { 'style': 'color:'+scanCache[local_wifi.bssid].color }, '⬤ '),
+-							local_wifi.ssid
+-						],
+-						'%d'.format(local_wifi.channel),
+-						'%h MHz'.format(chan_width_text),
+-						'%h'.format(local_wifi.mode),
+-						'%h'.format(local_wifi.bssid)
+-					]);
+-				}
+-			}
++			scanCache[local_wifi.bssid].data = local_wifi;
+ 
+-			for (let k in scanCache)
+-				if (scanCache[k].data.stale)
+-					results.push(scanCache[k].data);
++			if (chan_analysis.offset_tbl[local_wifi.channel] != null && local_wifi.center_chan1) {
++				const center_channels = [local_wifi.center_chan1];
++				const chan_width_text = local_wifi.htmode.replace(/[EV]*H[TE]/,''); /* Handle HT VHT HE EHT */
++				let chan_width = parseInt(chan_width_text)/10;
+ 
+-			results.sort(function(a, b) {
+-				if (a.channel !== b.channel)
+-					return a.channel - b.channel;
++				if (local_wifi.center_chan2) {
++					center_channels.push(local_wifi.center_chan2);
++					chan_width = 8;
++				}
+ 
+-				if (a.ssid < b.ssid)
+-					return -1;
+-				else if (a.ssid > b.ssid)
+-					return 1;
++				local_wifi.signal = -10;
++				local_wifi.ssid = 'Local Interface';
++				q = Math.min((local_wifi.signal + 110) / 70 * 100, 100);
+ 
+-				if (a.bssid < b.bssid)
+-					return -1;
+-				else if (a.bssid > b.bssid)
+-					return 1;
++				this.add_wifi_to_graph(chan_analysis, local_wifi, scanCache, center_channels, chan_width);
++				rows.push([
++					this.render_signal_badge(q, local_wifi.signal),
++					[
++						E('span', { 'style': 'color:'+scanCache[local_wifi.bssid].color }, '⬤ '),
++						local_wifi.ssid
++					],
++					'%d'.format(local_wifi.channel),
++					'%h MHz'.format(chan_width_text),
++					'%h'.format(local_wifi.mode),
++					'%h'.format(local_wifi.bssid)
++				]);
++			}
++		}
+ 
+-				return 0;
+-			});
++		for (let k in scanCache)
++			if (scanCache[k].data.stale)
++				results.push(scanCache[k].data);
+ 
+-			for (let res of results) {
+-				const qv = res.quality || 0;
+-				const qm = res.quality_max || 0;
+-				q = (qv > 0 && qm > 0) ? Math.floor((100 / qm) * qv) : 0;
+-				const s = res.stale ? 'opacity:0.5' : '';
+-				const center_channels = [res.channel];
+-				let chan_width = 2;
++		results.sort(function(a, b) {
++			if (a.channel !== b.channel)
++				return a.channel - b.channel;
+ 
+-				/* Skip WiFi not supported by the current band */
+-				if (band != res.band)
+-					continue;
+-				if (chan_analysis.offset_tbl[res.channel] == null)
+-					continue;
++			if (a.ssid < b.ssid)
++				return -1;
++			else if (a.ssid > b.ssid)
++				return 1;
+ 
+-				res.channel_width = "20 MHz";
+-				if (res.ht_operation != null) {
+-					/* Detect 40 MHz operation by looking for the presence of
+-					 * a secondary channel. */
+-					if (res.ht_operation.secondary_channel_offset == "below") {
+-						res.channel_width = "40 MHz";
+-						chan_width = 4; /* 40 MHz Channel Used */
+-						center_channels[0] -= 2;
+-					} else if (res.ht_operation.secondary_channel_offset == "above") {
+-						res.channel_width = "40 MHz";
+-						chan_width = 4; /* 40 MHz Channel Used */
+-						center_channels[0] += 2;
+-					} else {
+-						/* Fallback to 20 MHz due to discovery of other APs on the
+-						 * same channel (802.11n coexistence mechanism). */
+-						if (res.ht_operation.channel_width == 2040)
+-							res.channel_width = "20 MHz (40 MHz Intolerant)";
+-					}
+-				}
++			if (a.bssid < b.bssid)
++				return -1;
++			else if (a.bssid > b.bssid)
++				return 1;
+ 
+-				/* if channel_width <= 40, refer to HT (above) for actual channel width,
+-				 * as vht_operation.channel_width == 40 really only means that the used
+-				 * bandwidth is <= 40 and could be 20 Mhz as well */
+-				if (res.vht_operation?.channel_width > 40) {
+-					center_channels[0] = res.vht_operation.center_freq_1;
+-					if (res.vht_operation.channel_width == 80) {
+-						chan_width = 8;
+-						res.channel_width = "80 MHz";
++			return 0;
++		});
+ 
+-						/* If needed, adjust based on the 802.11ac Wave 2 interop workaround. */
+-						if (res.vht_operation.center_freq_2) {
+-							const diff = Math.abs(res.vht_operation.center_freq_2 -
+-							                    res.vht_operation.center_freq_1);
+-
+-							if (diff == 8) {
+-								chan_width = 16;
+-								res.channel_width = "160 MHz";
+-								center_channels.push(res.vht_operation.center_freq_2);
+-							} else if (diff > 8) {
+-								chan_width = 8;
+-								res.channel_width = "80+80 MHz";
+-								center_channels.push(res.vht_operation.center_freq_2);
+-							}
+-						}
+-					} else if (res.vht_operation.channel_width == 8080) {
+-						res.channel_width = "80+80 MHz";
+-						chan_width = 8;
+-						center_channels.push(res.vht_operation.center_freq_2);
+-					} else if (res.vht_operation.channel_width == 160) {
+-						res.channel_width = "160 MHz";
+-						chan_width = 16;
+-					}
++		for (let res of results) {
++			const qv = res.quality || 0;
++			const qm = res.quality_max || 0;
++			q = (qv > 0 && qm > 0) ? Math.floor((100 / qm) * qv) : 0;
++			const s = res.stale ? 'opacity:0.5' : '';
++			const center_channels = [res.channel];
++			let chan_width = 2;
++
++			/* Skip WiFi not supported by the current band */
++			if (band != res.band)
++				continue;
++			if (chan_analysis.offset_tbl[res.channel] == null)
++				continue;
++
++			res.channel_width = "20 MHz";
++			if (res.ht_operation != null) {
++				/* Detect 40 MHz operation by looking for the presence of
++				 * a secondary channel. */
++				if (res.ht_operation.secondary_channel_offset == "below") {
++					res.channel_width = "40 MHz";
++					chan_width = 4; /* 40 MHz Channel Used */
++					center_channels[0] -= 2;
++				} else if (res.ht_operation.secondary_channel_offset == "above") {
++					res.channel_width = "40 MHz";
++					chan_width = 4; /* 40 MHz Channel Used */
++					center_channels[0] += 2;
++				} else {
++					/* Fallback to 20 MHz due to discovery of other APs on the
++					 * same channel (802.11n coexistence mechanism). */
++					if (res.ht_operation.channel_width == 2040)
++						res.channel_width = "20 MHz (40 MHz Intolerant)";
+ 				}
++			}
+ 
+-				if (res.he_operation?.channel_width > 20) {
+-					center_channels[0] = res.he_operation.center_freq_1;
+-					chan_width = res.he_operation.channel_width / 10;
+-					switch (res.he_operation.channel_width) {
+-						case 40:
+-							res.channel_width = "40 MHz";
+-							break;
+-						case 80:
+-							res.channel_width = "80 MHz";
+-							break;
+-						case 160:
++			/* if channel_width <= 40, refer to HT (above) for actual channel width,
++			 * as vht_operation.channel_width == 40 really only means that the used
++			 * bandwidth is <= 40 and could be 20 Mhz as well */
++			if (res.vht_operation?.channel_width > 40) {
++				center_channels[0] = res.vht_operation.center_freq_1;
++				if (res.vht_operation.channel_width == 80) {
++					chan_width = 8;
++					res.channel_width = "80 MHz";
++
++					/* If needed, adjust based on the 802.11ac Wave 2 interop workaround. */
++					if (res.vht_operation.center_freq_2) {
++						const diff = Math.abs(res.vht_operation.center_freq_2 -
++						                    res.vht_operation.center_freq_1);
++
++						if (diff == 8) {
++							chan_width = 16;
+ 							res.channel_width = "160 MHz";
+-							center_channels.push(res.he_operation.center_freq_2);
+-							break;
++							center_channels.push(res.vht_operation.center_freq_2);
++						} else if (diff > 8) {
++							chan_width = 8;
++							res.channel_width = "80+80 MHz";
++							center_channels.push(res.vht_operation.center_freq_2);
++						}
+ 					}
++				} else if (res.vht_operation.channel_width == 8080) {
++					res.channel_width = "80+80 MHz";
++					chan_width = 8;
++					center_channels.push(res.vht_operation.center_freq_2);
++				} else if (res.vht_operation.channel_width == 160) {
++					res.channel_width = "160 MHz";
++					chan_width = 16;
+ 				}
++			}
+ 
+-				if (res.eht_operation?.channel_width == 320) {
+-					chan_width = 32;
+-					res.channel_width = "320 MHz";
+-					center_channels.push(res.eht_operation.center_freq_2);
++			if (res.he_operation?.channel_width > 20) {
++				center_channels[0] = res.he_operation.center_freq_1;
++				chan_width = res.he_operation.channel_width / 10;
++				switch (res.he_operation.channel_width) {
++					case 40:
++						res.channel_width = "40 MHz";
++						break;
++					case 80:
++						res.channel_width = "80 MHz";
++						break;
++					case 160:
++						res.channel_width = "160 MHz";
++						center_channels.push(res.he_operation.center_freq_2);
++						break;
+ 				}
++			}
+ 
+-				this.add_wifi_to_graph(chan_analysis, res, scanCache, center_channels, chan_width);
++			if (res.eht_operation?.channel_width == 320) {
++				chan_width = 32;
++				res.channel_width = "320 MHz";
++				center_channels.push(res.eht_operation.center_freq_2);
++			}
+ 
+-				rows.push([
+-					E('span', { 'style': s }, this.render_signal_badge(q, res.signal)),
+-					E('span', { 'style': s }, [
+-						E('span', { 'style': 'color:'+scanCache[res.bssid].color }, '⬤ '),
+-						(res.ssid != null) ? '%h'.format(res.ssid) : E('em', _('hidden'))
+-					]),
+-					E('span', { 'style': s }, '%d'.format(res.channel)),
+-					E('span', { 'style': s }, '%h'.format(res.channel_width)),
+-					E('span', { 'style': s }, '%h'.format(res.mode)),
+-					E('span', { 'style': s }, '%h'.format(res.bssid))
+-				]);
++			this.add_wifi_to_graph(chan_analysis, res, scanCache, center_channels, chan_width);
+ 
+-				scanCache[res.bssid].data.stale = true;
+-			}
++			rows.push([
++				E('span', { 'style': s }, this.render_signal_badge(q, res.signal)),
++				E('span', { 'style': s }, [
++					E('span', { 'style': 'color:'+scanCache[res.bssid].color }, '⬤ '),
++					(res.ssid != null) ? '%h'.format(res.ssid) : E('em', _('hidden'))
++				]),
++				E('span', { 'style': s }, '%d'.format(res.channel)),
++				E('span', { 'style': s }, '%h'.format(res.channel_width)),
++				E('span', { 'style': s }, '%h'.format(res.mode)),
++				E('span', { 'style': s }, '%h'.format(res.bssid))
++			]);
+ 
+-			cbi_update_table(table, rows);
++			scanCache[res.bssid].data.stale = true;
++		}
+ 
+-			if (!radio.loadedOnce) {
+-				radio.loadedOnce = true;
+-				poll.stop();
+-			}
+-		}, this))
++		cbi_update_table(table, rows);
+ 	},
+ 
+ 	radios: {},
+@@ -488,7 +589,62 @@ return view.extend({
+ 
+ 				tabs.firstElementChild.appendChild(tab)
+ 
+-				requestAnimationFrame(L.bind(this.create_channel_graph, this, graph_data, bands[band].channels, band));
++				/*
++				 * A tab that is not active has no width at all: drawing the graph
++				 * right away computes a negative column width and squeezes every
++				 * channel onto the left edge. Draw lazily instead, and retry until
++				 * the panel really has a width.
++				 */
++				(() => {
++					const div = graph_data.graph, chans = bands[band].channels, bnd = band;
++					const key = tab.getAttribute('data-tab');
++					let drawn = false, tries = 0, timer = null;
++
++					const ensure = L.bind(function() {
++						if (drawn || !div || !div.isConnected || div.offsetWidth < 4)
++							return;
++
++						if (timer) {
++							clearTimeout(timer);
++							timer = null;
++						}
++
++						this.create_channel_graph(graph_data, chans, bnd);
++						drawn = true;
++						tab.removeEventListener('cbi-tab-active', onAct);
++
++						if (!this.radios[key] || !this.radios[key].loadedOnce)
++							poll.start();
++					}, this);
++
++					const plan = L.bind(function() {
++						if (drawn)
++							return;
++
++						ensure();
++
++						if (drawn)
++							return;
++
++						if (tries < 10) {
++							tries++;
++							timer = setTimeout(plan, 250);
++						}
++						else if (tries < 40) {
++							tries++;
++							timer = setTimeout(plan, 2000);
++						}
++					}, this);
++
++					const onAct = L.bind(function(ev) {
++						tries = 0;
++						this.active_tab = ev.detail.tab;
++						requestAnimationFrame(ensure);
++					}, this);
++
++					tab.addEventListener('cbi-tab-active', onAct);
++					plan();
++				})();
+ 			}
+ 		}
+ 
