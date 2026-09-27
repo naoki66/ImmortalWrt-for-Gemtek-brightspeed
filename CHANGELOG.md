@@ -26,10 +26,24 @@ XG2010G 专属的 PON、ToD、BoB 和 PCM/语音功能不计入 XR1710G 运行�
   400 kHz 总线频率，继续支持 NCT7802 硬件监控。
 - 增加 AN7581 10G PCS link bring-up 修复，覆盖 JCPLL/TCLVAR、PCS
   restart 和按接口跟踪 PCS 状态。
+- 同步 phylink PCS 到 v15 API：PCS provider 使用引用计数式
+  acquire/release，PCS list 由 state mutex 保护，并补齐 PCS disable、
+  link down 和 major configuration 强制重建路径。
+- 修复 RTL8261BE/RTL8261N USXGMII SerDes reset work 与 PHY teardown
+  的竞态：PHY 离开 running 状态时禁止并停用 delayed work，阻止旧 work
+  在设备关闭后继续访问 SerDes 或重新排队。
+- Airoha MAC 在共享 QDMA 停止后断开 PHY，避免重新打开接口时复用已被
+  teardown 的 link state。
 - 将 MT7996 板级默认值、无线缓冲区、PPE reload 和 packet steering
   移入 `airoha-an7581-mt7996-board`，由 XR1710G/W1700K 选择。
 - 明确排除 PON firmware/manager、xPON、GPON IGMP、PON VLAN、ToD 和
   PCM/语音组件，避免 XG2010G 功能进入 XR1710G 镜像或内核配置。
+- 对照 `immortalwrt_pon` 的 `675-01`、`675-02` 和 `675-09` 补充桥接
+  conntrack 的 PPPoE、PPPoE-in-Q 和双层 VLAN（内层 802.1Q，外层
+  802.1Q/802.1ad）跟踪；修复非零 network offset 下的 L3/L4 校验和计算。
+- 在 XR1710G 的 XFRM/SOE flow offload 补丁之后检查 `nft_thoff()`：
+  未解析 L4 偏移时跳过卸载，保留软件转发，避免双层 VLAN/PPPoE 流量
+  被错误绑定到 PPE；现有 `meta l4proto { tcp, udp }` firewall4 规则不受影响。
 
 ### LuCI 与 Mesh
 
