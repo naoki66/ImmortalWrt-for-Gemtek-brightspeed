@@ -487,13 +487,15 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  					    REG_GDM_FWD_CFG(port->id),
  					    FE_PSE_PORT_DROP);
  
-@@ -1923,4 +2242,6 @@ static int airoha_dev_stop(struct net_de
- 	airoha_qdma_stop(qdma);
+@@ -1923,6 +2199,8 @@ static int airoha_dev_stop(struct net_de
+ 		}
+ 	}
+ 
 +	airoha_update_netdev_features(dev);
 +
- 	phylink_stop(dev->phylink);
  	phylink_disconnect_phy(dev->phylink);
  
+ 	return 0;
 @@ -2195,6 +2473,38 @@ int airoha_get_fe_port(struct airoha_gdm
  	}
  }
