@@ -18,7 +18,7 @@ XR1710G 与 XG2010G 设备维护的 Airoha AN7581 固件项目。
 当前维护两个相互隔离的硬件配置：
 
 - **XR1710G**：Brightspeed 10G Wi-Fi 7 路由器，使用 `1710.config`，包含 MT7996 无线、NPU 和 RTL8261BE 以太网支持。
-- **XG2010G**：Brightspeed 10G XG(S)-PON/XE-PON  网关，使用 `2010.config`， 使用 EN7581 xPON 软件包,NPU 和 RTL8261BE 以太网支持。
+- **XG2010G**：Brightspeed 10G XG(S)-PON/XE-PON 网关，使用 `2010.config`，PON 驱动与用户态基于 [pbs05/openwrt-pon-drivers](https://github.com/pbs05/openwrt-pon-drivers) 和 [pbs05/openwrt-pon-userspace](https://github.com/pbs05/openwrt-pon-userspace) 新栈，并保留 NPU、RTL8261BE 以太网和语音相关支持。
 
 ## 支持设备
 
@@ -66,7 +66,8 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集
 | **无线** | 本项目的 XG2010G 配置不启用无线驱动和 MT7996 软件包 |
 
 - 使用 Airoha `an7581` 目标和独立的 `gemtek_xg2010g-ubi` 镜像配置。
-- `2010.config` 只选择 XG2010G 的 xPON、PON dataplane、TOD 和 EN7581 PCM-SPI 相关软件包，并通过 [profile isolation 检查](scripts/check-gemtek-profile-isolation.sh) 拒绝混入 XR1710G 的 Wi-Fi 软件包。
+- PON 驱动和用户态依赖由 [`feeds.conf.default`](feeds.conf.default) 中的 `pon_drivers`、`pon_userspace` feed 获取，使用 `kmod-airoha-en7572`、`kmod-airoha-xpon`、`airoha-ponctl`、`airoha-pond` 和 `luci-app-pon` 新栈。
+- `2010.config` 只选择 XG2010G 的 PON、TOD 和 EN7581 PCM-SPI 相关软件包，并通过 [profile isolation 检查](scripts/check-gemtek-profile-isolation.sh) 拒绝混入 XR1710G 的 Wi-Fi 软件包。
 - 设备树禁用当前没有足够硬件证据的 PCIe、USB 和 eMMC，保留 EN7581 xPON、PON PHY、TOD、I2C 和 PCM-SPI 相关节点。
 - 语音控制路径按原厂 5.4 固件的 `slic3_silicon`/`pcm1`/`spi` 模块序列恢复：XG2010G 设备树启用 EN7581 AFE，PCM 控制器初始化为 2 路 8-bit timeslot，并提供 25 帧 TX/RX DMA 环和 `/dev/pcm1` 20 ms 帧读写口。
 - PCM-SPI 节点提供 Si32192 身份探测、片选状态、PCM/SLIC 原始寄存器读写、2 路 FXS 的 linefeed 状态和 hook 状态读取（`identity`、`rescan`、`chip_select`、`raw_register`、`pcm_register`、`line_state`、`hook_state`）。
@@ -241,6 +242,10 @@ bash scripts/summarize-build-errors.sh build.log
 - [YYH2913/openwrt](https://github.com/YYH2913/openwrt) - XR1710G 6.18 内核集成参考（an7581-xr1710g-ubi.dts 基础结构）
 - [hurrian/openwrt-w1700k](https://github.com/hurrian/openwrt-w1700k) - XR1710G PCIe 3.0 x2 补丁参考（912 Gen3 速度协商）
 - [lvcdy/openwrt_xr1710g](https://github.com/lvcdy/openwrt_xr1710g) - XR1710G 早期移植参考（分区表、PHY 配置）
+
+### XG2010G PON 驱动与用户态
+- [pbs05/openwrt-pon-drivers](https://github.com/pbs05/openwrt-pon-drivers) - XG2010G PON 内核驱动及新栈数据面来源。
+- [pbs05/openwrt-pon-userspace](https://github.com/pbs05/openwrt-pon-userspace) - `airoha-ponctl`、`airoha-pond` 和 LuCI PON 用户态来源。
 
 ### LuCI 应用来源
 - [rchen14b/luci-app-airoha-npu](https://github.com/rchen14b/luci-app-airoha-npu) - Airoha NPU 状态监控（PR #4 合并中文翻译）；现已并入合并应用 luci-app-airoha

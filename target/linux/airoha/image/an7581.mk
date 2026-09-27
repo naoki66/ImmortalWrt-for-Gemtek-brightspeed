@@ -199,14 +199,11 @@ define Device/gemtek_xr1710g-ubi
   SUPPORTED_DEVICES := gemtek,xr1710g-ubi
   DEVICE_DTS := an7581-xr1710g-ubi
   DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware airoha-an7581-mt7996-board \
+		    kmod-nf-conntrack-bridge kmod-nft-bridge \
 		    fitblk uboot-envtools kmod-airoha-i2c \
 		    kmod-hwmon-nct7802 kmod-mt7996-firmware wpad-mbedtls \
 		    rtl826x-firmware px5g-mbedtls \
-		    -kmod-airoha-xpon-en757x -kmod-airoha-pon-plugins \
-		    -kmod-airoha-pon-dataplane -kmod-airoha-xpon-igmp \
-		    -kmod-airoha-gpon-igmp -kmod-airoha-tod \
-		    -kmod-airoha-en7581-pcm-spi \
-		    -airoha-pon-firmware -airoha-pon-manager
+		    -kmod-airoha-tod -kmod-airoha-en7581-pcm-spi
   UBINIZE_OPTS := -E 5
   BLOCKSIZE := 128k
   PAGESIZE := 2048
@@ -233,12 +230,9 @@ define Device/gemtek_xg2010g-ubi
        the ubi partition and keep bootloader, uenv, dsd and reserved_bmt intact.
   DEVICE_PACKAGES := fitblk kmod-leds-gpio kmod-gpio-button-hotplug \
 	kmod-phy-airoha-en8811h \
-	kmod-airoha-xpon-en757x kmod-airoha-pon-plugins \
-	kmod-airoha-pon-dataplane kmod-airoha-xpon-igmp \
-	kmod-airoha-gpon-igmp \
-	kmod-airoha-tod \
-	kmod-airoha-en7581-pcm-spi \
-	airoha-pon-firmware airoha-pon-manager \
+	kmod-nf-conntrack-bridge kmod-nft-bridge \
+	kmod-airoha-en7572 kmod-airoha-xpon airoha-ponctl airoha-pond \
+	kmod-airoha-tod kmod-airoha-en7581-pcm-spi \
 	-airoha-an7581-mt7996-board -airoha-en7581-mt7996-npu-firmware \
 	-kmod-mac80211 -kmod-mt7996-firmware -kmod-mt7996e \
 	-wpad-mbedtls -wpad-mesh-mbedtls -wireless-regdb

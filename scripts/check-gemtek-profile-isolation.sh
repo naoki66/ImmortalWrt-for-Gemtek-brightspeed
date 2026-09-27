@@ -50,7 +50,7 @@ done
 
 if grep -qx 'CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xr1710g-ubi=y' "$config_file"; then
 	profile="xr1710g"
-	forbidden_packages='(airoha-pon-firmware|airoha-pon-manager|kmod-airoha-(xpon-en757x|pon-plugins|pon-dataplane|xpon-igmp|gpon-igmp|tod|en7581-pcm-spi))'
+	forbidden_packages='(airoha-pon(firmware|manager)|airoha-ponctl|airoha-pond|luci-app-pon|kmod-airoha-(xpon-en757x|pon-plugins|pon-dataplane|xpon-igmp|gpon-igmp|en7572|xpon|tod|en7581-pcm-spi))'
 	required_packages=(
 		airoha-an7581-mt7996-board
 		airoha-en7581-mt7996-npu-firmware
@@ -64,18 +64,18 @@ elif grep -qx 'CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi=y' "$config
 	profile="xg2010g"
 	forbidden_packages='(airoha-an7581-mt7996-board|airoha-en7581-mt7996-npu-firmware|hostapd.*|iw|iw-full|iwinfo|kmod-(mac80211.*|mt76.*|mt7996.*)|ucode-mod-nl80211|wireless-regdb|wpad.*)'
 	required_packages=(
-		airoha-pon-firmware
-		airoha-pon-manager
-		kmod-airoha-xpon-en757x
-		kmod-airoha-pon-plugins
-		kmod-airoha-pon-dataplane
-		kmod-airoha-xpon-igmp
-		kmod-airoha-gpon-igmp
+		kmod-nf-conntrack-bridge
+		kmod-nft-bridge
+		kmod-airoha-en7572
+		kmod-airoha-xpon
+		airoha-ponctl
+		airoha-pond
+		luci-app-pon
 		kmod-airoha-en7581-pcm-spi
 	)
 	manifest_required_packages=("${required_packages[@]}" kmod-airoha-tod)
 	forbidden_kernel='CONFIG_MT(76|7996).*=(y|m)'
-	required_kernel='CONFIG_AIROHA_PON_COMPAT=y|CONFIG_PTP_1588_CLOCK_AIROHA_TOD=m'
+	required_kernel='CONFIG_PTP_1588_CLOCK_AIROHA_TOD=m'
 else
 	echo "unsupported Gemtek profile in $config_file" >&2
 	exit 1

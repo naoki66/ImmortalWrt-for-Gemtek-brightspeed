@@ -249,6 +249,8 @@
 	num-lanes = <2>;
 
 	airoha,scu = <&scuclk>;
+	airoha,np-scu = <&scuclk>;
+	airoha,x2-mode;
 
 	pinctrl-names = "default";
 	pinctrl-0 = <&pcie0_rst_pins>;

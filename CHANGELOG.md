@@ -3,6 +3,62 @@
 本文件记录 Gemtek Brightspeed 固件仓库的重要功能、稳定性和维护变更。常规的
 ImmortalWrt 上游合并不逐项展开，仅记录会影响本设备构建或运行行为的内容。
 
+## 2026-09-23
+
+本条目覆盖 XR1710G 从 `20260916-e8702ccc61` 到 `b94f6f29b3` 的变更。同期
+XG2010G 专属的 PON、ToD、BoB 和 PCM/语音功能不计入 XR1710G 运行面。
+
+### 上游同步
+
+- 合并 ImmortalWrt `master` 至 `b80b090e8e`，本地 merge commit 为
+  `b94f6f29b3`；此前还通过 `669668ec3e` 和 `ba2d9bc4f3` 引入上游。
+- Linux 6.18 从 `.44` 更新到 `.52`，包含 6.18.45 至 6.18.52 的稳定版
+  修复，并同步刷新 Airoha、Realtek PHY 和通用内核补丁上下文。
+- 引入 Airoha 上游改动，包括 Quantum Fiber Q1000K、RX ring 扩容、
+  AN7583 PCIe Gen3 PHY，以及 phylink/PCS 相关修复。
+- 引入 netifd、mac80211、procd、odhcpd、dnsmasq、dropbear 和 comgt
+  等共享软件包更新；其中 mt76 TX worker CPU 绑定和流卸载修复对 XR1710G
+  的无线与转发路径有直接影响。
+
+### XR1710G 设备与网络
+
+- 为 XR1710G 的 Airoha I2C 控制器设置 `airoha,airoha-i2c` 兼容项和
+  400 kHz 总线频率，继续支持 NCT7802 硬件监控。
+- 增加 AN7581 10G PCS link bring-up 修复，覆盖 JCPLL/TCLVAR、PCS
+  restart 和按接口跟踪 PCS 状态。
+- 将 MT7996 板级默认值、无线缓冲区、PPE reload 和 packet steering
+  移入 `airoha-an7581-mt7996-board`，由 XR1710G/W1700K 选择。
+- 明确排除 PON firmware/manager、xPON、GPON IGMP、PON VLAN、ToD 和
+  PCM/语音组件，避免 XG2010G 功能进入 XR1710G 镜像或内核配置。
+
+### LuCI 与 Mesh
+
+- `luci-app-airoha` 统一 NPU 与 FlowSense 页面，状态和端口拓扑按设备树
+  生成，补充 CPU governor/max_freq 持久化、刷新时间、暗色主题和中英文翻译。
+- `luci-app-mesh-conf` 增加 DAWN 客户端引导、802.11k/v/r 支持和 6 GHz
+  频段补丁，并修复同步服务自愈、执行位和 SAE key 被空值覆盖的问题。
+- 新栈 `airoha-ponctl`、`airoha-pond`、`luci-app-pon`、ToD PHC 和 EN7581
+  PCM-SPI 语音功能仅进入 XG2010G 配置，不随 XR1710G 构建。
+
+### 构建与版本
+
+- 新增 `1710.config` 与 `2010.config` 双配置构建入口，GitHub Actions 可选择
+  设备配置，release 名称和文件名会包含对应型号。
+- 固件版本改为根据 `CONFIG_TARGET_PROFILE` 自动识别 XR1710G/XG2010G。
+- 新增 Gemtek profile 隔离检查，在构建前检查配置，在构建后检查 kernel
+  config 和 image manifest，防止 XR1710G 与 XG2010G 包集合互相污染。
+- 远程构建脚本支持选择 1710 或 2010 配置，构建失败时会尝试带 `V=s`
+  重新编译并保留详细日志。
+
+### 验证
+
+- `git diff --check` 通过。
+- XR1710G 和 XG2010G 的 profile 隔离检查均通过。
+- 本轮未执行完整固件构建。
+
+关键提交：`4b4ed05f79`、`31eda9dc56`、`4ebc4c2c9b`、`759359070c`、
+`b94f6f29b3`。
+
 ## 2026-09-14
 
 ### 上游同步
