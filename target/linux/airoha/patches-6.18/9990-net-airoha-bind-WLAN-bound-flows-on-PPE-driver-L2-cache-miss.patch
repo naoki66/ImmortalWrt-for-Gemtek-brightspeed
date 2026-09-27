@@ -50,7 +50,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 ---
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
-@@ -7,6 +7,7 @@
+@@ -7,5 +7,6 @@
  #include <linux/airoha-eth.h>
  #include <linux/ip.h>
 +#include <linux/etherdevice.h>
