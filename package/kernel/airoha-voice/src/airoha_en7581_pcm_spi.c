@@ -292,7 +292,6 @@ static void en7581_spi_prepare(struct en7581_pcm_spi *priv, bool read)
 	writel(morebuf, priv->spi_base + EN7581_SPI_MOREBUF);
 }
 
-static int en7581_si3219x_read(struct en7581_pcm_spi *priv, u8 reg, u8 *val)
 static int en7581_si3219x_read_ch(struct en7581_pcm_spi *priv,
 				  unsigned int channel, u8 reg, u8 *val)
 {
@@ -324,7 +323,6 @@ static int en7581_si3219x_read(struct en7581_pcm_spi *priv, u8 reg, u8 *val)
 	return en7581_si3219x_read_ch(priv, 0, reg, val);
 }
 
-static int en7581_si3219x_write(struct en7581_pcm_spi *priv, u8 reg, u8 val)
 static int en7581_si3219x_write_ch(struct en7581_pcm_spi *priv,
 				   unsigned int channel, u8 reg, u8 val)
 {
