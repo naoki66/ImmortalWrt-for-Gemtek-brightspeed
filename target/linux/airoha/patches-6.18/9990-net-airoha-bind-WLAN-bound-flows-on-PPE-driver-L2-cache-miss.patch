@@ -50,15 +50,13 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 ---
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
-@@ -3,6 +3,8 @@
-  * Author: Lorenzo Bianconi <lorenzo@kernel.org>
-  */
- 
-+#include <linux/if_vlan.h>
+@@ -7,6 +7,7 @@
+ #include <linux/airoha-eth.h>
  #include <linux/ip.h>
 +#include <linux/etherdevice.h>
  #include <linux/ipv6.h>
  #include <linux/of_platform.h>
+ #include <linux/platform_device.h>
 @@ -708,65 +708,234 @@
  }
  
