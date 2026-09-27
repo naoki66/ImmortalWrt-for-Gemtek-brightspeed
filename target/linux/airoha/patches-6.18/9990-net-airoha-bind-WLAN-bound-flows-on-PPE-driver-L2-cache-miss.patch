@@ -57,7 +57,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  #include <linux/ipv6.h>
  #include <linux/of_platform.h>
  #include <linux/platform_device.h>
-@@ -708,65 +708,234 @@
+@@ -708,65 +708,236 @@
  }
  
  static int
@@ -149,10 +149,12 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 +					  struct airoha_flow_data *data,
 +					  struct airoha_foe_entry *hwe)
 +{
++	struct airoha_gdm_dev *egress_dev;
 +	int err;
 +
 +	err = airoha_ppe_foe_entry_prepare(ppe->eth, hwe, dev,
-+					   PPE_PKT_TYPE_BRIDGE, data, 0, 0);
++					   PPE_PKT_TYPE_BRIDGE, data, 0, 0,
++					   &egress_dev);
 +	if (err)
 +		return false;
 +
