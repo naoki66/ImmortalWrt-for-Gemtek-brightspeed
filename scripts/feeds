@@ -525,9 +525,28 @@ sub is_core_src($) {
 	my $src = shift;
 	foreach my $file ("tmp/info/.packageinfo-$src", glob("tmp/info/.packageinfo-*_$src")) {
 		next unless index($file, "tmp/info/.packageinfo-feeds_");
-		return 1 if -s $file;
+		next unless -s $file;
+		# Ignore stale metadata left behind after a core package was removed.
+		my $makefile = packageinfo_source_makefile($file);
+		next unless defined $makefile && -f $makefile;
+		return 1;
 	}
 	return 0;
+}
+
+sub packageinfo_source_makefile($) {
+	my $file = shift;
+	my $fh;
+
+	open $fh, "<", $file or return undef;
+	while (<$fh>) {
+		if (/^Source-Makefile:\s*(.+?)\s*$/) {
+			close $fh;
+			return $1;
+		}
+	}
+	close $fh;
+	return undef;
 }
 
 sub install_target {
