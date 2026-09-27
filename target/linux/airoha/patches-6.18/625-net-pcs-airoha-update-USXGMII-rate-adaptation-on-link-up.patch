@@ -18,12 +18,12 @@ negotiation modes as before.
 
 Signed-off-by: Ryan Chen <rchen14b@gmail.com>
 ---
- drivers/net/pcs/airoha/pcs-airoha-common.c | 127 +++++++++++---------
- 1 file changed, 69 insertions(+), 58 deletions(-)
+ drivers/net/pcs/airoha/pcs-airoha-common.c | 136 ++++++++++++---------
+ 1 file changed, 70 insertions(+), 66 deletions(-)
 
 --- a/drivers/net/pcs/airoha/pcs-airoha-common.c
 +++ b/drivers/net/pcs/airoha/pcs-airoha-common.c
-@@ -747,63 +747,66 @@ static void airoha_pcs_link_up(struct ph
+@@ -993,66 +993,70 @@
  	maps = &priv->maps[port->index];
  	data = priv->data;
  
@@ -70,6 +70,9 @@ Signed-off-by: Ryan Chen <rchen14b@gmail.com>
 -				rate_adapt = AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE_100;
 -				mode = AIROHA_PCS_USXGMII_MODE_100;
 -				break;
+-			default:
+-				/* Not supported */
+-				return;
 -			}
 -
 -			/* Force USXGMII to selected speed */
@@ -125,8 +128,12 @@ Signed-off-by: Ryan Chen <rchen14b@gmail.com>
 +			rate_adapt = AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE_100;
 +			mode = AIROHA_PCS_USXGMII_MODE_100;
 +			break;
++		default:
++			/* Not supported */
++			return;
  		}
  
++		/* Force USXGMII to selected speed */
 +		regmap_update_bits(maps->usxgmii_pcs,
 +				   AIROHA_PCS_USXGMII_PCS_AN_CONTROL_7,
 +				   AIROHA_PCS_USXGMII_RATE_UPDATE_MODE |
