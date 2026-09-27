@@ -24,12 +24,13 @@ set -euo pipefail
 config_file="${1:-.config}"
 
 # 从 CONFIG_TARGET_PROFILE 推导设备型号，写入 VERSION_DIST 让固件自识别。
-# 例：DEVICE_gemtek_xg2010g-ubi -> XG2010G；DEVICE_gemtek_xr1710g-ubi -> XR1710G
+# 例：DEVICE_gemtek_xg2010g-ubi -> XG2010G；DEVICE_gemtek_xr1710g(-ubi) -> XR1710G
 # 推导不到时返回空串（保持原默认 "ImmortalWrt naoki66"）。
 detect_device_model() {
 	local profile model
 	profile="$(sed -n -e 's/^CONFIG_TARGET_PROFILE="\(.*\)"$/\1/p' "$config_file" | head -n 1)"
 	[ -n "$profile" ] || profile="$(sed -n -e 's/^CONFIG_TARGET_PROFILE=\(.*\)$/\1/p' "$config_file" | head -n 1)"
+	[ -n "$profile" ] || profile="$(sed -n -e 's/^CONFIG_TARGET_DEVICE_airoha_an7581_DEVICE_\(.*\)=y$/DEVICE_\1/p' "$config_file" | head -n 1)"
 	[[ "$profile" =~ DEVICE_([A-Za-z0-9_+-]+) ]] || return 1
 	model="${BASH_REMATCH[1]}"
 	model="${model#gemtek_}"

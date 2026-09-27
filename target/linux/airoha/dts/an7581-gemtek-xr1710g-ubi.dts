@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: GPL-2.0-or-later OR MIT
 /dts-v1/;
-#include <dt-bindings/leds/common.h>
+
+/* Firmware reserves the first 2 MiB of DRAM. */
+/memreserve/ 0x80000000 0x200000;
+
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
 #include <dt-bindings/phy/phy.h>
 #include "an7581.dtsi"
 #include "an7581-npu-mt7996.dtsi"
+
 / {
-	model = "Gemtek XR1710G";
+	model = "Gemtek XR1710G (OpenWrt U-Boot UBI layout)";
 	compatible = "gemtek,xr1710g-ubi",
 		     "airoha,an7581", "airoha,en7581";
 	aliases {
@@ -18,39 +23,54 @@
 		led-running = &led_status_green;
 	};
 	chosen {
-		rootdisk = <&ubi_rootfs>;
-		bootargs = "console=ttyS0,115200 earlycon ubi.block=0,fit root=/dev/fit0 rootwait rdinit=/sbin/init";
+		/* Create fastmap on first attach for boot firmware and Linux reuse. */
+		bootargs = "console=ttyS0,115200 earlycon";
+		rootdisk = <&ubi_fit>;
 		stdout-path = "serial0:115200n8";
+		linux,usable-memory-range = <0x0 0x80200000 0x0 0x7fe00000>;
 	};
+
+	memory@80000000 {
+		device_type = "memory";
+		/* The board contains 2 GiB of DRAM. */
+		reg = <0x0 0x80000000 0x0 0x80000000>;
+	};
+
 	keys {
 		compatible = "gpio-keys";
 		key-restart {
 			label = "reset";
 			gpios = <&en7581_pinctrl 0 GPIO_ACTIVE_LOW>;
 			linux,code = <KEY_RESTART>;
+			debounce-interval = <60>;
 		};
 	};
 	leds {
 		compatible = "gpio-leds";
 		led_status_green: led-status-green {
-			label = "status:green";
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_STATUS;
 			gpios = <&en7581_pinctrl 17 GPIO_ACTIVE_LOW>;
 		};
 		led_status_blue: led-status-blue {
-			label = "status:blue";
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_STATUS;
 			gpios = <&en7581_pinctrl 19 GPIO_ACTIVE_LOW>;
 		};
 		led_status_red: led-status-red {
-			label = "status:red";
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_STATUS;
 			gpios = <&en7581_pinctrl 29 GPIO_ACTIVE_LOW>;
 			default-state = "on";
 		};
 		led_status_white: led-status-white {
-			label = "status:white";
+			color = <LED_COLOR_ID_WHITE>;
+			function = LED_FUNCTION_STATUS;
 			gpios = <&en7581_pinctrl 20 GPIO_ACTIVE_LOW>;
 		};
 	};
 };
+
 &en7581_pinctrl {
 	gpio-ranges = <&en7581_pinctrl 0 13 47>;
 	mdio_pins: mdio-pins {
@@ -117,83 +137,95 @@
 	status = "okay";
 };
 &spi_nand {
-	#address-cells = <1>;
-	#size-cells = <1>;
+	/* Winbond W25N04K provides 512 MiB with 2 KiB pages and 128 KiB blocks. */
+	compatible = "winbond,w25n04kv", "spi-nand";
+	nand-ecc-engine = <&spi_nand>;
+
 	partitions {
 		compatible = "fixed-partitions";
 		#address-cells = <1>;
 		#size-cells = <1>;
 		partition@0 {
-			label = "vendor";
-			reg = <0x00000000 0x00600000>;
-			/*
-			 * Intentionally NOT marked read-only so the factory
-			 * provisioning data at offset 0x400000 (MAC addresses,
-			 * serial number, Wi-Fi defaults, admin credentials, ...)
-			 * can be rewritten from the luan-app-airoha-factory LuCI
-			 * page.  Re-add "read-only;" here if the partition should
-			 * be locked down again.
-			 */
-		};
-		partition@600000 {
-			label = "chainloader";
-			reg = <0x00600000 0x00100000>;
+			label = "bl2";
+			/* BootROM reads the BL2 FIP at offset 0x800 in the first eraseblock. */
+			reg = <0x00000000 0x00020000>;
 			read-only;
 		};
-		partition@700000 {
+		partition@20000 {
 			label = "ubi";
-			reg = <0x00700000 0x1b700000>;
+			/* A zero size extends the UBI partition to the physical NAND end. */
+			reg = <0x00020000 0x00000000>;
 			compatible = "linux,ubi";
 			volumes {
-				ubi-volume-ubootenv {
+				ubi_fip: ubi-volume-fip {
+					volname = "fip";
+				};
+
+				ubi_env: ubi-volume-ubootenv {
 					volname = "ubootenv";
-					nvmem-layout {
-						compatible = "u-boot,env-redundant-bool";
-					};
 				};
-				ubi-volume-ubootenv2 {
+
+				ubi_env2: ubi-volume-ubootenv2 {
 					volname = "ubootenv2";
+				};
+
+				/*
+				 * pbs05/uboot-an758x creates one 2 MiB static UBI volume
+				 * named "factory". Restore the complete OOB-stripped stock
+				 * DSD partition into it; do not use the legacy repacked
+				 * EEPROM-at-0/MAC-at-0x5000 factory image.
+				 */
+				factory_storage: ubi-volume-factory {
+					volname = "factory";
+
 					nvmem-layout {
-						compatible = "u-boot,env-redundant-bool";
+						compatible = "fixed-layout";
+						#address-cells = <1>;
+						#size-cells = <1>;
+
+						eeprom: eeprom@5000 {
+							/* MT7996 EEPROM/calibration follows the DSD backup at 0x5000. */
+							reg = <0x00005000 0x00001e00>;
+						};
+
+						wan_mac: mac-address@6c {
+							/* DSD main-data backup keeps the original 17-byte colon-delimited MAC text. */
+							compatible = "mac-base";
+							reg = <0x0000006c 0x00000011>;
+							#nvmem-cell-cells = <1>;
+						};
+
+						lan_mac: mac-address@86 {
+							/* +0: main LAN2, +1/+2/+3: Wi-Fi bands, +4: CPU. */
+							compatible = "mac-base";
+							reg = <0x00000086 0x00000011>;
+							#nvmem-cell-cells = <1>;
+						};
 					};
 				};
-				ubi_rootfs: ubi-volume-fit {
+
+				ubi_fit: ubi-volume-fit {
+					/* The fit volume contains the kernel and read-only rootfs. */
 					volname = "fit";
-				};
-				ubi_factory: ubi-volume-factory {
-					volname = "factory";
 				};
 			};
 		};
-		/* reserved for bad block table */
-		reserved_bmt@1be00000 {
-			label = "reserved_bmt";
-			reg = <0x1be00000 0x04200000>;
-			read-only;
-		};
 	};
 };
-&ubi_factory {
+
+&ubi_env {
 	nvmem-layout {
-		compatible = "fixed-layout";
-		#address-cells = <1>;
-		#size-cells = <1>;
-		eeprom: eeprom@0 {
-			reg = <0x0 0x1e00>;
-		};
-		wan_mac: macaddr@5000 {
-			reg = <0x5000 0x6>;
-		};
-		lan_mac: macaddr@6000 {
-			compatible = "mac-base";
-			reg = <0x6000 0x6>;
-			#nvmem-cell-cells = <1>;
-		};
+		compatible = "u-boot,env-redundant-bool-layout";
 	};
 };
+
+&ubi_env2 {
+	nvmem-layout {
+		compatible = "u-boot,env-redundant-bool-layout";
+	};
+};
+
 &i2c0 {
-	compatible = "airoha,airoha-i2c";
-	clock-frequency = <400000>;
 	status = "okay";
 	hwmon@2e {
 		compatible = "nuvoton,nct7802";
@@ -285,7 +317,7 @@
 
 &gdm1 {
 	status = "okay";
-	nvmem-cells = <&lan_mac 0>;
+	nvmem-cells = <&lan_mac 4>;
 	nvmem-cell-names = "mac-address";
 	openwrt,netdev-name = "cpu";
 };
@@ -306,7 +338,7 @@
 	managed = "in-band-status";
 	phy-handle = <&phy5>;
 	phy-mode = "usxgmii";
-	nvmem-cells = <&lan_mac 4>;
+	nvmem-cells = <&lan_mac 0>;
 	nvmem-cell-names = "mac-address";
 	openwrt,netdev-name = "lan2";
 };

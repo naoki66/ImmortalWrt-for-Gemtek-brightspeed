@@ -48,7 +48,7 @@ for manifest in "${manifests[@]}"; do
 	}
 done
 
-if grep -qx 'CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xr1710g-ubi=y' "$config_file"; then
+if grep -Eq '^CONFIG_(TARGET_airoha_an7581_DEVICE|TARGET_DEVICE_airoha_an7581_DEVICE)_gemtek_xr1710g(-ubi)?=y$' "$config_file"; then
 	profile="xr1710g"
 	forbidden_packages='(airoha-pon(firmware|manager)|airoha-ponctl|airoha-pond|luci-app-pon|kmod-airoha-(xpon-en757x|pon-plugins|pon-dataplane|xpon-igmp|gpon-igmp|en7572|xpon|tod|en7581-pcm-spi))'
 	required_packages=(
@@ -60,7 +60,7 @@ if grep -qx 'CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xr1710g-ubi=y' "$config_f
 	manifest_required_packages=("${required_packages[@]}")
 	forbidden_kernel='CONFIG_(AIROHA_PON_COMPAT|PTP_1588_CLOCK_AIROHA_TOD)=(y|m)'
 	required_kernel='CONFIG_NET_AIROHA_NPU=y'
-elif grep -qx 'CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi=y' "$config_file"; then
+elif grep -Eq '^CONFIG_(TARGET_airoha_an7581_DEVICE|TARGET_DEVICE_airoha_an7581_DEVICE)_gemtek_xg2010g-ubi=y$' "$config_file"; then
 	profile="xg2010g"
 	forbidden_packages='(airoha-an7581-mt7996-board|airoha-en7581-mt7996-npu-firmware|hostapd.*|iw|iw-full|iwinfo|kmod-(mac80211.*|mt76.*|mt7996.*)|ucode-mod-nl80211|wireless-regdb|wpad.*)'
 	required_packages=(

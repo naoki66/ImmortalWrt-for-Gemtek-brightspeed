@@ -13,7 +13,7 @@ define Package/airoha-an7581-mt7996-board
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Airoha AN7581 MT7996 board defaults
-  DEPENDS:=@(TARGET_airoha_an7581_DEVICE_gemtek_xr1710g-ubi||TARGET_airoha_an7581_DEVICE_gemtek_w1700k-ubi)
+  DEPENDS:=@(TARGET_airoha_an7581_DEVICE_gemtek_xr1710g||TARGET_airoha_an7581_DEVICE_gemtek_xr1710g-ubi||TARGET_DEVICE_airoha_an7581_DEVICE_gemtek_xr1710g||TARGET_DEVICE_airoha_an7581_DEVICE_gemtek_xr1710g-ubi||TARGET_airoha_an7581_DEVICE_gemtek_w1700k-ubi)
   HIDDEN:=1
 endef
 

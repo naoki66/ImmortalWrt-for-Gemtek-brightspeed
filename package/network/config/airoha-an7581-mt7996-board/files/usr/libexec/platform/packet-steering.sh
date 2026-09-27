@@ -15,7 +15,10 @@ esac
 /usr/libexec/network/packet-steering.uc $opts "$mode"
 
 [ "$mode" != "0" ] || exit 0
-[ "$(board_name)" = "gemtek,xr1710g-ubi" ] || exit 0
+case "$(board_name)" in
+gemtek,xr1710g|gemtek,xr1710g-ubi) ;;
+*) exit 0 ;;
+esac
 
 cpu_count=0
 for cpu_path in /sys/devices/system/cpu/cpu[0-9]*; do

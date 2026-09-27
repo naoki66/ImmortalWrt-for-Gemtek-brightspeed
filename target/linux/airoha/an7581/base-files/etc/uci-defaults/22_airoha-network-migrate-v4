@@ -3,7 +3,10 @@
 . /lib/functions.sh
 . /lib/functions/system.sh
 
-[ "$(board_name)" = "gemtek,xr1710g-ubi" ] || exit 0
+case "$(board_name)" in
+gemtek,xr1710g|gemtek,xr1710g-ubi) ;;
+*) exit 0 ;;
+esac
 
 migrated=0
 

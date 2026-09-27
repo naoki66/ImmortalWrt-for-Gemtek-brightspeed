@@ -189,15 +189,9 @@ define Device/nokia_xg-040g-md-ubi
 endef
 TARGET_DEVICES += nokia_xg-040g-md-ubi
 
-define Device/gemtek_xr1710g-ubi
+define Device/gemtek_xr1710g-common
   DEVICE_VENDOR := Gemtek
   DEVICE_MODEL := XR1710G
-  DEVICE_VARIANT := UBI
-  DEVICE_ALT0_VENDOR := Brightspeed
-  DEVICE_ALT0_MODEL := XR1710G
-  DEVICE_ALT0_VARIANT := UBI
-  SUPPORTED_DEVICES := gemtek,xr1710g-ubi
-  DEVICE_DTS := an7581-xr1710g-ubi
   DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware airoha-an7581-mt7996-board \
 		    kmod-nf-conntrack-bridge kmod-nft-bridge \
 		    fitblk uboot-envtools kmod-airoha-i2c \
@@ -216,6 +210,29 @@ define Device/gemtek_xr1710g-ubi
   IMAGES := sysupgrade.itb
   IMAGE/sysupgrade.itb := append-kernel | fit gzip $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb external-static-with-rootfs | append-metadata
   SOC := an7581
+endef
+
+define Device/gemtek_xr1710g
+  $(call Device/gemtek_xr1710g-common)
+  DEVICE_ALT0_VENDOR := Brightspeed
+  DEVICE_ALT0_MODEL := XR1710G
+  SUPPORTED_DEVICES := gemtek,xr1710g
+  DEVICE_DTS := an7581-xr1710g
+endef
+TARGET_DEVICES += gemtek_xr1710g
+
+define Device/gemtek_xr1710g-ubi
+  $(call Device/gemtek_xr1710g-common)
+  DEVICE_MODEL := XR1710G (OpenWrt U-Boot UBI layout)
+  DEVICE_ALT0_VENDOR := Brightspeed
+  DEVICE_ALT0_MODEL := XR1710G (OpenWrt U-Boot UBI layout)
+  SUPPORTED_DEVICES := gemtek,xr1710g-ubi
+  DEVICE_DTS := an7581-gemtek-xr1710g-ubi
+  DEVICE_COMPAT_VERSION := 2.0
+  DEVICE_COMPAT_MESSAGE := Firmware requires the XR1710G OpenWrt U-Boot UBI layout \
+       with bl2 at 0x00000000 and the UBI partition extending from \
+       0x00020000 to the end of NAND. Restore the complete 2 MiB stock DSD \
+       main-data image to the static factory volume before booting Linux.
 endef
 TARGET_DEVICES += gemtek_xr1710g-ubi
 

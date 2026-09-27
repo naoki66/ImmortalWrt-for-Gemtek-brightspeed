@@ -26,8 +26,11 @@ ubootenv_add_ubi_xr1710g() {
 }
 
 case "$board" in
-gemtek,xr1710g-ubi)
+gemtek,xr1710g)
 	ubootenv_add_ubi_xr1710g
+	;;
+gemtek,xr1710g-ubi)
+	ubootenv_add_ubi_default
 	;;
 gemtek,w1700k-ubi|\
 nokia,xg-040g-md-ubi)

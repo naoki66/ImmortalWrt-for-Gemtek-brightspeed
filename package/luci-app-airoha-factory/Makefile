@@ -9,11 +9,12 @@ PKG_LICENSE:=GPL-2.0-or-later
 TITLE:=LuCI Airoha XR1710G Factory Partition Editor
 
 LUCI_TITLE:=LuCI Airoha XR1710G Factory Partition Editor
-LUCI_DESCRIPTION:=Reads and modifies the vendor (mtd0) factory block at \
-	offset 0x400000 (MAC addresses, serial number, Wi-Fi defaults, admin \
-	credentials). Can also push the WAN/LAN MAC into the live UBI "factory" \
-	volume and the U-Boot environment so changes take effect.
-LUCI_DEPENDS:=+luci-base +uboot-envtools
+LUCI_DESCRIPTION:=Reads and modifies XR1710G factory provisioning data \
+	(MAC addresses, serial number, Wi-Fi defaults, admin credentials). The \
+	legacy layout uses the writable vendor MTD block at 0x400000; the \
+	2010-style OpenWrt U-Boot layout rewrites the DSD backup inside the UBI \
+	"factory" volume and keeps the U-Boot environment in sync.
+LUCI_DEPENDS:=+luci-base +uboot-envtools +ubi-utils
 
 include $(TOPDIR)/feeds/luci/luci.mk
 

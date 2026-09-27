@@ -60,11 +60,12 @@ platform_do_upgrade() {
 
 	case "$board" in
 		gemtek,xg2010g-ubi|\
+		gemtek,xr1710g-ubi|\
 		gemtek,xg2010g)
 			airoha_require_ubi_layout factory && fit_do_upgrade "$1"
 			;;
 		gemtek,w1700k-ubi|\
-		gemtek,xr1710g-ubi|\
+		gemtek,xr1710g|\
 		nokia,xg-040g-md-ubi|\
 		quantum,q1000k-ubi)
 			fit_do_upgrade "$1"

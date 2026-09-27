@@ -6,7 +6,8 @@
 #
 # The chainloader U-Boot (http-uboot) stores its environment in the redundant
 # UBI volumes "ubootenv" / "ubootenv2" (see the device tree
-# target/linux/airoha/dts/an7581-xr1710g-ubi.dts).
+# target/linux/airoha/dts/an7581-xr1710g.dts and
+# target/linux/airoha/dts/an7581-gemtek-xr1710g-ubi.dts).
 #
 # This backend deliberately does NOT use the shared /etc/fw_env.config:
 # that file is also claimed by luci-app-airoha-factory, which installs a
@@ -28,13 +29,20 @@ ENV_CONF="${ENV_CONF_DIR}/fw_env.config"
 ENV_LOG="/tmp/airoha-recovery.log"
 ENV_LOG_MAX=16384
 
-# Layout of the XR1710G chainloader environment.  Keep in sync with
-# package/boot/uboot-tools/uboot-envtools/files/airoha_an7581: the chainloader
-# uses CONFIG_ENV_SIZE=0x4000 while a whole UBI LEB (0x1f000) is one sector.
+# Layout of the XR1710G U-Boot environment.  Keep in sync with
+# package/boot/uboot-tools/uboot-envtools/files/airoha_an7581: the legacy
+# chainloader uses CONFIG_ENV_SIZE=0x4000; the 2010-style OpenWrt U-Boot
+# layout uses a whole UBI LEB (0x1f000) as the environment size.
 ENV_OFFSET="0x0"
 ENV_SIZE="0x4000"
 ENV_SECSIZE="0x1f000"
 ENV_NUMSEC="1"
+
+case "$(board_name 2>/dev/null)" in
+gemtek,xr1710g-ubi)
+	ENV_SIZE="0x1f000"
+	;;
+esac
 
 # Reason code of the last failure, consumed by get_status().
 ENV_REASON=""
@@ -79,7 +87,13 @@ last_error_hint()
 
 is_known_board()
 {
-	[ "$(board_name 2>/dev/null)" = "gemtek,xr1710g-ubi" ]
+	case "$(board_name 2>/dev/null)" in
+	gemtek,xr1710g|gemtek,xr1710g-ubi)
+		return 0
+		;;
+	esac
+
+	return 1
 }
 
 # Print the character device node of a named UBI volume.

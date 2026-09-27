@@ -2,7 +2,10 @@
 
 . /lib/functions/system.sh
 
-[ "$(board_name)" = "gemtek,xr1710g-ubi" ] || exit 0
+case "$(board_name)" in
+gemtek,xr1710g|gemtek,xr1710g-ubi) ;;
+*) exit 0 ;;
+esac
 
 uci -q set firewall.@defaults[0].flow_offloading='1'
 uci -q set firewall.@defaults[0].flow_offloading_hw='1'
