@@ -69,15 +69,17 @@ where before the port never came up.
  {
 --- a/drivers/net/pcs/airoha/pcs-airoha.h
 +++ b/drivers/net/pcs/airoha/pcs-airoha.h
-@@ -1683,6 +1683,8 @@
+@@ -1714,8 +1714,10 @@ struct airoha_pcs_match_data {
+ 	int (*bringup)(struct airoha_pcs_priv *priv,
  		       int index, phy_interface_t interface);
  	void (*link_up)(struct airoha_pcs_priv *priv, int index);
  	int (*rxlock_workaround)(struct airoha_pcs_priv *priv, int index);
 +	void (*post_config)(struct airoha_pcs_priv *priv, int index,
 +			    phy_interface_t interface);
- };
- 
- #define to_airoha_pcs_port(n) container_of(n, struct airoha_pcs_port, pcs)
+ 	int (*pon_start_rx)(struct airoha_pcs_priv *priv, int index,
+ 			    phy_interface_t interface);
+ 	int (*pon_retrain_rx)(struct airoha_pcs_priv *priv, int index,
+ 			      phy_interface_t interface);
 @@ -1697,6 +1699,8 @@
  
  void an7581_pcs_phya_link_up(struct airoha_pcs_priv *priv, int index);
