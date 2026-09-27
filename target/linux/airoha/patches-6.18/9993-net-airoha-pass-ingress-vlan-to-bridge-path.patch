@@ -21,14 +21,14 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 ---
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
-@@ -4,6 +4,7 @@
-  * Author: Lorenzo Bianconi <lorenzo@kernel.org>
-  */
- 
+@@ -12,6 +12,7 @@
+ #include <linux/platform_device.h>
+ #include <linux/rhashtable.h>
+ #include <net/ipv6.h>
 +#include <linux/if_bridge.h>
  #include <linux/if_vlan.h>
- #include <linux/ip.h>
- #include <linux/ipv6.h>
+ #include <net/pkt_cls.h>
+ #include <net/route.h>
 @@ -983,10 +984,13 @@
  				      struct airoha_foe_entry *hwe)
  {
