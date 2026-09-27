@@ -280,6 +280,20 @@ index 64619e9a704d..c3827bf9791b 100644
  static int airoha_alloc_gdm_device(struct airoha_eth *eth,
  				   struct airoha_gdm_port *port,
  				   int nbq, struct device_node *np)
+@@ -2239,7 +2261,7 @@ static void airoha_update_hw_stats(struct airoha_gdm_dev *dev)
+ 	u64 data;
+ 
+-	spin_lock(&port->stats_lock);
++	spin_lock(&port->lock);
+ 
+ 	/* Read relevant MIB for GDM with multiple port attached */
+@@ -2433,7 +2455,7 @@ static void airoha_update_hw_stats(struct airoha_gdm_dev *dev)
+ 	u64_stats_update_end(&dev->stats.syncp);
+ 
+-	spin_unlock(&port->stats_lock);
++	spin_unlock(&port->lock);
+ }
+
 @@ -3244,7 +3424,7 @@ static int airoha_alloc_gdm_device(struc
  	dev->nbq = nbq;
  	port->devs[index] = dev;
