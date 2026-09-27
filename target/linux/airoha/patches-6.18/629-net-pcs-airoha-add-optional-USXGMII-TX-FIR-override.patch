@@ -33,13 +33,16 @@ Assisted-by: Codex:GPT-5.6-sol
  struct airoha_pcs_priv {
  	struct device *dev;
  	const struct airoha_pcs_match_data *data;
-@@ -1659,6 +1665,8 @@
+@@ -1670,6 +1676,9 @@ struct airoha_pcs_priv {
  	struct phy *phy;
  
  	bool manual_rx_calib;
 +	bool tx_fir_override;
 +	struct airoha_pcs_tx_fir tx_fir;
- };
++
+ 	bool pon_impedance_valid;
+ 	u8 pon_tx_term_sel;
+ 	u8 pon_rx_term_sel;
  
  struct airoha_pcs_port {
 --- a/drivers/net/pcs/airoha/pcs-an7581.c
