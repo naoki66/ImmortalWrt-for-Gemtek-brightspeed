@@ -407,7 +407,8 @@
 
 /*
  * Local XG2010G voice stack. Keep it after the PON-aligned blocks above.
- * The PCM-SPI control path owns the Si32192 SLIC; AFE exposes the DAI.
+ * PCM DMA and the ISI controller expose two independently addressed Si32192
+ * devices. AFE remains available for the SoC audio DAI.
  */
 / {
 	tod: tod@1fbe2300 {
@@ -417,17 +418,51 @@
 		status = "okay";
 	};
 
-	pcm_spi: pcm-spi@1fbc0000 {
-		compatible = "airoha,en7581-pcm-spi-si32192";
-		reg = <0x0 0x1fbc0000 0x0 0x30>,
-		      <0x0 0x1fbd0000 0x0 0x5000>;
-		reg-names = "spi", "pcm";
+	pcm0: pcm@1fbd0000 {
+		compatible = "airoha,en7581-pcm";
+		reg = <0x0 0x1fbd0000 0x0 0x1000>;
+		reg-names = "pcm";
 		interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
+		airoha,pcm-interface-control = <0xf5071306>;
+		airoha,tx-slot-config = <0x10301020 0x10501040
+					 0x10701060 0x10901080>;
+		airoha,rx-slot-config = <0x10301020 0x10501040
+					 0x10701060 0x10901080>;
+		airoha,dma-channel-mask = <0x05>;
+		status = "okay";
+	};
+
+	isi0: spi@1fbd1000 {
+		compatible = "airoha,en7581-isi-spi";
+		reg = <0x0 0x1fbd1000 0x0 0x1000>;
+		reg-names = "isi";
+		airoha,scu = <&scuclk>;
 		airoha,chip-scu = <&chip_scu>;
-		airoha,np-scu = <&scuclk>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pcm_spi_pins>;
+		#address-cells = <1>;
+		#size-cells = <0>;
 		status = "okay";
+
+		proslic@0 {
+			compatible = "silabs,si32192";
+			reg = <0>;
+			spi-max-frequency = <10000000>;
+			spi-cpha;
+			spi-cpol;
+			airoha,pcm = <&pcm0>;
+			airoha,pcm-channel = <0>;
+		};
+
+		proslic@1 {
+			compatible = "silabs,si32192";
+			reg = <1>;
+			spi-max-frequency = <10000000>;
+			spi-cpha;
+			spi-cpol;
+			airoha,pcm = <&pcm0>;
+			airoha,pcm-channel = <2>;
+		};
 	};
 };
 
@@ -437,9 +472,8 @@
 			function = "pcm_spi";
 			/*
 			 * GPIO1/GPIO2 are shared with MDIO in the vendor
-			 * MDIO workaround. The PCM-SPI driver uses software
-			 * reset and polling, so do not claim the vendor
-			 * pcm_spi_int/pcm_spi_rst pins here.
+			 * MDIO workaround. The ISI controller uses the SCU reset
+			 * sequence and does not claim pcm_spi_int/pcm_spi_rst.
 			 */
 			groups = "pcm_spi", "pcm_spi_cs1";
 		};

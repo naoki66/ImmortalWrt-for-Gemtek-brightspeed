@@ -1,0 +1,169 @@
+diff --git a/src/en75xx_isi_spi.c b/src/en75xx_isi_spi.c
+index 8812076..3f4ddba 100644
+--- a/src/en75xx_isi_spi.c
++++ b/src/en75xx_isi_spi.c
+@@ -73,14 +73,13 @@
+ /*
+- * Writing ISI_REG_CHAN_SEL before each transaction was part of this
+- * driver's original, unverified guess at the protocol; disabling it
+- * cost nothing once EN7528 bring-up was traced to the clock generator
+- * below instead. Off by default; kept as a param rather than deleted in
+- * case a future multi-device board needs it back.
++ * ISI_REG_CHAN_SEL selects the physical point-to-point ISI endpoint.
++ * It is required on multi-SLIC boards such as XG2010G; selecting zero
++ * before each transaction is harmless on the existing single-device
++ * boards. Keep the parameter writable for hardware bring-up.
+  */
+-static bool legacy_chan_sel;
++static bool legacy_chan_sel = true;
+ module_param_named(legacy_chan_sel, legacy_chan_sel, bool, 0644);
+-MODULE_PARM_DESC(legacy_chan_sel, "write ISI_REG_CHAN_SEL before each transaction (legacy, off by default)");
++MODULE_PARM_DESC(legacy_chan_sel, "select the physical ISI device before each transaction");
+ 
+ static bool en7528_pcm_clk = true;
+ module_param_named(en7528_pcm_clk, en7528_pcm_clk, bool, 0644);
+ MODULE_PARM_DESC(en7528_pcm_clk, "enable EN7528's chip-SCU PCM clock generator during ISI bring-up");
+@@ -134,6 +134,16 @@ MODULE_PARM_DESC(en7528_pcm_clk, "enable EN7528's chip-SCU PCM clock generator d
+ #define EN7528_CHIP_SCU_PINMUX		0x130
+ #define EN7528_CHIP_SCU_PINMUX_MASK	0x00000c00u
+ 
++#define EN7581_CHIP_SCU_CLKSRC		0x218
++#define EN7581_CHIP_SCU_CLKSRC_MASK	0x003f3300u
++#define EN7581_CHIP_SCU_GPIO_DEV1	0x00003000u
++#define EN7581_CHIP_SCU_PINMUX		0x1d0
++#define EN7581_CHIP_SCU_PINMUX_MASK	0x00000c00u
++
++#define EN7581_SYS_RESET			0x834
++#define EN7581_SYS_RESET_PCM1_ISI	BIT(0)
++#define EN7581_SYS_RESET_SPI_WRAPPER	BIT(4)
++
+ /*
+  * EN7528's PCM engine has its own clock generator, separate from the
+  * clock-source/pinmux routing above: the SLIC only answers on ISI while
+@@ -189,9 +199,37 @@ struct en75xx_isi_quirks {
+ 	u32 chip_scu_gpio_dev1;
+ 	u32 chip_scu_pinmux_reg;
+ 	u32 chip_scu_pinmux_mask;
+-	u32 pinmux_extra_set;	/* EN7523-only; see file header, 0 elsewhere */
++	u32 pinmux_extra_set;	/* value to set inside the pinmux update mask */
++	u32 sys_reset_first;
++	u32 sys_reset_second;
+ };
+ 
++static int en75xx_isi_spi_reset_fallback(struct en75xx_isi_spi *isi,
++					 const struct en75xx_isi_quirks *quirks)
++{
++	u32 masks[] = { quirks->sys_reset_first, quirks->sys_reset_second };
++	unsigned int i;
++	int ret;
++
++	for (i = 0; i < ARRAY_SIZE(masks); i++) {
++		if (!masks[i])
++			continue;
++
++		ret = en75xx_scu_update(&isi->sys, EN7581_SYS_RESET,
++					 masks[i], masks[i]);
++		if (ret)
++			return ret;
++		usleep_range(5000, 6000);
++		ret = en75xx_scu_update(&isi->sys, EN7581_SYS_RESET,
++					 masks[i], 0);
++		if (ret)
++			return ret;
++		usleep_range(5000, 6000);
++	}
++
++	return 0;
++}
++
+ static int isi_start_apll(struct en75xx_isi_spi *isi)
+ {
+ 	u32 xtal, reg, div, v;
+@@ -345,9 +383,8 @@ static int en75xx_isi_spi_hw_init(struct en75xx_isi_spi *isi,
+ 		/*
+ 		 * ISI branch of set_gpio_clocksrc(): write(clksrc_reg,
+ 		 * (read & ~clksrc_mask) | gpio_dev1); write(pinmux_reg,
+-		 * read & ~pinmux_mask), the latter ORed with the SoC's
+-		 * extra bit (0 except on EN7523) since this driver only
+-		 * ever takes the ISI path.
++		 * read & ~pinmux_mask), with the latter carrying the
++		 * SoC-specific value for the ISI path.
+ 		 */
+ 		ret = en75xx_scu_update(&isi->scu, quirks->chip_scu_clksrc_reg,
+ 					quirks->chip_scu_clksrc_mask,
+@@ -386,6 +423,11 @@ static int en75xx_isi_spi_hw_init(struct en75xx_isi_spi *isi,
+ 		if (ret)
+ 			return dev_err_probe(isi->dev, ret,
+ 					     "cannot pulse the ISI reset\n");
++	} else if (quirks->sys_reset_first || quirks->sys_reset_second) {
++		ret = en75xx_isi_spi_reset_fallback(isi, quirks);
++		if (ret)
++			return dev_err_probe(isi->dev, ret,
++					     "cannot pulse the EN7581 ISI reset\n");
+ 	}
+ 
+ 	/*
+@@ -463,6 +505,7 @@ static int en75xx_isi_spi_probe(struct platform_device *pdev)
+ 	host->mode_bits = SPI_CPOL | SPI_CPHA;
+ 	host->bits_per_word_mask = SPI_BPW_MASK(8);
+ 	host->flags = SPI_CONTROLLER_HALF_DUPLEX;
++	host->num_chipselect = 32;
+ 	host->use_gpio_descriptors = true;
+ 	host->transfer_one = en75xx_isi_spi_transfer_one;
+ 
+@@ -494,9 +537,20 @@ static const struct en75xx_isi_quirks en7528_isi_quirks = {
+ 	.chip_scu_pinmux_mask = EN7528_CHIP_SCU_PINMUX_MASK,
+ };
+ 
++static const struct en75xx_isi_quirks en7581_isi_quirks = {
++	.chip_scu_clksrc_reg = EN7581_CHIP_SCU_CLKSRC,
++	.chip_scu_clksrc_mask = EN7581_CHIP_SCU_CLKSRC_MASK,
++	.chip_scu_gpio_dev1 = EN7581_CHIP_SCU_GPIO_DEV1,
++	.chip_scu_pinmux_reg = EN7581_CHIP_SCU_PINMUX,
++	.chip_scu_pinmux_mask = EN7581_CHIP_SCU_PINMUX_MASK,
++	.sys_reset_first = EN7581_SYS_RESET_SPI_WRAPPER,
++	.sys_reset_second = EN7581_SYS_RESET_PCM1_ISI,
++};
++
+ static const struct of_device_id en75xx_isi_spi_of_match[] = {
+ 	{ .compatible = "airoha,en7523-isi-spi", .data = &en7523_isi_quirks },
+ 	{ .compatible = "econet,en7528-isi-spi", .data = &en7528_isi_quirks },
++	{ .compatible = "airoha,en7581-isi-spi", .data = &en7581_isi_quirks },
+ 	{ }
+ };
+ MODULE_DEVICE_TABLE(of, en75xx_isi_spi_of_match);
+diff --git a/src/en75xx_pcm.c b/src/en75xx_pcm.c
+index 5288bc5..9b30798 100644
+--- a/src/en75xx_pcm.c
++++ b/src/en75xx_pcm.c
+@@ -1433,10 +1433,23 @@ static const struct en75xx_pcm_soc_data en7523_pcm_data = {
+ 	.pcm_v2 = true,
+ };
+ 
++static const struct en75xx_pcm_soc_data en7581_pcm_data = {
++	.name = "EN7581",
++	.ring_count = EN75XX_PCM_RING_COUNT,
++	.desc_size = sizeof(struct en75xx_pcm_desc_v2),
++	.ring_cfg = 0x3f,
++	.dma_mask = DMA_BIT_MASK(32),
++	.dma_addr_mask = 0x3fffffff,
++	.dma_or = 0x80000000,
++	.channel_mask = GENMASK(3, 0),
++	.pcm_v2 = true,
++};
++
+ static const struct of_device_id en75xx_pcm_of_match[] = {
+ 	{ .compatible = "econet,en751221-pcm", .data = &en751221_pcm_data },
+ 	{ .compatible = "econet,en7528-pcm", .data = &en7528_pcm_data },
+ 	{ .compatible = "airoha,en7523-pcm", .data = &en7523_pcm_data },
++	{ .compatible = "airoha,en7581-pcm", .data = &en7581_pcm_data },
+ 	{ }
+ };
+ MODULE_DEVICE_TABLE(of, en75xx_pcm_of_match);
+@@ -1451,5 +1464,5 @@ static struct platform_driver en75xx_pcm_driver = {
+ };
+ module_platform_driver(en75xx_pcm_driver);
+ 
+-MODULE_DESCRIPTION("EcoNet/Airoha EN751221/EN7528/EN7523 PCM/TDM driver");
++MODULE_DESCRIPTION("EcoNet/Airoha EN751221/EN7528/EN7523/EN7581 PCM/TDM driver");
+ MODULE_LICENSE("GPL");
