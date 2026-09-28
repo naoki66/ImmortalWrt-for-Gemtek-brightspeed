@@ -3,6 +3,19 @@
 本文件记录 Gemtek Brightspeed 固件仓库的重要功能、稳定性和维护变更。常规的
 ImmortalWrt 上游合并不逐项展开，仅记录会影响本设备构建或运行行为的内容。
 
+## 2026-09-28
+
+### XG2010G PON 用户态与 LuCI
+
+- 将 `pon_userspace` feed 从 `pbs05/openwrt-pon-userspace` 切换到
+  `naoki66/openwrt-pon-userspace`。
+- 使用新版 `luci-app-pon` 的“网络 → ONU”菜单，按状态、硬件身份、认证配置、
+  IPTV、语音和诊断组织页面。
+- IPTV 页面、ACL、UCI 配置和应用服务已并入 `luci-app-pon`，从 XG2010G
+  配置中移除已废弃的独立 `luci-app-iptv` 包选择。
+- `pon_userspace` feed 和 `luci-app-pon` 仅由 XG2010G 的 `2010.config` 启用，
+  XR1710G 的 `1710.config` 明确保持禁用。
+
 ## 2026-09-23
 
 本条目覆盖 XR1710G 从 `20260916-e8702ccc61` 到 `b94f6f29b3` 的变更。同期
