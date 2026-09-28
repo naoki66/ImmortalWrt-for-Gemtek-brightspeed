@@ -195,7 +195,7 @@ define Device/gemtek_xr1710g-common
   DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware airoha-an7581-mt7996-board \
 		    kmod-nf-conntrack-bridge kmod-nft-bridge \
 		    fitblk uboot-envtools kmod-airoha-i2c \
-		    kmod-hwmon-nct7802 kmod-mt7996-firmware wpad-mbedtls \
+		    kmod-hwmon-nct7802 kmod-mt7996-firmware wpad-mesh-mbedtls \
 		    rtl826x-firmware px5g-mbedtls \
 		    -kmod-airoha-tod -kmod-airoha-en7581-pcm-spi
   UBINIZE_OPTS := -E 5
