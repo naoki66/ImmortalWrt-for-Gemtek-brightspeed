@@ -57,6 +57,8 @@ XR1710G 与 XG2010G 设备维护的 Airoha AN7581 固件项目。
 
 XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集合不同，不能互刷固件。
 
+默认管理地址：http://192.168.1.1 或 http://immortalwrt.lan，用户名：**root**，密码：*无*。
+
 | 项目 | 参数 |
 |------|------|
 | **SoC** | Airoha AN7581 / EN7581 |
@@ -106,7 +108,7 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集
 
 ### 网络与无线默认行为
 
-- 默认 LAN 地址为 `192.168.50.1`；IPv6 使用 SLAAC/EUI-64，关闭 DHCPv6/NDP 与 RA DNS/附加标志，减少国内网络环境下的兼容性问题。
+- 默认 LAN 地址由各设备构建配置的 `CONFIG_TARGET_PREINIT_IP` 决定：XR1710G 为 `192.168.50.1`，XG2010G 为 `192.168.1.1`；IPv6 使用 SLAAC/EUI-64，关闭 DHCPv6/NDP 与 RA DNS/附加标志，减少国内网络环境下的兼容性问题。
 - 默认开启 firewall4 软件 flow offload 与硬件 flow offload；VLAN 标签卸载、PPPoE 透传卸载和 AP 模式加速可在 NPU 页面按需启用，并由 FlowSense 展示运行状态。
 - 三个无线射频默认启用：2.4GHz 为 HE20/自动信道/28dBm，5GHz 为 EHT160/信道 36/30dBm，6GHz 为 EHT320/信道 37/30dBm。
 - FlowSense 提供 Router/AP 模式、VLAN 标签/PPPoE 透传/AP 模式卸载状态与自定义 Ping 延迟检测；NPU 页面提供 PPE/Frame Engine 与 CPU 频率状态；风扇页面提供实时温度、RPM/PWM 曲线与自定义曲线。

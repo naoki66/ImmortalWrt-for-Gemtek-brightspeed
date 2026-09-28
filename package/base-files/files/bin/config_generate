@@ -158,7 +158,7 @@ generate_network() {
 		static)
 			local ipad netm prefix
 			case "$1" in
-				lan) ipad=${ipaddr:-"192.168.50.1"} ;;
+				lan) ipad=${ipaddr:-"192.168.1.1"} ;;
 				*) ipad=${ipaddr:-"192.168.$((addr_offset++)).1"} ;;
 			esac
 
