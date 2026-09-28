@@ -261,8 +261,8 @@ define Device/gemtek_xg2010g-ubi
   KERNEL := kernel-bin | gzip
   KERNEL_INITRAMFS :=
   IMAGES := sysupgrade.itb
-  # Keep the complete FIT within the existing 346-LEB UBI volume.
-  IMAGE_SIZE := 42904k
+  # Keep the complete FIT within the 339-LEB UBI volume used by XG2010G.
+  IMAGE_SIZE := 42036k
   IMAGE/sysupgrade.itb := append-kernel | \
 	fit gzip $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb external-static-with-rootfs | \
 	append-metadata | check-size

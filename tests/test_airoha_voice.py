@@ -134,7 +134,7 @@ class VoiceStackSourceTests(unittest.TestCase):
         device_start = self.image.index("define Device/gemtek_xg2010g-ubi")
         device_end = self.image.index("endef", device_start)
         device = self.image[device_start:device_end]
-        self.assertIn("IMAGE_SIZE := 42904k", device)
+        self.assertIn("IMAGE_SIZE := 42036k", device)
         self.assertIn("append-metadata | check-size", device)
 
     def test_xg2010g_upgrade_ramfs_contains_layout_check_tools(self):
