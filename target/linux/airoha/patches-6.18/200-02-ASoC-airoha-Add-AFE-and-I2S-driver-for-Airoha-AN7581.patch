@@ -402,7 +402,7 @@ Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
 +	.reg_stride = 4,
 +	.val_bits = 32,
 +	.max_register = AFE_MAX_REGISTER,
-+	.num_reg_defaults_raw = ((AFE_MAX_REGISTER / 4) + 1),
++	.name = "afe",
 +};
 +
 +static irqreturn_t an7581_afe_irq_handler(int irq_id, void *dev)

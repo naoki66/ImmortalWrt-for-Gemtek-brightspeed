@@ -421,7 +421,9 @@
 
 		afe: afe@1fbe2200 {
 			compatible = "airoha,an7581-afe";
-			reg = <0x0 0x1fbe2200 0x0 0x9000>;
+			reg = <0x0 0x1fbe2200 0x0 0xfc>,
+			      <0x0 0x1fbe2e00 0x0 0x114>;
+			reg-names = "afe", "irq";
 			resets = <&scuclk EN7581_I2S_RST>;
 
 			interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>;

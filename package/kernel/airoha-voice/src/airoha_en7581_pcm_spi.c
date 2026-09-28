@@ -8,8 +8,8 @@
  * full ProSLIC patch/RAM initialization and calibrated ringing still need
  * the vendor tables before they can be enabled safely.
  *
- * Direct register read/write follows the stock SPI_bytes_read_silicon() and
- * SPI_bytes_write_silicon() command-byte sequences.  The raw sysfs register
+ * Direct register read/write follows the stock ISI_bytes_read() and
+ * ISI_bytes_write() wrapper transactions. The raw sysfs register
  * hook exists to make the remaining ProSLIC bring-up observable, not as a
  * replacement for a full line-control driver.
  */
@@ -32,26 +32,19 @@
 #include <linux/uaccess.h>
 #include <linux/wait.h>
 
-#define EN7581_SPI_CTRL			0x00
-#define EN7581_SPI_TX_DATA		0x04
-#define EN7581_SPI_RX_DATA		0x08
-#define EN7581_SPI_MASTER		0x28
-#define EN7581_SPI_MOREBUF		0x2c
+#define EN7581_ISI_TX_DATA		0x1004
+#define EN7581_ISI_STATUS			0x1008
+#define EN7581_ISI_RX_DATA		0x100c
+#define EN7581_ISI_CONFIG			0x1010
+#define EN7581_ISI_PORT			0x1014
+#define EN7581_ISI_READ_START		BIT(0)
+#define EN7581_ISI_TX_DONE			BIT(1)
+#define EN7581_ISI_RX_DONE			BIT(2)
+#define EN7581_ISI_CONFIG_DEFAULT		0x19
 
-#define EN7581_SPI_CTRL_START		BIT(8)
-#define EN7581_SPI_CTRL_BUSY		BIT(16)
-#define EN7581_SPI_MASTER_CS		GENMASK(31, 29)
-
-#define EN7581_SPI_MASTER_ISI		0x00000134
-#define EN7581_SPI_MASTER_BYTE_XFER	0x001c0000
-#define EN7581_SPI_MASTER_KEEP_MASK	0x1000ffff
-#define EN7581_SPI_MOREBUF_KEEP_MASK	0xc0e00e00
-#define EN7581_SPI_MOREBUF_TX_EN	BIT(27)
-#define EN7581_SPI_MOREBUF_RX_EN	BIT(15)
-
-#define EN7581_PCM_SLIC_RESET		0x0834
-#define EN7581_PCM_RESET_SLIC0		BIT(0)
-#define EN7581_PCM_RESET_ISI		BIT(4)
+#define EN7581_NP_SCU_RESET		0x0834
+#define EN7581_RESET_PCM1_ISI		BIT(0)
+#define EN7581_RESET_SPI_WRAPPER		BIT(4)
 
 #define EN7581_PCM_GLOBAL_CFG		0x0000
 #define EN7581_PCM_GLOBAL_KEEP_MASK	0xfff7e7df
@@ -104,7 +97,6 @@ struct en7581_pcm_desc {
 
 struct en7581_pcm_spi {
 	struct device *dev;
-	void __iomem *spi_base;
 	void __iomem *pcm_base;
 	struct regmap *chip_scu;
 	struct regmap *np_scu;
@@ -125,42 +117,35 @@ struct en7581_pcm_spi {
 	bool pcm_ready;
 	u8 reg0;
 	u8 debug_reg;
-	u8 pcm_debug_reg;
-	unsigned int chip_select;
+	u16 pcm_debug_reg;
+	unsigned int isi_port;
 	bool identified;
 };
 
-static int en7581_spi_wait_idle(struct en7581_pcm_spi *priv)
+static int en7581_isi_byte(struct en7581_pcm_spi *priv, u8 tx, u8 *rx)
 {
-	u32 val;
-
-	return readl_poll_timeout(priv->spi_base + EN7581_SPI_CTRL, val,
-				  !(val & EN7581_SPI_CTRL_BUSY), 1, 10000);
-}
-
-static int en7581_spi_clock_byte(struct en7581_pcm_spi *priv, u8 tx,
-				  bool load_tx, u8 *rx)
-{
-	u32 val;
+	u32 val, done = rx ? EN7581_ISI_RX_DONE : EN7581_ISI_TX_DONE;
 	int ret;
 
-	ret = en7581_spi_wait_idle(priv);
-	if (ret)
+	if (rx) {
+		val = readl(priv->pcm_base + EN7581_ISI_STATUS);
+		writel(val | EN7581_ISI_READ_START,
+		       priv->pcm_base + EN7581_ISI_STATUS);
+	} else {
+		writel(tx, priv->pcm_base + EN7581_ISI_TX_DATA);
+	}
+
+	ret = readl_poll_timeout(priv->pcm_base + EN7581_ISI_STATUS, val,
+				 val & done, 2, 10000);
+	if (ret) {
+		dev_err(priv->dev, "ISI %s timeout, status=0x%08x\n",
+			rx ? "read" : "write", val);
 		return ret;
-
-	if (load_tx)
-		writel(tx, priv->spi_base + EN7581_SPI_TX_DATA);
-
-	val = readl(priv->spi_base + EN7581_SPI_CTRL);
-	writel(val | EN7581_SPI_CTRL_START,
-	       priv->spi_base + EN7581_SPI_CTRL);
-
-	ret = en7581_spi_wait_idle(priv);
-	if (ret)
-		return ret;
+	}
 
 	if (rx)
-		*rx = readl(priv->spi_base + EN7581_SPI_RX_DATA);
+		*rx = readl(priv->pcm_base + EN7581_ISI_RX_DATA);
+	writel(val | done, priv->pcm_base + EN7581_ISI_STATUS);
 
 	return 0;
 }
@@ -274,48 +259,22 @@ static void en7581_pcm_ring_stop(struct en7581_pcm_spi *priv)
 	priv->pcm_ready = false;
 }
 
-static void en7581_spi_prepare(struct en7581_pcm_spi *priv, bool read)
-{
-	u32 master = readl(priv->spi_base + EN7581_SPI_MASTER);
-	u32 morebuf = readl(priv->spi_base + EN7581_SPI_MOREBUF);
-
-	master &= EN7581_SPI_MASTER_KEEP_MASK;
-	master |= EN7581_SPI_MASTER_BYTE_XFER;
-	master &= ~EN7581_SPI_MASTER_CS;
-	master |= FIELD_PREP(EN7581_SPI_MASTER_CS, priv->chip_select);
-
-	morebuf &= EN7581_SPI_MOREBUF_KEEP_MASK;
-	morebuf |= read ? EN7581_SPI_MOREBUF_RX_EN :
-			 EN7581_SPI_MOREBUF_TX_EN;
-
-	writel(master, priv->spi_base + EN7581_SPI_MASTER);
-	writel(morebuf, priv->spi_base + EN7581_SPI_MOREBUF);
-}
-
 static int en7581_si3219x_read_ch(struct en7581_pcm_spi *priv,
 				  unsigned int channel, u8 reg, u8 *val)
 {
-	u32 morebuf;
 	int ret;
 
-	en7581_spi_prepare(priv, false);
+	writel(priv->isi_port, priv->pcm_base + EN7581_ISI_PORT);
 
-	ret = en7581_spi_clock_byte(priv, SI3219X_CTRL_READ_CH0 | channel,
-				   true, NULL);
+	ret = en7581_isi_byte(priv, SI3219X_CTRL_READ_CH0 | channel, NULL);
 	if (ret)
 		return ret;
 
-	ret = en7581_spi_clock_byte(priv, reg, true, NULL);
+	ret = en7581_isi_byte(priv, reg, NULL);
 	if (ret)
 		return ret;
 
-	morebuf = readl(priv->spi_base + EN7581_SPI_MOREBUF);
-	morebuf &= EN7581_SPI_MOREBUF_KEEP_MASK;
-	morebuf |= EN7581_SPI_MOREBUF_RX_EN;
-	writel(morebuf, priv->spi_base + EN7581_SPI_MOREBUF);
-	writel(0, priv->spi_base + EN7581_SPI_RX_DATA);
-
-	return en7581_spi_clock_byte(priv, 0, false, val);
+	return en7581_isi_byte(priv, 0, val);
 }
 
 static int en7581_si3219x_read(struct en7581_pcm_spi *priv, u8 reg, u8 *val)
@@ -328,18 +287,17 @@ static int en7581_si3219x_write_ch(struct en7581_pcm_spi *priv,
 {
 	int ret;
 
-	en7581_spi_prepare(priv, false);
+	writel(priv->isi_port, priv->pcm_base + EN7581_ISI_PORT);
 
-	ret = en7581_spi_clock_byte(priv, SI3219X_CTRL_WRITE_CH0 | channel,
-				   true, NULL);
+	ret = en7581_isi_byte(priv, SI3219X_CTRL_WRITE_CH0 | channel, NULL);
 	if (ret)
 		return ret;
 
-	ret = en7581_spi_clock_byte(priv, reg, true, NULL);
+	ret = en7581_isi_byte(priv, reg, NULL);
 	if (ret)
 		return ret;
 
-	return en7581_spi_clock_byte(priv, val, true, NULL);
+	return en7581_isi_byte(priv, val, NULL);
 }
 
 static int en7581_si3219x_write(struct en7581_pcm_spi *priv, u8 reg, u8 val)
@@ -388,6 +346,22 @@ static int en7581_pcm_controller_init(struct en7581_pcm_spi *priv)
 	return 0;
 }
 
+static int en7581_isi_reset(struct en7581_pcm_spi *priv, u32 mask)
+{
+	int ret;
+
+	ret = regmap_update_bits(priv->np_scu, EN7581_NP_SCU_RESET, mask, mask);
+	if (ret)
+		return ret;
+	usleep_range(5000, 6000);
+	ret = regmap_update_bits(priv->np_scu, EN7581_NP_SCU_RESET, mask, 0);
+	if (ret)
+		return ret;
+	usleep_range(5000, 6000);
+
+	return 0;
+}
+
 static int en7581_pcm_spi_hw_init(struct en7581_pcm_spi *priv)
 {
 	u32 val;
@@ -414,51 +388,39 @@ static int en7581_pcm_spi_hw_init(struct en7581_pcm_spi *priv)
 	if (ret)
 		return ret;
 
-	val = readl(priv->pcm_base + EN7581_PCM_SLIC_RESET);
-	writel(val | EN7581_PCM_RESET_ISI,
-	       priv->pcm_base + EN7581_PCM_SLIC_RESET);
-	usleep_range(5000, 6000);
-	writel(val & ~EN7581_PCM_RESET_ISI,
-	       priv->pcm_base + EN7581_PCM_SLIC_RESET);
-	usleep_range(5000, 6000);
-
-	val = readl(priv->pcm_base + EN7581_PCM_SLIC_RESET);
-	writel(val | EN7581_PCM_RESET_SLIC0,
-	       priv->pcm_base + EN7581_PCM_SLIC_RESET);
-	usleep_range(5000, 6000);
-	writel(val & ~EN7581_PCM_RESET_SLIC0,
-	       priv->pcm_base + EN7581_PCM_SLIC_RESET);
-	usleep_range(5000, 6000);
-
-	ret = en7581_spi_wait_idle(priv);
+	/* These reset bits belong to NP-SCU, not the PCM MMIO window. */
+	ret = en7581_isi_reset(priv, EN7581_RESET_SPI_WRAPPER);
 	if (ret)
 		return ret;
 
-	val = readl(priv->spi_base + EN7581_SPI_MASTER);
-	val &= ~EN7581_SPI_MASTER_CS;
-	val |= EN7581_SPI_MASTER_ISI;
-	writel(val, priv->spi_base + EN7581_SPI_MASTER);
+	ret = en7581_isi_reset(priv, EN7581_RESET_PCM1_ISI);
+	if (ret)
+		return ret;
+
+	val = readl(priv->pcm_base + EN7581_ISI_CONFIG);
+	writel(val | EN7581_ISI_CONFIG_DEFAULT,
+	       priv->pcm_base + EN7581_ISI_CONFIG);
 
 	return 0;
 }
 
-static int en7581_pcm_spi_parse_chip_select(struct en7581_pcm_spi *priv)
+static int en7581_pcm_spi_parse_port(struct en7581_pcm_spi *priv)
 {
-	u32 chip_select;
+	u32 port;
 	int ret;
 
 	ret = of_property_read_u32(priv->dev->of_node,
-				 "airoha,spi-chip-select", &chip_select);
+				 "airoha,isi-port", &port);
 	if (ret == -EINVAL) {
-		priv->chip_select = 0;
+		priv->isi_port = 0;
 		return 0;
 	}
 	if (ret)
 		return ret;
-	if (chip_select > FIELD_MAX(EN7581_SPI_MASTER_CS))
+	if (port > 1)
 		return -EINVAL;
 
-	priv->chip_select = chip_select;
+	priv->isi_port = port;
 
 	return 0;
 }
@@ -523,14 +485,14 @@ static ssize_t rescan_store(struct device *dev, struct device_attribute *attr,
 }
 static DEVICE_ATTR_WO(rescan);
 
-static ssize_t chip_select_show(struct device *dev,
+static ssize_t isi_port_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	struct en7581_pcm_spi *priv = dev_get_drvdata(dev);
 
-	return sysfs_emit(buf, "%u\n", priv->chip_select);
+	return sysfs_emit(buf, "%u\n", priv->isi_port);
 }
-static DEVICE_ATTR_RO(chip_select);
+static DEVICE_ATTR_RO(isi_port);
 
 static ssize_t raw_register_show(struct device *dev,
 			     struct device_attribute *attr, char *buf)
@@ -589,8 +551,8 @@ static ssize_t line_state_show(struct device *dev,
 		return ret;
 
 	return sysfs_emit(buf, "0:%u 1:%u\n",
-			  val0 & SI3219X_LINEFEED_MASK,
-			  val1 & SI3219X_LINEFEED_MASK);
+			  (unsigned int)(val0 & SI3219X_LINEFEED_MASK),
+			  (unsigned int)(val1 & SI3219X_LINEFEED_MASK));
 }
 
 static ssize_t line_state_store(struct device *dev,
@@ -703,7 +665,7 @@ static DEVICE_ATTR_RW(pcm_register);
 static struct attribute *en7581_pcm_spi_attrs[] = {
 	&dev_attr_identity.attr,
 	&dev_attr_rescan.attr,
-	&dev_attr_chip_select.attr,
+	&dev_attr_isi_port.attr,
 	&dev_attr_raw_register.attr,
 	&dev_attr_line_state.attr,
 	&dev_attr_hook_state.attr,
@@ -878,10 +840,6 @@ static int en7581_pcm_spi_probe(struct platform_device *pdev)
 	mutex_init(&priv->lock);
 	platform_set_drvdata(pdev, priv);
 
-	priv->spi_base = devm_platform_ioremap_resource_byname(pdev, "spi");
-	if (IS_ERR(priv->spi_base))
-		return PTR_ERR(priv->spi_base);
-
 	priv->pcm_base = devm_platform_ioremap_resource_byname(pdev, "pcm");
 	if (IS_ERR(priv->pcm_base))
 		return PTR_ERR(priv->pcm_base);
@@ -898,15 +856,17 @@ static int en7581_pcm_spi_probe(struct platform_device *pdev)
 		return dev_err_probe(dev, PTR_ERR(priv->np_scu),
 				     "failed to get NP SCU\n");
 
-	ret = en7581_pcm_spi_parse_chip_select(priv);
+	ret = en7581_pcm_spi_parse_port(priv);
 	if (ret)
-		return dev_err_probe(dev, ret, "invalid SPI chip select\n");
+		return dev_err_probe(dev, ret, "invalid ISI port\n");
 
 	ret = en7581_pcm_spi_identify(priv);
-	if (ret)
+	if (ret == -ENODEV)
 		return dev_err_probe(dev, ret,
-				     "Si32192 identity probe failed (reg0=0x%02x)\n",
+				     "unexpected SLIC identity (reg0=0x%02x)\n",
 				     priv->reg0);
+	if (ret)
+		return dev_err_probe(dev, ret, "Si32192 ISI transfer failed\n");
 
 	ret = en7581_pcm_ring_alloc(priv);
 	if (ret)
@@ -920,9 +880,9 @@ static int en7581_pcm_spi_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_ring_stop;
 
-	dev_info(dev, "Si32192 detected, revision %u cs=%u (reg0=0x%02x)\n",
-		 priv->chip_select,
+	dev_info(dev, "Si32192 detected, revision %u ISI port=%u (reg0=0x%02x)\n",
 		 (unsigned int)FIELD_GET(SI3219X_ID_REV, priv->reg0),
+		 priv->isi_port,
 		 priv->reg0);
 
 	return 0;

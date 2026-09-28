@@ -2,12 +2,18 @@
 # Copyright (C) 2025 OpenWrt.org
 #
 
-[ -e /etc/config/ubootenv ] && exit 0
-
-touch /etc/config/ubootenv
-
 . /lib/uboot-envtools.sh
 . /lib/functions.sh
+
+# Preserve customized UCI entries when only the generated file is missing.
+if [ -s /etc/config/ubootenv ]; then
+	[ -s /etc/fw_env.config ] && exit 0
+	config_load ubootenv
+	config_foreach ubootenv_add_app_config
+	[ -s /etc/fw_env.config ] && exit 0
+fi
+
+touch /etc/config/ubootenv
 
 board=$(board_name)
 
@@ -32,6 +38,8 @@ gemtek,xr1710g)
 gemtek,xr1710g-ubi)
 	ubootenv_add_ubi_default
 	;;
+gemtek,xg2010g-ubi|\
+gemtek,xg2010g|\
 gemtek,w1700k-ubi|\
 nokia,xg-040g-md-ubi)
 	ubootenv_add_ubi_default

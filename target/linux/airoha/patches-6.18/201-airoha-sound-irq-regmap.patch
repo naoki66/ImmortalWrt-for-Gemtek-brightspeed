@@ -1,0 +1,88 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Christian Marangi <ansuelsmth@gmail.com>
+Date: Fri, 31 Jul 2026 08:43:23 +0200
+Subject: [PATCH] ASoC: mediatek: common: permit to provide dedicated regmap for irq
+
+Some SoC might require a dedicated regmap to configure specific IRQ
+registers. Add an optional regmap to struct mtk_base_afe_irq and use it
+in the FE trigger path when present.
+
+This matches the upstream AN7581 AFE v4 series and is required for the
+EN7581 AFE where IRQ1 registers live in a second MMIO window.
+
+Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
+---
+ sound/soc/mediatek/common/mtk-afe-fe-dai.c | 14 +++++++-----
+ sound/soc/mediatek/common/mtk-base-afe.h   |  2 ++
+ 2 files changed, 11 insertions(+), 5 deletions(-)
+
+diff --git a/sound/soc/mediatek/common/mtk-afe-fe-dai.c b/sound/soc/mediatek/common/mtk-afe-fe-dai.c
+--- a/sound/soc/mediatek/common/mtk-afe-fe-dai.c
++++ b/sound/soc/mediatek/common/mtk-afe-fe-dai.c
+@@ -204,11 +204,15 @@ int mtk_afe_fe_trigger(struct snd_pcm_substream *substream, int cmd,
+ 	struct mtk_base_afe_irq *irqs = &afe->irqs[memif->irq_usage];
+ 	const struct mtk_base_irq_data *irq_data = irqs->irq_data;
+ 	unsigned int counter = runtime->period_size;
++	struct regmap *regmap = afe->regmap;
+ 	int fs;
+ 	int ret;
+ 
+ 	dev_dbg(afe->dev, "%s %s cmd=%d\n", __func__, memif->data->name, cmd);
+ 
++	if (irqs->regmap)
++		regmap = irqs->regmap;
++
+ 	switch (cmd) {
+ 	case SNDRV_PCM_TRIGGER_START:
+ 	case SNDRV_PCM_TRIGGER_RESUME:
+@@ -220,7 +224,7 @@ int mtk_afe_fe_trigger(struct snd_pcm_substream *substream, int cmd,
+ 		}
+ 
+ 		/* set irq counter */
+-		mtk_regmap_update_bits(afe->regmap, irq_data->irq_cnt_reg,
++		mtk_regmap_update_bits(regmap, irq_data->irq_cnt_reg,
+ 				       irq_data->irq_cnt_maskbit, counter,
+ 				       irq_data->irq_cnt_shift);
+ 
+@@ -230,12 +234,12 @@ int mtk_afe_fe_trigger(struct snd_pcm_substream *substream, int cmd,
+ 		if (fs < 0)
+ 			return -EINVAL;
+ 
+-		mtk_regmap_update_bits(afe->regmap, irq_data->irq_fs_reg,
++		mtk_regmap_update_bits(regmap, irq_data->irq_fs_reg,
+ 				       irq_data->irq_fs_maskbit, fs,
+ 				       irq_data->irq_fs_shift);
+ 
+ 		/* enable interrupt */
+-		mtk_regmap_update_bits(afe->regmap, irq_data->irq_en_reg,
++		mtk_regmap_update_bits(regmap, irq_data->irq_en_reg,
+ 				       1, 1, irq_data->irq_en_shift);
+ 
+ 		return 0;
+@@ -248,10 +252,10 @@ int mtk_afe_fe_trigger(struct snd_pcm_substream *substream, int cmd,
+ 		}
+ 
+ 		/* disable interrupt */
+-		mtk_regmap_update_bits(afe->regmap, irq_data->irq_en_reg,
++		mtk_regmap_update_bits(regmap, irq_data->irq_en_reg,
+ 				       1, 0, irq_data->irq_en_shift);
+ 		/* and clear pending IRQ */
+-		mtk_regmap_write(afe->regmap, irq_data->irq_clr_reg,
++		mtk_regmap_write(regmap, irq_data->irq_clr_reg,
+ 				 1 << irq_data->irq_clr_shift);
+ 		return ret;
+ 	default:
+diff --git a/sound/soc/mediatek/common/mtk-base-afe.h b/sound/soc/mediatek/common/mtk-base-afe.h
+--- a/sound/soc/mediatek/common/mtk-base-afe.h
++++ b/sound/soc/mediatek/common/mtk-base-afe.h
+@@ -153,6 +153,8 @@ struct mtk_base_afe_memif {
+ struct mtk_base_afe_irq {
+ 	const struct mtk_base_irq_data *irq_data;
+ 	int irq_occupyed;
++
++	struct regmap *regmap;
+ };
+ 
+ struct mtk_base_afe_dai {
+-- 
+2.53.0

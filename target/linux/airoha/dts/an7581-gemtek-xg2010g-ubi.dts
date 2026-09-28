@@ -375,8 +375,6 @@
 		reset-assert-us = <200000>;
 		reset-deassert-us = <200000>;
 		reset-before-id-read;
-		realtek,sds-mode = <0x88c6>;
-		realtek,patch-rtk-serdes;
 		tx-polarity = <PHY_POL_INVERT>;
 		rx-polarity = <PHY_POL_INVERT>;
 	};
@@ -388,8 +386,6 @@
 		reset-assert-us = <200000>;
 		reset-deassert-us = <200000>;
 		reset-before-id-read;
-		realtek,sds-mode = <0x88c6>;
-		realtek,patch-rtk-serdes;
 		tx-polarity = <PHY_POL_INVERT>;
 		rx-polarity = <PHY_POL_INVERT>;
 	};
@@ -398,6 +394,9 @@
 &gsw_phy4 {
 	/* Switch port 4 connects the 1GbE PHY at MDIO address 0x0c. */
 	interrupts = <4>;
+	/* PHY LEDs are disabled; provide the driver's named state without pins. */
+	pinctrl-names = "gbe-led";
+	pinctrl-0 = <>;
 	status = "okay";
 };
 
@@ -423,6 +422,7 @@
 		reg = <0x0 0x1fbc0000 0x0 0x30>,
 		      <0x0 0x1fbd0000 0x0 0x5000>;
 		reg-names = "spi", "pcm";
+		interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
 		airoha,chip-scu = <&chip_scu>;
 		airoha,np-scu = <&scuclk>;
 		pinctrl-names = "default";
@@ -435,8 +435,13 @@
 	pcm_spi_pins: pcm-spi-pins {
 		mux {
 			function = "pcm_spi";
-			groups = "pcm_spi", "pcm_spi_int", "pcm_spi_rst",
-				 "pcm_spi_cs1";
+			/*
+			 * GPIO1/GPIO2 are shared with MDIO in the vendor
+			 * MDIO workaround. The PCM-SPI driver uses software
+			 * reset and polling, so do not claim the vendor
+			 * pcm_spi_int/pcm_spi_rst pins here.
+			 */
+			groups = "pcm_spi", "pcm_spi_cs1";
 		};
 	};
 };

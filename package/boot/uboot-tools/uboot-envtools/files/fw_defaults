@@ -1,6 +1,8 @@
 . /lib/functions/uci-defaults.sh
 
-fw_loadenv
+# Early board detection runs before the writable overlay and env config exist.
+# do_config_generate() initializes envtools before running board detection again.
+[ -s /etc/fw_env.config ] && fw_loadenv
 
 board_config_update
 

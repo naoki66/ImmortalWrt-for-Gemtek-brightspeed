@@ -5,13 +5,15 @@ Subject: [PATCH] firewall4: add bridge flowtable support
 
 Generate a bridge-family flowtable (table bridge fw4, flowtable fb)
 when the offload device list contains bridge ports, so L2-forwarded
-traffic can be offloaded via nft_flow_offload.
+traffic can be offloaded via nft_flow_offload. Probe the complete bridge
+rules with nft --check first: kernels without the bridge flowtable
+backport must still be able to load the inet firewall after LAN comes up.
 
 Signed-off-by: Bohdan Chubuk <chbgdn@gmail.com>
 ---
 --- a/root/usr/share/ucode/fw4.uc	2026-07-01 09:54:35.812914268 +0300
 +++ b/root/usr/share/ucode/fw4.uc	2026-07-01 09:54:55.802938364 +0300
-@@ -575,6 +575,26 @@
+@@ -575,6 +575,43 @@
  		return false;
  	},
  
@@ -21,6 +23,23 @@ Signed-off-by: Bohdan Chubuk <chbgdn@gmail.com>
 +				return true;
 +
 +		return false;
++	},
++
++	supports_bridge_flowtable: function(devices) {
++		let flags = this.default_option("flow_offloading_hw") ? "flags offload;" : "";
++		let nft_test = `
++			add table bridge fw4-bridge-offload-test;
++			add flowtable bridge fw4-bridge-offload-test fb {
++				hook ingress priority 0;
++				devices = ${this.set(devices, true)};
++				counter; ${flags}
++			}
++			add chain bridge fw4-bridge-offload-test forward {
++				type filter hook forward priority filter; policy accept;
++				meta l4proto { tcp, udp } flow offload @fb;
++			}
++		`;
++		return system(`/usr/sbin/nft -c '${replace(nft_test, "'", "'\\''")}' 2>/dev/null`) == 0;
 +	},
 +
 +	resolve_bridge_devices: function(devices) {
@@ -51,7 +70,7 @@ Signed-off-by: Bohdan Chubuk <chbgdn@gmail.com>
 +{% endif %}
 +
 +{% let bridge_devices = fw4.resolve_bridge_devices(flowtable_devices); %}
-+{% if (length(bridge_devices) > 0): %}
++{% if (length(bridge_devices) > 0 && fw4.supports_bridge_flowtable(bridge_devices)): %}
 +table bridge fw4 {
 +	#
 +	# Bridge flowtable

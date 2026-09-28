@@ -242,9 +242,10 @@ define Device/gemtek_xg2010g-ubi
   DEVICE_VARIANT := UBI
   DEVICE_DTS := an7581-gemtek-xg2010g-ubi
   DEVICE_COMPAT_VERSION := 2.0
-  DEVICE_COMPAT_MESSAGE := Firmware must use the XG2010G UBI layout with \
-       the fit volume inside the ubi partition at 0x00600000. Upgrade only \
-       the ubi partition and keep bootloader, uenv, dsd and reserved_bmt intact.
+  DEVICE_COMPAT_MESSAGE := Firmware requires the XG2010G OpenWrt U-Boot UBI layout \
+       with bl2 at 0x00000000 and ubi starting at 0x00020000, containing \
+       fip, ubootenv, ubootenv2, factory and fit. Do not force an upgrade from \
+       the legacy 0x00600000 layout. Preserve bl2 and the boot/calibration volumes.
   DEVICE_PACKAGES := fitblk kmod-leds-gpio kmod-gpio-button-hotplug \
 	kmod-phy-airoha-en8811h kmod-phy-realtek rtl826x-firmware \
 	kmod-nf-conntrack-bridge kmod-nft-bridge \
@@ -258,9 +259,7 @@ define Device/gemtek_xg2010g-ubi
   UBINIZE_OPTS := -E 5
   KERNEL_IN_UBI := 1
   KERNEL := kernel-bin | gzip
-  KERNEL_INITRAMFS := kernel-bin | lzma | \
-	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd | pad-to 128k
-  KERNEL_INITRAMFS_SUFFIX := -recovery.itb
+  KERNEL_INITRAMFS :=
   IMAGES := sysupgrade.itb
   IMAGE/sysupgrade.itb := append-kernel | \
 	fit gzip $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb external-static-with-rootfs | \

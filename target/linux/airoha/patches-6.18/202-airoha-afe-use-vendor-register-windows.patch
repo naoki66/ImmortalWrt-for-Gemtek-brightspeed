@@ -1,0 +1,113 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Mon, 28 Sep 2026 00:00:00 +0800
+Subject: [PATCH] ASoC: airoha: use vendor AFE register windows on AN7581
+
+The XG2010G stock DTS describes the AN7581 AFE as two MMIO windows:
+the main register group at 0x1fbe2200 with size 0xfc, and the IRQ1
+group at 0x1fbe2e00 with size 0x114. The ToD block sits at 0x1fbe2300
+between those two windows.
+
+Map the second resource separately and attach it to the AN7581 IRQ1
+descriptor. This follows the upstream v4 design for this AFE and avoids
+claiming the ToD register range while preserving the IRQ1 registers.
+
+Signed-off-by: Codex <codex@openai.com>
+---
+ sound/soc/mediatek/an7581/an7581-afe-pcm.c | 31 +++++++++++++++++++---
+ sound/soc/mediatek/an7581/an7581-reg.h     |  8 +++---
+ 2 files changed, 31 insertions(+), 8 deletions(-)
+
+diff --git a/sound/soc/mediatek/an7581/an7581-afe-pcm.c b/sound/soc/mediatek/an7581/an7581-afe-pcm.c
+--- a/sound/soc/mediatek/an7581/an7581-afe-pcm.c
++++ b/sound/soc/mediatek/an7581/an7581-afe-pcm.c
+@@ -263,9 +263,18 @@
+ };
+ 
++static const struct regmap_config an7581_afe_irq1_regmap_config = {
++	.reg_bits = 32,
++	.reg_stride = 4,
++	.val_bits = 32,
++	.max_register = AFE_IRQ1_MAX_REGISTER,
++	.name = "afe_irq1",
++};
++
+ static irqreturn_t an7581_afe_irq_handler(int irq_id, void *dev)
+ {
+ 	struct mtk_base_afe *afe = dev;
+ 	struct mtk_base_afe_irq *irq;
++	struct regmap *irq_regmap = afe->regmap;
+ 	u32 status;
+ 	u32 reg;
+ 	int i;
+@@ -279,11 +287,14 @@
+ 	else
+ 		reg = AFE_IRQ_CON0;
+ 
+-	regmap_set_bits(afe->regmap, reg, BIT(2));
+-	regmap_clear_bits(afe->regmap, reg, BIT(2));
++	if (reg == AFE_IRQ1_CON0)
++		irq_regmap = afe->irqs[AN7581_IRQ_1].regmap;
++
++	regmap_set_bits(irq_regmap, reg, BIT(2));
++	regmap_clear_bits(irq_regmap, reg, BIT(2));
+ 
+-	regmap_set_bits(afe->regmap, reg, BIT(3));
+-	regmap_clear_bits(afe->regmap, reg, BIT(3));
++	regmap_set_bits(irq_regmap, reg, BIT(3));
++	regmap_clear_bits(irq_regmap, reg, BIT(3));
+ 
+ 	for (i = 0; i < AN7581_MEMIF_NUM; i++) {
+ 		struct mtk_base_afe_memif *memif = &afe->memif[i];
+@@ -347,6 +358,7 @@
+ 	struct mtk_base_afe *afe;
+ 	struct device *dev;
+ 	int i, irq_id, ret;
++	void *base;
+ 
+ 	afe = devm_kzalloc(&pdev->dev, sizeof(*afe), GFP_KERNEL);
+ 	if (!afe)
+@@ -375,6 +387,10 @@
+ 	if (IS_ERR(afe->base_addr))
+ 		return PTR_ERR(afe->base_addr);
+ 
++	base = devm_platform_ioremap_resource(pdev, 1);
++	if (IS_ERR(base))
++		return PTR_ERR(base);
++
+ 	ret = devm_pm_runtime_enable(dev);
+ 	if (ret)
+ 		return ret;
+@@ -400,6 +416,12 @@
+ 	for (i = 0; i < afe->irqs_size; i++)
+ 		afe->irqs[i].irq_data = &irq_data[i];
+ 
++	afe->irqs[AN7581_IRQ_0].regmap = afe->regmap;
++	afe->irqs[AN7581_IRQ_1].regmap = devm_regmap_init_mmio(&pdev->dev, base,
++							       &an7581_afe_irq1_regmap_config);
++	if (IS_ERR(afe->irqs[AN7581_IRQ_1].regmap))
++		return PTR_ERR(afe->irqs[AN7581_IRQ_1].regmap);
++
+ 	/* request irq */
+ 	irq_id = platform_get_irq(pdev, 0);
+ 	if (irq_id < 0)
+diff --git a/sound/soc/mediatek/an7581/an7581-reg.h b/sound/soc/mediatek/an7581/an7581-reg.h
+--- a/sound/soc/mediatek/an7581/an7581-reg.h
++++ b/sound/soc/mediatek/an7581/an7581-reg.h
+@@ -80,9 +80,11 @@
+ #define  AFE_IRQ_STS_PLAY		BIT(1)
+ #define  AFE_IRQ_STS_RECORD		BIT(0)
+ 
+-#define AFE_IRQ1_CON0			0x100
+-#define AFE_IRQ1_CNT			0x104
++#define AFE_IRQ1_CON0			0x0
++#define AFE_IRQ1_CNT			0x4
+ 
+-#define AFE_MAX_REGISTER		AFE_IRQ1_CON0
++#define AFE_MAX_REGISTER		AFE_IRQ_STS
++
++#define AFE_IRQ1_MAX_REGISTER		AFE_IRQ1_CNT
+ 
+ #endif
+-- 
+2.53.0

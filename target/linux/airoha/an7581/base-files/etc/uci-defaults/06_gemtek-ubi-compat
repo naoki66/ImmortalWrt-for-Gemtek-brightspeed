@@ -1,0 +1,7 @@
+#!/bin/sh
+
+. /lib/functions.sh
+. /lib/upgrade/gemtek-ubi.sh
+
+# Migrate a retained system config only after checking the attached UBI layout.
+gemtek_ubi_compat_migrate

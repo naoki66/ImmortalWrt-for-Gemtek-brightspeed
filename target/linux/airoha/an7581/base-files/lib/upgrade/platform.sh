@@ -2,6 +2,8 @@ RAMFS_COPY_BIN='fitblk fit_check_sign'
 
 REQUIRE_IMAGE_METADATA=1
 
+. /lib/upgrade/gemtek-ubi.sh
+
 airoha_require_ubi_layout()
 {
 	local ubidev volume fip_volume
@@ -45,6 +47,14 @@ platform_check_image() {
 		;;
 	gemtek,xg2010g-ubi|\
 	gemtek,xg2010g|\
+	gemtek,xr1710g-ubi)
+		gemtek_ubi_layout_check "$board" || {
+			echo "Unsupported Gemtek UBI layout; refusing sysupgrade."
+			return 1
+		}
+		fit_check_image "$1"
+		return $?
+		;;
 	nokia,xg-040g-md-ubi|\
 	quantum,q1000k-ubi)
 		fit_check_image "$1"
@@ -62,7 +72,8 @@ platform_do_upgrade() {
 		gemtek,xg2010g-ubi|\
 		gemtek,xr1710g-ubi|\
 		gemtek,xg2010g)
-			airoha_require_ubi_layout factory && fit_do_upgrade "$1"
+			gemtek_ubi_layout_check "$board" &&
+				airoha_require_ubi_layout factory && fit_do_upgrade "$1"
 			;;
 		gemtek,w1700k-ubi|\
 		gemtek,xr1710g|\

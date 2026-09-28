@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Airoha Port Regression Preview</title>
+<style>
+body { margin: 16px; font: 14px system-ui, sans-serif; background: #fff; }
+* { box-sizing: border-box; }
+</style>
+<main class="airoha-page" id="preview"></main>
+<script>
+// This fixture loads the real renderers and stylesheet, not a screenshot replica.
+const _ = value => value;
+const baseclass = { extend: value => value };
+function E(tag, attributes, children) {
+    const element = document.createElement(tag);
+    for (const [key, value] of Object.entries(attributes || {})) {
+        if (value === null || value === undefined) continue;
+        if (typeof value === 'function') element.addEventListener(key, value);
+        else element.setAttribute(key, value);
+    }
+    function append(child) {
+        if (child === null || child === undefined) return;
+        if (Array.isArray(child)) child.forEach(append);
+        else element.append(child instanceof Node ? child : document.createTextNode(String(child)));
+    }
+    append(children);
+    return element;
+}
+String.prototype.format = function(...args) {
+    let index = 0;
+    return this.replace(/%1024\.2m|%[sd]|%\.\d+f/g, token => {
+        const value = args[index++];
+        if (token === '%1024.2m') {
+            const units = ['', 'Ki', 'Mi', 'Gi', 'Ti'];
+            const exponent = Math.min(4, Math.max(0, Math.floor(Math.log2(value || 1) / 10)));
+            return (value / 1024 ** exponent).toFixed(2) + ' ' + units[exponent];
+        }
+        return token.endsWith('f') ? Number(value).toFixed(Number(token.slice(2, -1))) : String(value);
+    });
+};
+async function main() {
+    const base = '/package/luci-app-airoha/htdocs/luci-static/resources/view/';
+    const tokens = new Function('baseclass', await (await fetch(base + 'airoha/ds-tokens.js', { cache: 'no-store' })).text())(baseclass);
+    const aui = new Function('baseclass', 'tokens', 'E', await (await fetch(base + 'airoha/ui.js', { cache: 'no-store' })).text())(baseclass, tokens, E);
+    const source = (await (await fetch(base + 'airoha_npu/status.js', { cache: 'no-store' })).text()).replace(
+        'return view.extend({', 'return {renderEthernetPorts, renderFeDiagram, renderFreqCard, renderOffloadControls, renderPpeTable, updatePpeTable};\nreturn view.extend({');
+    const renderers = new Function('rpc', 'aui', 'E', '_', source)({ declare: () => () => Promise.resolve({}) }, aui, E, _);
+    const xr = new URLSearchParams(location.search).get('board') === '1710';
+    const specs = xr
+        ? [['wan', 2, null, 2, 'wan'], ['lan2', 4, null, 9, 'lan'], ['lan3', 1, null, 1, 'lan', 'gsw'], ['lan4', 2, null, 1, 'lan', 'gsw']]
+        : [['pon0', 2, null, 2, 'pon'], ['lan1', 4, 0, 9, 'lan'], ['lan2', 3, 5, 3, 'lan'], ['lan3', 4, 1, 9, 'lan'], ['lan4', 4, null, 1, 'lan', 'gsw']];
+    const topology = {
+        compatible: xr ? 'gemtek,xr1710g' : 'gemtek,xg2010g',
+        model: xr ? 'Gemtek XR1710G' : 'Gemtek XG2010G',
+        ports: specs.map(([netdev, reg, nbq, pse, role, kind], index) => ({
+            key: (kind || 'gdm') + reg, kind: kind || 'gdm', netdev, reg, nbq, pse, role,
+            present: true, carrier: index === 0 ? 0 : 1,
+            speed_mbps: index === 0 ? null : netdev === 'lan3' && !xr ? 2500 : 1000,
+            duplex: 'full', rx_bytes: 1024 * 1024 * (index + 1), tx_bytes: 1234567890,
+            rx_packets: 123456, tx_packets: 789012, rx_errors: 0, tx_errors: 0,
+            rx_dropped: index, tx_dropped: null
+        }))
+    };
+    aui.ensureCss();
+    const root = document.getElementById('preview');
+    root.append(E('h2', {}, topology.model));
+    root.append(aui.section({ title: 'Ethernet Ports', body: renderers.renderEthernetPorts(topology) }));
+    root.append(aui.section({ title: 'Acceleration', body: renderers.renderOffloadControls(
+        topology, { supported: xr, enabled: 0 }, { enabled: 1 }, { supported: xr, enabled: 0 }, false) }));
+    root.append(renderers.renderFeDiagram({ error: 'devmem not available' }, { has_wifi: false },
+        { npu_loaded: true, npu_version: '2.1.1-TLB7.3.283.1456-62', npu_clock: 800000000, npu_cores: 8 },
+        {}, topology));
+    root.append(renderers.renderFreqCard({ cpu_cur_freq: 1200000, cpu_max_freq: 1200000, cpu_min_freq: 500000 }));
+    const entries = Array.from({ length: 65 }, (_, i) => ({
+        index: i.toString(16).padStart(5, '0'), state: i % 2 ? 'UNB' : 'BND',
+        type: i % 3 ? 'IPv4' : 'L2B', proto: i % 3 ? '5T' : '', vlan: '10,0',
+        orig: i % 3 ? '192.0.2.2:12345->198.51.100.1:443' : '',
+        new_flow: i % 3 ? '203.0.113.2:54321->198.51.100.1:443' : '',
+        eth: '00:11:22:33:44:55->02:11:22:33:44:66', packets: '42', bytes: '9007199254740993'
+    }));
+    root.append(aui.section({ title: 'PPE', body: renderers.renderPpeTable(entries) }));
+    renderers.updatePpeTable(entries, { available: true, total: 65, bound: 33, unbound: 32, ipv4: 43, l2b: 22 });
+    document.title = 'PASS: ' + topology.model;
+}
+main().catch(error => {
+    document.getElementById('preview').textContent = error.stack;
+    document.title = 'FAIL: ' + error.message;
+    console.error(error);
+});
+</script>
+</html>
