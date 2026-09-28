@@ -25,9 +25,6 @@ msgstr ""
 msgid "Airoha"
 msgstr ""
 
-msgid "Airoha FlowSense"
-msgstr ""
-
 msgid "Airoha SoC Status"
 msgstr ""
 
@@ -238,9 +235,6 @@ msgstr ""
 msgid "Flow Offload"
 msgstr ""
 
-msgid "FlowSense"
-msgstr ""
-
 msgid "Forward transitions"
 msgstr ""
 
@@ -263,9 +257,6 @@ msgid "Good"
 msgstr ""
 
 msgid "Governor"
-msgstr ""
-
-msgid "Grant access to Airoha NPU status and FlowSense offload monitor"
 msgstr ""
 
 msgid "HEALTHY"
@@ -499,9 +490,6 @@ msgstr ""
 msgid "RX errors"
 msgstr ""
 
-msgid "Real-time PPE hardware offload monitoring, link health and hardware offload status · source luci.airoha_flowsense (5 s poll)"
-msgstr ""
-
 msgid "Received"
 msgstr ""
 
@@ -542,9 +530,6 @@ msgid "State"
 msgstr ""
 
 msgid "Suggested off in router mode"
-msgstr ""
-
-msgid "Switches here are write operations; the same values are mirrored read-only on the FlowSense tab so there is only one place to change them."
 msgstr ""
 
 msgid "TX"
@@ -704,4 +689,76 @@ msgid "v4"
 msgstr ""
 
 msgid "v6"
+msgstr ""
+
+msgid "Ethernet Ports"
+msgstr ""
+
+msgid "Port"
+msgstr ""
+
+msgid "Path"
+msgstr ""
+
+msgid "Link"
+msgstr ""
+
+msgid "Speed / Duplex"
+msgstr ""
+
+msgid "RX / TX bytes"
+msgstr ""
+
+msgid "RX / TX packets"
+msgstr ""
+
+msgid "RX / TX errors"
+msgstr ""
+
+msgid "RX / TX dropped"
+msgstr ""
+
+msgid "Port data unavailable"
+msgstr ""
+
+msgid "Unavailable"
+msgstr ""
+
+msgid "Up"
+msgstr ""
+
+msgid "Down"
+msgstr ""
+
+msgid "PPE table unavailable"
+msgstr ""
+
+msgid "No matching flows"
+msgstr ""
+
+msgid "Packets"
+msgstr ""
+
+msgid "Bytes"
+msgstr ""
+
+msgid "All states"
+msgstr ""
+
+msgid "All types"
+msgstr ""
+
+msgid "Previous page"
+msgstr ""
+
+msgid "Next page"
+msgstr ""
+
+msgid "Status"
+msgstr ""
+
+msgid "PHY / Expected"
+msgstr ""
+
+msgid "Switches here apply the hardware offload settings for this device."
 msgstr ""

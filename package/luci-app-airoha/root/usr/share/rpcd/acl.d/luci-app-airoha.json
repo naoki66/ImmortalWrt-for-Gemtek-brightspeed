@@ -1,10 +1,9 @@
 {
 	"luci-app-airoha": {
-		"description": "Grant access to Airoha NPU status and FlowSense offload monitor",
+		"description": "Grant access to Airoha SoC, NPU, offload and WiFi status",
 		"read": {
 			"ubus": {
-				"luci.airoha_npu": [ "getStatus", "getPpeEntries", "getTokenInfo", "getFrameEngine", "getVlanOffload", "getPppoeOffload", "getFlowOffload", "getApModeOffload", "getDeviceMode" ],
-				"luci.airoha_flowsense": [ "getOverview", "getStatus", "getPpeEntries", "getTokenInfo", "getFrameEngine", "getVlanOffload", "getFlowOffload", "getPppoeOffload", "getApModeOffload", "getTxStats", "getDeviceMode", "getWanHealth", "getJitterResult", "getWifiStats", "getBridgeStats", "getNpuBypass", "getConflictAlerts", "getEthStats", "getPingTarget" ]
+				"luci.airoha_npu": [ "getStatus", "getTopology", "getPpeEntries", "getTokenInfo", "getFrameEngine", "getWifiStats", "getVlanOffload", "getPppoeOffload", "getFlowOffload", "getApModeOffload", "getDeviceMode" ]
 			},
 			"file": {
 				"/sys/kernel/debug/ppe/entries": [ "read" ],
@@ -25,7 +24,6 @@
 		"write": {
 			"ubus": {
 				"luci.airoha_npu": [ "setGovernor", "setMaxFreq", "setCpuSettings", "setVlanOffload", "setPppoeOffload", "setFlowOffload", "setApModeOffload" ],
-				"luci.airoha_flowsense": [ "setPingTarget" ],
 				"uci": [ "set", "commit" ]
 			},
 			"uci": {

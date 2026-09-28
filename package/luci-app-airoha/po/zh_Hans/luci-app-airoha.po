@@ -30,9 +30,6 @@ msgstr "活动"
 msgid "Airoha"
 msgstr "Airoha"
 
-msgid "Airoha FlowSense"
-msgstr "Airoha 流量传感器"
-
 msgid "Airoha SoC Status"
 msgstr "Airoha SoC状态"
 
@@ -243,9 +240,6 @@ msgstr "固件 / 时钟 / 核心"
 msgid "Flow Offload"
 msgstr "硬件流量加速"
 
-msgid "FlowSense"
-msgstr "FlowSense"
-
 msgid "Forward transitions"
 msgstr "转发状态迁移"
 
@@ -269,9 +263,6 @@ msgstr "良好"
 
 msgid "Governor"
 msgstr "运行模式"
-
-msgid "Grant access to Airoha NPU status and FlowSense offload monitor"
-msgstr "授予访问 Airoha NPU 状态与 FlowSense 卸载监控的权限"
 
 msgid "HEALTHY"
 msgstr "健康"
@@ -504,9 +495,6 @@ msgstr "RX 丢弃"
 msgid "RX errors"
 msgstr "RX 错误"
 
-msgid "Real-time PPE hardware offload monitoring, link health and hardware offload status · source luci.airoha_flowsense (5 s poll)"
-msgstr "实时 PPE 硬件卸载监控、链路健康与硬件卸载状态 · 数据源 luci.airoha_flowsense（5 秒轮询）"
-
 msgid "Received"
 msgstr "累计接收"
 
@@ -548,9 +536,6 @@ msgstr "状态"
 
 msgid "Suggested off in router mode"
 msgstr "路由模式下建议关闭"
-
-msgid "Switches here are write operations; the same values are mirrored read-only on the FlowSense tab so there is only one place to change them."
-msgstr "此处开关为写操作；同一份数值在 FlowSense 标签以只读形式镜像，避免出现两个可写入口。"
 
 msgid "TX"
 msgstr "发送"
@@ -652,7 +637,7 @@ msgid "Warning"
 msgstr "警告"
 
 msgid "WiFi Band Details"
-msgstr "WiFi 频段明细"
+msgstr "WiFi 频段明细表"
 
 msgid "Working Mode"
 msgstr "工作模式"
@@ -710,3 +695,75 @@ msgstr "v4"
 
 msgid "v6"
 msgstr "v6"
+
+msgid "Ethernet Ports"
+msgstr "以太网端口"
+
+msgid "Port"
+msgstr "端口"
+
+msgid "Path"
+msgstr "硬件路径"
+
+msgid "Link"
+msgstr "连接状态"
+
+msgid "Speed / Duplex"
+msgstr "协商速率 / 双工"
+
+msgid "RX / TX bytes"
+msgstr "接收 / 发送字节"
+
+msgid "RX / TX packets"
+msgstr "接收 / 发送包数"
+
+msgid "RX / TX errors"
+msgstr "接收 / 发送错误"
+
+msgid "RX / TX dropped"
+msgstr "接收 / 发送丢包"
+
+msgid "Port data unavailable"
+msgstr "端口数据不可用"
+
+msgid "Unavailable"
+msgstr "不可用"
+
+msgid "Up"
+msgstr "已连接"
+
+msgid "Down"
+msgstr "未连接"
+
+msgid "PPE table unavailable"
+msgstr "PPE 硬件加速表不可用"
+
+msgid "No matching flows"
+msgstr "没有匹配的流条目"
+
+msgid "Packets"
+msgstr "包数"
+
+msgid "Bytes"
+msgstr "字节数"
+
+msgid "All states"
+msgstr "全部状态"
+
+msgid "All types"
+msgstr "全部类型"
+
+msgid "Previous page"
+msgstr "上一页"
+
+msgid "Next page"
+msgstr "下一页"
+
+msgid "Status"
+msgstr "状态"
+
+msgid "PHY / Expected"
+msgstr "协商 / 预期速率"
+
+msgid "Switches here apply the hardware offload settings for this device."
+msgstr "此处开关用于应用本设备的硬件卸载设置。"

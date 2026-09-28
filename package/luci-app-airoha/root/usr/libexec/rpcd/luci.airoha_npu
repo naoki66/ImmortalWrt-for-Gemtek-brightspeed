@@ -62,20 +62,7 @@ _find_cpufreq_policy() {
 
 get_status() {
 	# === NPU Status ===
-	# Read the actually-loaded NPU firmware path from DTS (firmware-name property).
-	local npu_fw=""
-	local npu_dt="/proc/device-tree/soc/npu@1e900000/firmware-name"
-	if [ -f "$npu_dt" ]; then
-		# firmware-name is a string list (null-separated). First entry is the rv32 code.
-		local fw_rel=$(tr '\0' '\n' < "$npu_dt" 2>/dev/null | grep -m1 "rv32")
-		[ -n "$fw_rel" ] && npu_fw="/lib/firmware/$fw_rel"
-	fi
-
-	local npu_ver="Unknown"
-	if [ -n "$npu_fw" ] && [ -f "$npu_fw" ]; then
-		npu_ver=$(strings "$npu_fw" 2>/dev/null | grep -oE '([0-9]+\.[0-9]+\.[0-9]+-)?TLB[0-9.]+[-_v0-9]*' | head -1)
-		[ -z "$npu_ver" ] && npu_ver="Unknown"
-	fi
+	local npu_ver=$(airoha_npu_version)
 
 	local npu_loaded="false"
 	local npu_device=""
@@ -93,7 +80,7 @@ get_status() {
 		npu_clock=$(cat /sys/kernel/debug/clk/npu/clk_rate 2>/dev/null || echo 0)
 	fi
 
-	local npu_cores=$(grep -c "airoha-npu-wdt" /proc/interrupts 2>/dev/null || echo 0)
+	local npu_cores=$(grep -c "airoha-npu-wdt" /proc/interrupts 2>/dev/null)
 
 	local offload_bound=$(cat /sys/kernel/debug/ppe/bind 2>/dev/null | grep -c "^[0-9a-fA-F]")
 	local offload_total=$(cat /sys/kernel/debug/ppe/entries 2>/dev/null | grep -c "^[0-9a-fA-F]")
@@ -185,7 +172,7 @@ get_status() {
 		if [ -n "$pcw_raw" ] && [ -n "$chg_raw" ]; then
 			pcw_raw=$((pcw_raw))
 			chg_raw=$((chg_raw))
-			local pcw_int=$(( (pcw_raw >> 24) & 0x7F ))
+			local pcw_int=$(( (pcw_raw >> 24) & 0xFF ))
 			local pll_posdiv=$(( (chg_raw >> 4) & 7 ))
 			if [ "$pll_posdiv" -eq 0 ]; then
 				pll_freq=$((pcw_int * 50))
@@ -212,10 +199,10 @@ get_status() {
 	for zone in /sys/class/thermal/thermal_zone*; do
 		if [ -f "$zone/temp" ] && [ -f "$zone/type" ]; then
 			local type=$(cat "$zone/type")
-			if echo "$type" | grep -q -i "cpu"; then
+			if echo "$type" | grep -qiE 'cpu|airoha|en7581|an7581'; then
 				cpu_temp=$(cat "$zone/temp" 2>/dev/null)
 				if [ -n "$cpu_temp" ] && [ "$cpu_temp" -gt 0 ]; then
-					cpu_temp="$((cpu_temp/1000)).0°C"
+					cpu_temp="$((cpu_temp/1000)).$((cpu_temp%1000/100))°C"
 				else
 					cpu_temp="N/A"
 				fi
@@ -248,62 +235,17 @@ get_topology() {
 
 get_ppe_entries() {
 	local entries_file="/sys/kernel/debug/ppe/entries"
+	local snapshot="/tmp/luci-airoha-npu.ppe.$$"
 
-	if [ ! -f "$entries_file" ]; then
-		echo '{"entries":[]}'
+	if [ ! -r "$entries_file" ] ||
+	   ! _run_with_deadline 2 ppe cp "$entries_file" "$snapshot"; then
+		rm -f "$snapshot"
+		echo '{"available":false,"entries":[],"total":0}'
 		return
 	fi
 
-	awk '
-	BEGIN {
-		printf "{\"entries\":["
-		first = 1
-	}
-	/^[0-9a-fA-F]+ / {
-		if (first == 0) printf ","
-		first = 0
-
-		index_val = $1
-		state = $2
-
-		type = ""
-		subtype = ""
-		if ($3 == "IPv4" || $3 == "IPv6") {
-			type = $3
-			subtype = $4
-		} else if ($3 == "L2B" || $4 == "L2B") {
-			type = "L2B"
-			subtype = ""
-		} else {
-			type = $3
-			subtype = $4
-		}
-
-		orig = ""
-		match($0, /orig=[^ ]+/)
-		if (RSTART > 0) {
-			orig = substr($0, RSTART+5, RLENGTH-5)
-		}
-
-		new_flow = ""
-		match($0, /new=[^ ]+/)
-		if (RSTART > 0) {
-			new_flow = substr($0, RSTART+4, RLENGTH-4)
-		}
-
-		eth = ""
-		match($0, /eth=[^ ]+/)
-		if (RSTART > 0) {
-			eth = substr($0, RSTART+4, RLENGTH-4)
-		}
-
-		printf "{\"index\":\"%s\",\"state\":\"%s\",\"type\":\"%s %s\",\"orig\":\"%s\",\"new_flow\":\"%s\",\"eth\":\"%s\"}", \
-			index_val, state, type, subtype, orig, new_flow, eth
-	}
-	END {
-		printf "]}"
-	}
-	' "$entries_file" 2>/dev/null || echo '{"entries":[]}'
+	airoha_ppe_parse "$snapshot" "" 1024
+	rm -f "$snapshot"
 }
 
 get_token_info() {
@@ -474,79 +416,17 @@ set_cpu_settings() {
 }
 
 get_frame_engine() {
-	[ -e /sys/kernel/debug/ppe/entries ] || { echo '{"error":"frame engine not ready"}'; return; }
-	if ! command -v devmem > /dev/null 2>&1; then
-		echo '{"error":"devmem not available"}'
-		return
-	fi
-
-	# PSE queue status (IQ=hi16, OQ=lo16) and drop counts for each port
-	local i reg_q reg_d pse_ports=""
-	for i in 0 1 2 3 4 5 6 7 8 9; do
-		reg_q=$(printf "0x%x" $((0x1fb50150 + i * 4)))
-		reg_d=$(printf "0x%x" $((0x1fb50120 + i * 4)))
-		local qval=$(($(_devmem_read $reg_q)))
-		local dval=$(($(_devmem_read $reg_d)))
-		local iq=$(( (qval >> 16) & 0xFFFF ))
-		local oq=$(( qval & 0xFFFF ))
-		[ -n "$pse_ports" ] && pse_ports="${pse_ports},"
-		pse_ports="${pse_ports}{\"port\":${i},\"iq\":${iq},\"oq\":${oq},\"drops\":${dval}}"
-	done
-
-	# PSE shared buffer
-	local psb=$(($(_devmem_read 0x1fb50104)))
-	local pse_used=$(( (psb >> 16) & 0xFFFF ))
-	local pse_free=$(( psb & 0x7FFF ))
-
-	# GDM counters (TX_OK, TX_DROP, RX_OK, RX_FC_DROP, RX_OVER_DROP)
-	# Read as hex to handle large 32-bit counters
-	local gdm1_tx=$(($(_devmem_read 0x1fb50604)))
-	local gdm1_txd=$(($(_devmem_read 0x1fb50608)))
-	local gdm1_rx=$(($(_devmem_read 0x1fb50648)))
-	local gdm1_rxd=$(($(_devmem_read 0x1fb5064c)))
-
-	# GDM2 only exists as a WAN netdev on boards whose ethernet@2 node is
-	# enabled (the XG2010G disables it): skip its counters entirely there.
-	local have_gdm2=0 gdm2_tx=0 gdm2_txd=0 gdm2_rx=0 gdm2_rxd=0
-	if airoha_dt_node_okay "soc/ethernet@1fb50000/ethernet@2"; then
-		have_gdm2=1
-		gdm2_tx=$(($(_devmem_read 0x1fb51604)))
-		gdm2_txd=$(($(_devmem_read 0x1fb51608)))
-		gdm2_rx=$(($(_devmem_read 0x1fb51648)))
-		gdm2_rxd=$(($(_devmem_read 0x1fb5164c)))
-	fi
-
-	local gdm4_tx=$(($(_devmem_read 0x1fb52604)))
-	local gdm4_txd=$(($(_devmem_read 0x1fb52608)))
-	local gdm4_rx=$(($(_devmem_read 0x1fb52648)))
-	local gdm4_rxd=$(($(_devmem_read 0x1fb5264c)))
-
-	# CDM counters (TX_OK, RXCPU_OK, RXHWF_OK, RXCPU_DROP, RXHWF_DROP)
-	local cdm1_tx=$(($(_devmem_read 0x1fb50580)))
-	local cdm1_rxcpu=$(($(_devmem_read 0x1fb50590)))
-	local cdm1_rxhwf=$(($(_devmem_read 0x1fb50594)))
-	local cdm1_rxcpud=$(($(_devmem_read 0x1fb505a0)))
-	local cdm1_rxhwfd=$(($(_devmem_read 0x1fb505a4)))
-
-	local cdm2_tx=$(($(_devmem_read 0x1fb51580)))
-	local cdm2_rxcpu=$(($(_devmem_read 0x1fb51590)))
-	local cdm2_rxhwf=$(($(_devmem_read 0x1fb51594)))
-	local cdm2_rxcpud=$(($(_devmem_read 0x1fb515a0)))
-	local cdm2_rxhwfd=$(($(_devmem_read 0x1fb515a4)))
-
-	printf '{"pse_ports":[%s],"pse_used":%d,"pse_free":%d,' "$pse_ports" "$pse_used" "$pse_free"
-	printf '"gdm1":{"tx":%d,"tx_drop":%d,"rx":%d,"rx_drop":%d},' "$gdm1_tx" "$gdm1_txd" "$gdm1_rx" "$gdm1_rxd"
-	[ "$have_gdm2" = "1" ] && printf '"gdm2":{"tx":%d,"tx_drop":%d,"rx":%d,"rx_drop":%d},' "$gdm2_tx" "$gdm2_txd" "$gdm2_rx" "$gdm2_rxd"
-	printf '"gdm4":{"tx":%d,"tx_drop":%d,"rx":%d,"rx_drop":%d},' "$gdm4_tx" "$gdm4_txd" "$gdm4_rx" "$gdm4_rxd"
-	printf '"cdm1":{"tx":%d,"rx_cpu":%d,"rx_hwf":%d,"rx_cpu_drop":%d,"rx_hwf_drop":%d},' "$cdm1_tx" "$cdm1_rxcpu" "$cdm1_rxhwf" "$cdm1_rxcpud" "$cdm1_rxhwfd"
-	printf '"cdm2":{"tx":%d,"rx_cpu":%d,"rx_hwf":%d,"rx_cpu_drop":%d,"rx_hwf_drop":%d}}' "$cdm2_tx" "$cdm2_rxcpu" "$cdm2_rxhwf" "$cdm2_rxcpud" "$cdm2_rxhwfd"
+	airoha_frame_engine_json
 }
 
 get_vlan_offload() {
+	airoha_bridge_offload_supported || {
+		echo '{"supported":false,"enabled":0}'
+		return
+	}
 	local tagged indev
 	# Mirror of this pair's owner semantics (set_vlan_offload): the two keys
-	# are one unit, so enabled is reported only when BOTH read 1. Also kept in
-	# sync with luci.airoha_flowsense's get_vlan_offload() copy.
+	# are one unit, so enabled is reported only when BOTH read 1.
 	tagged=$(cat /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged 2>/dev/null)
 	indev=$(cat /proc/sys/net/bridge/bridge-nf-pass-vlan-input-dev 2>/dev/null)
 	if [ "$tagged" = "1" ] && [ "$indev" = "1" ]; then
@@ -557,6 +437,10 @@ get_vlan_offload() {
 }
 
 set_vlan_offload() {
+	airoha_bridge_offload_supported || {
+		echo '{"error":"VLAN offload is not supported on XG2010G"}'
+		return
+	}
 	local enabled
 	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
 	[ -z "$enabled" ] && enabled="0"
@@ -590,12 +474,16 @@ set_vlan_offload() {
 
 get_pppoe_offload() {
 	local val
-	# Use bridge-nf-filter-pppoe-tagged sysctl (consistent with flowsense)
+	# Use bridge-nf-filter-pppoe-tagged sysctl.
 	val=$(cat /proc/sys/net/bridge/bridge-nf-filter-pppoe-tagged 2>/dev/null)
 	printf '{"enabled":%d}' "${val:-0}"
 }
 
 set_pppoe_offload() {
+	airoha_bridge_offload_supported || {
+		echo '{"error":"Bridge offload is not supported on XG2010G"}'
+		return
+	}
 	local enabled
 	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
 	[ -z "$enabled" ] && enabled="0"
@@ -607,7 +495,7 @@ set_pppoe_offload() {
 		_bridge_offload_block_error
 		return
 	fi
-	# Load bridge module if needed and set sysctl (consistent with flowsense)
+	# Load bridge module if needed and set sysctl.
 	if [ "$enabled" = "1" ]; then
 		modprobe bridge 2>/dev/null
 	fi
@@ -625,7 +513,7 @@ set_pppoe_offload() {
 }
 
 get_flow_offload() {
-	# Check UCI config (consistent with flowsense)
+	# Check the persisted UCI configuration.
 	local fo foh
 	fo=$(uci get firewall.@defaults[0].flow_offloading 2>/dev/null)
 	foh=$(uci get firewall.@defaults[0].flow_offloading_hw 2>/dev/null)
@@ -644,7 +532,7 @@ set_flow_offload() {
 		echo '{"error":"enabled must be 0 or 1"}'
 		return
 	fi
-	# Set both flow_offloading and flow_offloading_hw (consistent with flowsense)
+	# Set both flow_offloading and flow_offloading_hw.
 	uci set firewall.@defaults[0].flow_offloading="$enabled" 2>/dev/null
 	uci set firewall.@defaults[0].flow_offloading_hw="$enabled" 2>/dev/null
 	uci commit firewall 2>/dev/null
@@ -654,10 +542,13 @@ set_flow_offload() {
 }
 
 get_apmode_offload() {
+	airoha_bridge_offload_supported || {
+		echo '{"supported":false,"enabled":0}'
+		return
+	}
 	local ipt ip6t arp filter_pppoe_tagged
 
-	# Mirrored by luci.airoha_flowsense's get_apmode_offload(); the two must
-	# stay identical. SYNC THESE FOUR KEYS whenever either copy changes:
+	# Mirrors set_apmode_offload(). Keep these four keys synchronized:
 	#   bridge-nf-call-iptables, bridge-nf-call-ip6tables,
 	#   bridge-nf-call-arptables, bridge-nf-filter-pppoe-tagged
 	# Mirrors set_apmode_offload() exactly. The VLAN passthrough pair is NOT
@@ -678,6 +569,10 @@ get_apmode_offload() {
 }
 
 set_apmode_offload() {
+	airoha_bridge_offload_supported || {
+		echo '{"error":"AP mode acceleration is not supported on XG2010G"}'
+		return
+	}
 	local enabled
 
 	enabled=$(echo "$1" | jsonfilter -e "@.enabled" 2>/dev/null)
@@ -725,7 +620,7 @@ set_apmode_offload() {
 
 case "$1" in
 	list)
-		echo '{"getStatus":{},"getTopology":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"getApModeOffload":{},"setApModeOffload":{"enabled":"int"},"getDeviceMode":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"},"setCpuSettings":{"governor":"str","freq":"int"}}'
+		echo '{"getStatus":{},"getTopology":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getWifiStats":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"getApModeOffload":{},"setApModeOffload":{"enabled":"int"},"getDeviceMode":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"},"setCpuSettings":{"governor":"str","freq":"int"}}'
 		;;
 	call)
 		case "$2" in
@@ -758,6 +653,9 @@ case "$1" in
 				;;
 			getFrameEngine)
 				get_frame_engine
+				;;
+			getWifiStats)
+				airoha_wifi_stats_json
 				;;
 			getVlanOffload)
 				get_vlan_offload

@@ -3,17 +3,13 @@
 'require view.airoha.ds-tokens as tokens';
 
 /* ---------------------------------------------------------------------------
- * Shared UI kit for the merged Airoha views.
+ * Shared UI kit for the unified Airoha status view.
  *
- * Both view/airoha_npu/status.js and view/airoha_flowsense/status.js build
- * their DOM through this module so the two tabs share one component look and
- * one set of builders instead of each shipping its own stylesheet, its own
- * dark-mode detector and its own hand-rolled markup (the pre-merge views each
- * carried ~90 duplicated CSS lines, a runtime `isDarkMode()` probe and inline
- * style attributes).
+ * view/airoha_npu/status.js builds its DOM through this module so components,
+ * dark-mode handling and layout helpers stay in one place.
  *
  * The kit is intentionally text-free: every user-visible string is passed in by
- * the caller, so all translatable msgids stay owned by the two view files and
+ * the caller, so all translatable msgids stay owned by the view file and
  * the gettext catalogue keeps a single, predictable source of truth.
  *
  * Layout follows the design reference: a `.airoha-page` token scope, an
@@ -161,6 +157,9 @@ var COMPONENT_CSS = [
 	'.ai-table .ai-num,.ai-table th.ai-num{text-align:right}',
 	'.ai-table--mono td{font-family:var(--ds-mono);font-variant-numeric:tabular-nums;font-size:var(--ds-fs-xs)}',
 	'.ai-table tbody tr:hover{background:var(--ds-surface-sunken)}',
+	'.ai-port-table .ai-table{min-width:980px}',
+	'.ai-port-table .ai-table td{white-space:nowrap}',
+	'.ai-offload-controls .ai-switch-row{grid-template-columns:minmax(0,1fr) auto}',
 
 	'.ai-details{border:1px solid var(--ds-border);border-radius:var(--ds-r-md);background:var(--ds-surface-sunken);padding:0 var(--ds-sp-3);margin-top:var(--ds-sp-3)}',
 	'.ai-details>summary{cursor:pointer;padding:var(--ds-sp-2) 0;font-size:var(--ds-fs-sm);font-weight:650}',

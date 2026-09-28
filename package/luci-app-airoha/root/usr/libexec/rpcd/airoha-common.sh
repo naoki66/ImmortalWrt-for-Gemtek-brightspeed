@@ -1,7 +1,6 @@
 #!/bin/sh
 #
 # airoha-common.sh — shared helpers for Airoha LuCI RPC backends
-# (luci.airoha_npu, luci.airoha_flowsense, ...).
 #
 # This file is sourced by the backend scripts AFTER they define
 # HARDWARE_BLOCKED_FILE. It provides:
@@ -10,7 +9,7 @@
 #   _devmem_read                — timeout-protected MMIO read via devmem
 #   airoha_has_wifi             — authoritative /sys/class/ieee80211 presence (true/false)
 #
-# Extracted from luci.airoha_npu / luci.airoha_flowsense to remove near-duplicate code.
+# Kept separate from the RPC dispatcher so hardware readers remain reusable.
 
 # Run a command behind a wall-clock deadline so a blocking hardware probe
 # (e.g. devmem stuck in D-state) cannot hang rpcd forever.
@@ -106,7 +105,7 @@ _devmem_read() {
 # the WiFi gauges and band tables at all.
 #
 # This is deliberately independent of `iw dev`: on a radio-less board (e.g. the
-# XR1710G 2010) iw may still be installed and simply report no interfaces, and
+# XG2010G) iw may still be installed and simply report no interfaces, and
 # get_wifi_stats cannot distinguish "no radio" from "radio present, no clients".
 # /sys/class/ieee80211/phy* is the ground truth.
 airoha_has_wifi() {
@@ -118,10 +117,38 @@ airoha_has_wifi() {
 	return 1
 }
 
+airoha_npu_version() {
+	local firmware name
+	name=$(airoha_dt_read "soc/npu@1e900000/firmware-name")
+	if [ -n "$name" ]; then
+		firmware="/lib/firmware/$name"
+	elif [ ! -f /lib/firmware/airoha/en7581_npu_rv32.bin ] &&
+	     [ -f /lib/firmware/airoha/en7581_MT7996_npu_rv32.bin ]; then
+		firmware=/lib/firmware/airoha/en7581_MT7996_npu_rv32.bin
+	else
+		firmware=/lib/firmware/airoha/en7581_npu_rv32.bin
+	fi
+	local version
+	version=$(strings "$firmware" 2>/dev/null | grep -oE '([0-9]+\.[0-9]+\.[0-9]+-)?TLB[0-9.]+[-_v0-9]*' | head -1)
+	printf '%s' "${version:-Unknown}"
+}
+
+airoha_bridge_offload_supported() {
+	case "$(airoha_board_compat)" in
+		gemtek,xg2010g|gemtek,xg2010g-ubi|gemtek,xg2010g-recovery) return 1 ;;
+		*) return 0 ;;
+	esac
+}
+
+airoha_ppe_parse() {
+	awk -v state_filter="$2" -v limit="${3:-1024}" \
+		-f /usr/libexec/airoha-ppe.awk "$1"
+}
+
 # >>> airoha-topo-helpers >>>
 # ---------------------------------------------------------------------------
 # Device-tree-driven port topology and PON facts shared by the LuCI RPC
-# backends (luci.airoha_npu, luci.airoha_flowsense). POSIX sh; safe to call on
+# backends. POSIX sh; safe to call on
 # both the XR1710G (router) and the XG2010G (PON ONU); never writes to stderr.
 # ---------------------------------------------------------------------------
 
@@ -169,7 +196,10 @@ airoha_pse_for_gdm() {
 
 # PON presence.
 airoha_pon_present() {
-	if [ -d /proc/xgpon ] || [ -d /proc/epon ] || [ -e /sys/module/xpon_10g/parameters/mode ]; then
+	if [ -d /sys/class/net/pon0 ] || [ -d /proc/xgpon ] || [ -d /proc/epon ] ||
+	   [ -e /sys/module/xpon_10g/parameters/mode ] ||
+	   { airoha_dt_node_okay "soc/ethernet@1fb50000/ethernet@2" &&
+	     [ -e /proc/device-tree/soc/ethernet@1fb50000/ethernet@2/airoha,pon-data-path ]; }; then
 		echo 1
 	else
 		echo 0
@@ -200,7 +230,14 @@ airoha_pon_mode_name() {
 		10) echo ngpon2-2g-2g ;;
 		11) echo gpon-sym ;;
 		12) echo turbo-epon ;;
-		*) echo unknown ;;
+		*)
+			local mode
+			mode=$(awk '$1 == "active_mode:" { print $2; exit }' /sys/kernel/debug/airoha-xpon-pon0/line 2>/dev/null)
+			case "$mode" in
+				gpon|xgpon|xgspon|epon|epon-10g-1g|epon-10g-10g) echo "$mode" ;;
+				*) echo unknown ;;
+			esac
+			;;
 	esac
 }
 
@@ -213,8 +250,8 @@ airoha_pon_rates() {
 		gpon)           echo "2488 1244" ;;
 		gpon-sym)       echo "2488 2488" ;;
 		epon)           echo "1250 1250" ;;
-		10g-1g-epon)    echo "10000 1000" ;;
-		10g-10g-epon)   echo "10000 10000" ;;
+		10g-1g-epon|epon-10g-1g) echo "10000 1000" ;;
+		10g-10g-epon|epon-10g-10g) echo "10000 10000" ;;
 		1g-1g-epon)     echo "1000 1000" ;;
 		ngpon2-10g-10g) echo "10000 10000" ;;
 		ngpon2-10g-2g)  echo "10000 2000" ;;
@@ -228,8 +265,13 @@ airoha_pon_rates() {
 #   0 = no light (LOS asserted) -> echo 1 ; 1 = light present -> echo 0 ; else nothing.
 airoha_pon_los() {
 	local f="/proc/tc3162/los_status"
-	[ -r "$f" ] || return 0
-	case "$(cat "$f" 2>/dev/null)" in
+	local signal
+	if [ -r "$f" ]; then
+		signal=$(cat "$f" 2>/dev/null)
+	else
+		signal=$(awk '$1 == "optical_signal:" { print $2; exit }' /sys/kernel/debug/airoha-xpon-pon0/line 2>/dev/null)
+	fi
+	case "$signal" in
 		0) echo 1 ;;
 		1) echo 0 ;;
 		*) return 0 ;;
@@ -239,8 +281,12 @@ airoha_pon_los() {
 # GPON ONU state (e.g. "O5"), or nothing.
 airoha_pon_onu_state() {
 	local f="/proc/xgpon/state"
-	[ -r "$f" ] || return 0
-	cat "$f" 2>/dev/null
+	if [ -r "$f" ]; then
+		cat "$f" 2>/dev/null
+	else
+		awk '$1 == "onu_state:" && $2 ~ /^O[1-9]$/ { print $2; exit }' \
+			/sys/kernel/debug/airoha-xpon-pon0/registration 2>/dev/null
+	fi
 	return 0
 }
 
@@ -248,7 +294,7 @@ airoha_pon_onu_state() {
 airoha_pon_netdev() {
 	local dev
 	dev=$(uci -q get pon.line0.device 2>/dev/null)
-	[ -n "$dev" ] || dev="pon"
+	[ -n "$dev" ] || dev="pon0"
 	echo "$dev"
 }
 
@@ -274,10 +320,10 @@ _airoha_gdm_netdev() {
 		printf '%s' "$name"
 		return 0
 	fi
-	base=$(basename "$rel")
+	base=$(readlink -f "/proc/device-tree/$rel")
 	for iface in /sys/class/net/*; do
 		[ -e "$iface/of_node" ] || continue
-		onode=$(basename "$(readlink -f "$iface/of_node" 2>/dev/null)" 2>/dev/null)
+		onode=$(readlink -f "$iface/of_node" 2>/dev/null)
 		[ "$onode" = "$base" ] || continue
 		name=$(basename "$iface")
 		break
@@ -286,37 +332,83 @@ _airoha_gdm_netdev() {
 	return 0
 }
 
-# airoha_port_topology_json — compact single-line, null-free topology JSON.
+# Unknown/down-link sysfs values must not look like measured zero counters.
+_airoha_net_number() {
+	local value
+	value=$(cat "$1" 2>/dev/null)
+	case "$value" in ''|*[!0-9]*) printf 'null' ;; *) printf '%s' "$value" ;; esac
+}
+
+_airoha_port_json() {
+	local rel="$1" kind="$2" reg="$3" nbq="$4"
+	local netdev mode role pse key base field
+	mode=$(airoha_dt_read "$rel/phy-mode")
+	if [ "$kind" = "gsw" ]; then
+		netdev=$(airoha_dt_read "$rel/label")
+		[ -n "$netdev" ] || return
+		pse=1
+		key="gsw$reg"
+		role=lan
+		[ -n "$mode" ] || mode=internal
+	else
+		netdev=$(_airoha_gdm_netdev "$rel")
+		pse=$(airoha_pse_for_gdm "$reg")
+		key="gdm$reg"
+		[ "$nbq" = null ] || key="$key-$nbq"
+		role=lan
+		[ "$reg" = 2 ] && role=wan
+		[ "$mode" = internal ] && role=conduit
+		[ -e "/proc/device-tree/$rel/airoha,pon-data-path" ] && role=pon
+	fi
+	base="/sys/class/net/$netdev"
+	local present=false
+	[ -n "$netdev" ] && [ -d "$base" ] && present=true
+	printf '{"key":"%s","kind":"%s","reg":%s,"port":%s,"nbq":%s,"pse":%s,"netdev":"%s","role":"%s","mode":"%s","present":%s' \
+		"$key" "$kind" "$reg" "$reg" "$nbq" "$pse" "$(_airoha_json_str "$netdev")" "$role" "$mode" "$present"
+	printf ',"carrier":%s,"speed_mbps":%s,"duplex":"%s"' \
+		"$(_airoha_net_number "$base/carrier")" \
+		"$(_airoha_net_number "$base/speed")" \
+		"$(_airoha_json_str "$(cat "$base/duplex" 2>/dev/null)")"
+	for field in rx_bytes tx_bytes rx_packets tx_packets rx_errors tx_errors rx_dropped tx_dropped; do
+		printf ',"%s":%s' "$field" "$(_airoha_net_number "$base/statistics/$field")"
+	done
+	printf '}'
+}
+
+# Include split GDM/NBQ children as separate netdevs, never shared MIB samples.
 airoha_port_topology_json() {
 	local model compatible
 	model=$(airoha_board_model)
 	compatible=$(airoha_board_compat)
 
-	local ports="" port_n=0
+	local ports=""
 	local lan_raw="" wan_netdev=""
 	local lan_json="[]" lan_count=0 wan_count=0
-	local n rel netdev role mode key first x spd
+	local n rel netdev first x child nbq entry children
 
 	# Enabled GDM ports: soc/ethernet@1fb50000/ethernet@N.
 	for n in 1 2 3 4; do
 		rel="soc/ethernet@1fb50000/ethernet@$n"
 		airoha_dt_node_okay "$rel" || continue
+		children=0
+		for child in /proc/device-tree/"$rel"/ethernet-port@*; do
+			[ -d "$child" ] || continue
+			children=1
+			child="${child#/proc/device-tree/}"
+			airoha_dt_node_okay "$child" || continue
+			nbq="${child##*@}"
+			case "$nbq" in ''|*[!0-9a-fA-F]*) continue ;; esac
+			entry=$(_airoha_port_json "$child" gdm "$n" "$((0x$nbq))")
+			[ -z "$ports" ] || ports="$ports,"
+			ports="$ports$entry"
+		done
+		[ "$children" = 0 ] || continue
+		entry=$(_airoha_port_json "$rel" gdm "$n" null)
+		[ -z "$ports" ] || ports="$ports,"
+		ports="$ports$entry"
 		netdev=$(_airoha_gdm_netdev "$rel")
-		mode=$(airoha_dt_read "$rel/phy-mode")
-		role="lan"
-		[ "$n" = "2" ] && role="wan"
-		spd=0
-		[ -n "$netdev" ] && spd=$(_airoha_netdev_speed_mbps "$netdev")
-		case "$spd" in ''|*[!0-9]*) spd=0 ;; esac
-		key="gdm$n"
-		port_n=$((port_n + 1))
-		[ "$port_n" -gt 1 ] && ports="${ports},"
-		ports="${ports}{\"key\":\"${key}\",\"kind\":\"gdm\",\"reg\":${n},\"pse\":$(airoha_pse_for_gdm "$n"),\"netdev\":\"$(_airoha_json_str "$netdev")\",\"role\":\"${role}\",\"mode\":\"$(_airoha_json_str "$mode")\",\"speed_mbps\":${spd}}"
-		if [ "$role" = "wan" ]; then
+		if [ "$n" = 2 ]; then
 			[ -n "$netdev" ] && wan_netdev="$netdev"
-		elif [ -n "$netdev" ]; then
-			lan_raw="${lan_raw}${netdev}
-"
 		fi
 	done
 
@@ -327,14 +419,9 @@ airoha_port_topology_json() {
 		airoha_dt_node_okay "$rel" || continue
 		netdev=$(airoha_dt_read "$rel/label")
 		[ -n "$netdev" ] || continue
-		mode=$(airoha_dt_read "$rel/phy-mode")
-		[ -n "$mode" ] || mode="internal"
-		spd=$(_airoha_netdev_speed_mbps "$netdev")
-		case "$spd" in ''|*[!0-9]*) spd=0 ;; esac
-		key="gsw$n"
-		port_n=$((port_n + 1))
-		[ "$port_n" -gt 1 ] && ports="${ports},"
-		ports="${ports}{\"key\":\"${key}\",\"kind\":\"gsw\",\"port\":${n},\"pse\":1,\"netdev\":\"$(_airoha_json_str "$netdev")\",\"role\":\"lan\",\"mode\":\"$(_airoha_json_str "$mode")\",\"speed_mbps\":${spd}}"
+		entry=$(_airoha_port_json "$rel" gsw "$n" null)
+		[ -z "$ports" ] || ports="$ports,"
+		ports="$ports$entry"
 		lan_raw="${lan_raw}${netdev}
 "
 	done
@@ -350,7 +437,7 @@ airoha_port_topology_json() {
 	lan_json=""
 	lan_count=0
 	first=1
-	for x in $(printf '%s' "$lan_raw" | grep '^lan' | sort -u); do
+	for x in $(printf '%s' "$lan_raw" | grep -E '^lan[0-9]+$' | sort -u); do
 		[ "$first" = "1" ] || lan_json="${lan_json},"
 		first=0
 		lan_json="${lan_json}\"$(_airoha_json_str "$x")\""
@@ -366,14 +453,14 @@ airoha_port_topology_json() {
 		local pmode pname pdown pup plos ponu pdev rates
 		rates=$(airoha_pon_rates)
 		pmode=$(airoha_pon_mode_int)
-		case "$pmode" in ''|*[!0-9]*) pmode=0 ;; esac
+		case "$pmode" in ''|*[!0-9]*) pmode=null ;; esac
 		pname=$(airoha_pon_mode_name)
 		pdown=$(printf '%s' "$rates" | awk '{print $1}')
 		pup=$(printf '%s' "$rates" | awk '{print $2}')
 		case "$pdown" in ''|*[!0-9]*) pdown=0 ;; esac
 		case "$pup" in ''|*[!0-9]*) pup=0 ;; esac
 		plos=$(airoha_pon_los)
-		case "$plos" in ''|*[!0-9]*) plos=0 ;; esac
+		case "$plos" in ''|*[!0-9]*) plos=null ;; esac
 		ponu=$(airoha_pon_onu_state)
 		pdev=$(airoha_pon_netdev)
 		pon_json="{\"present\":${has_pon},\"mode\":${pmode},\"mode_name\":\"$(_airoha_json_str "$pname")\",\"down_mbps\":${pdown},\"up_mbps\":${pup},\"los\":${plos},\"onu_state\":\"$(_airoha_json_str "$ponu")\",\"netdev\":\"$(_airoha_json_str "$pdev")\"}"
@@ -386,3 +473,142 @@ airoha_port_topology_json() {
 		"$lan_count" "$wan_count" "$has_pon" "$ports" "$pon_json"
 }
 # <<< airoha-topo-helpers <<<
+
+# Fixed PSE snapshots only. The driver owns the GDM MIB bank selector/lock.
+_airoha_pse_snapshot() {
+	local i q d buffer ports="" sep="" value
+	for i in 0 1 2 3 4 5 6 7 8 9; do
+		q=$(devmem "$(printf '0x%x' $((0x1fb50150 + i * 4)))" 32) || return 1
+		d=$(devmem "$(printf '0x%x' $((0x1fb50120 + i * 4)))" 32) || return 1
+		for value in "$q" "$d"; do
+			case "$value" in 0x*) ;; *) return 1 ;; esac
+			case "${value#0x}" in ''|*[!0-9a-fA-F]*) return 1 ;; esac
+		done
+		ports="$ports$sep{\"port\":$i,\"iq\":$(( (q >> 16) & 65535 )),\"oq\":$((q & 65535)),\"drops\":$((d))}"
+		sep=,
+	done
+	buffer=$(devmem 0x1fb50104 32) || return 1
+	case "$buffer" in 0x*) ;; *) return 1 ;; esac
+	case "${buffer#0x}" in ''|*[!0-9a-fA-F]*) return 1 ;; esac
+	printf '{"pse_ports":[%s],"pse_used":%d,"pse_free":%d,"counter_source":"netdev"}' \
+		"$ports" "$(( (buffer >> 16) & 65535 ))" "$((buffer & 32767))"
+}
+
+airoha_frame_engine_json() {
+	if ! command -v devmem >/dev/null 2>&1; then
+		echo '{"error":"devmem not available","counter_source":"netdev"}'
+		return
+	fi
+	_run_hardware_with_deadline 3 pse _airoha_pse_snapshot ||
+		echo '{"error":"PSE snapshot unavailable","counter_source":"netdev"}'
+}
+
+# Per-band wireless health shared by the unified NPU page. XR1710G exposes
+# three MT7996 bands; XG2010G has no radio and returns has_wifi=false.
+airoha_wifi_stats_json() {
+	local all_ifaces iface band_idx freq d
+	local dump0="" dump1="" dump2="" ifaces0="" ifaces1="" ifaces2=""
+
+	if ! command -v iw >/dev/null 2>&1; then
+		printf '{"available":false,"has_wifi":%s,"bands":[]}' "$(airoha_has_wifi)"
+		return
+	fi
+
+	all_ifaces=$(iw dev 2>/dev/null | awk '/Interface/{iface=$2} /type AP/{print iface}')
+	[ -n "$all_ifaces" ] || {
+		printf '{"available":true,"has_wifi":%s,"bands":[]}' "$(airoha_has_wifi)"
+		return
+	}
+
+	for iface in $all_ifaces; do
+		band_idx=$(printf '%s' "$iface" | sed -n 's/^[^.]*\.\([0-9][0-9]*\)-.*/\1/p')
+		if [ -z "$band_idx" ]; then
+			freq=$(iw dev "$iface" info 2>/dev/null | grep 'channel' | \
+				grep -oE '[0-9]+' | awk '$0+0 > 1000 { print $0+0; exit }')
+			case "$freq" in ''|*[!0-9]*) continue ;; esac
+			if [ "$freq" -ge 5925 ]; then band_idx=2
+			elif [ "$freq" -ge 5000 ]; then band_idx=1
+			else band_idx=0
+			fi
+		fi
+
+		case "$band_idx" in
+			0) ifaces0="${ifaces0} ${iface}" ;;
+			1) ifaces1="${ifaces1} ${iface}" ;;
+			2) ifaces2="${ifaces2} ${iface}" ;;
+			*) continue ;;
+		esac
+
+		d=$(iw dev "$iface" station dump 2>/dev/null)
+		[ -n "$d" ] || continue
+		case "$band_idx" in
+			0) dump0="${dump0}
+${d}" ;;
+			1) dump1="${dump1}
+${d}" ;;
+			2) dump2="${dump2}
+${d}" ;;
+		esac
+	done
+
+	local now sta_tx0 sta_tx1 sta_tx2 tx_values tx0_mbps tx1_mbps tx2_mbps
+	now=$(date +%s 2>/dev/null || awk '{printf "%d",$1}' /proc/uptime)
+	sta_tx0=$(printf '%s\n' "$dump0" | awk '/tx bytes:/{t+=$NF} END{printf "%d",t+0}')
+	sta_tx1=$(printf '%s\n' "$dump1" | awk '/tx bytes:/{t+=$NF} END{printf "%d",t+0}')
+	sta_tx2=$(printf '%s\n' "$dump2" | awk '/tx bytes:/{t+=$NF} END{printf "%d",t+0}')
+	tx_values=$(awk -v now="$now" -v c0="$sta_tx0" -v c1="$sta_tx1" -v c2="$sta_tx2" '
+		BEGIN {
+			pf = "/tmp/npu-wifi-bytes.prev"; tx0="0.0"; tx1="0.0"; tx2="0.0"
+			if ((getline line < pf) > 0) {
+				split(line, a); dt = now - (a[1]+0)
+				if (a[1]+0 > 0 && dt > 0) {
+					d0=c0-a[2]; if (d0<0) d0=0
+					d1=c1-a[3]; if (d1<0) d1=0
+					d2=c2-a[4]; if (d2<0) d2=0
+					tx0=sprintf("%.1f",d0/dt/125000)
+					tx1=sprintf("%.1f",d1/dt/125000)
+					tx2=sprintf("%.1f",d2/dt/125000)
+				}
+			}
+			printf "%s %s %s", tx0, tx1, tx2
+		}' /dev/null)
+	printf '%s %s %s %s\n' "$now" "$sta_tx0" "$sta_tx1" "$sta_tx2" > /tmp/npu-wifi-bytes.prev
+	tx0_mbps=$(printf '%s\n' "$tx_values" | awk '{print $1}')
+	tx1_mbps=$(printf '%s\n' "$tx_values" | awk '{print $2}')
+	tx2_mbps=$(printf '%s\n' "$tx_values" | awk '{print $3}')
+
+	local bands_json="" dump tx_mbps stats sta_tx_raw
+	for band_idx in 0 1 2; do
+		case "$band_idx" in
+			0) [ -n "$ifaces0" ] || continue; dump="$dump0"; tx_mbps="$tx0_mbps"; sta_tx_raw="$sta_tx0" ;;
+			1) [ -n "$ifaces1" ] || continue; dump="$dump1"; tx_mbps="$tx1_mbps"; sta_tx_raw="$sta_tx1" ;;
+			2) [ -n "$ifaces2" ] || continue; dump="$dump2"; tx_mbps="$tx2_mbps"; sta_tx_raw="$sta_tx2" ;;
+		esac
+
+		stats=$(printf '%s\n' "$dump" | awk '
+			BEGIN { stations=0; tx_pkts=0; tx_retries=0; tx_failed=0; sum_phy=0; sum_exp=0; phy_n=0; exp_n=0; sum_sig=0; sig_n=0; min_sig=0 }
+			/^Station / { stations++ }
+			/tx packets:/ { tx_pkts += $3+0 }
+			/tx retries:/ { tx_retries += $3+0 }
+			/tx failed:/ { tx_failed += $3+0 }
+			/tx bitrate:/ { sum_phy += $3+0; phy_n++ }
+			/expected throughput:/ { v=$3+0; if (v>0) { sum_exp+=v; exp_n++ } }
+			/signal avg:/ {
+				for (i=1; i<=NF; i++) if ($i ~ /^-[0-9]+$/) {
+					sig=$i+0; sum_sig+=sig; sig_n++; if (sig_n==1 || sig<min_sig) min_sig=sig; break
+				}
+			}
+			END {
+				avg_phy=phy_n ? sum_phy/phy_n : 0; avg_exp=exp_n ? sum_exp/exp_n : 0
+				eff=avg_phy>0 ? int(avg_exp/avg_phy*100) : 0
+				retry=(tx_pkts+tx_retries)>0 ? int(tx_retries/(tx_pkts+tx_retries)*100) : 0
+				avg_sig=sig_n ? int(sum_sig/sig_n) : 0
+				printf "%d %d %d %d %.1f %.1f %d %d %d %d", stations, tx_pkts, tx_retries, tx_failed, avg_phy, avg_exp, eff, retry, avg_sig, min_sig
+			}')
+		set -- $stats
+		[ -n "$bands_json" ] && bands_json="${bands_json},"
+		bands_json="${bands_json}{\"band\":${band_idx},\"stations\":${1:-0},\"tx_packets\":${2:-0},\"tx_retries\":${3:-0},\"tx_failed\":${4:-0},\"avg_phy_rate\":${5:-0},\"avg_exp_throughput\":${6:-0},\"airtime_efficiency\":${7:-0},\"retry_pct\":${8:-0},\"avg_signal\":${9:-0},\"min_signal\":${10:-0},\"tx_mbps\":${tx_mbps:-0},\"tx_bytes_raw\":${sta_tx_raw:-0}}"
+	done
+
+	printf '{"available":true,"has_wifi":%s,"bands":[%s]}' "$(airoha_has_wifi)" "$bands_json"
+}

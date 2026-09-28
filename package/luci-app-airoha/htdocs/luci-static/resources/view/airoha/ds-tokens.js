@@ -2,7 +2,7 @@
 'require baseclass';
 
 /* ---------------------------------------------------------------------------
- * Shared design tokens for the merged Airoha views (SoC/NPU tab + FlowSense tab).
+ * Shared design tokens for the unified Airoha SoC/NPU view.
  *
  * This module mirrors package/luci-app-mesh-conf/.../view/meshconf/ds-tokens.js
  * on purpose: pages that ship in the same product read as one design language,
@@ -36,9 +36,8 @@
  * Sizes are em-based, never px: the LuCI theme sets the base font size, and
  * only a relative scale keeps the page in step with it.
  *
- * Both view/airoha_npu/status.js and view/airoha_flowsense/status.js consume
- * this through view/airoha/ui.js; keeping the values in one place is what stops
- * the two tabs from drifting apart.
+ * view/airoha_npu/status.js consumes this through view/airoha/ui.js; keeping
+ * the values in one place prevents component styles from drifting apart.
  * ------------------------------------------------------------------------- */
 return baseclass.extend({
 	tokens: '--ds-surface:var(--background-color-high,#fff);--ds-surface-sunken:var(--background-color-medium,#f6f8fa);--ds-border:var(--border-color-low,#d8dee4);--ds-border-strong:var(--border-color-medium,#7d8792);--ds-text:var(--text-color-high,#1f2328);--ds-text-muted:var(--text-color-low,#5c6773);--ds-primary:var(--primary-color-high,#0969da);--ds-primary-text:var(--primary-color-high,#0969da);--ds-ok:#1a7f37;--ds-ok-tint:rgba(26,127,55,.08);--ds-ok-line:rgba(26,127,55,.35);--ds-warn:#bc4c00;--ds-warn-tint:rgba(188,76,0,.08);--ds-warn-line:rgba(188,76,0,.35);--ds-error:#cf222e;--ds-error-tint:rgba(207,34,46,.08);--ds-error-line:rgba(207,34,46,.40);--ds-info:#0969da;--ds-info-tint:rgba(9,105,218,.08);--ds-info-line:rgba(9,105,218,.35);--ds-focus-ring:rgba(9,105,218,.32);--ai-npu:#0e7490;--ai-cpu:#c2410c;--ai-load:#a16207;--ai-band-24:#b45309;--ai-band-5:#1d4ed8;--ai-band-6:#7c3aed;--ds-mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;--ds-r-sm:4px;--ds-r-md:6px;--ds-r-lg:8px;--ds-r-pill:999px;--ds-sp-1:.25em;--ds-sp-2:.5em;--ds-sp-3:.75em;--ds-sp-4:1em;--ds-sp-5:1.5em;--ds-fs-xs:.8em;--ds-fs-sm:.88em;--ds-fs-base:1em;--ds-fs-lg:1.1em;--ds-fs-xl:1.35em;--ds-fs-2xl:1.6em;--ds-shadow-1:0 1px 2px rgba(16,24,40,.04)',
