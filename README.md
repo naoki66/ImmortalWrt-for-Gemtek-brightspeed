@@ -91,13 +91,14 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集
 - `factory_storage` 与旧写法 `ubi_factory` 只是设备树 phandle 标签，不是两个卷；运行时都指向唯一的 UBI 卷名 `factory`。XR1710G 的完整 DSD 中，`0x006c/0x0086` 是 17 字节文本 WAN/LAN MAC，MT7996 EEPROM/校准位于 `0x5000`、长度 `0x1e00`。不要恢复旧布局中“EEPROM 放在卷首、原始 MAC 放在 `0x5000/0x6000`”的重排 factory 镜像。
 - `luci-app-airoha-factory` 会按板型选择旧布局 raw MAC 写入或 DSD 布局整卷读改写；UBI `factory` 卷回写需要 `ubiupdatevol`。
 - 关键内核与网络补丁（完整列表见 [target/linux/airoha/patches-6.18/](target/linux/airoha/patches-6.18/) 和 [target/linux/generic/pending-6.18/](target/linux/generic/pending-6.18/)）：
+  - `743`、`744`、`747`：XR1710G/XG2010G 共享的 RTL8261BE/RTL8261N SerDes 调优、协商后重试和 USXGMII in-band 配置。
   - `182-v7.4`：扩大 Airoha 小型 RX ring，缓解 PPPoE 等突发 CPU 流量导致的 descriptor 耗尽。
   - `221-01`：允许 Airoha 平台启用 CPU PM Domain。
   - `675-02~05`：nft_flow_offload 桥接、WDMA 与 VLAN-aware bridge/PVID 映射。
   - `910-02`、`912`、`913`：USB/PCIe 时钟、PCIe 3.0 x2 链路与复位修复。
   - `181`、`924`、`926`：NPU 异常恢复、固件加载、coherent mailbox DMA 与 mailbox 等待时间限制。
   - `915-01`、`916-02`、`9990`、`9993`、`9999-11`：PPE/flowtable 硬件卸载、WLAN 流绑定、VLAN ingress 与 XFRM 流支持。
-  - `920-*`、`607-cpufreq`、`990-01`：Airoha 网络、MTU、CPU 频率与桥接 FDB 漫游修复。
+  - `920-xg2010g-pon-*`、`607-cpufreq`、`990-01`：XG2010G PON 兼容层、Airoha 网络、MTU、CPU 频率与桥接 FDB 漫游修复；`920-xg2010g-pon-*` 在 XR1710G 配置中保持关闭。
 - 无线栈补丁：
   - [mt76 patches](package/kernel/mt76/patches/) 中的 `001`（mt7996 PS sync TLV/MLO 稳定性）与 `9993`（operating-mode rate control）。
   - [mac80211 patch](package/kernel/mac80211/patches/subsys/411-mac80211-export-link-sta-capability-limits.patch) 与 [hostapd patches](package/network/services/hostapd/patches/)（6GHz、EHT、radio mask 及多 VAP 稳定性）。
