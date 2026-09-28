@@ -1,0 +1,130 @@
+--- a/src/en75xx_voice_core.c
++++ b/src/en75xx_voice_core.c
+@@ -33,6 +33,7 @@ struct en75xx_voice_line {
+ 	wait_queue_head_t event_wait;
+ 	atomic_t event_seq;
+ 	bool opened;
++	bool pcm_started;
+ 	bool ringing;
+ 	bool tone_on;
+ 	enum en75xx_voice_linefeed linefeed;
+@@ -46,6 +47,37 @@ struct en75xx_voice_file {
+ 	int event_seq;
+ };
+ 
++static int en75xx_voice_pcm_start_locked(struct en75xx_voice_line *line)
++{
++	int ret;
++
++	if (line->pcm_started)
++		return 0;
++
++	ret = line->pcm->line_ops->start(line->pcm, line->pcm_channel);
++	if (!ret)
++		line->pcm_started = true;
++	return ret;
++}
++
++static int en75xx_voice_pcm_start(struct en75xx_voice_line *line)
++{
++	int ret;
++
++	mutex_lock(&line->lock);
++	ret = en75xx_voice_pcm_start_locked(line);
++	mutex_unlock(&line->lock);
++	return ret;
++}
++
++static void en75xx_voice_pcm_stop_locked(struct en75xx_voice_line *line)
++{
++	if (!line->pcm_started)
++		return;
++	line->pcm->line_ops->stop(line->pcm, line->pcm_channel);
++	line->pcm_started = false;
++}
++
+ static int en75xx_voice_open(struct inode *inode, struct file *file)
+ {
+ 	struct miscdevice *misc = file->private_data;
+@@ -67,7 +99,3 @@ static int en75xx_voice_open(struct inode
+-	ret = line->pcm->line_ops->start(line->pcm, line->pcm_channel);
+-	if (ret)
+-		goto out_unlock;
+-
+ 	line->opened = true;
+ 	vf->line = line;
+ 	vf->event_seq = atomic_read(&line->event_seq);
+@@ -98,10 +127,9 @@ static int en75xx_voice_release(struct in
+ 		line->slic_ops->set_tone(line->slic_priv, &silence);
+ 		line->tone_on = false;
+ 	}
+-	if (line->opened) {
+-		line->pcm->line_ops->stop(line->pcm, line->pcm_channel);
+-		line->opened = false;
+-	}
++	if (line->opened)
++		en75xx_voice_pcm_stop_locked(line);
++	line->opened = false;
+ 	mutex_unlock(&line->lock);
+ 	kfree(vf);
+ 	return 0;
+@@ -121,6 +149,10 @@ static ssize_t en75xx_voice_read(struct f
+ 	if (!count)
+ 		return -EINVAL;
+ 
++	ret = en75xx_voice_pcm_start(line);
++	if (ret)
++		return ret;
++
+ 	tmp = kmalloc(min_t(size_t, count, 4096), GFP_KERNEL);
+ 	if (!tmp)
+ 		return -ENOMEM;
+@@ -147,6 +179,9 @@ static ssize_t en75xx_voice_write(struct
+ 	if (!count)
+ 		return -EINVAL;
+ 	count = min_t(size_t, count, 4096);
++	ret = en75xx_voice_pcm_start(line);
++	if (ret)
++		return ret;
+ 
+	tmp = memdup_user(buf, count);
+ 	if (IS_ERR(tmp))
+@@ -215,19 +251,36 @@ static long en75xx_voice_ioctl(struct fil
+ 			line->ringing = !!ring.enable;
+ 		mutex_unlock(&line->lock);
+ 		return ret;
+-	case EN75XX_VOICE_SET_LINEFEED:
++	case EN75XX_VOICE_SET_LINEFEED: {
++		bool active, started_here = false;
++
+ 		if (copy_from_user(&linefeed, (void __user *)arg, sizeof(linefeed)))
+ 			return -EFAULT;
+ 		if (linefeed > EN75XX_VOICE_LINEFEED_REVERSE)
+ 			return -EINVAL;
+ 		if (!line->slic_ops->set_linefeed)
+ 			return -EOPNOTSUPP;
++		active = linefeed == EN75XX_VOICE_LINEFEED_ACTIVE ||
++			 linefeed == EN75XX_VOICE_LINEFEED_REVERSE;
+ 		mutex_lock(&line->lock);
++		if (active && !line->pcm_started) {
++			ret = en75xx_voice_pcm_start_locked(line);
++			if (ret)
++				goto out_linefeed;
++			started_here = true;
++		}
+ 		ret = line->slic_ops->set_linefeed(line->slic_priv, linefeed);
+-		if (!ret)
++		if (!ret) {
+ 			line->linefeed = linefeed;
++			if (!active)
++				en75xx_voice_pcm_stop_locked(line);
++		} else if (started_here) {
++			en75xx_voice_pcm_stop_locked(line);
++		}
++out_linefeed:
+ 		mutex_unlock(&line->lock);
+ 		return ret;
++	}
+ 	case EN75XX_VOICE_SET_TONE:
+ 		if (copy_from_user(&tone, (void __user *)arg, sizeof(tone)))
+ 			return -EFAULT;

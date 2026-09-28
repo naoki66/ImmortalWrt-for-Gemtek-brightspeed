@@ -1,0 +1,16 @@
+#!/bin/sh
+
+uci -q set asterisk.general.enabled='1'
+uci -q set asterisk.general.interface=''
+uci -q commit asterisk
+
+extensions=/etc/asterisk/extensions.conf
+include='#include "extensions-en75xx.conf"'
+
+if [ -f "$extensions" ] && ! grep -qxF "$include" "$extensions"; then
+	printf '\n%s\n' "$include" >> "$extensions"
+fi
+
+[ ! -x /etc/init.d/asterisk ] || /etc/init.d/asterisk enable
+
+exit 0

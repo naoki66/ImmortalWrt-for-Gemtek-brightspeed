@@ -1,0 +1,15 @@
+--- a/asterisk/chan_en75xx.c
++++ b/asterisk/chan_en75xx.c
+@@ -582,6 +582,12 @@
+ 		case EN75XX_RINGING:
+ 			/* answered */
+ 			line_set_ring(p, 0);
++			if (line_set_linefeed(p, EN75XX_VOICE_LINEFEED_ACTIVE)) {
++				if (chan)
++					ast_queue_hangup(chan);
++				break;
++			}
++			line_flush(p);
+ 			p->state = EN75XX_UP;
+ 			if (chan) {
+ 				ast_queue_control(chan,

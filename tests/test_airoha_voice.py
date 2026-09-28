@@ -11,6 +11,37 @@ CONFIG = REPO / "2010.config"
 PLATFORM_UPGRADE = (
     REPO / "target/linux/airoha/an7581/base-files/lib/upgrade/platform.sh"
 )
+VOICE_CTL = (
+    REPO
+    / "package/kernel/airoha-voice/files/airoha-voice-ctl.c"
+)
+ASTERISK_PACKAGE = (
+    REPO / "package/network/services/asterisk-chan-en75xx/Makefile"
+)
+ASTERISK_HOTPLUG = (
+    REPO
+    / "package/network/services/asterisk-chan-en75xx/files/50-en75xx-fxs"
+)
+ASTERISK_CONFIG = (
+    REPO
+    / "package/network/services/asterisk-chan-en75xx/files/en75xx.conf"
+)
+ASTERISK_DIALPLAN = (
+    REPO
+    / "package/network/services/asterisk-chan-en75xx/files/extensions-en75xx.conf"
+)
+ASTERISK_DEFAULTS = (
+    REPO
+    / "package/network/services/asterisk-chan-en75xx/files/99-asterisk-en75xx"
+)
+VOICE_PCM_ACTIVITY_PATCH = (
+    REPO
+    / "package/kernel/airoha-voice/patches/100-start-pcm-on-audio-activity.patch"
+)
+ASTERISK_ANSWER_PATCH = (
+    REPO
+    / "package/network/services/asterisk-chan-en75xx/patches/100-activate-pcm-when-answering.patch"
+)
 OLD_DRIVER = REPO / "package/kernel/airoha-voice/src/airoha_en7581_pcm_spi.c"
 
 
@@ -23,6 +54,18 @@ class VoiceStackSourceTests(unittest.TestCase):
         cls.image = IMAGE.read_text(encoding="utf-8")
         cls.config = CONFIG.read_text(encoding="utf-8")
         cls.platform_upgrade = PLATFORM_UPGRADE.read_text(encoding="utf-8")
+        cls.voice_ctl = VOICE_CTL.read_text(encoding="utf-8")
+        cls.asterisk_package = ASTERISK_PACKAGE.read_text(encoding="utf-8")
+        cls.asterisk_hotplug = ASTERISK_HOTPLUG.read_text(encoding="utf-8")
+        cls.asterisk_config = ASTERISK_CONFIG.read_text(encoding="utf-8")
+        cls.asterisk_dialplan = ASTERISK_DIALPLAN.read_text(encoding="utf-8")
+        cls.asterisk_defaults = ASTERISK_DEFAULTS.read_text(encoding="utf-8")
+        cls.voice_pcm_activity_patch = VOICE_PCM_ACTIVITY_PATCH.read_text(
+            encoding="utf-8"
+        )
+        cls.asterisk_answer_patch = ASTERISK_ANSWER_PATCH.read_text(
+            encoding="utf-8"
+        )
 
     def test_package_pins_complete_voice_stack(self):
         self.assertIn("PKG_SOURCE_PROTO:=git", self.package)
@@ -96,6 +139,64 @@ class VoiceStackSourceTests(unittest.TestCase):
 
     def test_xg2010g_upgrade_ramfs_contains_layout_check_tools(self):
         self.assertIn("RAMFS_COPY_BIN='fitblk fit_check_sign tr'", self.platform_upgrade)
+
+    def test_voice_control_utility_uses_public_uapi(self):
+        self.assertIn("CONFIG_PACKAGE_airoha-voice-ctl=y", self.config)
+        self.assertIn("define Package/airoha-voice-ctl", self.package)
+        self.assertIn("$(eval $(call BuildPackage,airoha-voice-ctl))", self.package)
+        self.assertIn("#include <linux/en75xx_voice.h>", self.voice_ctl)
+        for command in (
+            "EN75XX_VOICE_GET_INFO",
+            "EN75XX_VOICE_GET_STATE",
+            "EN75XX_VOICE_GET_STATS",
+            "EN75XX_VOICE_SET_LINEFEED",
+            "EN75XX_VOICE_SET_RING",
+            "EN75XX_VOICE_SET_TONE",
+            "command_pcm_check",
+        ):
+            self.assertIn(command, self.voice_ctl)
+
+    def test_asterisk_channel_package_is_selected_and_buildable(self):
+        self.assertIn("CONFIG_PACKAGE_asterisk-chan-en75xx=y", self.config)
+        self.assertIn("PKG_BUILD_DEPENDS:=asterisk", self.asterisk_package)
+        self.assertIn("cd $(PKG_BUILD_DIR)/asterisk", self.asterisk_package)
+        self.assertIn("-c chan_en75xx.c", self.asterisk_package)
+        self.assertIn("-I$(PKG_BUILD_DIR)/include/uapi", self.asterisk_package)
+        self.assertIn("-I$(PKG_BUILD_DIR)/include/uapi/linux", self.asterisk_package)
+        self.assertIn("-Wno-unused-parameter", self.asterisk_package)
+        self.assertIn("chan_en75xx.so", self.asterisk_package)
+        self.assertIn("./files/en75xx.conf", self.asterisk_package)
+        self.assertIn("./files/extensions-en75xx.conf", self.asterisk_package)
+        self.assertIn(
+            "$(INSTALL_DATA) ./files/en75xx.conf",
+            self.asterisk_package,
+        )
+        self.assertIn("chown asterisk:asterisk", self.asterisk_hotplug)
+        self.assertIn("[line0]", self.asterisk_config)
+        self.assertIn("[line1]", self.asterisk_config)
+        self.assertIn("context = fxs", self.asterisk_config)
+        self.assertIn("exten => 600,1,Answer()", self.asterisk_dialplan)
+        self.assertIn("n,Echo()", self.asterisk_dialplan)
+        self.assertNotIn("Playback(", self.asterisk_dialplan)
+        self.assertIn("asterisk.general.enabled='1'", self.asterisk_defaults)
+        self.assertIn("extensions-en75xx.conf", self.asterisk_defaults)
+
+    def test_pcm_runs_only_while_audio_is_active(self):
+        self.assertIn("bool pcm_started;", self.voice_pcm_activity_patch)
+        self.assertIn(
+            "en75xx_voice_pcm_start_locked", self.voice_pcm_activity_patch
+        )
+        self.assertIn(
+            "en75xx_voice_pcm_stop_locked", self.voice_pcm_activity_patch
+        )
+        self.assertIn(
+            "linefeed == EN75XX_VOICE_LINEFEED_ACTIVE",
+            self.voice_pcm_activity_patch,
+        )
+        self.assertIn(
+            "line_set_linefeed(p, EN75XX_VOICE_LINEFEED_ACTIVE)",
+            self.asterisk_answer_patch,
+        )
 
 
 if __name__ == "__main__":

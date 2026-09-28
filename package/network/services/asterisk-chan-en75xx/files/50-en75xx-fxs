@@ -1,0 +1,12 @@
+#!/bin/sh
+
+[ "$ACTION" = "add" ] || exit 0
+
+case "$DEVNAME" in
+	/dev/en75xx-fxs*) device="$DEVNAME" ;;
+	en75xx-fxs*) device="/dev/$DEVNAME" ;;
+	*) exit 0 ;;
+esac
+
+chown asterisk:asterisk "$device"
+chmod 0660 "$device"
