@@ -44,7 +44,7 @@ async function main() {
     const tokens = new Function('baseclass', await (await fetch(base + 'airoha/ds-tokens.js', { cache: 'no-store' })).text())(baseclass);
     const aui = new Function('baseclass', 'tokens', 'E', await (await fetch(base + 'airoha/ui.js', { cache: 'no-store' })).text())(baseclass, tokens, E);
     const source = (await (await fetch(base + 'airoha_npu/status.js', { cache: 'no-store' })).text()).replace(
-        'return view.extend({', 'return {renderEthernetPorts, renderFeDiagram, renderFreqCard, renderOffloadControls, renderPpeTable, updatePpeTable};\nreturn view.extend({');
+        'return view.extend({', 'return {renderEthernetPorts, renderEngineStatus, renderFreqCard, renderOffloadControls, renderPpeTable, updatePpeTable};\nreturn view.extend({');
     const renderers = new Function('rpc', 'aui', 'E', '_', source)({ declare: () => () => Promise.resolve({}) }, aui, E, _);
     const xr = new URLSearchParams(location.search).get('board') === '1710';
     const specs = xr
@@ -68,9 +68,9 @@ async function main() {
     root.append(aui.section({ title: 'Ethernet Ports', body: renderers.renderEthernetPorts(topology) }));
     root.append(aui.section({ title: 'Acceleration', body: renderers.renderOffloadControls(
         topology, { supported: xr, enabled: 0 }, { enabled: 1 }, { supported: xr, enabled: 0 }, false) }));
-    root.append(renderers.renderFeDiagram({ error: 'devmem not available' }, { has_wifi: false },
+    root.append(renderers.renderEngineStatus(
         { npu_loaded: true, npu_version: '2.1.1-TLB7.3.283.1456-62', npu_clock: 800000000, npu_cores: 8 },
-        {}, topology));
+        {}));
     root.append(renderers.renderFreqCard({ cpu_cur_freq: 1200000, cpu_max_freq: 1200000, cpu_min_freq: 500000 }));
     const entries = Array.from({ length: 65 }, (_, i) => ({
         index: i.toString(16).padStart(5, '0'), state: i % 2 ? 'UNB' : 'BND',

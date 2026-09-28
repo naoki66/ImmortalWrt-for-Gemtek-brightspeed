@@ -238,12 +238,6 @@ msgstr ""
 msgid "Forward transitions"
 msgstr ""
 
-msgid "Frame Engine"
-msgstr ""
-
-msgid "Frame engine data is not available on this build"
-msgstr ""
-
 msgid "Frequency"
 msgstr ""
 
@@ -425,9 +419,6 @@ msgid "PHY rate"
 msgstr ""
 
 msgid "PLE: no data source"
-msgstr ""
-
-msgid "PLL Reading"
 msgstr ""
 
 msgid "PON"

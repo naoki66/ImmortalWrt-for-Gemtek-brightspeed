@@ -2,17 +2,14 @@
 #
 # airoha-common.sh — shared helpers for Airoha LuCI RPC backends
 #
-# This file is sourced by the backend scripts AFTER they define
-# HARDWARE_BLOCKED_FILE. It provides:
-#   _run_with_deadline          — run a probe behind a wall-clock deadline (no circuit breaker)
-#   _run_hardware_with_deadline — same, but trips the reboot-scoped circuit breaker on timeout
-#   _devmem_read                — timeout-protected MMIO read via devmem
-#   airoha_has_wifi             — authoritative /sys/class/ieee80211 presence (true/false)
+# This file is sourced by the backend scripts. It provides:
+#   _run_with_deadline — run a probe behind a wall-clock deadline
+#   airoha_has_wifi    — authoritative /sys/class/ieee80211 presence (true/false)
 #
 # Kept separate from the RPC dispatcher so hardware readers remain reusable.
 
-# Run a command behind a wall-clock deadline so a blocking hardware probe
-# (e.g. devmem stuck in D-state) cannot hang rpcd forever.
+# Run a command behind a wall-clock deadline so a blocking debugfs snapshot
+# cannot hang rpcd forever.
 # Usage: _run_with_deadline <seconds> <tag> <cmd> [args...]
 # Prints the command's stdout on success; returns 0 on success, 1 on command
 # failure, 124 on timeout. Does NOT touch the circuit-breaker file.
@@ -66,38 +63,6 @@ _run_with_deadline() {
 	kill "$timer" 2>/dev/null; wait "$timer" 2>/dev/null
 	rm -f "$output" "$done" "$child_file"
 	return 124
-}
-
-# Hardware probes (MMIO/devmem) may block in D-state. Only these dangerous
-# probes share the reboot-scoped circuit breaker; debugfs snapshots must
-# remain recoverable, so they call _run_with_deadline directly instead.
-# Usage: _run_hardware_with_deadline <seconds> <tag> <cmd> [args...]
-_run_hardware_with_deadline() {
-	local seconds="$1"
-	local tag="$2"
-	local rc
-
-	[ -e "$HARDWARE_BLOCKED_FILE" ] && return 125
-	_run_with_deadline "$@"
-	rc=$?
-	if [ "$rc" -eq 124 ]; then
-		printf '%s\n' "$tag timed out" >"$HARDWARE_BLOCKED_FILE"
-		logger -t airoha-common "hardware probe '$tag' timed out after ${seconds}s; disabling hardware polling until reboot" 2>/dev/null
-	fi
-	return "$rc"
-}
-
-# Timeout-protected hardware register read via devmem.
-# Returns register value on success, "0" on timeout/error.
-_devmem_read() {
-	local addr="$1"
-	local to="${2:-2}"
-	[ -e "$HARDWARE_BLOCKED_FILE" ] && { echo "0"; return 1; }
-	local val rc
-	val=$(_run_hardware_with_deadline "$to" devmem devmem "$addr")
-	rc=$?
-	echo "${val:-0}"
-	[ "$rc" -eq 0 ] && [ -n "$val" ]
 }
 
 # Authoritative wireless presence: does the board expose any ieee80211 phy?
@@ -473,35 +438,6 @@ airoha_port_topology_json() {
 		"$lan_count" "$wan_count" "$has_pon" "$ports" "$pon_json"
 }
 # <<< airoha-topo-helpers <<<
-
-# Fixed PSE snapshots only. The driver owns the GDM MIB bank selector/lock.
-_airoha_pse_snapshot() {
-	local i q d buffer ports="" sep="" value
-	for i in 0 1 2 3 4 5 6 7 8 9; do
-		q=$(devmem "$(printf '0x%x' $((0x1fb50150 + i * 4)))" 32) || return 1
-		d=$(devmem "$(printf '0x%x' $((0x1fb50120 + i * 4)))" 32) || return 1
-		for value in "$q" "$d"; do
-			case "$value" in 0x*) ;; *) return 1 ;; esac
-			case "${value#0x}" in ''|*[!0-9a-fA-F]*) return 1 ;; esac
-		done
-		ports="$ports$sep{\"port\":$i,\"iq\":$(( (q >> 16) & 65535 )),\"oq\":$((q & 65535)),\"drops\":$((d))}"
-		sep=,
-	done
-	buffer=$(devmem 0x1fb50104 32) || return 1
-	case "$buffer" in 0x*) ;; *) return 1 ;; esac
-	case "${buffer#0x}" in ''|*[!0-9a-fA-F]*) return 1 ;; esac
-	printf '{"pse_ports":[%s],"pse_used":%d,"pse_free":%d,"counter_source":"netdev"}' \
-		"$ports" "$(( (buffer >> 16) & 65535 ))" "$((buffer & 32767))"
-}
-
-airoha_frame_engine_json() {
-	if ! command -v devmem >/dev/null 2>&1; then
-		echo '{"error":"devmem not available","counter_source":"netdev"}'
-		return
-	fi
-	_run_hardware_with_deadline 3 pse _airoha_pse_snapshot ||
-		echo '{"error":"PSE snapshot unavailable","counter_source":"netdev"}'
-}
 
 # Per-band wireless health shared by the unified NPU page. XR1710G exposes
 # three MT7996 bands; XG2010G has no radio and returns has_wifi=false.

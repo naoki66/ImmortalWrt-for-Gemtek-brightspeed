@@ -243,12 +243,6 @@ msgstr "硬件流量加速"
 msgid "Forward transitions"
 msgstr "转发状态迁移"
 
-msgid "Frame Engine"
-msgstr "帧引擎"
-
-msgid "Frame engine data is not available on this build"
-msgstr "此版本不提供帧引擎数据"
-
 msgid "Frequency"
 msgstr "频率"
 
@@ -431,9 +425,6 @@ msgstr "协商速率"
 
 msgid "PLE: no data source"
 msgstr "PLE：无数据源"
-
-msgid "PLL Reading"
-msgstr "PLL 实测"
 
 msgid "PON"
 msgstr "PON"

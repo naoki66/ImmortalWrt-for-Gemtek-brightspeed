@@ -162,19 +162,23 @@ uci() {
         self.put("sys/class/mtd/mtd1/offset", "6291456\n")
         self.assertEqual(self.shell(code, command).strip(), "rc=1")
 
-    def test_frame_probe_never_reads_gdm_mib(self):
-        mocks = """
-devmem() {
-    case "$1" in
-        0x1fb50104|0x1fb501[2356][048c]|0x1fb501[47][04]) echo 0x00000000 ;;
-        *) echo "forbidden MMIO: $1" >&2; return 1 ;;
-    esac
-}
-"""
-        data = json.loads(self.shell(COMMON.read_text() + mocks, "_airoha_pse_snapshot"))
-        self.assertEqual(data["counter_source"], "netdev")
-        self.assertEqual(len(data["pse_ports"]), 10)
-        self.assertNotIn("gdm4", data)
+    def test_production_builds_disable_devmem_and_pse_rpc(self):
+        configs = [(REPO / name).read_text() for name in ("1710.config", "2010.config")]
+        busybox_defaults = (REPO / "package/utils/busybox/Config-defaults.in").read_text()
+        backend = (COMMON.parent / "luci.airoha_npu").read_text()
+        acl = (COMMON.parents[3] / "usr/share/rpcd/acl.d/luci-app-airoha.json").read_text()
+        frontend = (REPO / "package/luci-app-airoha/htdocs/luci-static/resources/view/airoha_npu/status.js").read_text()
+        for config in configs:
+            self.assertIn("# CONFIG_KERNEL_DEVMEM is not set", config)
+            self.assertNotIn("CONFIG_KERNEL_DEVMEM=y", config)
+            self.assertNotIn("CONFIG_BUSYBOX_DEFAULT_DEVMEM=y", config)
+        self.assertNotIn("default y if TARGET_airoha_an7581", busybox_defaults)
+        self.assertNotIn("getFrameEngine", backend)
+        self.assertNotIn("getFrameEngine", acl)
+        self.assertNotIn("/dev/mem", acl)
+        self.assertNotIn("devmem", COMMON.read_text())
+        self.assertNotIn("devmem", backend)
+        self.assertNotIn("PSE", frontend)
 
     def test_bridge_controls_rejected_on_xg_only(self):
         code = COMMON.read_text()

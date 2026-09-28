@@ -4,8 +4,6 @@
 
 . /lib/functions.sh
 
-HARDWARE_BLOCKED_FILE="/tmp/luci-airoha-npu.hardware-blocked"
-
 . /usr/libexec/rpcd/airoha-common.sh
 
 _has_active_wan() {
@@ -164,24 +162,6 @@ get_status() {
 	local has_pon
 	has_pon=$(airoha_pon_present)
 
-	# Read the actual PLL frequency to cross-check cpufreq reporting.
-	local pll_freq=0
-	if command -v devmem > /dev/null 2>&1; then
-		local pcw_raw=$(_devmem_read 0x1fa202b4 2>/dev/null)
-		local chg_raw=$(_devmem_read 0x1fa202b8 2>/dev/null)
-		if [ -n "$pcw_raw" ] && [ -n "$chg_raw" ]; then
-			pcw_raw=$((pcw_raw))
-			chg_raw=$((chg_raw))
-			local pcw_int=$(( (pcw_raw >> 24) & 0xFF ))
-			local pll_posdiv=$(( (chg_raw >> 4) & 7 ))
-			if [ "$pll_posdiv" -eq 0 ]; then
-				pll_freq=$((pcw_int * 50))
-			else
-				pll_freq=$((pcw_int * 50 / (1 << pll_posdiv)))
-			fi
-		fi
-	fi
-
 	# Count online CPUs
 	local cpu_count=0
 	if [ -d "/sys/devices/system/cpu" ]; then
@@ -223,9 +203,9 @@ get_status() {
 	done
 	[ -n "$soc_compat" ] || soc_compat="Unknown"
 
-	printf '{"npu_version":"%s","npu_loaded":%s,"npu_device":"%s","npu_clock":%d,"npu_cores":%d,"offload_bound":%d,"offload_total":%d,"memory_regions":%s,"cpu_cur_freq":%d,"cpu_hw_freq":%d,"cpu_governor":"%s","cpu_avail_governors":"%s","cpu_min_freq":%d,"cpu_max_freq":%d,"cpu_avail_freqs":"%s","cpu_cpufreq_available":%d,"cpu_cpufreq_reason":"%s","cpu_count":%d,"pll_freq_mhz":%d,"cpu_arch":"%s","cpu_temp":"%s","soc_compat":"%s","has_pon":%d}' \
+	printf '{"npu_version":"%s","npu_loaded":%s,"npu_device":"%s","npu_clock":%d,"npu_cores":%d,"offload_bound":%d,"offload_total":%d,"memory_regions":%s,"cpu_cur_freq":%d,"cpu_hw_freq":%d,"cpu_governor":"%s","cpu_avail_governors":"%s","cpu_min_freq":%d,"cpu_max_freq":%d,"cpu_avail_freqs":"%s","cpu_cpufreq_available":%d,"cpu_cpufreq_reason":"%s","cpu_count":%d,"cpu_arch":"%s","cpu_temp":"%s","soc_compat":"%s","has_pon":%d}' \
 		"${npu_ver:-Unknown}" "$npu_loaded" "${npu_device:-}" "${npu_clock:-0}" "${npu_cores:-0}" "${offload_bound:-0}" "${offload_total:-0}" "$regions" \
-		"${cpu_cur_freq:-0}" "${cpu_hw_freq:-0}" "${cpu_governor:-unknown}" "${cpu_avail_governors:-}" "${cpu_min_freq:-0}" "${cpu_max_freq:-0}" "${cpu_avail_freqs:-}" "${cpu_cpufreq_available:-0}" "${cpu_cpufreq_reason:-no_cpufreq}" "${cpu_count:-0}" "${pll_freq:-0}" \
+		"${cpu_cur_freq:-0}" "${cpu_hw_freq:-0}" "${cpu_governor:-unknown}" "${cpu_avail_governors:-}" "${cpu_min_freq:-0}" "${cpu_max_freq:-0}" "${cpu_avail_freqs:-}" "${cpu_cpufreq_available:-0}" "${cpu_cpufreq_reason:-no_cpufreq}" "${cpu_count:-0}" \
 		"${cpu_arch:-}" "${cpu_temp:-N/A}" "${soc_compat:-}" "${has_pon:-0}"
 }
 
@@ -413,10 +393,6 @@ set_cpu_settings() {
 	[ -n "$governor" ] && out="$out,\"governor\":\"$governor\""
 	[ -n "$freq" ] && out="$out,\"freq\":$freq"
 	printf '%s}' "$out"
-}
-
-get_frame_engine() {
-	airoha_frame_engine_json
 }
 
 get_vlan_offload() {
@@ -620,7 +596,7 @@ set_apmode_offload() {
 
 case "$1" in
 	list)
-		echo '{"getStatus":{},"getTopology":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getWifiStats":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"getApModeOffload":{},"setApModeOffload":{"enabled":"int"},"getDeviceMode":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"},"setCpuSettings":{"governor":"str","freq":"int"}}'
+		echo '{"getStatus":{},"getTopology":{},"getPpeEntries":{},"getTokenInfo":{},"getWifiStats":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"getApModeOffload":{},"setApModeOffload":{"enabled":"int"},"getDeviceMode":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"},"setCpuSettings":{"governor":"str","freq":"int"}}'
 		;;
 	call)
 		case "$2" in
@@ -650,9 +626,6 @@ case "$1" in
 			setCpuSettings)
 				read input
 				set_cpu_settings "$input"
-				;;
-			getFrameEngine)
-				get_frame_engine
 				;;
 			getWifiStats)
 				airoha_wifi_stats_json
