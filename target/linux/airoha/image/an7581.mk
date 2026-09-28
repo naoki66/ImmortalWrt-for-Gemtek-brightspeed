@@ -246,7 +246,7 @@ define Device/gemtek_xg2010g-ubi
        the fit volume inside the ubi partition at 0x00600000. Upgrade only \
        the ubi partition and keep bootloader, uenv, dsd and reserved_bmt intact.
   DEVICE_PACKAGES := fitblk kmod-leds-gpio kmod-gpio-button-hotplug \
-	kmod-phy-airoha-en8811h \
+	kmod-phy-airoha-en8811h kmod-phy-realtek rtl826x-firmware \
 	kmod-nf-conntrack-bridge kmod-nft-bridge \
 	kmod-airoha-en7572 kmod-airoha-xpon airoha-ponctl airoha-pond \
 	kmod-airoha-tod kmod-airoha-en7581-pcm-spi \

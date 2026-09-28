@@ -374,6 +374,9 @@
 		reset-gpios = <&en7581_pinctrl 29 GPIO_ACTIVE_LOW>;
 		reset-assert-us = <200000>;
 		reset-deassert-us = <200000>;
+		reset-before-id-read;
+		realtek,sds-mode = <0x88c6>;
+		realtek,patch-rtk-serdes;
 		tx-polarity = <PHY_POL_INVERT>;
 		rx-polarity = <PHY_POL_INVERT>;
 	};
@@ -384,6 +387,9 @@
 		reset-gpios = <&en7581_pinctrl 27 GPIO_ACTIVE_LOW>;
 		reset-assert-us = <200000>;
 		reset-deassert-us = <200000>;
+		reset-before-id-read;
+		realtek,sds-mode = <0x88c6>;
+		realtek,patch-rtk-serdes;
 		tx-polarity = <PHY_POL_INVERT>;
 		rx-polarity = <PHY_POL_INVERT>;
 	};
