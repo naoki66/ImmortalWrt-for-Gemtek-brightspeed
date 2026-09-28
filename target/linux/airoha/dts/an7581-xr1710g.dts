@@ -225,11 +225,9 @@
 		      "sec-perstout";
 
 	num-lanes = <2>;
+	max-link-speed = <3>;
 
 	airoha,scu = <&scuclk>;
-	airoha,x2-mode;
-	airoha,np-scu = <&scuclk>;
-	airoha,serdes-lanes-mask = <0x3>;
 
 	pinctrl-names = "default";
 	pinctrl-0 = <&pcie0_rst_pins>;
@@ -268,8 +266,15 @@
 	};
 };
 
+&pcie1 {
+	status = "disabled";
+};
+
 &pcie2 {
 	status = "okay";
+	max-link-speed = <2>;
+	airoha,wait-for-pcie0-perst;
+	airoha,scu = <&scuclk>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pcie2_rst_pins>;
 };
