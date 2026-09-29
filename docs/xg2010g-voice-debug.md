@@ -26,6 +26,41 @@ The `devmem` command and the kernel `/dev/mem` device are enabled temporarily
 in the XG2010G debug image for register diagnosis. Do not write registers
 unless the address and bitfield are known from the board documentation.
 
+## Validated EN7581 bring-up baseline
+
+The dual-Si32192 control path was reproduced on hardware on 2026-09-30. The
+working ISI initialization preserves the DTS-selected PCM-SPI and CS1 mux bits,
+adds the vendor PCM1 route, and enables the companion pinmux bits:
+
+```text
+0x1fa20218 = 0x00031000
+0x1fa201d0 = 0x00000c01
+legacy_chan_sel = N
+```
+
+With those values applied by the driver, a single module load initializes both
+endpoints without a manual register write:
+
+```text
+spi1.0: MSTRSTAT=0xff REG0=0xaa, ProSLIC_Init ret=0, PCM channel 0
+spi1.1: MSTRSTAT=0x9f REG0=0xaa, ProSLIC_Init ret=0, PCM channel 2
+```
+
+The r19 module build was hot-loaded on the same device and reproduced those
+values from the pre-load pinctrl state. Both lines then passed a 50-frame PCM
+check with 8000 RX bytes, 8000 TX bytes and zero DMA errors per line. Asterisk
+opened both devices and reported them as on-hook and idle. The test still saw
+15 initial TX underruns per line, so real handset audio and noise remain a
+separate post-flash validation item.
+
+The failed r17/r18 experiment wrote `0x1fa20218 = 0x00003000` and
+`0x1fa201d0 = 0x00000000`. That cleared the PCM-SPI/CS1 route established by
+pinctrl, so both SLIC reads returned zero. The clock-gate and shifted-bitfield
+experiments derived from that state were removed. `legacy_chan_sel` remains a
+writable diagnostic parameter, but it must default to disabled because writing
+the guessed channel-select value before every transfer prevents the second
+endpoint from replying.
+
 The ISI transport keeps the logical-to-physical mapping visible and writable
 through module parameters. The XG2010G default is logical FXS0 to physical
 select 0 and FXS1 to physical select 2:

@@ -2,23 +2,22 @@ diff --git a/src/en75xx_isi_spi.c b/src/en75xx_isi_spi.c
 index 8812076..3f4ddba 100644
 --- a/src/en75xx_isi_spi.c
 +++ b/src/en75xx_isi_spi.c
-@@ -73,14 +73,17 @@
+@@ -73,14 +73,16 @@
  /*
 - * Writing ISI_REG_CHAN_SEL before each transaction was part of this
 - * driver's original, unverified guess at the protocol; disabling it
 - * cost nothing once EN7528 bring-up was traced to the clock generator
 - * below instead. Off by default; kept as a param rather than deleted in
 - * case a future multi-device board needs it back.
-+ * ISI_REG_CHAN_SEL selects the physical point-to-point ISI endpoint.
-+ * It is required on multi-SLIC boards such as XG2010G; selecting zero
-+ * before each transaction is harmless on the existing single-device
-+ * boards. Keep the parameter writable for hardware bring-up.
++ * ISI_REG_CHAN_SEL is not required by the EN7581 controller and writing it
++ * before every transfer prevents the second XG2010G endpoint from replying.
++ * Keep the parameter writable for diagnostics, but leave it disabled.
   */
 -static bool legacy_chan_sel;
-+static bool legacy_chan_sel = true;
++static bool legacy_chan_sel;
  module_param_named(legacy_chan_sel, legacy_chan_sel, bool, 0644);
 -MODULE_PARM_DESC(legacy_chan_sel, "write ISI_REG_CHAN_SEL before each transaction (legacy, off by default)");
-+MODULE_PARM_DESC(legacy_chan_sel, "select the physical ISI device before each transaction");
++MODULE_PARM_DESC(legacy_chan_sel, "write ISI_REG_CHAN_SEL before each transaction (diagnostic, off by default)");
 +
 +static int second_chan_sel = 2;
 +module_param_named(second_chan_sel, second_chan_sel, int, 0644);
@@ -33,10 +32,10 @@ index 8812076..3f4ddba 100644
  #define EN7528_CHIP_SCU_PINMUX_MASK	0x00000c00u
  
 +#define EN7581_CHIP_SCU_CLKSRC		0x218
-+#define EN7581_CHIP_SCU_CLKSRC_MASK	0x003f3300u
-+#define EN7581_CHIP_SCU_GPIO_DEV1	0x00003000u
++#define EN7581_CHIP_SCU_CLKSRC_MASK	BIT(12)
++#define EN7581_CHIP_SCU_GPIO_DEV1	BIT(12)
 +#define EN7581_CHIP_SCU_PINMUX		0x1d0
-+#define EN7581_CHIP_SCU_PINMUX_MASK	0x00000c00u
++#define EN7581_CHIP_SCU_PINMUX_MASK	0x00000c01u
 +
 +#define EN7581_SYS_RESET			0x834
 +#define EN7581_SYS_RESET_PCM1_ISI	BIT(0)
@@ -116,7 +115,7 @@ index 8812076..3f4ddba 100644
  	host->use_gpio_descriptors = true;
  	host->transfer_one = en75xx_isi_spi_transfer_one;
  
-@@ -494,9 +537,20 @@ static const struct en75xx_isi_quirks en7528_isi_quirks = {
+@@ -494,9 +537,21 @@ static const struct en75xx_isi_quirks en7528_isi_quirks = {
  	.chip_scu_pinmux_mask = EN7528_CHIP_SCU_PINMUX_MASK,
  };
  
@@ -126,6 +125,7 @@ index 8812076..3f4ddba 100644
 +	.chip_scu_gpio_dev1 = EN7581_CHIP_SCU_GPIO_DEV1,
 +	.chip_scu_pinmux_reg = EN7581_CHIP_SCU_PINMUX,
 +	.chip_scu_pinmux_mask = EN7581_CHIP_SCU_PINMUX_MASK,
++	.pinmux_extra_set = EN7581_CHIP_SCU_PINMUX_MASK,
 +	.sys_reset_first = EN7581_SYS_RESET_SPI_WRAPPER,
 +	.sys_reset_second = EN7581_SYS_RESET_PCM1_ISI,
 +};

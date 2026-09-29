@@ -39,6 +39,14 @@ VOICE_PCM_ACTIVITY_PATCH = (
     REPO
     / "package/kernel/airoha-voice/patches/100-start-pcm-on-audio-activity.patch"
 )
+REJECTED_CLOCK_GATE_PATCH = (
+    REPO
+    / "package/kernel/airoha-voice/patches/032-en7581-restore-clock-gate.patch"
+)
+REJECTED_SCU_LAYOUT_PATCH = (
+    REPO
+    / "package/kernel/airoha-voice/patches/033-en7581-scu-bitfield-layout.patch"
+)
 PON_VOICE_PATCH = (
     REPO
     / "patches/feeds/pon_userspace/luci-app-pon/100-airoha-voice-driver-status.patch"
@@ -100,9 +108,10 @@ class VoiceStackSourceTests(unittest.TestCase):
             'compatible = "airoha,en7581-pcm"',
             'compatible = "airoha,en7581-isi-spi"',
             "EN7581_CHIP_SCU_CLKSRC\t\t0x218",
-            "EN7581_CHIP_SCU_CLKSRC_MASK\t0x003f3300u",
-            "EN7581_CHIP_SCU_GPIO_DEV1\t0x00003000u",
-            "EN7581_CHIP_SCU_PINMUX_MASK\t0x00000c00u",
+            "EN7581_CHIP_SCU_CLKSRC_MASK\tBIT(12)",
+            "EN7581_CHIP_SCU_GPIO_DEV1\tBIT(12)",
+            "EN7581_CHIP_SCU_PINMUX_MASK\t0x00000c01u",
+            ".pinmux_extra_set = EN7581_CHIP_SCU_PINMUX_MASK",
             "EN7581_SYS_RESET_PCM1_ISI\tBIT(0)",
             "EN7581_SYS_RESET_SPI_WRAPPER\tBIT(4)",
             ".dma_addr_mask = 0x3fffffff",
@@ -111,11 +120,13 @@ class VoiceStackSourceTests(unittest.TestCase):
             ".pcm_v2 = true",
         ):
             self.assertIn(source_contract, self.patch)
+        self.assertFalse(REJECTED_CLOCK_GATE_PATCH.exists())
+        self.assertFalse(REJECTED_SCU_LAYOUT_PATCH.exists())
 
     def test_patch_selects_both_point_to_point_si32192_devices(self):
         self.assertIn("host->num_chipselect = 32", self.patch)
-        self.assertIn("static bool legacy_chan_sel = true", self.patch)
-        self.assertIn("select the physical ISI device before each transaction", self.patch)
+        self.assertIn("static bool legacy_chan_sel;", self.patch)
+        self.assertIn("diagnostic, off by default", self.patch)
         mapping_patch = (
             REPO
             / "package/kernel/airoha-voice/patches/020-map-logical-second-isi-endpoint.patch"
@@ -143,7 +154,7 @@ class VoiceStackSourceTests(unittest.TestCase):
             self.assertIn(source_contract, dynamic_patch)
         for command in ("transport", "recover", "scan-second", "identity"):
             self.assertIn(command, self.voice_ctl)
-        self.assertIn("PKG_RELEASE:=16", self.package)
+        self.assertIn("PKG_RELEASE:=19", self.package)
         self.assertIn("trace_chan_sel", trace_patch)
         self.assertIn("unbind_slic_devices", self.voice_ctl)
         self.assertIn('bind_slic_device("spi1.1")', self.voice_ctl)
