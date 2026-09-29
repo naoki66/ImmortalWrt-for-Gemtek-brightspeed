@@ -19,6 +19,10 @@ index 8812076..3f4ddba 100644
  module_param_named(legacy_chan_sel, legacy_chan_sel, bool, 0644);
 -MODULE_PARM_DESC(legacy_chan_sel, "write ISI_REG_CHAN_SEL before each transaction (legacy, off by default)");
 +MODULE_PARM_DESC(legacy_chan_sel, "select the physical ISI device before each transaction");
++
++static int second_chan_sel = 2;
++module_param_named(second_chan_sel, second_chan_sel, int, 0644);
++MODULE_PARM_DESC(second_chan_sel, "physical ISI selection for logical chip-select 1");
  
  static bool en7528_pcm_clk = true;
  module_param_named(en7528_pcm_clk, en7528_pcm_clk, bool, 0644);

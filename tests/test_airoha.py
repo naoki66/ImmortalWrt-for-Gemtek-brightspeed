@@ -180,6 +180,7 @@ uci() {
         self.assertNotIn("default y if TARGET_airoha_an7581", busybox_defaults)
         self.assertIn("CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi", busybox_makefile)
         self.assertIn('echo "CONFIG_DEVMEM=y"', busybox_makefile)
+        self.assertIn("ln -sf /bin/busybox $(1)/usr/bin/devmem", busybox_makefile)
         self.assertNotIn("getFrameEngine", backend)
         self.assertNotIn("getFrameEngine", acl)
         self.assertNotIn("/dev/mem", acl)

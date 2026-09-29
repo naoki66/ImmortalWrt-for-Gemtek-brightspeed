@@ -1,0 +1,19 @@
+diff --git a/src/en75xx_isi_spi.c b/src/en75xx_isi_spi.c
+index 3f4ddba..a3e9f18 100644
+--- a/src/en75xx_isi_spi.c
++++ b/src/en75xx_isi_spi.c
+@@ -287,8 +287,14 @@ static int en75xx_isi_spi_transfer_one(struct spi_controller *host,
+ 		const u8 *tx = xfer->tx_buf;
+ 
+-		if (unlikely(legacy_chan_sel))
+-			writel(spi_get_chipselect(spi, 0), isi->base + ISI_REG_CHAN_SEL);
++		if (unlikely(legacy_chan_sel)) {
++			u32 chan_sel = spi_get_chipselect(spi, 0);
++
++			/* The second logical DT endpoint is physically ISI select 2. */
++			if (chan_sel == 1)
++				chan_sel = second_chan_sel;
++			writel(chan_sel, isi->base + ISI_REG_CHAN_SEL);
++		}
+ 		for (i = 0; i < xfer->len; i++) {
+ 			ret = isi_write_byte(isi, tx[i]);

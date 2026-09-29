@@ -454,9 +454,9 @@
 			airoha,pcm-channel = <0>;
 		};
 
-		proslic@2 {
+		proslic@1 {
 			compatible = "silabs,si32192";
-			reg = <2>;
+			reg = <1>;
 			spi-max-frequency = <10000000>;
 			spi-cpha;
 			spi-cpol;

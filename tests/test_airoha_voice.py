@@ -117,6 +117,13 @@ class VoiceStackSourceTests(unittest.TestCase):
         self.assertIn("host->num_chipselect = 32", self.patch)
         self.assertIn("static bool legacy_chan_sel = true", self.patch)
         self.assertIn("select the physical ISI device before each transaction", self.patch)
+        mapping_patch = (
+            REPO
+            / "package/kernel/airoha-voice/patches/020-map-logical-second-isi-endpoint.patch"
+        ).read_text(encoding="utf-8")
+        self.assertIn("second_chan_sel", self.patch)
+        self.assertIn("if (chan_sel == 1)", mapping_patch)
+        self.assertIn("chan_sel = second_chan_sel", mapping_patch)
         self.assertNotIn("control_channel = spi_get_chipselect", self.patch)
 
     def test_xg2010g_describes_two_fxs_lines(self):
@@ -125,15 +132,15 @@ class VoiceStackSourceTests(unittest.TestCase):
         self.assertIn("airoha,dma-channel-mask = <0x05>;", self.dts)
         self.assertEqual(self.dts.count('compatible = "silabs,si32192";'), 2)
         self.assertIn("proslic@0", self.dts)
-        self.assertIn("proslic@2", self.dts)
-        self.assertNotIn("proslic@1", self.dts)
+        self.assertIn("proslic@1", self.dts)
+        self.assertNotIn("proslic@2", self.dts)
         self.assertIn("airoha,pcm-channel = <0>;", self.dts)
         self.assertIn("airoha,pcm-channel = <2>;", self.dts)
         self.assertNotIn("airoha,en7581-pcm-spi-si32192", self.dts)
 
-        second_child = self.dts.index("proslic@2")
+        second_child = self.dts.index("proslic@1")
         second_child_end = self.dts.index("};", second_child)
-        self.assertIn("reg = <2>;", self.dts[second_child:second_child_end])
+        self.assertIn("reg = <1>;", self.dts[second_child:second_child_end])
 
         isi_start = self.dts.index("isi0: spi@1fbd1000")
         first_child = self.dts.index("proslic@0", isi_start)
