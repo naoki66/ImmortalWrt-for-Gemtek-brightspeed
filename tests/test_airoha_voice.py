@@ -72,7 +72,6 @@ class VoiceStackSourceTests(unittest.TestCase):
         cls.asterisk_answer_patch = ASTERISK_ANSWER_PATCH.read_text(
             encoding="utf-8"
         )
-        cls.pon_voice_patch = PON_VOICE_PATCH.read_text(encoding="utf-8")
 
     def test_package_pins_complete_voice_stack(self):
         self.assertIn("PKG_SOURCE_PROTO:=git", self.package)
@@ -131,6 +130,10 @@ class VoiceStackSourceTests(unittest.TestCase):
             REPO
             / "package/kernel/airoha-voice/patches/030-dynamic-isi-channel-selection.patch"
         ).read_text(encoding="utf-8")
+        trace_patch = (
+            REPO
+            / "package/kernel/airoha-voice/patches/031-trace-isi-channel-selection.patch"
+        ).read_text(encoding="utf-8")
         for source_contract in (
             "first_chan_sel",
             "chan_sel_override",
@@ -140,7 +143,10 @@ class VoiceStackSourceTests(unittest.TestCase):
             self.assertIn(source_contract, dynamic_patch)
         for command in ("transport", "recover", "scan-second", "identity"):
             self.assertIn(command, self.voice_ctl)
-        self.assertIn("PKG_RELEASE:=10", self.package)
+        self.assertIn("PKG_RELEASE:=16", self.package)
+        self.assertIn("trace_chan_sel", trace_patch)
+        self.assertIn("unbind_slic_devices", self.voice_ctl)
+        self.assertIn('bind_slic_device("spi1.1")', self.voice_ctl)
 
     def test_xg2010g_describes_two_fxs_lines(self):
         self.assertIn('compatible = "airoha,en7581-pcm";', self.dts)
@@ -238,21 +244,8 @@ class VoiceStackSourceTests(unittest.TestCase):
             self.asterisk_answer_patch,
         )
 
-    def test_luci_voice_page_exposes_driver_status_without_mutating_lines(self):
-        for command in (
-            "'require fs';",
-            "'/usr/sbin/airoha-voice-ctl'",
-            "'/dev/en75xx-fxs0'",
-            "'/dev/en75xx-fxs1'",
-            "'Airoha FXS driver'",
-            "'stats'",
-        ):
-            self.assertIn(command, self.pon_voice_patch)
-        self.assertIn('"/usr/sbin/airoha-voice-ctl -d * info"', self.pon_voice_patch)
-        self.assertIn('"/usr/sbin/airoha-voice-ctl -d * state"', self.pon_voice_patch)
-        self.assertIn('"/usr/sbin/airoha-voice-ctl -d * stats"', self.pon_voice_patch)
-        self.assertNotIn('"/usr/sbin/airoha-voice-ctl -d * ring', self.pon_voice_patch)
-        self.assertNotIn('"/usr/sbin/airoha-voice-ctl -d * tone', self.pon_voice_patch)
+    def test_luci_voice_page_does_not_add_driver_status_block(self):
+        self.assertFalse(PON_VOICE_PATCH.exists())
 
 
 if __name__ == "__main__":

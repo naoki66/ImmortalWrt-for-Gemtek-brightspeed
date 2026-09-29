@@ -66,28 +66,43 @@ static int set_isi_parameter(const char *name, int value)
 	return 0;
 }
 
-static int rebind_slic_devices(void)
+static int unbind_slic_devices(void)
 {
 	static const char *const unbind_devices[] = { "spi1.1", "spi1.0" };
-	static const char *const bind_devices[] = { "spi1.0", "spi1.1" };
 	unsigned int i;
 
 	for (i = 0; i < sizeof(unbind_devices) / sizeof(unbind_devices[0]); i++)
 		(void)write_text_file(SPI_DRIVER_DIR "/unbind", unbind_devices[i]);
-	for (i = 0; i < sizeof(bind_devices) / sizeof(bind_devices[0]); i++)
-		if (write_text_file(SPI_DRIVER_DIR "/bind", bind_devices[i])) {
-			fprintf(stderr, "cannot bind %s: %s\n", bind_devices[i],
-				strerror(errno));
-			return -1;
-		}
 	return 0;
+}
+
+static int bind_slic_device(const char *device)
+{
+	if (write_text_file(SPI_DRIVER_DIR "/bind", device)) {
+		fprintf(stderr, "cannot bind %s: %s\n", device, strerror(errno));
+		return -1;
+	}
+	return 0;
+}
+
+static int rebind_slic_devices(void)
+{
+	static const char *const bind_devices[] = { "spi1.0", "spi1.1" };
+	unsigned int i;
+	int ret = 0;
+
+	unbind_slic_devices();
+	for (i = 0; i < sizeof(bind_devices) / sizeof(bind_devices[0]); i++)
+		if (bind_slic_device(bind_devices[i]))
+			ret = -1;
+	return ret;
 }
 
 static int command_transport(void)
 {
 	static const char *const params[] = {
 		"legacy_chan_sel", "first_chan_sel", "second_chan_sel",
-		"chan_sel_override",
+		"chan_sel_override", "trace_chan_sel",
 	};
 	char path[128];
 	char value[64];
@@ -129,6 +144,7 @@ static int command_scan_second(int argc, char **argv)
 {
 	uint32_t max = 7;
 	uint32_t candidate;
+	int found = -1;
 
 	if (argc > 1 || (argc == 1 && parse_u32(argv[0], &max)) || max > 31) {
 		fprintf(stderr, "scan-second expects optional MAX (0..31)\n");
@@ -137,15 +153,30 @@ static int command_scan_second(int argc, char **argv)
 	for (candidate = 0; candidate <= max; candidate++) {
 		if (set_isi_parameter("chan_sel_override", -1) ||
 		    set_isi_parameter("first_chan_sel", 0) ||
-		    set_isi_parameter("second_chan_sel", (int)candidate) ||
-		    rebind_slic_devices())
+		    set_isi_parameter("second_chan_sel", (int)candidate))
+			continue;
+		unbind_slic_devices();
+		if (set_isi_parameter("chan_sel_override", (int)candidate) ||
+		    bind_slic_device("spi1.1"))
 			continue;
 		printf("scan-second physical=%u line1=%s\n", candidate,
 		       access("/dev/en75xx-fxs1", F_OK) ? "absent" : "present");
-		if (!access("/dev/en75xx-fxs1", F_OK))
-			return 0;
+		if (!access("/dev/en75xx-fxs1", F_OK)) {
+			found = (int)candidate;
+			break;
+		}
+		unbind_slic_devices();
 	}
-	return -1;
+	if (found < 0)
+		return -1;
+
+	/* Rebind both endpoints with the discovered physical second channel. */
+	if (set_isi_parameter("chan_sel_override", -1) ||
+	    set_isi_parameter("first_chan_sel", 0) ||
+	    set_isi_parameter("second_chan_sel", found) ||
+	    rebind_slic_devices())
+		return -1;
+	return access("/dev/en75xx-fxs1", F_OK) ? -1 : 0;
 }
 
 static void handle_signal(int signo)

@@ -1,0 +1,25 @@
+diff --git a/src/en75xx_isi_spi.c b/src/en75xx_isi_spi.c
+--- a/src/en75xx_isi_spi.c
++++ b/src/en75xx_isi_spi.c
+@@ -94,6 +94,10 @@ module_param_named(chan_sel_override, chan_sel_override, int, 0644);
+ MODULE_PARM_DESC(chan_sel_override,
+                  "temporary physical ISI selection override (-1 disables)");
+ 
++static bool trace_chan_sel;
++module_param_named(trace_chan_sel, trace_chan_sel, bool, 0644);
++MODULE_PARM_DESC(trace_chan_sel, "log every physical ISI channel selection");
++
+ static u32 en75xx_isi_physical_select(struct spi_device *spi)
+ {
+ 	int logical = spi_get_chipselect(spi, 0);
+@@ -113,6 +117,11 @@ static u32 en75xx_isi_physical_select(struct spi_device *spi)
+ 		selected = logical;
+ 	}
+ 
++	if (trace_chan_sel)
++		dev_info(&spi->dev,
++			 "ISI select logical=%d physical=%d override=%d first=%d second=%d\n",
++			 logical, selected, chan_sel_override, first_chan_sel, second_chan_sel);
++
+ 	return selected;
+ }

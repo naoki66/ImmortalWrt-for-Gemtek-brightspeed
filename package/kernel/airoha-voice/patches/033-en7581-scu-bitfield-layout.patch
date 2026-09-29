@@ -1,0 +1,13 @@
+diff --git a/src/en75xx_isi_spi.c b/src/en75xx_isi_spi.c
+--- a/src/en75xx_isi_spi.c
++++ b/src/en75xx_isi_spi.c
+@@ -181,6 +181,6 @@
+-#define EN7581_CHIP_SCU_CLKSRC_MASK	0x003f3300u
+-#define EN7581_CHIP_SCU_GPIO_DEV1	0x00003000u
++#define EN7581_CHIP_SCU_CLKSRC_MASK	0x00333f00u
++#define EN7581_CHIP_SCU_GPIO_DEV1	0x00300000u
+ #define EN7581_CHIP_SCU_PINMUX		0x1d0
+-#define EN7581_CHIP_SCU_PINMUX_MASK	0x00000c00u
+-#define EN7581_CHIP_SCU_RESTORE_MASK	0x00000100u
++#define EN7581_CHIP_SCU_PINMUX_MASK	0x000c0000u
++#define EN7581_CHIP_SCU_RESTORE_MASK	0x00010000u

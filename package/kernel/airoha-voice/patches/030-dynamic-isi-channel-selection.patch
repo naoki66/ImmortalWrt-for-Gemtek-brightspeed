@@ -1,8 +1,11 @@
 diff --git a/src/en75xx_isi_spi.c b/src/en75xx_isi_spi.c
+index 09948b6..055aca4 100644
 --- a/src/en75xx_isi_spi.c
 +++ b/src/en75xx_isi_spi.c
-@@ -85,1 +85,32 @@
+@@ -84,6 +84,38 @@ static int second_chan_sel = 2;
+ module_param_named(second_chan_sel, second_chan_sel, int, 0644);
  MODULE_PARM_DESC(second_chan_sel, "physical ISI selection for logical chip-select 1");
+ 
 +static int first_chan_sel = 0;
 +module_param_named(first_chan_sel, first_chan_sel, int, 0644);
 +MODULE_PARM_DESC(first_chan_sel, "physical ISI selection for logical chip-select 0");
@@ -34,7 +37,13 @@ diff --git a/src/en75xx_isi_spi.c b/src/en75xx_isi_spi.c
 +
 +	return selected;
 +}
-@@ -330,8 +361,10 @@ static int en75xx_isi_spi_transfer_one(struct spi_controller *host,
++
+ static bool en7528_pcm_clk = true;
+ module_param_named(en7528_pcm_clk, en7528_pcm_clk, bool, 0644);
+ MODULE_PARM_DESC(en7528_pcm_clk, "enable EN7528's chip-SCU PCM clock generator during ISI bring-up");
+@@ -328,10 +360,12 @@ static int en75xx_isi_spi_transfer_one(struct spi_controller *host,
+ 		const u8 *tx = xfer->tx_buf;
+ 
  		if (unlikely(legacy_chan_sel)) {
 -			u32 chan_sel = spi_get_chipselect(spi, 0);
 +			u32 logical = spi_get_chipselect(spi, 0);

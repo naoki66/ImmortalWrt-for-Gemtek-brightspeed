@@ -1,0 +1,31 @@
+diff --git a/src/en75xx_isi_spi.c b/src/en75xx_isi_spi.c
+--- a/src/en75xx_isi_spi.c
++++ b/src/en75xx_isi_spi.c
+@@ -138,5 +138,6 @@
+ #define EN7581_CHIP_SCU_GPIO_DEV1	0x00003000u
+ #define EN7581_CHIP_SCU_PINMUX		0x1d0
+ #define EN7581_CHIP_SCU_PINMUX_MASK	0x00000c00u
++#define EN7581_CHIP_SCU_RESTORE_MASK	0x00000100u
+ 
+ #define EN7581_SYS_RESET			0x834
+@@ -199,4 +200,5 @@ struct en75xx_isi_quirks {
+ 	u32 chip_scu_clksrc_reg;
+ 	u32 chip_scu_clksrc_mask;
+ 	u32 chip_scu_gpio_dev1;
++	u32 chip_scu_restore_mask;
+ 	u32 chip_scu_pinmux_reg;
+@@ -383,4 +385,9 @@ static int en75xx_isi_spi_hw_init(struct en75xx_isi_spi *isi,
+ 		ret = en75xx_scu_update(&isi->scu, quirks->chip_scu_clksrc_reg,
+ 					quirks->chip_scu_clksrc_mask,
+ 					quirks->chip_scu_gpio_dev1);
++		/* SPI_Reset() restores the clock-source gate before reset. */
++		if (!ret && quirks->chip_scu_restore_mask)
++			ret = en75xx_scu_update(&isi->scu, quirks->chip_scu_clksrc_reg,
++					quirks->chip_scu_restore_mask,
++					quirks->chip_scu_restore_mask);
+ 		if (!ret)
+@@ -540,3 +549,4 @@ static const struct en75xx_isi_quirks en7581_isi_quirks = {
+ 	.chip_scu_clksrc_mask = EN7581_CHIP_SCU_CLKSRC_MASK,
+ 	.chip_scu_gpio_dev1 = EN7581_CHIP_SCU_GPIO_DEV1,
++	.chip_scu_restore_mask = EN7581_CHIP_SCU_RESTORE_MASK,
+ 	.chip_scu_pinmux_reg = EN7581_CHIP_SCU_PINMUX,
