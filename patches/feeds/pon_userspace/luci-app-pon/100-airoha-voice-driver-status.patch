@@ -1,0 +1,126 @@
+diff --git a/luci-app-pon/htdocs/luci-static/resources/view/pon/voice.js b/luci-app-pon/htdocs/luci-static/resources/view/pon/voice.js
+index 0b51423..320eb5f 100644
+--- a/luci-app-pon/htdocs/luci-static/resources/view/pon/voice.js
++++ b/luci-app-pon/htdocs/luci-static/resources/view/pon/voice.js
+@@ -2,6 +2,7 @@
+ 
+ 'use strict';
+ 'require form';
++'require fs';
+ 'require uci';
+ 'require view';
+ 
+@@ -9,6 +10,7 @@ var STYLESHEET = 'view/pon/pon.css';
+ 
+ /* Fully qualified name of the protocol list: <config>.<section>.<option>. */
+ var PROTOCOL_OPTION = 'voice.config.protocol';
++var FXS_DEVICES = [ '/dev/en75xx-fxs0', '/dev/en75xx-fxs1' ];
+ 
+ /*
+  * The PON views follow luci-theme-argon: cards, form rows and buttons all come
+@@ -124,6 +126,82 @@ function toggleProtocolSections(node, protocolOption) {
+ 	update();
+ }
+ 
++function parseDriverOutput(text) {
++	var values = {};
++
++	String(text || '').split(/\n/).forEach(function(line) {
++		line.trim().split(/\s+/).forEach(function(pair) {
++			var equal = pair.indexOf('=');
++
++			if (equal > 0)
++				values[pair.slice(0, equal)] = pair.slice(equal + 1);
++		});
++	});
++
++	return values;
++}
++
++function driverCommand(device, command) {
++	return fs.exec_direct('/usr/sbin/airoha-voice-ctl', [ '-d', device, command ])
++		.then(function(output) {
++			return { output: output, error: null };
++		}, function(error) {
++			return { output: '', error: error && error.message ? error.message : String(error) };
++		});
++}
++
++function driverLine(device, result) {
++	var info = parseDriverOutput(result.info.output);
++	var state = parseDriverOutput(result.state.output);
++	var stats = parseDriverOutput(result.stats.output);
++	var title = device.replace('/dev/en75xx-', '').toUpperCase();
++	var rows = [];
++
++	if (result.info.error || result.state.error || result.stats.error) {
++		return E('div', { 'class': 'alert-message warning' }, [
++			E('strong', {}, title + ': '),
++			_(result.info.error || result.state.error || result.stats.error)
++		]);
++	}
++
++	rows.push(E('div', {}, [ _('SLIC'), ': ' + (info.slic || '-') ]));
++	rows.push(E('div', {}, [ _('PCM channel'), ': ' + (info.pcm_channel || '-') ]));
++	rows.push(E('div', {}, [ _('Line state'), ': ' + (state.hook || '-') + ', ' + (state.linefeed || '-') ]));
++	rows.push(E('div', {}, [ _('Ringing'), ': ' + (state.ringing || '-') ]));
++	rows.push(E('div', {}, [ _('Faults'), ': ' + (state.faults || '-') ]));
++	rows.push(E('div', {}, [ _('RX/TX bytes'), ': ' + (stats.rx_bytes || '0') + ' / ' + (stats.tx_bytes || '0') ]));
++	rows.push(E('div', {}, [ _('DMA errors'), ': ' + (stats.dma_errors || '0') ]));
++
++	return E('div', { 'class': 'cbi-value' }, [
++		E('strong', {}, title),
++		E('div', { 'class': 'cbi-value-description' }, rows)
++	]);
++}
++
++function renderDriverStatus(node) {
++	return Promise.all(FXS_DEVICES.map(function(device) {
++		return Promise.all([
++			driverCommand(device, 'info'),
++			driverCommand(device, 'state'),
++			driverCommand(device, 'stats')
++		]).then(function(results) {
++			return { device: device, info: results[0], state: results[1], stats: results[2] };
++		});
++	})).then(function(lines) {
++		var section = E('div', { 'class': 'cbi-section' }, [
++			E('h3', {}, _('Airoha FXS driver')),
++			E('p', { 'class': 'cbi-section-descr' },
++				_('Read-only status from airoha-voice-ctl. The utility may be busy while Asterisk owns the line.'))
++		]);
++
++		lines.forEach(function(line) {
++			section.appendChild(driverLine(line.device, line));
++		});
++
++		node.insertBefore(section, node.firstChild);
++	});
++}
++
+ function serverOption(s, tab, name, title, descr) {
+ 	var o = s.taboption(tab, form.Value, name, title, descr);
+ 
+@@ -666,7 +744,7 @@ return view.extend({
+ 		return m.render().then(function(node) {
+ 			toggleProtocolSections(node, protocolOption);
+ 
+-			return node;
++			return renderDriverStatus(node).then(function() { return node; });
+ 		});
+ 	}
+ });
+diff --git a/luci-app-pon/root/usr/share/rpcd/acl.d/luci-app-pon.json b/luci-app-pon/root/usr/share/rpcd/acl.d/luci-app-pon.json
+index eca4c25..26eb37d 100644
+--- a/luci-app-pon/root/usr/share/rpcd/acl.d/luci-app-pon.json
++++ b/luci-app-pon/root/usr/share/rpcd/acl.d/luci-app-pon.json
+@@ -13,6 +13,9 @@
+ 				"/usr/sbin/ponctl --device * status": [ "exec" ],
+ 				"/usr/sbin/ponctl --device * status --json": [ "exec" ],
+ 				"/usr/bin/pondctl status --line *": [ "exec" ],
++				"/usr/sbin/airoha-voice-ctl -d * info": [ "exec" ],
++				"/usr/sbin/airoha-voice-ctl -d * state": [ "exec" ],
++				"/usr/sbin/airoha-voice-ctl -d * stats": [ "exec" ],
+ 				"/usr/libexec/pon-board-identity list": [ "exec" ],
+ 				"/usr/libexec/pon-board-identity read *": [ "exec" ],
+ 				"/usr/libexec/airoha-pon-data list": [ "exec" ],

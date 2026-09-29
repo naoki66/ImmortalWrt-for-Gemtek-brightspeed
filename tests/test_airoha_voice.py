@@ -6,6 +6,7 @@ REPO = pathlib.Path(__file__).resolve().parents[1]
 PACKAGE = REPO / "package/kernel/airoha-voice/Makefile"
 PATCH = REPO / "package/kernel/airoha-voice/patches/010-add-en7581-xg2010g-support.patch"
 DTS = REPO / "target/linux/airoha/dts/an7581-gemtek-xg2010g-ubi.dts"
+SOC_DTS = REPO / "target/linux/airoha/dts/an7581.dtsi"
 IMAGE = REPO / "target/linux/airoha/image/an7581.mk"
 CONFIG = REPO / "2010.config"
 PLATFORM_UPGRADE = (
@@ -38,6 +39,10 @@ VOICE_PCM_ACTIVITY_PATCH = (
     REPO
     / "package/kernel/airoha-voice/patches/100-start-pcm-on-audio-activity.patch"
 )
+PON_VOICE_PATCH = (
+    REPO
+    / "patches/feeds/pon_userspace/luci-app-pon/100-airoha-voice-driver-status.patch"
+)
 ASTERISK_ANSWER_PATCH = (
     REPO
     / "package/network/services/asterisk-chan-en75xx/patches/100-activate-pcm-when-answering.patch"
@@ -51,6 +56,7 @@ class VoiceStackSourceTests(unittest.TestCase):
         cls.package = PACKAGE.read_text(encoding="utf-8")
         cls.patch = PATCH.read_text(encoding="utf-8")
         cls.dts = DTS.read_text(encoding="utf-8")
+        cls.soc_dts = SOC_DTS.read_text(encoding="utf-8")
         cls.image = IMAGE.read_text(encoding="utf-8")
         cls.config = CONFIG.read_text(encoding="utf-8")
         cls.platform_upgrade = PLATFORM_UPGRADE.read_text(encoding="utf-8")
@@ -66,6 +72,7 @@ class VoiceStackSourceTests(unittest.TestCase):
         cls.asterisk_answer_patch = ASTERISK_ANSWER_PATCH.read_text(
             encoding="utf-8"
         )
+        cls.pon_voice_patch = PON_VOICE_PATCH.read_text(encoding="utf-8")
 
     def test_package_pins_complete_voice_stack(self):
         self.assertIn("PKG_SOURCE_PROTO:=git", self.package)
@@ -118,10 +125,15 @@ class VoiceStackSourceTests(unittest.TestCase):
         self.assertIn("airoha,dma-channel-mask = <0x05>;", self.dts)
         self.assertEqual(self.dts.count('compatible = "silabs,si32192";'), 2)
         self.assertIn("proslic@0", self.dts)
-        self.assertIn("proslic@1", self.dts)
+        self.assertIn("proslic@2", self.dts)
+        self.assertNotIn("proslic@1", self.dts)
         self.assertIn("airoha,pcm-channel = <0>;", self.dts)
         self.assertIn("airoha,pcm-channel = <2>;", self.dts)
         self.assertNotIn("airoha,en7581-pcm-spi-si32192", self.dts)
+
+        second_child = self.dts.index("proslic@2")
+        second_child_end = self.dts.index("};", second_child)
+        self.assertIn("reg = <2>;", self.dts[second_child:second_child_end])
 
         isi_start = self.dts.index("isi0: spi@1fbd1000")
         first_child = self.dts.index("proslic@0", isi_start)
@@ -136,6 +148,11 @@ class VoiceStackSourceTests(unittest.TestCase):
         device = self.image[device_start:device_end]
         self.assertIn("IMAGE_SIZE := 42036k", device)
         self.assertIn("append-metadata | check-size", device)
+
+    def test_afe_sound_dai_provider_declares_zero_cells(self):
+        afe = self.soc_dts[self.soc_dts.index("afe: afe@1fbe2200") :]
+        afe = afe[: afe.index("};")]
+        self.assertIn("#sound-dai-cells = <0>;", afe)
 
     def test_xg2010g_upgrade_ramfs_contains_layout_check_tools(self):
         self.assertIn("RAMFS_COPY_BIN='fitblk fit_check_sign tr'", self.platform_upgrade)
@@ -197,6 +214,22 @@ class VoiceStackSourceTests(unittest.TestCase):
             "line_set_linefeed(p, EN75XX_VOICE_LINEFEED_ACTIVE)",
             self.asterisk_answer_patch,
         )
+
+    def test_luci_voice_page_exposes_driver_status_without_mutating_lines(self):
+        for command in (
+            "'require fs';",
+            "'/usr/sbin/airoha-voice-ctl'",
+            "'/dev/en75xx-fxs0'",
+            "'/dev/en75xx-fxs1'",
+            "'Airoha FXS driver'",
+            "'stats'",
+        ):
+            self.assertIn(command, self.pon_voice_patch)
+        self.assertIn('"/usr/sbin/airoha-voice-ctl -d * info"', self.pon_voice_patch)
+        self.assertIn('"/usr/sbin/airoha-voice-ctl -d * state"', self.pon_voice_patch)
+        self.assertIn('"/usr/sbin/airoha-voice-ctl -d * stats"', self.pon_voice_patch)
+        self.assertNotIn('"/usr/sbin/airoha-voice-ctl -d * ring', self.pon_voice_patch)
+        self.assertNotIn('"/usr/sbin/airoha-voice-ctl -d * tone', self.pon_voice_patch)
 
 
 if __name__ == "__main__":

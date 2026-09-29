@@ -162,17 +162,24 @@ uci() {
         self.put("sys/class/mtd/mtd1/offset", "6291456\n")
         self.assertEqual(self.shell(code, command).strip(), "rc=1")
 
-    def test_production_builds_disable_devmem_and_pse_rpc(self):
+    def test_xg2010g_debug_build_enables_devmem_without_changing_xr1710g(self):
         configs = [(REPO / name).read_text() for name in ("1710.config", "2010.config")]
         busybox_defaults = (REPO / "package/utils/busybox/Config-defaults.in").read_text()
+        busybox_makefile = (REPO / "package/utils/busybox/Makefile").read_text()
         backend = (COMMON.parent / "luci.airoha_npu").read_text()
         acl = (COMMON.parents[3] / "usr/share/rpcd/acl.d/luci-app-airoha.json").read_text()
         frontend = (REPO / "package/luci-app-airoha/htdocs/luci-static/resources/view/airoha_npu/status.js").read_text()
-        for config in configs:
-            self.assertIn("# CONFIG_KERNEL_DEVMEM is not set", config)
-            self.assertNotIn("CONFIG_KERNEL_DEVMEM=y", config)
-            self.assertNotIn("CONFIG_BUSYBOX_DEFAULT_DEVMEM=y", config)
+        for name, config in zip(("1710.config", "2010.config"), configs):
+            if name == "2010.config":
+                self.assertIn("CONFIG_KERNEL_DEVMEM=y", config)
+                self.assertIn("CONFIG_BUSYBOX_DEFAULT_DEVMEM=y", config)
+            else:
+                self.assertIn("# CONFIG_KERNEL_DEVMEM is not set", config)
+                self.assertNotIn("CONFIG_KERNEL_DEVMEM=y", config)
+                self.assertNotIn("CONFIG_BUSYBOX_DEFAULT_DEVMEM=y", config)
         self.assertNotIn("default y if TARGET_airoha_an7581", busybox_defaults)
+        self.assertIn("CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi", busybox_makefile)
+        self.assertIn('echo "CONFIG_DEVMEM=y"', busybox_makefile)
         self.assertNotIn("getFrameEngine", backend)
         self.assertNotIn("getFrameEngine", acl)
         self.assertNotIn("/dev/mem", acl)

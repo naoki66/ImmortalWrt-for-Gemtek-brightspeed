@@ -130,6 +130,9 @@ endif
 define Build/Configure
 	rm -f $(PKG_BUILD_DIR)/.config
 	touch $(PKG_BUILD_DIR)/.config
+ifeq ($(CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi),y)
+	echo "CONFIG_DEVMEM=y" >> $(PKG_BUILD_DIR)/.config
+endif
 ifeq ($(DEVICE_TYPE),nas)
 	echo "CONFIG_HDPARM=y" >> $(PKG_BUILD_DIR)/.config
 endif

@@ -421,6 +421,7 @@
 
 		afe: afe@1fbe2200 {
 			compatible = "airoha,an7581-afe";
+			#sound-dai-cells = <0>;
 			reg = <0x0 0x1fbe2200 0x0 0xfc>,
 			      <0x0 0x1fbe2e00 0x0 0x114>;
 			reg-names = "afe", "irq";
