@@ -44,8 +44,11 @@ gemtek_ubi_layout_check() {
 	[ -s "$rootdisk" ] || return 1
 	for dev in "$ubi"/of_node/volumes/*; do
 		[ -r "$dev/volname" ] && [ -r "$dev/phandle" ] || continue
-		[ "$(tr -d '\000' < "$dev/volname")" = fit ] || continue
-		cmp -s "$rootdisk" "$dev/phandle" && return 0
+		# Command substitution removes the NUL terminator from DT string properties.
+		[ "$(cat "$dev/volname")" = fit ] || continue
+		# Compare binary phandles without relying on optional tr/cmp packages.
+		[ "$(md5sum "$rootdisk" | cut -d' ' -f1)" = \
+			"$(md5sum "$dev/phandle" | cut -d' ' -f1)" ] && return 0
 	done
 	return 1
 }

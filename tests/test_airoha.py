@@ -143,6 +143,11 @@ ucidef_set_compat_version() {{ echo "$1"; }}
         self.put("sys/firmware/devicetree/base/chosen/rootdisk", b"\0\0\0\x18")
         self.assertEqual(self.check_layout(), "1")
 
+    def test_layout_check_does_not_require_optional_text_tools(self):
+        code = (BASE / "lib/upgrade/gemtek-ubi.sh").read_text()
+        self.assertNotIn("tr -d", code)
+        self.assertNotIn("cmp -s", code)
+
     def test_compat_migration_checks_layout_before_write(self):
         self.ubi_layout()
         mocks = """

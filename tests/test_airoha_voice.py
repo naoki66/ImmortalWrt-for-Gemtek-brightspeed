@@ -162,7 +162,7 @@ class VoiceStackSourceTests(unittest.TestCase):
         self.assertIn("#sound-dai-cells = <0>;", afe)
 
     def test_xg2010g_upgrade_ramfs_contains_layout_check_tools(self):
-        self.assertIn("RAMFS_COPY_BIN='fitblk fit_check_sign tr'", self.platform_upgrade)
+        self.assertIn("RAMFS_COPY_BIN='fitblk fit_check_sign'", self.platform_upgrade)
 
     def test_voice_control_utility_uses_public_uapi(self):
         self.assertIn("CONFIG_PACKAGE_airoha-voice-ctl=y", self.config)

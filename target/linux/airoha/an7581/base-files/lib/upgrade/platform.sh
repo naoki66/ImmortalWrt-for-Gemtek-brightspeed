@@ -1,4 +1,4 @@
-RAMFS_COPY_BIN='fitblk fit_check_sign tr'
+RAMFS_COPY_BIN='fitblk fit_check_sign'
 
 REQUIRE_IMAGE_METADATA=1
 
