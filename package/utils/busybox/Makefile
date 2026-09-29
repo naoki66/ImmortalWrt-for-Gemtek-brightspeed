@@ -154,9 +154,9 @@ define Package/busybox/install
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(CP) $(PKG_INSTALL_DIR)/* $(1)/
-	ifeq ($(CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi),y)
+ifeq ($(CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi),y)
 	ln -sf /bin/busybox $(1)/usr/bin/devmem
-	endif
+endif
 	$(INSTALL_DIR) $(1)/etc/profile.d
 	$(INSTALL_BIN) ./files/busybox-history-file.sh $(1)/etc/profile.d
 ifneq ($(CONFIG_BUSYBOX_$(BUSYBOX_SYM)_FEATURE_SYSLOG)$(CONFIG_BUSYBOX_$(BUSYBOX_SYM)_FEATURE_SYSLOGD_CFG),)
