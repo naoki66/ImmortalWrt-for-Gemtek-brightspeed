@@ -11,9 +11,142 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 static volatile sig_atomic_t stop_requested;
+
+static int parse_u32(const char *text, uint32_t *value);
+
+#define ISI_PARAM_DIR "/sys/module/en75xx_isi_spi/parameters"
+#define SPI_DRIVER_DIR "/sys/bus/spi/drivers/en75xx-si3219x"
+
+static int write_text_file(const char *path, const char *value)
+{
+	int fd = open(path, O_WRONLY | O_CLOEXEC);
+	size_t len;
+	ssize_t written;
+
+	if (fd < 0)
+		return -1;
+	len = strlen(value);
+	written = write(fd, value, len);
+	close(fd);
+	return written == (ssize_t)len ? 0 : -1;
+}
+
+static int read_text_file(const char *path, char *buf, size_t size)
+{
+	int fd = open(path, O_RDONLY | O_CLOEXEC);
+	ssize_t n;
+
+	if (fd < 0)
+		return -1;
+	n = read(fd, buf, size - 1);
+	close(fd);
+	if (n < 0)
+		return -1;
+	buf[n] = '\0';
+	while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r'))
+		buf[--n] = '\0';
+	return 0;
+}
+
+static int set_isi_parameter(const char *name, int value)
+{
+	char path[128];
+	char text[32];
+
+	snprintf(path, sizeof(path), "%s/%s", ISI_PARAM_DIR, name);
+	snprintf(text, sizeof(text), "%d", value);
+	if (write_text_file(path, text)) {
+		fprintf(stderr, "cannot write %s: %s\n", path, strerror(errno));
+		return -1;
+	}
+	return 0;
+}
+
+static int rebind_slic_devices(void)
+{
+	static const char *const unbind_devices[] = { "spi1.1", "spi1.0" };
+	static const char *const bind_devices[] = { "spi1.0", "spi1.1" };
+	unsigned int i;
+
+	for (i = 0; i < sizeof(unbind_devices) / sizeof(unbind_devices[0]); i++)
+		(void)write_text_file(SPI_DRIVER_DIR "/unbind", unbind_devices[i]);
+	for (i = 0; i < sizeof(bind_devices) / sizeof(bind_devices[0]); i++)
+		if (write_text_file(SPI_DRIVER_DIR "/bind", bind_devices[i])) {
+			fprintf(stderr, "cannot bind %s: %s\n", bind_devices[i],
+				strerror(errno));
+			return -1;
+		}
+	return 0;
+}
+
+static int command_transport(void)
+{
+	static const char *const params[] = {
+		"legacy_chan_sel", "first_chan_sel", "second_chan_sel",
+		"chan_sel_override",
+	};
+	char path[128];
+	char value[64];
+	unsigned int i;
+
+	printf("isi_driver=%s\n", access("/sys/module/en75xx_isi_spi", F_OK) ?
+	       "absent" : "present");
+	for (i = 0; i < sizeof(params) / sizeof(params[0]); i++) {
+		snprintf(path, sizeof(path), "%s/%s", ISI_PARAM_DIR, params[i]);
+		if (!read_text_file(path, value, sizeof(value)))
+			printf("%s=%s\n", params[i], value);
+	}
+	for (i = 0; i < 2; i++) {
+		char device[64];
+		snprintf(device, sizeof(device), "/dev/en75xx-fxs%u", i);
+		printf("fxs%u=%s\n", i, access(device, F_OK) ? "absent" : "present");
+	}
+	return 0;
+}
+
+static int command_recover(int argc, char **argv)
+{
+	uint32_t first = 0;
+	uint32_t second = 2;
+
+	if (argc > 2 || (argc > 0 && parse_u32(argv[0], &first)) ||
+	    (argc > 1 && parse_u32(argv[1], &second)) || first > 31 || second > 31) {
+		fprintf(stderr, "recover expects [FIRST_PHYSICAL SECOND_PHYSICAL], 0..31\n");
+		return -1;
+	}
+	if (set_isi_parameter("chan_sel_override", -1) ||
+	    set_isi_parameter("first_chan_sel", (int)first) ||
+	    set_isi_parameter("second_chan_sel", (int)second))
+		return -1;
+	return rebind_slic_devices();
+}
+
+static int command_scan_second(int argc, char **argv)
+{
+	uint32_t max = 7;
+	uint32_t candidate;
+
+	if (argc > 1 || (argc == 1 && parse_u32(argv[0], &max)) || max > 31) {
+		fprintf(stderr, "scan-second expects optional MAX (0..31)\n");
+		return -1;
+	}
+	for (candidate = 0; candidate <= max; candidate++) {
+		if (set_isi_parameter("chan_sel_override", -1) ||
+		    set_isi_parameter("first_chan_sel", 0) ||
+		    set_isi_parameter("second_chan_sel", (int)candidate) ||
+		    rebind_slic_devices())
+			continue;
+		printf("scan-second physical=%u line1=%s\n", candidate,
+		       access("/dev/en75xx-fxs1", F_OK) ? "absent" : "present");
+		if (!access("/dev/en75xx-fxs1", F_OK))
+			return 0;
+	}
+	return -1;
+}
 
 static void handle_signal(int signo)
 {
@@ -27,6 +160,10 @@ static void usage(FILE *stream, const char *prog)
 		"Usage: %s [-d DEVICE] COMMAND [ARGS]\n"
 		"Commands:\n"
 		"  info\n"
+		"  identity (alias for info)\n"
+		"  transport\n"
+		"  recover [FIRST_PHYSICAL SECOND_PHYSICAL]\n"
+		"  scan-second [MAX]\n"
 		"  state\n"
 		"  stats\n"
 		"  watch\n"
@@ -376,6 +513,14 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 	command = argv[argi++];
+	if (!strcmp(command, "transport") && argi == argc)
+		return command_transport() ? EXIT_FAILURE : EXIT_SUCCESS;
+	if (!strcmp(command, "recover"))
+		return command_recover(argc - argi, &argv[argi]) ?
+			EXIT_FAILURE : EXIT_SUCCESS;
+	if (!strcmp(command, "scan-second"))
+		return command_scan_second(argc - argi, &argv[argi]) ?
+			EXIT_FAILURE : EXIT_SUCCESS;
 
 	fd = open(device, O_RDWR | O_CLOEXEC);
 	if (fd < 0) {
@@ -383,7 +528,7 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	if (!strcmp(command, "info") && argi == argc)
+	if ((!strcmp(command, "info") || !strcmp(command, "identity")) && argi == argc)
 		ret = command_info(fd);
 	else if (!strcmp(command, "state") && argi == argc) {
 		struct en75xx_voice_line_state state = {};

@@ -26,6 +26,38 @@ The `devmem` command and the kernel `/dev/mem` device are enabled temporarily
 in the XG2010G debug image for register diagnosis. Do not write registers
 unless the address and bitfield are known from the board documentation.
 
+The ISI transport keeps the logical-to-physical mapping visible and writable
+through module parameters. The XG2010G default is logical FXS0 to physical
+select 0 and FXS1 to physical select 2:
+
+```sh
+airoha-voice-ctl transport
+cat /sys/module/en75xx_isi_spi/parameters/first_chan_sel
+cat /sys/module/en75xx_isi_spi/parameters/second_chan_sel
+cat /sys/module/en75xx_isi_spi/parameters/chan_sel_override
+```
+
+After changing a mapping, rebind the Si3219x devices so probe runs again:
+
+```sh
+airoha-voice-ctl recover 0 2
+```
+
+If FXS1 is absent, scan the physical ISI selections without replacing the
+firmware or loading a private module. The command leaves the first successful
+mapping in place:
+
+```sh
+airoha-voice-ctl scan-second 7
+```
+
+The kernel emits dynamic-debug records such as `ISI select logical=1
+physical=2`; enable them only during bring-up with:
+
+```sh
+echo 'file en75xx_isi_spi.c +p' > /sys/kernel/debug/dynamic_debug/control
+```
+
 When Asterisk owns a line, `airoha-voice-ctl` can report `Resource busy`.
 Use `asterisk -rx 'en75xx show lines'` and the channel logs in that case. The
 LuCI `Network -> ONU -> Voice` page shows the same read-only driver status and

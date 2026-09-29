@@ -126,6 +126,22 @@ class VoiceStackSourceTests(unittest.TestCase):
         self.assertIn("chan_sel = second_chan_sel", mapping_patch)
         self.assertNotIn("control_channel = spi_get_chipselect", self.patch)
 
+    def test_dynamic_isi_selection_and_recovery_controls_are_present(self):
+        dynamic_patch = (
+            REPO
+            / "package/kernel/airoha-voice/patches/030-dynamic-isi-channel-selection.patch"
+        ).read_text(encoding="utf-8")
+        for source_contract in (
+            "first_chan_sel",
+            "chan_sel_override",
+            "en75xx_isi_physical_select",
+            "ISI select logical=",
+        ):
+            self.assertIn(source_contract, dynamic_patch)
+        for command in ("transport", "recover", "scan-second", "identity"):
+            self.assertIn(command, self.voice_ctl)
+        self.assertIn("PKG_RELEASE:=10", self.package)
+
     def test_xg2010g_describes_two_fxs_lines(self):
         self.assertIn('compatible = "airoha,en7581-pcm";', self.dts)
         self.assertIn('compatible = "airoha,en7581-isi-spi";', self.dts)

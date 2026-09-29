@@ -1,0 +1,51 @@
+diff --git a/src/en75xx_isi_spi.c b/src/en75xx_isi_spi.c
+--- a/src/en75xx_isi_spi.c
++++ b/src/en75xx_isi_spi.c
+@@ -85,1 +85,32 @@
+ MODULE_PARM_DESC(second_chan_sel, "physical ISI selection for logical chip-select 1");
++static int first_chan_sel = 0;
++module_param_named(first_chan_sel, first_chan_sel, int, 0644);
++MODULE_PARM_DESC(first_chan_sel, "physical ISI selection for logical chip-select 0");
++
++/* A non-negative value is a temporary bring-up override for both endpoints. */
++static int chan_sel_override = -1;
++module_param_named(chan_sel_override, chan_sel_override, int, 0644);
++MODULE_PARM_DESC(chan_sel_override,
++                 "temporary physical ISI selection override (-1 disables)");
++
++static u32 en75xx_isi_physical_select(struct spi_device *spi)
++{
++	int logical = spi_get_chipselect(spi, 0);
++	int selected = logical;
++
++	if (chan_sel_override >= 0)
++		selected = chan_sel_override;
++	else if (logical == 0)
++		selected = first_chan_sel;
++	else if (logical == 1)
++		selected = second_chan_sel;
++
++	if (selected < 0 || selected > 31) {
++		dev_warn_once(&spi->dev,
++			      "invalid physical ISI selection %d for logical %d; using logical selection\n",
++			      selected, logical);
++		selected = logical;
++	}
++
++	return selected;
++}
+@@ -330,8 +361,10 @@ static int en75xx_isi_spi_transfer_one(struct spi_controller *host,
+ 		if (unlikely(legacy_chan_sel)) {
+-			u32 chan_sel = spi_get_chipselect(spi, 0);
++			u32 logical = spi_get_chipselect(spi, 0);
++			u32 chan_sel = en75xx_isi_physical_select(spi);
+ 
+-			/* The second logical DT endpoint is physically ISI select 2. */
+-			if (chan_sel == 1)
+-				chan_sel = second_chan_sel;
++			dev_dbg(isi->dev,
++				"ISI select logical=%u physical=%u override=%d first=%d second=%d\n",
++				logical, chan_sel, chan_sel_override,
++				first_chan_sel, second_chan_sel);
+ 			writel(chan_sel, isi->base + ISI_REG_CHAN_SEL);
+ 		}
