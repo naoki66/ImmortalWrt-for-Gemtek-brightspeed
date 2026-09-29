@@ -2,7 +2,7 @@ diff --git a/src/en75xx_isi_spi.c b/src/en75xx_isi_spi.c
 index 8812076..3f4ddba 100644
 --- a/src/en75xx_isi_spi.c
 +++ b/src/en75xx_isi_spi.c
-@@ -73,14 +73,13 @@
+@@ -73,14 +73,17 @@
  /*
 - * Writing ISI_REG_CHAN_SEL before each transaction was part of this
 - * driver's original, unverified guess at the protocol; disabling it
@@ -23,7 +23,8 @@ index 8812076..3f4ddba 100644
 +static int second_chan_sel = 2;
 +module_param_named(second_chan_sel, second_chan_sel, int, 0644);
 +MODULE_PARM_DESC(second_chan_sel, "physical ISI selection for logical chip-select 1");
- 
+-
++
  static bool en7528_pcm_clk = true;
  module_param_named(en7528_pcm_clk, en7528_pcm_clk, bool, 0644);
  MODULE_PARM_DESC(en7528_pcm_clk, "enable EN7528's chip-SCU PCM clock generator during ISI bring-up");
