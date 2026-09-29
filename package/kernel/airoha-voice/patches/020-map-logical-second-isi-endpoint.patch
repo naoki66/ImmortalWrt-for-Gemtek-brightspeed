@@ -2,7 +2,7 @@ diff --git a/src/en75xx_isi_spi.c b/src/en75xx_isi_spi.c
 index 3f4ddba..a3e9f18 100644
 --- a/src/en75xx_isi_spi.c
 +++ b/src/en75xx_isi_spi.c
-@@ -287,8 +287,14 @@ static int en75xx_isi_spi_transfer_one(struct spi_controller *host,
+@@ -287,6 +287,12 @@ static int en75xx_isi_spi_transfer_one(struct spi_controller *host,
  		const u8 *tx = xfer->tx_buf;
  
 -		if (unlikely(legacy_chan_sel))
