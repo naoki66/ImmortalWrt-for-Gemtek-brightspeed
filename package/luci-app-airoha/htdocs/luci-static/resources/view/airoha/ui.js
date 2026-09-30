@@ -452,23 +452,30 @@ function hasWifiRadio(o) {
 }
 
 /* ── Dark-mode probe ───────────────────────────────────────────────────────
- * Whether the dark re-tune is appended is decided at runtime rather than by a
- * CSS gate, because Argon (the default theme here) never sets
- * :root[data-darkmode="true"]. Mirrors the mesh-conf implementation
- * (view/meshconf/steering.js) verbatim so both packages agree on the verdict. */
+ * Prefer explicit theme state, then inspect the rendered page background and
+ * finally fall back to an active dark stylesheet or the OS preference. */
 function isDarkMode() {
+	var root = document.documentElement;
+	var auroraMode = root ? String(root.getAttribute('data-darkmode') || '').toLowerCase() : '';
+	if (auroraMode === 'true') return true;
+	if (auroraMode === 'false') return false;
+
+	var glassMode = root ? String(root.getAttribute('data-theme') || '').toLowerCase() : '';
+	if (glassMode === 'dark') return true;
+	if (glassMode === 'light') return false;
+
 	/* Probe order matters: the first element with an opaque background wins.
-	 * - body carries the theme background in every LuCI theme.
+	 * - body / html carry the theme background in modern LuCI themes.
+	 * - .main-right and the content wrappers carry the rendered page surface.
 	 * - .main-left is Argon's sidebar: var(--menu-bg-color) (#ffffff) when
 	 *   light, #333333 when dark. It is the only other always-opaque surface
 	 *   Argon has, and it matters because Argon inlines css/dark.css into a
 	 *   <style> block (header.ut readfile()) instead of linking it, so the
 	 *   stylesheet fallback below can never match Argon.
-	 * - .main-content / #maincontent / .cbi-map are the bootstrap-era wrappers.
 	 * header is deliberately NOT probed: Argon paints it with var(--primary)
 	 * (#5e72e4, luminance ~121), which would read as dark in light mode. */
-	var els = [document.body, document.querySelector('.main-left'), document.querySelector('.main-right'),
-		document.querySelector('.main-content'), document.querySelector('#maincontent'), document.querySelector('.cbi-map')];
+	var els = [document.body, root, document.querySelector('.main-right'), document.querySelector('.main-content'),
+		document.querySelector('#maincontent'), document.querySelector('.cbi-map'), document.querySelector('.main-left')];
 	for (var i = 0; i < els.length; i++) {
 		if (!els[i]) continue;
 		/* Parse rgb()/rgba() explicitly. Matching with /\d+/g splits the
@@ -485,8 +492,24 @@ function isDarkMode() {
 			return lum < 128;
 		}
 	}
-	var sheets = document.querySelectorAll('link[href*="dark"], link[href*="glass"]');
-	if (sheets.length > 0) return true;
+	var sheets = document.querySelectorAll('link[rel~="stylesheet"][href], style[id]');
+	for (var j = 0; j < sheets.length; j++) {
+		var sheet = sheets[j];
+		var marker = String(sheet.getAttribute('href') || sheet.getAttribute('id') || '').toLowerCase();
+		if (marker.indexOf('dark') < 0)
+			continue;
+		if (sheet.disabled || (sheet.sheet && sheet.sheet.disabled))
+			continue;
+
+		var media = String(sheet.getAttribute('media') ||
+			(sheet.sheet && sheet.sheet.media ? sheet.sheet.media.mediaText : '') || '').trim();
+		if (!media || media.toLowerCase() === 'all')
+			return true;
+		try {
+			if (window.matchMedia && window.matchMedia(media).matches)
+				return true;
+		} catch (e) {}
+	}
 	/* Last resort: follow the OS preference. This is exactly what Argon's
 	 * default mode='normal' does - it wraps the inlined dark.css in
 	 * @media (prefers-color-scheme: dark) - and it also covers any theme that
