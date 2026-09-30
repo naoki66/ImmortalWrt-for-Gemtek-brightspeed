@@ -184,6 +184,7 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集
 - `bash` / `coreutils` / `curl` / `ip-full`
 - `ethtool-full` / `pciutils` / `uboot-envtools`
 - `luci-theme-argon` + `luci-theme-bootstrap`
+- `luci-theme-glass`（由 `feeds.conf.default` 的 `glass` feed 从上游仓库安装，执行 `./scripts/feeds update glass && ./scripts/feeds install luci-theme-glass` 可更新）
 - `default-settings-chn`（中文默认设置）
 
 **代理与网络核心**
