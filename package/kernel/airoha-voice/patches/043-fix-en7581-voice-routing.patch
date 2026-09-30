@@ -1,0 +1,23 @@
+From: XG2010G voice bring-up <noreply@example.com>
+Subject: [PATCH] en75xx-isi-spi: restore validated EN7581 voice routing
+
+The XG2010G Si32192 is reachable after the chip-SCU route is initialized
+with the values observed during the successful cold-boot recovery:
+0x00031000 at register 0x218 and 0x00000c01 at register 0x1d0.
+
+Keep the full update masks so stale PCM/SPI route bits are replaced on
+every probe instead of depending on a previous boot or a devmem override.
+---
+ src/en75xx_isi_spi.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/src/en75xx_isi_spi.c
++++ b/src/en75xx_isi_spi.c
+@@ -132,8 +132,8 @@ MODULE_PARM_DESC(en7528_pcm_clk, "enable
+ #define EN7581_CHIP_SCU_CLKSRC		0x218
+-#define EN7581_CHIP_SCU_CLKSRC_MASK	BIT(12)
+-#define EN7581_CHIP_SCU_GPIO_DEV1	BIT(12)
++#define EN7581_CHIP_SCU_CLKSRC_MASK	0x003f3300u
++#define EN7581_CHIP_SCU_GPIO_DEV1	0x00031000u
+ #define EN7581_CHIP_SCU_PINMUX		0x1d0
+ #define EN7581_CHIP_SCU_PINMUX_MASK	0x00000c01u

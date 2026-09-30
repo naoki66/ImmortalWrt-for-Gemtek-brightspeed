@@ -1,0 +1,172 @@
+From: XG2010G voice bring-up <noreply@example.com>
+Subject: [PATCH] voice: add China ringing and Si32192 hardware DTMF
+
+Program the default ring preset for a conservative China cadence test at
+25 Hz and 55 Vrms.  Export decoded Si32192 DTMF events through the voice
+UAPI so digit recognition can be validated independently of PCM RX.
+---
+ include/en75xx_voice.h            |  2 ++
+ include/uapi/linux/en75xx_voice.h |  7 +++++++
+ src/en75xx_slic_si3219x.c         | 37 +++++++++++++++++++++++++++++++++----
+ src/en75xx_voice_core.c           | 16 ++++++++++++++++
+ 4 files changed, 58 insertions(+), 4 deletions(-)
+
+--- a/include/en75xx_voice.h
++++ b/include/en75xx_voice.h
+@@ -68,6 +68,8 @@ struct en75xx_voice_slic_ops {
+ 	int (*get_faults)(void *priv, u32 *faults);
+ 	/* Optional: play a tone from the SLIC's own oscillators. */
+ 	int (*set_tone)(void *priv, const struct en75xx_voice_tone *tone);
++	/* Return 1 for a new digit, 0 when no DTMF event is pending. */
++	int (*get_dtmf)(void *priv, u8 *digit);
+ };
+ 
+ struct en75xx_pcm {
+--- a/include/uapi/linux/en75xx_voice.h
++++ b/include/uapi/linux/en75xx_voice.h
+@@ -42,6 +42,7 @@ struct en75xx_voice_info {
+ #define EN75XX_VOICE_CAP_LINEFEED (1U << 2)
+ #define EN75XX_VOICE_CAP_PCM (1U << 3)
+ #define EN75XX_VOICE_CAP_TONE (1U << 4)
++#define EN75XX_VOICE_CAP_DTMF (1U << 5)
+ 
+ struct en75xx_voice_line_state {
+ 	__u32 hook;
+@@ -75,6 +76,11 @@ struct en75xx_voice_tone {
+ 	__u32 reserved;
+ };
+ 
++struct en75xx_voice_dtmf {
++	__u32 valid;
++	__u32 digit;		/* ASCII: 0-9, *, #, A-D */
++};
++
+ struct en75xx_voice_stats {
+ 	__u64 rx_bytes;
+ 	__u64 tx_bytes;
+@@ -93,5 +99,6 @@ struct en75xx_voice_stats {
+ #define EN75XX_VOICE_SET_TONE       _IOW(EN75XX_VOICE_IOC_MAGIC, 0x06, struct en75xx_voice_tone)
+ /* 0 suspends automatic level control on this line, 1 resumes it. */
+ #define EN75XX_VOICE_SET_ALC        _IOW(EN75XX_VOICE_IOC_MAGIC, 0x07, __u32)
++#define EN75XX_VOICE_GET_DTMF       _IOR(EN75XX_VOICE_IOC_MAGIC, 0x08, struct en75xx_voice_dtmf)
+ 
+ #endif /* _UAPI_LINUX_EN75XX_VOICE_H */
+--- a/src/en75xx_slic_si3219x.c
++++ b/src/en75xx_slic_si3219x.c
+@@ -61,14 +61,15 @@ extern Si3219x_General_Cfg Si3219x_General_Configuration;
+  * PCMMODE bits 1:0 are PCM_FMT; 0x3 selects 16-bit linear, matching the
+  * PCM engine's 16-bit timeslots. PCMTXHI bit 4 selects the clock edge on
+  * which DTX is driven, and it must be clear so the ProSLIC drives on the
+- * rising edge of PCLK. IRQEN2 bit 1 is the loop-status (hook) interrupt;
+- * the rest stay masked so the chip does not assert on events nothing
+- * here consumes.
++ * rising edge of PCLK. IRQEN2 bit 1 is the loop-status (hook) interrupt
++ * and bit 4 reports a decoded DTMF digit.
+  */
+ #define SI3219X_PCM_FMT_MASK	0x03
+ #define SI3219X_PCM_FMT_LINEAR	0x03
+ #define SI3219X_PCM_TX_EDGE	BIT(4)
+ #define SI3219X_IRQEN2_HOOK	BIT(1)
++#define SI3219X_IRQEN2_DTMF	BIT(4)
++#define SI3219X_REG_IRQ2		(PROSLIC_REG_IRQ1 + 1)
+ 
+ /*
+  * Patch BOM selector. Electrical parameters are compiled separately in
+@@ -486,6 +487,25 @@ static int en75xx_si3219x_get_hook(void *priv)
+ 	return status < 0 ? status : !!(status & 2);
+ }
+ 
++static int en75xx_si3219x_get_dtmf(void *priv, u8 *digit)
++{
++	static const char digits[] = "D1234567890*#ABC";
++	struct en75xx_si3219x *slic = priv;
++	uInt8 raw;
++	int irq2;
++
++	irq2 = si3219x_read_reg_checked(slic, 0, SI3219X_REG_IRQ2);
++	if (irq2 < 0)
++		return irq2;
++	if (!(irq2 & SI3219X_IRQEN2_DTMF))
++		return 0;
++	if (ProSLIC_DTMFReadDigit(slic->channel, &raw) != RC_NONE)
++		return -EIO;
++
++	*digit = digits[raw & 0xf];
++	return 1;
++}
++
+ /* ProSLIC_SetLinefeedStatus()'s sequence, with checked SPI transfers. */
+ static int si3219x_set_linefeed(struct en75xx_si3219x *slic, u8 lf)
+ {
+@@ -835,6 +855,7 @@ static const struct en75xx_voice_slic_ops en75xx_si3219x_ops = {
+ 	.set_linefeed = en75xx_si3219x_set_linefeed,
+ 	.get_faults = en75xx_si3219x_get_faults,
+ 	.set_tone = en75xx_si3219x_set_tone,
++	.get_dtmf = en75xx_si3219x_get_dtmf,
+ };
+ 
+ static void en75xx_si3219x_hook_work(struct work_struct *work)
+@@ -868,7 +889,8 @@ static void si3219x_apply_pcm_fixups(struct en75xx_si3219x *slic)
+ 			  val & ~SI3219X_PCM_TX_EDGE);
+ 
+ 	si3219x_write_reg(slic, 0, PROSLIC_REG_IRQEN1, 0);
+-	si3219x_write_reg(slic, 0, PROSLIC_REG_IRQEN2, SI3219X_IRQEN2_HOOK);
++	si3219x_write_reg(slic, 0, PROSLIC_REG_IRQEN2,
++			  SI3219X_IRQEN2_HOOK | SI3219X_IRQEN2_DTMF);
+ 	si3219x_write_reg(slic, 0, PROSLIC_REG_IRQEN3, 0);
+ 
+ 	/*
+@@ -1037,6 +1059,13 @@ static int en75xx_si3219x_api_init(struct en75xx_si3219x *slic)
+ 	     * selected impedance preset (ZSYN_600_0_0_30_0).
+ 	     */
+ 	    si3219x_apply_gains(slic) != 0 ||
++	    ProSLIC_dbgSetRinging(slic->channel,
++		&(ProSLIC_dbgRingCfg) {
++			.ringtype = ProSLIC_RING_SINE,
++			.freq = 25,
++			.amp = 55,
++			.offset = 0,
++		}, DEFAULT_RINGING) != RC_NONE ||
+ 	    ProSLIC_RingSetup(slic->channel, DEFAULT_RINGING) != RC_NONE ||
+ 	    ProSLIC_PCMSetup(slic->channel, PCM_16LIN) != RC_NONE ||
+ 	    si3219x_apply_timeslots(slic) != 0 ||
+--- a/src/en75xx_voice_core.c
++++ b/src/en75xx_voice_core.c
+@@ -201,7 +201,9 @@ static long en75xx_voice_ioctl(struct file *file, unsigned int cmd,
+ 	struct en75xx_voice_info info = {};
+ 	struct en75xx_voice_ring ring;
+ 	struct en75xx_voice_tone tone;
++	struct en75xx_voice_dtmf dtmf = {};
+ 	struct en75xx_voice_stats stats = {};
++	u8 digit;
+ 	u32 linefeed, alc, faults = 0;
+ 	int ret, event_seq;
+ 
+@@ -218,6 +220,8 @@ static long en75xx_voice_ioctl(struct file *file, unsigned int cmd,
+ 			EN75XX_VOICE_CAP_LINEFEED;
+ 		if (line->slic_ops->set_tone)
+ 			info.capabilities |= EN75XX_VOICE_CAP_TONE;
++		if (line->slic_ops->get_dtmf)
++			info.capabilities |= EN75XX_VOICE_CAP_DTMF;
+ 		strscpy(info.slic, line->slic_name, sizeof(info.slic));
+ 		return copy_to_user((void __user *)arg, &info, sizeof(info)) ?
+ 			-EFAULT : 0;
+@@ -297,6 +301,18 @@ out_linefeed:
+ 			return -EOPNOTSUPP;
+ 		line->pcm->line_ops->set_alc(line->pcm, line->pcm_channel, !!alc);
+ 		return 0;
++	case EN75XX_VOICE_GET_DTMF:
++		if (!line->slic_ops->get_dtmf)
++			return -EOPNOTSUPP;
++		ret = line->slic_ops->get_dtmf(line->slic_priv, &digit);
++		if (ret < 0)
++			return ret;
++		if (ret > 0) {
++			dtmf.valid = 1;
++			dtmf.digit = digit;
++		}
++		return copy_to_user((void __user *)arg, &dtmf, sizeof(dtmf)) ?
++			-EFAULT : 0;
+ 	case EN75XX_VOICE_FLUSH:
+ 		line->pcm->line_ops->flush(line->pcm, line->pcm_channel);
+ 		return 0;

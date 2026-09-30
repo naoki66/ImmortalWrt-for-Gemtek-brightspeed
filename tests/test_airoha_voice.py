@@ -7,11 +7,11 @@ PACKAGE = REPO / "package/kernel/airoha-voice/Makefile"
 PATCH = REPO / "package/kernel/airoha-voice/patches/010-add-en7581-xg2010g-support.patch"
 EN7581_PINMUX_PATCH = (
     REPO
-    / "package/kernel/airoha-voice/patches/043-debug-en7581-pinmux-route.patch"
+    / "package/kernel/airoha-voice/patches/043-fix-en7581-voice-routing.patch"
 )
-EN7581_PCM1_ROUTE_PATCH = (
+CHINA_VOICE_PATCH = (
     REPO
-    / "package/kernel/airoha-voice/patches/044-debug-en7581-pcm1-route.patch"
+    / "package/kernel/airoha-voice/patches/110-china-ringing-and-hardware-dtmf.patch"
 )
 SI3219X_SLOT_SKEW_PATCH = (
     REPO
@@ -76,9 +76,7 @@ class VoiceStackSourceTests(unittest.TestCase):
         cls.package = PACKAGE.read_text(encoding="utf-8")
         cls.patch = PATCH.read_text(encoding="utf-8")
         cls.en7581_pinmux_patch = EN7581_PINMUX_PATCH.read_text(encoding="utf-8")
-        cls.en7581_pcm1_route_patch = EN7581_PCM1_ROUTE_PATCH.read_text(
-            encoding="utf-8"
-        )
+        cls.china_voice_patch = CHINA_VOICE_PATCH.read_text(encoding="utf-8")
         cls.si3219x_slot_skew_patch = SI3219X_SLOT_SKEW_PATCH.read_text(
             encoding="utf-8"
         )
@@ -141,10 +139,9 @@ class VoiceStackSourceTests(unittest.TestCase):
             self.assertIn(source_contract, self.patch)
         self.assertFalse(REJECTED_CLOCK_GATE_PATCH.exists())
         self.assertFalse(REJECTED_SCU_LAYOUT_PATCH.exists())
-        self.assertIn("+#define EN7581_CHIP_SCU_PINMUX_MASK", self.en7581_pinmux_patch)
-        self.assertIn("0x00000c00u", self.en7581_pinmux_patch)
-        self.assertIn("+\t.pinmux_extra_set = 0", self.en7581_pinmux_patch)
-        self.assertIn("0x003f3300u", self.en7581_pcm1_route_patch)
+        self.assertIn("0x00000c01", self.en7581_pinmux_patch)
+        self.assertIn("0x003f3300u", self.en7581_pinmux_patch)
+        self.assertIn("0x00031000u", self.en7581_pinmux_patch)
 
     def test_isi_transport_keeps_diagnostic_selector_support(self):
         self.assertIn("host->num_chipselect = 32", self.patch)
@@ -178,7 +175,7 @@ class VoiceStackSourceTests(unittest.TestCase):
         for command in ("transport", "recover", "identity"):
             self.assertIn(command, self.voice_ctl)
         self.assertNotIn('!strcmp(command, "scan-second")', self.voice_ctl)
-        self.assertIn("PKG_RELEASE:=23", self.package)
+        self.assertIn("PKG_RELEASE:=24", self.package)
         self.assertIn("trace_chan_sel", trace_patch)
         self.assertIn("rebind_slic_device", self.voice_ctl)
         self.assertNotIn('"spi1.1"', self.voice_ctl)
@@ -234,9 +231,24 @@ class VoiceStackSourceTests(unittest.TestCase):
             "EN75XX_VOICE_SET_LINEFEED",
             "EN75XX_VOICE_SET_RING",
             "EN75XX_VOICE_SET_TONE",
+            "EN75XX_VOICE_GET_DTMF",
+            "dtmf-watch",
             "command_pcm_check",
         ):
             self.assertIn(command, self.voice_ctl)
+
+    def test_china_ringing_and_hardware_dtmf_are_configured(self):
+        for contract in (
+            "ProSLIC_dbgSetRinging",
+            ".freq = 25",
+            ".amp = 55",
+            "SI3219X_IRQEN2_DTMF",
+            "ProSLIC_DTMFReadDigit",
+            "EN75XX_VOICE_CAP_DTMF",
+            "EN75XX_VOICE_GET_DTMF",
+            '"D1234567890*#ABC"',
+        ):
+            self.assertIn(contract, self.china_voice_patch)
 
     def test_asterisk_channel_package_is_selected_and_buildable(self):
         self.assertIn("CONFIG_PACKAGE_asterisk-chan-en75xx=y", self.config)

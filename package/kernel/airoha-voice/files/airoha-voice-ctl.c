@@ -130,6 +130,7 @@ static void usage(FILE *stream, const char *prog)
 		"  state\n"
 		"  stats\n"
 		"  watch\n"
+		"  dtmf-watch [SECONDS]\n"
 		"  pcm-check [FRAMES]\n"
 		"  linefeed open|standby|active|reverse\n"
 		"  ring on [ON_MS OFF_MS] | ring off\n"
@@ -216,13 +217,14 @@ static int command_info(int fd)
 	printf("rate=%u sample_bits=%u frame_samples=%u frame_bytes=%u\n",
 	       info.sample_rate, info.sample_bits, info.frame_samples,
 	       info.frame_samples * (info.sample_bits / 8));
-	printf("capabilities=0x%08x ring=%u hook=%u linefeed=%u pcm=%u tone=%u\n",
+	printf("capabilities=0x%08x ring=%u hook=%u linefeed=%u pcm=%u tone=%u dtmf=%u\n",
 	       info.capabilities,
 	       !!(info.capabilities & EN75XX_VOICE_CAP_RING),
 	       !!(info.capabilities & EN75XX_VOICE_CAP_HOOK),
 	       !!(info.capabilities & EN75XX_VOICE_CAP_LINEFEED),
 	       !!(info.capabilities & EN75XX_VOICE_CAP_PCM),
-	       !!(info.capabilities & EN75XX_VOICE_CAP_TONE));
+	       !!(info.capabilities & EN75XX_VOICE_CAP_TONE),
+	       !!(info.capabilities & EN75XX_VOICE_CAP_DTMF));
 	return 0;
 }
 
@@ -276,6 +278,37 @@ static int command_watch(int fd)
 			print_state(&state);
 			fflush(stdout);
 		}
+	}
+	return 0;
+}
+
+static int command_dtmf_watch(int fd, int argc, char **argv)
+{
+	struct en75xx_voice_dtmf dtmf;
+	uint32_t seconds = 30;
+	uint32_t polls;
+
+	if (argc > 1 || (argc == 1 && parse_u32(argv[0], &seconds)) ||
+	    !seconds || seconds > 3600) {
+		fprintf(stderr, "SECONDS must be between 1 and 3600\n");
+		return -1;
+	}
+
+	signal(SIGINT, handle_signal);
+	signal(SIGTERM, handle_signal);
+	printf("waiting for DTMF digits for %u seconds\n", seconds);
+	fflush(stdout);
+	for (polls = 0; polls < seconds * 50 && !stop_requested; polls++) {
+		memset(&dtmf, 0, sizeof(dtmf));
+		if (ioctl(fd, EN75XX_VOICE_GET_DTMF, &dtmf) < 0) {
+			perror("EN75XX_VOICE_GET_DTMF");
+			return -1;
+		}
+		if (dtmf.valid) {
+			printf("dtmf=%c\n", (char)dtmf.digit);
+			fflush(stdout);
+		}
+		usleep(20000);
 	}
 	return 0;
 }
@@ -499,6 +532,8 @@ int main(int argc, char **argv)
 		ret = command_stats(fd);
 	else if (!strcmp(command, "watch") && argi == argc)
 		ret = command_watch(fd);
+	else if (!strcmp(command, "dtmf-watch"))
+		ret = command_dtmf_watch(fd, argc - argi, &argv[argi]);
 	else if (!strcmp(command, "pcm-check"))
 		ret = command_pcm_check(fd, argc - argi, &argv[argi]);
 	else if (!strcmp(command, "linefeed") && argi + 1 == argc)
