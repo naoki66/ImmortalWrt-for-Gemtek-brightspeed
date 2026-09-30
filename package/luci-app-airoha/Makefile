@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 LUCI_NAME:=luci-app-airoha
 PKG_VERSION:=2.0.0
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=XR1710G Maintainer
 TITLE:=LuCI Airoha XR1710G / XG2010G Status

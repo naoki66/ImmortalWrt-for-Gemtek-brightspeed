@@ -10,24 +10,56 @@
 
 START=89
 
-SYS_GOV=/sys/devices/system/cpu/cpufreq/policy0/scaling_governor
-SYS_DIR=/sys/devices/system/cpu/cpufreq/policy0
+CPUFREQ_ROOT=/sys/devices/system/cpu/cpufreq
+CPU_MAX_FREQ_KHZ=1400000
+
+find_cpufreq_policy() {
+	local dir
+	for dir in "$CPUFREQ_ROOT"/policy[0-9]* "$CPUFREQ_ROOT"; do
+		[ -w "$dir/scaling_governor" ] || continue
+		printf '%s' "$dir"
+		return 0
+	done
+	return 1
+}
+
+freq_allowed() {
+	local dir="$1" freq="$2" value values
+
+	case "$freq" in ''|*[!0-9]*) return 1 ;; esac
+	[ "$freq" -le "$CPU_MAX_FREQ_KHZ" ] 2>/dev/null || return 1
+	values=$(cat "$dir/scaling_available_frequencies" 2>/dev/null)
+	if [ -z "$values" ]; then
+		values="$(cat "$dir/scaling_min_freq" 2>/dev/null) \
+$(cat "$dir/scaling_max_freq" 2>/dev/null) \
+$(cat "$dir/cpuinfo_min_freq" 2>/dev/null) \
+$(cat "$dir/cpuinfo_max_freq" 2>/dev/null)"
+	fi
+	for value in $values; do
+		[ "$value" = "$freq" ] && return 0
+	done
+	return 1
+}
 
 apply_cpu_settings() {
-	local governor max_freq
+	local governor max_freq sys_dir
+
+	sys_dir=$(find_cpufreq_policy) || return
 
 	governor=$(uci -q get airoha_npu.@cpu[0].governor 2>/dev/null)
 	max_freq=$(uci -q get airoha_npu.@cpu[0].max_freq 2>/dev/null)
+	[ -n "$governor" ] || governor=$(uci -q get cpufreq.cpufreq.governor0 2>/dev/null)
+	[ -n "$max_freq" ] || max_freq=$(uci -q get cpufreq.cpufreq.maxfreq0 2>/dev/null)
 
-	[ -n "$max_freq" ] && [ -w "$SYS_DIR/scaling_max_freq" ] && {
-		if echo "$max_freq" | grep -qw "$(cat "$SYS_DIR/scaling_available_frequencies" 2>/dev/null)"; then
-			echo "$max_freq" > "$SYS_DIR/scaling_max_freq" 2>/dev/null
+	[ -n "$max_freq" ] && [ -w "$sys_dir/scaling_max_freq" ] && {
+		if freq_allowed "$sys_dir" "$max_freq"; then
+			echo "$max_freq" > "$sys_dir/scaling_max_freq" 2>/dev/null
 		fi
 	}
 
-	[ -n "$governor" ] && [ -w "$SYS_DIR/scaling_governor" ] && {
-		if echo "$governor" | grep -qw "$(cat "$SYS_DIR/scaling_available_governors" 2>/dev/null)"; then
-			echo "$governor" > "$SYS_DIR/scaling_governor" 2>/dev/null
+	[ -n "$governor" ] && [ -w "$sys_dir/scaling_governor" ] && {
+		if echo "$governor" | grep -qw "$(cat "$sys_dir/scaling_available_governors" 2>/dev/null)"; then
+			echo "$governor" > "$sys_dir/scaling_governor" 2>/dev/null
 		fi
 	}
 }
@@ -35,7 +67,7 @@ apply_cpu_settings() {
 start() {
 	# Wait (bounded, ~5s) for the cpufreq sysfs node, then apply persisted settings.
 	local i=0
-	while [ ! -w "$SYS_DIR/scaling_governor" ] && [ $i -lt 5 ]; do
+	while ! find_cpufreq_policy >/dev/null && [ $i -lt 5 ]; do
 		sleep 1
 		i=$((i + 1))
 	done

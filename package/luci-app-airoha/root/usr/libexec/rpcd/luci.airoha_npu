@@ -50,12 +50,45 @@ get_device_mode() {
 # a cpufreq node that fails to probe can leave the driver on another index).
 _find_cpufreq_policy() {
 	local dir
-	for dir in /sys/devices/system/cpu/cpufreq/policy[0-9]*; do
+	for dir in /sys/devices/system/cpu/cpufreq/policy[0-9]* \
+		/sys/devices/system/cpu/cpufreq; do
 		[ -r "$dir/scaling_governor" ] || continue
 		printf '%s' "$dir"
 		return 0
 	done
 	return 1
+}
+
+# The Gemtek AN7581 profiles are validated through 1.4 GHz. Keep every CPU
+# control path on the same ceiling even if a future kernel exposes experimental
+# 1.45-1.6 GHz OPPs.
+CPU_MAX_FREQ_KHZ=1400000
+
+_cpu_frequencies() {
+	local dir="$1" freq values
+
+	values=$(cat "$dir/scaling_available_frequencies" 2>/dev/null)
+	if [ -z "$values" ]; then
+		values="$(cat "$dir/scaling_min_freq" 2>/dev/null) \
+$(cat "$dir/scaling_max_freq" 2>/dev/null) \
+$(cat "$dir/cpuinfo_min_freq" 2>/dev/null) \
+$(cat "$dir/cpuinfo_max_freq" 2>/dev/null)"
+	fi
+
+	for freq in $values; do
+		case "$freq" in ''|*[!0-9]*) continue ;; esac
+		[ "$freq" -gt 0 ] 2>/dev/null || continue
+		[ "$freq" -le "$CPU_MAX_FREQ_KHZ" ] 2>/dev/null || continue
+		printf '%s\n' "$freq"
+	done | sort -n -u
+}
+
+_cpu_freq_allowed() {
+	local dir="$1" freq="$2"
+
+	case "$freq" in ''|*[!0-9]*) return 1 ;; esac
+	[ "$freq" -le "$CPU_MAX_FREQ_KHZ" ] 2>/dev/null || return 1
+	_cpu_frequencies "$dir" | grep -qx "$freq"
 }
 
 get_status() {
@@ -130,27 +163,11 @@ get_status() {
 		cpu_avail_governors=$(cat "$cpufreq_path/scaling_available_governors" 2>/dev/null || echo "")
 		cpu_min_freq=$(cat "$cpufreq_path/scaling_min_freq" 2>/dev/null || echo 0)
 		cpu_max_freq=$(cat "$cpufreq_path/scaling_max_freq" 2>/dev/null || echo 0)
-		cpu_avail_freqs=$(cat "$cpufreq_path/scaling_available_frequencies" 2>/dev/null || echo "")
+		cpu_avail_freqs=$(_cpu_frequencies "$cpufreq_path" | tr '\n' ' ' | sed 's/ $//')
 
 		if [ -z "$cpu_avail_governors" ]; then
 			cpu_cpufreq_reason="no_governors"
 		else
-			if [ -z "$cpu_avail_freqs" ]; then
-				# Fallback: a de-duplicated ascending list built from the
-				# min/max limits the kernel does expose. Never invent values.
-				local _f _flist=""
-				for _f in \
-					"$(cat "$cpufreq_path/scaling_min_freq" 2>/dev/null)" \
-					"$(cat "$cpufreq_path/scaling_max_freq" 2>/dev/null)" \
-					"$(cat "$cpufreq_path/cpuinfo_min_freq" 2>/dev/null)" \
-					"$(cat "$cpufreq_path/cpuinfo_max_freq" 2>/dev/null)"; do
-					case "$_f" in ''|*[!0-9]*) continue ;; esac
-					[ "$_f" -gt 0 ] 2>/dev/null || continue
-					_flist="${_flist}${_f}
-"
-				done
-				cpu_avail_freqs=$(printf '%s' "$_flist" | grep -v '^$' | sort -n -u | tr '\n' ' ' | sed 's/ $//')
-			fi
 			if [ -n "$cpu_avail_freqs" ]; then
 				cpu_cpufreq_reason="ok"
 			else
@@ -300,7 +317,7 @@ _uci_persist_cpu() {
 }
 
 set_governor() {
-	local governor
+	local governor cpufreq_path avail
 	governor=$(echo "$1" | jsonfilter -e "@.governor" 2>/dev/null)
 
 	if [ -z "$governor" ]; then
@@ -308,14 +325,20 @@ set_governor() {
 		return
 	fi
 
+	cpufreq_path=$(_find_cpufreq_policy)
+	[ -n "$cpufreq_path" ] || {
+		echo '{"error":"CPU frequency scaling is not available"}'
+		return
+	}
+
 	# Validate governor is available
-	local avail=$(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_available_governors 2>/dev/null)
+	avail=$(cat "$cpufreq_path/scaling_available_governors" 2>/dev/null)
 	if ! echo "$avail" | grep -qw "$governor"; then
 		printf '{"error":"invalid governor: %s"}' "$governor"
 		return
 	fi
 
-	echo "$governor" > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor 2>/dev/null
+	echo "$governor" > "$cpufreq_path/scaling_governor" 2>/dev/null
 	if [ $? -eq 0 ]; then
 		_uci_persist_cpu "$governor"
 		printf '{"result":"ok","governor":"%s"}' "$governor"
@@ -325,7 +348,7 @@ set_governor() {
 }
 
 set_max_freq() {
-	local freq
+	local freq cpufreq_path
 	freq=$(echo "$1" | jsonfilter -e "@.freq" 2>/dev/null)
 
 	if [ -z "$freq" ]; then
@@ -333,14 +356,19 @@ set_max_freq() {
 		return
 	fi
 
-	# Validate freq is in available list
-	local avail=$(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_available_frequencies 2>/dev/null)
-	if ! echo "$avail" | grep -qw "$freq"; then
+	cpufreq_path=$(_find_cpufreq_policy)
+	[ -n "$cpufreq_path" ] || {
+		echo '{"error":"CPU frequency scaling is not available"}'
+		return
+	}
+
+	# Accept only a kernel-advertised frequency in the validated range.
+	if ! _cpu_freq_allowed "$cpufreq_path" "$freq"; then
 		printf '{"error":"invalid frequency: %s"}' "$freq"
 		return
 	fi
 
-	echo "$freq" > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq 2>/dev/null
+	echo "$freq" > "$cpufreq_path/scaling_max_freq" 2>/dev/null
 	if [ $? -eq 0 ]; then
 		_uci_persist_cpu "" "$freq"
 		printf '{"result":"ok","freq":%d}' "$freq"
@@ -352,7 +380,7 @@ set_max_freq() {
 # Combined persistence RPC: apply both governor and max_freq, then persist to UCI
 # in a single transaction so the choice survives a reboot. Either field may be omitted.
 set_cpu_settings() {
-	local governor freq
+	local governor freq cpufreq_path avail_g
 	governor=$(echo "$1" | jsonfilter -e "@.governor" 2>/dev/null)
 	freq=$(echo "$1" | jsonfilter -e "@.freq" 2>/dev/null)
 
@@ -361,28 +389,39 @@ set_cpu_settings() {
 		return
 	fi
 
+	cpufreq_path=$(_find_cpufreq_policy)
+	[ -n "$cpufreq_path" ] || {
+		echo '{"error":"CPU frequency scaling is not available"}'
+		return
+	}
+
+	if [ -n "$freq" ] && ! _cpu_freq_allowed "$cpufreq_path" "$freq"; then
+		printf '{"error":"invalid frequency: %s"}' "$freq"
+		return
+	fi
+
 	if [ -n "$governor" ]; then
-		local avail_g=$(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_available_governors 2>/dev/null)
+		avail_g=$(cat "$cpufreq_path/scaling_available_governors" 2>/dev/null)
 		if ! echo "$avail_g" | grep -qw "$governor"; then
 			printf '{"error":"invalid governor: %s"}' "$governor"
 			return
 		fi
-		echo "$governor" > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor 2>/dev/null
+	fi
+
+	# Raise the limit before switching governor. In particular, performance
+	# otherwise remains pinned to the old (lower) ceiling.
+	if [ -n "$freq" ]; then
+		echo "$freq" > "$cpufreq_path/scaling_max_freq" 2>/dev/null
 		if [ $? -ne 0 ]; then
-			echo '{"error":"failed to set governor"}'
+			echo '{"error":"failed to set max frequency"}'
 			return
 		fi
 	fi
 
-	if [ -n "$freq" ]; then
-		local avail_f=$(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_available_frequencies 2>/dev/null)
-		if ! echo "$avail_f" | grep -qw "$freq"; then
-			printf '{"error":"invalid frequency: %s"}' "$freq"
-			return
-		fi
-		echo "$freq" > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq 2>/dev/null
+	if [ -n "$governor" ]; then
+		echo "$governor" > "$cpufreq_path/scaling_governor" 2>/dev/null
 		if [ $? -ne 0 ]; then
-			echo '{"error":"failed to set max frequency"}'
+			echo '{"error":"failed to set governor"}'
 			return
 		fi
 	fi

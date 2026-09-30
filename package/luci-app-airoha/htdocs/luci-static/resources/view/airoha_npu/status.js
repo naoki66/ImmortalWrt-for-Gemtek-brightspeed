@@ -364,7 +364,12 @@ function renderGovSelect(avail, active, reason) {
 }
 
 function renderMaxFreqSelect(avail, cur, reason) {
-	return cpuSelect('cpu-maxfreq-select', splitList(avail), cur || '', reason, function(f) {
+	var freqs = splitList(avail).map(function(f) { return parseInt(f, 10); })
+		.filter(function(f) { return isFinite(f) && f > 0 && f <= 1400000; })
+		.filter(function(f, i, values) { return values.indexOf(f) === i; })
+		.sort(function(a, b) { return a - b; })
+		.map(String);
+	return cpuSelect('cpu-maxfreq-select', freqs, cur || '', reason, function(f) {
 		return Math.round(parseInt(f, 10) / 1000) + ' MHz';
 	});
 }

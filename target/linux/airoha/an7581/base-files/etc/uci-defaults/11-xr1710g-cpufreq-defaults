@@ -3,15 +3,22 @@
 . /lib/functions/system.sh
 
 case "$(board_name)" in
-gemtek,xr1710g|gemtek,xr1710g-ubi) ;;
+gemtek,xr1710g|gemtek,xr1710g-ubi)
+	governor='performance'
+	;;
+gemtek,xg2010g|gemtek,xg2010g-ubi)
+	governor='ondemand'
+	;;
 *) exit 0 ;;
 esac
 uci -q get cpufreq.cpufreq >/dev/null || exit 0
 
-# Keep an explicitly saved user policy, otherwise default to performance.
+# Keep an explicitly saved user policy. Otherwise use the board default and
+# the highest frequency validated for these Gemtek AN7581 profiles.
 [ "$(uci -q get cpufreq.global.set)" = "1" ] && exit 0
 
-uci -q set cpufreq.cpufreq.governor0='performance'
+uci -q set cpufreq.cpufreq.governor0="$governor"
+uci -q set cpufreq.cpufreq.maxfreq0='1400000'
 uci -q commit cpufreq
 
 exit 0

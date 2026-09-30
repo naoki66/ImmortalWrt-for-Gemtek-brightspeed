@@ -1,0 +1,51 @@
+From 8d7f4f5d81dd3aa9d2d56fc9431c412c5c4bed2f Mon Sep 17 00:00:00 2001
+From: naoki66 <naoki66@qq.com>
+Date: Wed, 30 Sep 2026 00:00:00 +0800
+Subject: [PATCH] pmdomain: airoha: allow board opt-in to direct PLL
+
+Some AN7581 boards ship an ATF AVS service that responds correctly but only
+defines CPU states up to 1.2 GHz.  Such boards cannot use higher OPPs through
+the SMC path even though the direct PLL implementation supports them.
+
+Add an opt-in device-tree property for these boards and reject performance
+states outside the direct PLL implementation's defined 500 MHz to 1.6 GHz
+range.
+
+Signed-off-by: naoki66 <naoki66@qq.com>
+---
+ drivers/pmdomain/mediatek/airoha-cpu-pmdomain.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+--- a/drivers/pmdomain/mediatek/airoha-cpu-pmdomain.c
++++ b/drivers/pmdomain/mediatek/airoha-cpu-pmdomain.c
+@@ -143,6 +143,9 @@ static int airoha_cpu_pll_set_freq(struc
+ 	unsigned long flags;
+ 	u32 val, old_chg, cleared;
+ 
++	if (state > 22)
++		return -EINVAL;
++
+ 	if (freq_mhz < 1000) {
+ 		posdiv = 1;
+ 		pcw_int = freq_mhz / 25;
+@@ -219,7 +222,8 @@ static int airoha_cpu_pmdomain_probe(str
+ 	if (!priv)
+ 		return -ENOMEM;
+ 
+-	if (airoha_cpu_smc_available()) {
++	if (!of_property_read_bool(dev->of_node, "airoha,force-direct-pll") &&
++	    airoha_cpu_smc_available()) {
+ 		priv->use_smc = true;
+ 		dev_info(dev, "using ATF SMC for CPU frequency control\n");
+ 	} else {
+@@ -235,7 +239,7 @@ static int airoha_cpu_pmdomain_probe(str
+ 			return dev_err_probe(dev, PTR_ERR(priv->mcucfg),
+ 					     "ATF SMC not available and no mcucfg reg in DT\n");
+ 
+-		dev_info(dev, "ATF SMC not available, using direct PLL programming\n");
++		dev_info(dev, "using direct PLL programming for CPU frequency control\n");
+ 	}
+ 
+ 	priv->hw.init = &init;
+-- 
+2.51.0
