@@ -1,0 +1,76 @@
+diff --git a/src/en75xx_pcm.c b/src/en75xx_pcm.c
+--- a/src/en75xx_pcm.c
++++ b/src/en75xx_pcm.c
+@@ -39,6 +39,10 @@ static bool debug_rx_once;
+ module_param_named(debug_rx_once, debug_rx_once, bool, 0644);
+ MODULE_PARM_DESC(debug_rx_once, "dump one completed RX descriptor and frame");
+ 
++static int debug_dma_mask = -1;
++module_param_named(debug_dma_mask, debug_dma_mask, int, 0444);
++MODULE_PARM_DESC(debug_dma_mask, "override the descriptor/channel DMA mask (-1 keeps DTS)");
++
+ static bool lec_enable;
+ module_param_named(lec_enable, lec_enable, bool, 0644);
+ MODULE_PARM_DESC(lec_enable, "Enable OSLEC line echo cancellation on the RX path");
+@@ -267,6 +271,13 @@ static bool en75xx_pcm_dma_range_valid(struct en75xx_pcm_dev *pcm,
+ 	return last >= first && !(first & ~allowed) && !(last & ~allowed);
+ }
+ 
++static u8 en75xx_pcm_dma_mask(struct en75xx_pcm_dev *pcm)
++{
++	if (debug_dma_mask >= 0)
++		return debug_dma_mask & pcm->soc->channel_mask;
++	return pcm->dma_channel_mask;
++}
++
+ static void en75xx_pcm_hw_stop(struct en75xx_pcm_dev *pcm)
+ {
+ 	u32 val = pcm_read(pcm, EN75XX_PCM_DMA_CTRL);
+@@ -661,7 +672,7 @@ static void en75xx_pcm_fill_tx_desc(struct en75xx_pcm_dev *pcm,
+ 			memset(dst, 0, EN75XX_PCM_FRAME_BYTES);
+ 	}
+ 	en75xx_pcm_desc_prepare(pcm, pcm->tx_ring, index, frame_dma,
+-				pcm->dma_channel_mask);
++				en75xx_pcm_dma_mask(pcm));
+ }
+ 
+ static void en75xx_pcm_rearm_rx_desc(struct en75xx_pcm_dev *pcm,
+@@ -670,7 +681,7 @@ static void en75xx_pcm_rearm_rx_desc(struct en75xx_pcm_dev *pcm,
+ 	dma_addr_t frame_dma = pcm->rx_buf_dma + index * EN75XX_PCM_FRAME_STRIDE;
+ 
+ 	en75xx_pcm_desc_prepare(pcm, pcm->rx_ring, index, frame_dma,
+-				pcm->dma_channel_mask);
++				en75xx_pcm_dma_mask(pcm));
+ }
+ 
+ static void en75xx_pcm_debug_rx(struct en75xx_pcm_dev *pcm,
+@@ -704,9 +715,9 @@ static void en75xx_pcm_debug_rx(struct en75xx_pcm_dev *pcm,
+ 			index, READ_ONCE(desc->status), READ_ONCE(desc->ch_valid),
+ 			READ_ONCE(desc->buf_addr), &frame_dma, pcm->active_mask,
+-			pcm->dma_channel_mask);
++			en75xx_pcm_dma_mask(pcm));
+ 	} else {
+ 		pr_info("[DEBUG-FXS0-RX] index=%u status=%#08x frame_dma=%pad active=%#02x dma_mask=%#02x\n",
+ 			index, en75xx_pcm_desc_status(pcm, pcm->rx_ring, index),
+-			&frame_dma, pcm->active_mask, pcm->dma_channel_mask);
++			&frame_dma, pcm->active_mask, en75xx_pcm_dma_mask(pcm));
+ 	}
+ 	pr_info("[DEBUG-FXS0-RX] regs iface=%#08x ring=%#08x dma=%#08x chan=%#08x isr=%#08x imr=%#08x\n",
+@@ -814,7 +825,7 @@ static int en75xx_pcm_hw_start(struct en75xx_pcm_dev *pcm)
+ 	 */
+ 	if (pcm->soc->pcm_v2)
+ 		pcm_write(pcm, EN75XX_PCM_CHAN_ENABLE,
+-			  pcm->dma_channel_mask & pcm->soc->channel_mask);
++			  en75xx_pcm_dma_mask(pcm));
+ 
+ 	for (index = 0; index < pcm->soc->ring_count; index++) {
+ 		en75xx_pcm_fill_tx_desc(pcm, index);
+@@ -829,7 +840,7 @@ static int en75xx_pcm_hw_start(struct en75xx_pcm_dev *pcm)
+ 	dma_ctrl = pcm_read(pcm, EN75XX_PCM_DMA_CTRL);
+ 	dma_ctrl &= ~(EN75XX_PCM_DMA_CH_MASK |
+ 		      EN75XX_PCM_DMA_TX_EN | EN75XX_PCM_DMA_RX_EN);
+-	dma_ctrl |= FIELD_PREP(EN75XX_PCM_DMA_CH_MASK, pcm->dma_channel_mask);
++	dma_ctrl |= FIELD_PREP(EN75XX_PCM_DMA_CH_MASK, en75xx_pcm_dma_mask(pcm));
+ 	pcm_write(pcm, EN75XX_PCM_DMA_CTRL, dma_ctrl);
+ 	dma_wmb();
+ 	pcm_write(pcm, EN75XX_PCM_DMA_CTRL,

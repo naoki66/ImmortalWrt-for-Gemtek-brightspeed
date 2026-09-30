@@ -1,0 +1,33 @@
+From: XG2010G voice bring-up <noreply@example.com>
+Subject: [PATCH] en75xx-isi-spi: match EN7581 vendor pinmux routing
+
+The EN7581 vendor ISI initialization clears bits 11:10 in chip-SCU
+register 0x1d0.  It does not set the EN7523-only extra pinmux bit.
+
+Keep bit 0 outside the update mask so the PCM-SPI pinctrl selection is
+preserved while the vendor route bits are cleared before resetting the
+ISI and PCM blocks.
+---
+ src/en75xx_isi_spi.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/src/en75xx_isi_spi.c
++++ b/src/en75xx_isi_spi.c
+@@ -132,7 +132,7 @@ MODULE_PARM_DESC(en7528_pcm_clk, "enable
+ #define EN7581_CHIP_SCU_CLKSRC_MASK	BIT(12)
+ #define EN7581_CHIP_SCU_GPIO_DEV1	BIT(12)
+ #define EN7581_CHIP_SCU_PINMUX		0x1d0
+-#define EN7581_CHIP_SCU_PINMUX_MASK	0x00000c01u
++#define EN7581_CHIP_SCU_PINMUX_MASK	0x00000c00u
+ 
+ #define EN7581_SYS_RESET			0x834
+ #define EN7581_SYS_RESET_PCM1_ISI	BIT(0)
+@@ -537,7 +537,7 @@ static const struct en75xx_isi_quirks en7
+ 	.chip_scu_gpio_dev1 = EN7581_CHIP_SCU_GPIO_DEV1,
+ 	.chip_scu_pinmux_reg = EN7581_CHIP_SCU_PINMUX,
+ 	.chip_scu_pinmux_mask = EN7581_CHIP_SCU_PINMUX_MASK,
+-	.pinmux_extra_set = EN7581_CHIP_SCU_PINMUX_MASK,
++	.pinmux_extra_set = 0,
+ 	.sys_reset_first = EN7581_SYS_RESET_SPI_WRAPPER,
+ 	.sys_reset_second = EN7581_SYS_RESET_PCM1_ISI,
+ };

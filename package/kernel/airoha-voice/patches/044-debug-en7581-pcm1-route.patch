@@ -1,0 +1,25 @@
+From: XG2010G voice bring-up <noreply@example.com>
+Subject: [PATCH] en75xx-isi-spi: select the EN7581 PCM1 route
+
+The EN7581 vendor set_gpio_clocksrc() sequence clears mask 0x003f3300
+at chip-SCU register 0x218 before selecting device 1 with bit 12.
+
+Do not preserve the pcm_spi and pcm_spi_cs1 pinctrl bits here.  ISI is
+multiplexed over the PCM1 bus, and leaving those modes enabled keeps the
+control path alive while preventing the external PCM data path from
+matching the vendor initialization.
+---
+ src/en75xx_isi_spi.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/src/en75xx_isi_spi.c
++++ b/src/en75xx_isi_spi.c
+@@ -128,7 +128,7 @@ MODULE_PARM_DESC(en7528_pcm_clk, "enable
+ #define EN7528_CHIP_SCU_PINMUX_MASK	0x00000c00u
+ 
+ #define EN7581_CHIP_SCU_CLKSRC		0x218
+-#define EN7581_CHIP_SCU_CLKSRC_MASK	BIT(12)
++#define EN7581_CHIP_SCU_CLKSRC_MASK	0x003f3300u
+ #define EN7581_CHIP_SCU_GPIO_DEV1	BIT(12)
+ #define EN7581_CHIP_SCU_PINMUX		0x1d0
+ #define EN7581_CHIP_SCU_PINMUX_MASK	0x00000c01u

@@ -1,0 +1,35 @@
+diff --git a/src/en75xx_slic_si3219x.c b/src/en75xx_slic_si3219x.c
+index 023e77e..74197fc 100644
+--- a/src/en75xx_slic_si3219x.c
++++ b/src/en75xx_slic_si3219x.c
+@@ -101,6 +101,7 @@ struct en75xx_si3219x {
+ 	struct delayed_work ring_work;
+ 	unsigned int pcm_channel;
+ 	unsigned int pcm_slot;
++	unsigned int pcm_slot_skew;
+ 	unsigned int line;
+ 	unsigned int ring_on_ms;
+ 	unsigned int ring_off_ms;
+@@ -398,11 +399,9 @@ static int playback_slot_adj;
+  * was shifted the same way, which put wrapped audio on the earpiece and
+  * is what made the handset howl.
+  */
+-#define SI3219X_PCM_SLOT_SKEW	1
+-
+ static int si3219x_apply_timeslots(struct en75xx_si3219x *slic)
+ {
+-	int base = (int)slic->pcm_slot + SI3219X_PCM_SLOT_SKEW;
++	int base = (int)slic->pcm_slot + slic->pcm_slot_skew;
+ 	int tx = base + capture_slot_adj;
+ 	int rx = base + playback_slot_adj;
+ 
+@@ -1053,6 +1051,9 @@ static int en75xx_si3219x_probe(struct spi_device *spi)
+ 	INIT_LIST_HEAD(&slic->node);
+ 	INIT_DELAYED_WORK(&slic->hook_work, en75xx_si3219x_hook_work);
+ 	INIT_DELAYED_WORK(&slic->ring_work, en75xx_si3219x_ring_work);
++	slic->pcm_slot_skew = 1;
++	device_property_read_u32(&spi->dev, "silabs,pcm-slot-skew",
++				 &slic->pcm_slot_skew);
+ 	device_property_read_u32(&spi->dev, "airoha,pcm-channel", &slic->pcm_channel);
+ 	device_property_read_u32(&spi->dev, "reg", &slic->line);
+ 

@@ -5,6 +5,18 @@ import unittest
 REPO = pathlib.Path(__file__).resolve().parents[1]
 PACKAGE = REPO / "package/kernel/airoha-voice/Makefile"
 PATCH = REPO / "package/kernel/airoha-voice/patches/010-add-en7581-xg2010g-support.patch"
+EN7581_PINMUX_PATCH = (
+    REPO
+    / "package/kernel/airoha-voice/patches/043-debug-en7581-pinmux-route.patch"
+)
+EN7581_PCM1_ROUTE_PATCH = (
+    REPO
+    / "package/kernel/airoha-voice/patches/044-debug-en7581-pcm1-route.patch"
+)
+SI3219X_SLOT_SKEW_PATCH = (
+    REPO
+    / "package/kernel/airoha-voice/patches/015-configure-si3219x-pcm-slot-skew.patch"
+)
 DTS = REPO / "target/linux/airoha/dts/an7581-gemtek-xg2010g-ubi.dts"
 SOC_DTS = REPO / "target/linux/airoha/dts/an7581.dtsi"
 IMAGE = REPO / "target/linux/airoha/image/an7581.mk"
@@ -63,6 +75,13 @@ class VoiceStackSourceTests(unittest.TestCase):
     def setUpClass(cls):
         cls.package = PACKAGE.read_text(encoding="utf-8")
         cls.patch = PATCH.read_text(encoding="utf-8")
+        cls.en7581_pinmux_patch = EN7581_PINMUX_PATCH.read_text(encoding="utf-8")
+        cls.en7581_pcm1_route_patch = EN7581_PCM1_ROUTE_PATCH.read_text(
+            encoding="utf-8"
+        )
+        cls.si3219x_slot_skew_patch = SI3219X_SLOT_SKEW_PATCH.read_text(
+            encoding="utf-8"
+        )
         cls.dts = DTS.read_text(encoding="utf-8")
         cls.soc_dts = SOC_DTS.read_text(encoding="utf-8")
         cls.image = IMAGE.read_text(encoding="utf-8")
@@ -122,8 +141,12 @@ class VoiceStackSourceTests(unittest.TestCase):
             self.assertIn(source_contract, self.patch)
         self.assertFalse(REJECTED_CLOCK_GATE_PATCH.exists())
         self.assertFalse(REJECTED_SCU_LAYOUT_PATCH.exists())
+        self.assertIn("+#define EN7581_CHIP_SCU_PINMUX_MASK", self.en7581_pinmux_patch)
+        self.assertIn("0x00000c00u", self.en7581_pinmux_patch)
+        self.assertIn("+\t.pinmux_extra_set = 0", self.en7581_pinmux_patch)
+        self.assertIn("0x003f3300u", self.en7581_pcm1_route_patch)
 
-    def test_patch_selects_both_point_to_point_si32192_devices(self):
+    def test_isi_transport_keeps_diagnostic_selector_support(self):
         self.assertIn("host->num_chipselect = 32", self.patch)
         self.assertIn("static bool legacy_chan_sel;", self.patch)
         self.assertIn("diagnostic, off by default", self.patch)
@@ -152,28 +175,30 @@ class VoiceStackSourceTests(unittest.TestCase):
             "ISI select logical=",
         ):
             self.assertIn(source_contract, dynamic_patch)
-        for command in ("transport", "recover", "scan-second", "identity"):
+        for command in ("transport", "recover", "identity"):
             self.assertIn(command, self.voice_ctl)
-        self.assertIn("PKG_RELEASE:=19", self.package)
+        self.assertNotIn('!strcmp(command, "scan-second")', self.voice_ctl)
+        self.assertIn("PKG_RELEASE:=23", self.package)
         self.assertIn("trace_chan_sel", trace_patch)
-        self.assertIn("unbind_slic_devices", self.voice_ctl)
-        self.assertIn('bind_slic_device("spi1.1")', self.voice_ctl)
+        self.assertIn("rebind_slic_device", self.voice_ctl)
+        self.assertNotIn('"spi1.1"', self.voice_ctl)
 
-    def test_xg2010g_describes_two_fxs_lines(self):
+    def test_xg2010g_describes_one_fxs_line_for_parallel_jacks(self):
         self.assertIn('compatible = "airoha,en7581-pcm";', self.dts)
         self.assertIn('compatible = "airoha,en7581-isi-spi";', self.dts)
-        self.assertIn("airoha,dma-channel-mask = <0x05>;", self.dts)
-        self.assertEqual(self.dts.count('compatible = "silabs,si32192";'), 2)
+        self.assertIn("airoha,dma-channel-mask = <0x01>;", self.dts)
+        self.assertIn("airoha,pcm-interface-control = <0xf5051306>;", self.dts)
+        self.assertIn("0x10101000 0x10301020", self.dts)
+        self.assertEqual(self.dts.count('compatible = "silabs,si32192";'), 1)
         self.assertIn("proslic@0", self.dts)
-        self.assertIn("proslic@1", self.dts)
+        self.assertNotIn("proslic@1", self.dts)
         self.assertNotIn("proslic@2", self.dts)
         self.assertIn("airoha,pcm-channel = <0>;", self.dts)
-        self.assertIn("airoha,pcm-channel = <2>;", self.dts)
+        self.assertIn("silabs,pcm-slot-skew = <0>;", self.dts)
+        self.assertIn("pcm_slot_skew = 1", self.si3219x_slot_skew_patch)
+        self.assertIn('"silabs,pcm-slot-skew"', self.si3219x_slot_skew_patch)
+        self.assertNotIn("airoha,pcm-channel = <2>;", self.dts)
         self.assertNotIn("airoha,en7581-pcm-spi-si32192", self.dts)
-
-        second_child = self.dts.index("proslic@1")
-        second_child_end = self.dts.index("};", second_child)
-        self.assertIn("reg = <1>;", self.dts[second_child:second_child_end])
 
         isi_start = self.dts.index("isi0: spi@1fbd1000")
         first_child = self.dts.index("proslic@0", isi_start)
@@ -230,7 +255,8 @@ class VoiceStackSourceTests(unittest.TestCase):
         )
         self.assertIn("chown asterisk:asterisk", self.asterisk_hotplug)
         self.assertIn("[line0]", self.asterisk_config)
-        self.assertIn("[line1]", self.asterisk_config)
+        self.assertNotIn("[line1]", self.asterisk_config)
+        self.assertNotIn("EN75XX/1", self.asterisk_dialplan)
         self.assertIn("context = fxs", self.asterisk_config)
         self.assertIn("exten => 600,1,Answer()", self.asterisk_dialplan)
         self.assertIn("n,Echo()", self.asterisk_dialplan)

@@ -1,0 +1,103 @@
+diff --git a/src/en75xx_pcm.c b/src/en75xx_pcm.c
+--- a/src/en75xx_pcm.c
++++ b/src/en75xx_pcm.c
+@@ -13,6 +13,7 @@
+ #include <linux/io.h>
+ #include <linux/kfifo.h>
+ #include <linux/list.h>
++#include <linux/printk.h>
+ #include <linux/math64.h>
+ #include <linux/module.h>
+ #include <linux/mutex.h>
+@@ -34,6 +35,15 @@ static bool clock_on_probe = true;
+ module_param_named(clock_on_probe, clock_on_probe, bool, 0444);
+ MODULE_PARM_DESC(clock_on_probe, "Start PCM interface clocking (PCLK/FSYNC) on probe");
+ 
++static bool debug_rx_once;
++module_param_named(debug_rx_once, debug_rx_once, bool, 0644);
++MODULE_PARM_DESC(debug_rx_once, "dump one completed RX descriptor and frame");
++
++static u8 debug_rx_fill;
++module_param_named(debug_rx_fill, debug_rx_fill, byte, 0444);
++MODULE_PARM_DESC(debug_rx_fill,
++		 "prefill RX frames before DMA (0 disables; factory driver uses 0x11)");
++
+ static bool lec_enable;
+ module_param_named(lec_enable, lec_enable, bool, 0644);
+ MODULE_PARM_DESC(lec_enable, "Enable OSLEC line echo cancellation on the RX path");
+@@ -663,11 +673,67 @@ static void en75xx_pcm_rearm_rx_desc(struct en75xx_pcm_dev *pcm,
+ 				     unsigned int index)
+ {
+ 	dma_addr_t frame_dma = pcm->rx_buf_dma + index * EN75XX_PCM_FRAME_STRIDE;
++	u8 *frame = pcm->rx_buf + index * EN75XX_PCM_FRAME_STRIDE;
++
++	if (debug_rx_fill)
++		memset(frame, debug_rx_fill, EN75XX_PCM_FRAME_STRIDE);
+ 
+ 	en75xx_pcm_desc_prepare(pcm, pcm->rx_ring, index, frame_dma,
+ 				pcm->dma_channel_mask);
+ }
+ 
++static void en75xx_pcm_debug_rx(struct en75xx_pcm_dev *pcm,
++				unsigned int index, u8 *frame)
++{
++	struct en75xx_pcm_desc_v2 *desc;
++	unsigned int channel, byte;
++	u32 nonzero[EN75XX_PCM_MAX_CHANNELS] = {};
++	u32 unchanged[EN75XX_PCM_MAX_CHANNELS] = {};
++	dma_addr_t frame_dma;
++
++	if (!debug_rx_once)
++		return;
++	debug_rx_once = false;
++
++	for (channel = 0; channel < EN75XX_PCM_MAX_CHANNELS; channel++) {
++		u8 *data = frame + channel * EN75XX_PCM_FRAME_BYTES;
++
++		for (byte = 0; byte < EN75XX_PCM_FRAME_BYTES; byte++)
++			nonzero[channel] += data[byte] != 0;
++		for (byte = 0; byte < EN75XX_PCM_FRAME_BYTES; byte++)
++			unchanged[channel] += debug_rx_fill &&
++					      data[byte] == debug_rx_fill;
++	}
++
++	frame_dma = pcm->rx_buf_dma + index * EN75XX_PCM_FRAME_STRIDE;
++	if (pcm->soc->pcm_v2) {
++		desc = en75xx_pcm_desc(pcm, pcm->rx_ring, index);
++		pr_info("[DEBUG-FXS0-RX] index=%u status=%#08x ch_valid=%#08x buf=%#08x frame_dma=%pad active=%#02x dma_mask=%#02x\n",
++			index, READ_ONCE(desc->status), READ_ONCE(desc->ch_valid),
++			READ_ONCE(desc->buf_addr), &frame_dma, pcm->active_mask,
++			pcm->dma_channel_mask);
++	} else {
++		pr_info("[DEBUG-FXS0-RX] index=%u status=%#08x frame_dma=%pad active=%#02x dma_mask=%#02x\n",
++			index, en75xx_pcm_desc_status(pcm, pcm->rx_ring, index),
++			&frame_dma, pcm->active_mask, pcm->dma_channel_mask);
++	}
++	pr_info("[DEBUG-FXS0-RX] regs iface=%#08x ring=%#08x dma=%#08x chan=%#08x isr=%#08x imr=%#08x\n",
++		pcm_read(pcm, EN75XX_PCM_IFACE_CTRL),
++		pcm_read(pcm, EN75XX_PCM_RING_CFG),
++		pcm_read(pcm, EN75XX_PCM_DMA_CTRL),
++		pcm->soc->pcm_v2 ? pcm_read(pcm, EN75XX_PCM_CHAN_ENABLE) : 0,
++		pcm_read(pcm, EN75XX_PCM_ISR), pcm_read(pcm, EN75XX_PCM_IMR));
++	pr_info("[DEBUG-FXS0-RX] nonzero-bytes ch0..7=%u,%u,%u,%u,%u,%u,%u,%u\n",
++		nonzero[0], nonzero[1], nonzero[2], nonzero[3],
++		nonzero[4], nonzero[5], nonzero[6], nonzero[7]);
++	pr_info("[DEBUG-FXS0-RX] fill=%#02x unchanged-bytes ch0..7=%u,%u,%u,%u,%u,%u,%u,%u\n",
++		debug_rx_fill, unchanged[0], unchanged[1], unchanged[2],
++		unchanged[3], unchanged[4], unchanged[5], unchanged[6],
++		unchanged[7]);
++	print_hex_dump(KERN_INFO, "[DEBUG-FXS0-RX] frame ", DUMP_PREFIX_OFFSET,
++		       16, 1, frame, 64, false);
++}
++
+ static void en75xx_pcm_process(struct en75xx_pcm_dev *pcm)
+ {
+ 	unsigned int index, channel;
+@@ -684,6 +750,7 @@ static void en75xx_pcm_process(struct en75xx_pcm_dev *pcm)
+ 		if (!(en75xx_pcm_desc_status(pcm, pcm->rx_ring, index) &
+ 		      EN75XX_PCM_DESC_OWN)) {
+ 			frame = pcm->rx_buf + index * EN75XX_PCM_FRAME_STRIDE;
++			en75xx_pcm_debug_rx(pcm, index, frame);
+ 			for (channel = 0; channel < EN75XX_PCM_MAX_CHANNELS;
+ 			     channel++) {
+ 				if (!(pcm->active_mask & BIT(channel)))

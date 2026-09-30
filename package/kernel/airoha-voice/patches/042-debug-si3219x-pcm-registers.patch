@@ -1,0 +1,58 @@
+diff --git a/src/en75xx_slic_si3219x.c b/src/en75xx_slic_si3219x.c
+index a5a7962..51904a4 100644
+--- a/src/en75xx_slic_si3219x.c
++++ b/src/en75xx_slic_si3219x.c
+@@ -681,6 +681,23 @@ static u8 tone_omode = 0x22;
+ module_param(tone_omode, byte, 0444);
+ MODULE_PARM_DESC(tone_omode, "OMODE tone routing (0x22 line only, 0x66 line + PCM TX)");
+ 
++static void si3219x_debug_pcm_regs(struct en75xx_si3219x *slic,
++                                   const char *stage)
++{
++        dev_info(&slic->spi->dev,
++                 "[DEBUG-FXS0-PCMREG] %s PCMMODE=%#02x PCMTX=%#04x PCMRX=%#04x OMODE=%#02x IRQEN=%#02x/%#02x/%#02x\n",
++                 stage,
++                 si3219x_read_reg(slic, 0, PROSLIC_REG_PCMMODE),
++                 si3219x_read_reg(slic, 0, PROSLIC_REG_PCMTXLO) |
++                        (si3219x_read_reg(slic, 0, PROSLIC_REG_PCMTXHI) << 8),
++                 si3219x_read_reg(slic, 0, PROSLIC_REG_PCMRXLO) |
++                        (si3219x_read_reg(slic, 0, PROSLIC_REG_PCMRXHI) << 8),
++                 si3219x_read_reg(slic, 0, PROSLIC_REG_OMODE),
++                 si3219x_read_reg(slic, 0, PROSLIC_REG_IRQEN1),
++                 si3219x_read_reg(slic, 0, PROSLIC_REG_IRQEN2),
++                 si3219x_read_reg(slic, 0, PROSLIC_REG_IRQEN3));
++}
++
+ /*
+  * fixp_sin32_rad(x, twopi) is sin(2*pi*x/twopi) in Q31. It interpolates
+  * a one-degree table with a step of twopi/360, so twopi wants to be a
+@@ -746,6 +763,7 @@ static int en75xx_si3219x_set_tone_unlocked(void *priv,
+ {
+ 	struct en75xx_si3219x *slic = priv;
+ 	ProSLIC_Tone_Cfg cfg = {};
++	int ret;
+ 	u16 on, off;
+ 
+ 	if (tone->freq1_hz > SI3219X_TONE_MAX_HZ ||
+@@ -782,7 +800,12 @@ static int en75xx_si3219x_set_tone_unlocked(void *priv,
+ 	if (ProSLIC_ToneGenSetupPtr(slic->channel, &cfg) != RC_NONE)
+ 		return -EIO;
+ 
+-	return ProSLIC_ToneGenStart(slic->channel, on != 0) == RC_NONE ? 0 : -EIO;
++	ret = ProSLIC_ToneGenStart(slic->channel, on != 0);
++	if (ret != RC_NONE)
++		return -EIO;
++
++	si3219x_debug_pcm_regs(slic, "tone-start");
++	return 0;
+ }
+ 
+ static int en75xx_si3219x_set_tone(void *priv,
+@@ -860,6 +883,7 @@ static void si3219x_apply_pcm_fixups(struct en75xx_si3219x *slic)
+ 		 (u32)si3219x_read_ram(slic, 0, 545),
+ 		 si3219x_read_reg(slic, 0, PROSLIC_REG_PCMMODE),
+ 		 si3219x_read_reg(slic, 0, PROSLIC_REG_ENHANCE));
++	si3219x_debug_pcm_regs(slic, "pcm-start");
+ }
+ 
+ /* Best effort: bus errors or external supplies can prevent power-down. */

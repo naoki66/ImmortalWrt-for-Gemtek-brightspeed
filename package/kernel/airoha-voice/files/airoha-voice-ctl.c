@@ -66,36 +66,14 @@ static int set_isi_parameter(const char *name, int value)
 	return 0;
 }
 
-static int unbind_slic_devices(void)
+static int rebind_slic_device(void)
 {
-	static const char *const unbind_devices[] = { "spi1.1", "spi1.0" };
-	unsigned int i;
-
-	for (i = 0; i < sizeof(unbind_devices) / sizeof(unbind_devices[0]); i++)
-		(void)write_text_file(SPI_DRIVER_DIR "/unbind", unbind_devices[i]);
-	return 0;
-}
-
-static int bind_slic_device(const char *device)
-{
-	if (write_text_file(SPI_DRIVER_DIR "/bind", device)) {
-		fprintf(stderr, "cannot bind %s: %s\n", device, strerror(errno));
+	(void)write_text_file(SPI_DRIVER_DIR "/unbind", "spi1.0");
+	if (write_text_file(SPI_DRIVER_DIR "/bind", "spi1.0")) {
+		fprintf(stderr, "cannot bind spi1.0: %s\n", strerror(errno));
 		return -1;
 	}
 	return 0;
-}
-
-static int rebind_slic_devices(void)
-{
-	static const char *const bind_devices[] = { "spi1.0", "spi1.1" };
-	unsigned int i;
-	int ret = 0;
-
-	unbind_slic_devices();
-	for (i = 0; i < sizeof(bind_devices) / sizeof(bind_devices[0]); i++)
-		if (bind_slic_device(bind_devices[i]))
-			ret = -1;
-	return ret;
 }
 
 static int command_transport(void)
@@ -115,68 +93,23 @@ static int command_transport(void)
 		if (!read_text_file(path, value, sizeof(value)))
 			printf("%s=%s\n", params[i], value);
 	}
-	for (i = 0; i < 2; i++) {
-		char device[64];
-		snprintf(device, sizeof(device), "/dev/en75xx-fxs%u", i);
-		printf("fxs%u=%s\n", i, access(device, F_OK) ? "absent" : "present");
-	}
+	printf("fxs0=%s\n", access("/dev/en75xx-fxs0", F_OK) ?
+	       "absent" : "present");
 	return 0;
 }
 
 static int command_recover(int argc, char **argv)
 {
 	uint32_t first = 0;
-	uint32_t second = 2;
 
-	if (argc > 2 || (argc > 0 && parse_u32(argv[0], &first)) ||
-	    (argc > 1 && parse_u32(argv[1], &second)) || first > 31 || second > 31) {
-		fprintf(stderr, "recover expects [FIRST_PHYSICAL SECOND_PHYSICAL], 0..31\n");
+	if (argc > 1 || (argc == 1 && parse_u32(argv[0], &first)) || first > 31) {
+		fprintf(stderr, "recover expects optional FIRST_PHYSICAL (0..31)\n");
 		return -1;
 	}
 	if (set_isi_parameter("chan_sel_override", -1) ||
-	    set_isi_parameter("first_chan_sel", (int)first) ||
-	    set_isi_parameter("second_chan_sel", (int)second))
+	    set_isi_parameter("first_chan_sel", (int)first))
 		return -1;
-	return rebind_slic_devices();
-}
-
-static int command_scan_second(int argc, char **argv)
-{
-	uint32_t max = 7;
-	uint32_t candidate;
-	int found = -1;
-
-	if (argc > 1 || (argc == 1 && parse_u32(argv[0], &max)) || max > 31) {
-		fprintf(stderr, "scan-second expects optional MAX (0..31)\n");
-		return -1;
-	}
-	for (candidate = 0; candidate <= max; candidate++) {
-		if (set_isi_parameter("chan_sel_override", -1) ||
-		    set_isi_parameter("first_chan_sel", 0) ||
-		    set_isi_parameter("second_chan_sel", (int)candidate))
-			continue;
-		unbind_slic_devices();
-		if (set_isi_parameter("chan_sel_override", (int)candidate) ||
-		    bind_slic_device("spi1.1"))
-			continue;
-		printf("scan-second physical=%u line1=%s\n", candidate,
-		       access("/dev/en75xx-fxs1", F_OK) ? "absent" : "present");
-		if (!access("/dev/en75xx-fxs1", F_OK)) {
-			found = (int)candidate;
-			break;
-		}
-		unbind_slic_devices();
-	}
-	if (found < 0)
-		return -1;
-
-	/* Rebind both endpoints with the discovered physical second channel. */
-	if (set_isi_parameter("chan_sel_override", -1) ||
-	    set_isi_parameter("first_chan_sel", 0) ||
-	    set_isi_parameter("second_chan_sel", found) ||
-	    rebind_slic_devices())
-		return -1;
-	return access("/dev/en75xx-fxs1", F_OK) ? -1 : 0;
+	return rebind_slic_device();
 }
 
 static void handle_signal(int signo)
@@ -193,8 +126,7 @@ static void usage(FILE *stream, const char *prog)
 		"  info\n"
 		"  identity (alias for info)\n"
 		"  transport\n"
-		"  recover [FIRST_PHYSICAL SECOND_PHYSICAL]\n"
-		"  scan-second [MAX]\n"
+		"  recover [FIRST_PHYSICAL]\n"
 		"  state\n"
 		"  stats\n"
 		"  watch\n"
@@ -549,10 +481,6 @@ int main(int argc, char **argv)
 	if (!strcmp(command, "recover"))
 		return command_recover(argc - argi, &argv[argi]) ?
 			EXIT_FAILURE : EXIT_SUCCESS;
-	if (!strcmp(command, "scan-second"))
-		return command_scan_second(argc - argi, &argv[argi]) ?
-			EXIT_FAILURE : EXIT_SUCCESS;
-
 	fd = open(device, O_RDWR | O_CLOEXEC);
 	if (fd < 0) {
 		fprintf(stderr, "cannot open %s: %s\n", device, strerror(errno));

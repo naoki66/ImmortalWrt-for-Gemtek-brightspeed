@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=airoha-voice
-PKG_RELEASE:=19
+PKG_RELEASE:=23
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/Sirherobrine23/airoha_voip.git
@@ -19,7 +19,7 @@ include $(INCLUDE_DIR)/package.mk
 
 define KernelPackage/airoha-en7581-pcm-spi
   SUBMENU:=Voice over IP
-  TITLE:=Airoha EN7581 dual-FXS voice stack
+  TITLE:=Airoha EN7581 single-SLIC voice stack
   DEPENDS:=@TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi
   FILES:= \
 	$(PKG_BUILD_DIR)/src/en75xx-lec.ko \
@@ -31,8 +31,8 @@ define KernelPackage/airoha-en7581-pcm-spi
 endef
 
 define KernelPackage/airoha-en7581-pcm-spi/description
- Complete XG2010G EN7581 voice stack: PCM DMA, ISI transport, two Si32192
- ProSLIC FXS lines, line control, hook/ring handling and /dev/en75xx-fxsN.
+ Complete XG2010G EN7581 voice stack: PCM DMA, ISI transport, one Si32192
+ ProSLIC FXS line, line control, hook/ring handling and /dev/en75xx-fxs0.
 endef
 
 define Package/airoha-voice-ctl
