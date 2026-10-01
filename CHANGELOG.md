@@ -3,6 +3,29 @@
 本文件记录 Gemtek Brightspeed 固件仓库的重要功能、稳定性和维护变更。常规的
 ImmortalWrt 上游合并不逐项展开，仅记录会影响本设备构建或运行行为的内容。
 
+## 2026-10-01
+
+### XG2010G FIT 动态扩容与产物检查
+
+- 修正将当前 339-LEB `fit` 动态卷误当成固定分区上限的问题。U-Boot 和
+  sysupgrade 都会保留 `fip`、`ubootenv`、`ubootenv2`、`factory`，删除
+  `rootfs_data` 后按新镜像大小重建 `fit`；因此将构建上限调整为 U-Boot
+  `0x90000000`/`0x94000000` 双缓冲允许的 64 MiB。
+- GitHub Actions 和远程 world 构建现在逐一检查所选设备的 sysupgrade ITB，
+  防止 `check-size` 删除超限镜像后仍把仅生成 manifest 的构建报告为成功。
+
+## 2026-09-30
+
+### XG2010G 固件生成与 ONU 包改名
+
+- 将 XG2010G 配置选择从 `luci-app-pon` 更新为改名后的 `luci-app-onu`，并同步
+  XR1710G 的隔离规则和文档引用。
+- 禁用 XG2010G 的 initramfs 目标，避免并行构建时 initramfs 内核覆盖普通内核，
+  随后又在 FIT 中追加 squashfs，造成固件尺寸重复并被 `IMAGE_SIZE` 检查删除。
+- XG2010G 不再选择 `luci-theme-glass`，XR1710G 配置继续提供该主题。
+- profile 隔离检查现在要求 `luci-app-onu`，并拒绝 XG2010G 配置重新启用
+  initramfs。
+
 ## 2026-09-28
 
 ### XG2010G PON 用户态与 LuCI

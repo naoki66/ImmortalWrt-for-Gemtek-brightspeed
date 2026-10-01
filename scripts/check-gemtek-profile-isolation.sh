@@ -50,7 +50,8 @@ done
 
 if grep -Eq '^CONFIG_(TARGET_airoha_an7581_DEVICE|TARGET_DEVICE_airoha_an7581_DEVICE)_gemtek_xr1710g(-ubi)?=y$' "$config_file"; then
 	profile="xr1710g"
-	forbidden_packages='(airoha-pon(firmware|manager)|airoha-ponctl|airoha-pond|luci-app-pon|kmod-airoha-(xpon-en757x|pon-plugins|pon-dataplane|xpon-igmp|gpon-igmp|en7572|xpon|tod|en7581-pcm-spi))'
+	forbidden_packages='(airoha-pon(firmware|manager)|airoha-ponctl|airoha-pond|luci-app-(pon|onu)|kmod-airoha-(xpon-en757x|pon-plugins|pon-dataplane|xpon-igmp|gpon-igmp|en7572|xpon|tod|en7581-pcm-spi))'
+	forbidden_build_config=""
 	required_packages=(
 		airoha-an7581-mt7996-board
 		airoha-en7581-mt7996-npu-firmware
@@ -63,6 +64,7 @@ if grep -Eq '^CONFIG_(TARGET_airoha_an7581_DEVICE|TARGET_DEVICE_airoha_an7581_DE
 elif grep -Eq '^CONFIG_(TARGET_airoha_an7581_DEVICE|TARGET_DEVICE_airoha_an7581_DEVICE)_gemtek_xg2010g-ubi=y$' "$config_file"; then
 	profile="xg2010g"
 	forbidden_packages='(airoha-an7581-mt7996-board|airoha-en7581-mt7996-npu-firmware|hostapd.*|iw|iw-full|iwinfo|kmod-(mac80211.*|mt76.*|mt7996.*)|ucode-mod-nl80211|wireless-regdb|wpad.*)'
+	forbidden_build_config='CONFIG_TARGET_ROOTFS_INITRAMFS=y'
 	required_packages=(
 		kmod-nf-conntrack-bridge
 		kmod-nft-bridge
@@ -70,7 +72,7 @@ elif grep -Eq '^CONFIG_(TARGET_airoha_an7581_DEVICE|TARGET_DEVICE_airoha_an7581_
 		kmod-airoha-xpon
 		airoha-ponctl
 		airoha-pond
-		luci-app-pon
+		luci-app-onu
 		kmod-airoha-en7581-pcm-spi
 	)
 	manifest_required_packages=("${required_packages[@]}" kmod-airoha-tod)
@@ -94,6 +96,11 @@ for package in "${required_packages[@]}"; do
 		failed=1
 	fi
 done
+
+if [[ -n "$forbidden_build_config" ]] && grep -Fqx "$forbidden_build_config" "$config_file"; then
+	echo "$profile config enables initramfs and can overwrite the normal kernel used by the size-limited FIT image" >&2
+	failed=1
+fi
 
 if [[ -n "$kernel_config" ]]; then
 	if grep -En "^${forbidden_kernel}$" "$kernel_config"; then

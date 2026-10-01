@@ -61,7 +61,7 @@ REJECTED_SCU_LAYOUT_PATCH = (
 )
 PON_VOICE_PATCH = (
     REPO
-    / "patches/feeds/pon_userspace/luci-app-pon/100-airoha-voice-driver-status.patch"
+    / "patches/feeds/pon_userspace/luci-app-onu/100-airoha-voice-driver-status.patch"
 )
 ASTERISK_ANSWER_PATCH = (
     REPO
@@ -202,13 +202,22 @@ class VoiceStackSourceTests(unittest.TestCase):
         status = self.dts.index('status = "okay";', isi_start)
         self.assertLess(status, first_child)
 
-    def test_xg2010g_fit_stays_within_installed_ubi_volume(self):
+    def test_xg2010g_fit_stays_within_uboot_verification_buffer(self):
         self.assertIn("CONFIG_TARGET_SQUASHFS_BLOCK_SIZE=1024", self.config)
+        self.assertIn("# CONFIG_TARGET_ROOTFS_INITRAMFS is not set", self.config)
+        self.assertNotIn("CONFIG_TARGET_ROOTFS_INITRAMFS=y", self.config)
+        self.assertIn("CONFIG_PACKAGE_luci-app-onu=y", self.config)
+        self.assertNotIn("CONFIG_PACKAGE_luci-app-pon=y", self.config)
+        self.assertIn("# CONFIG_PACKAGE_luci-theme-glass is not set", self.config)
 
         device_start = self.image.index("define Device/gemtek_xg2010g-ubi")
         device_end = self.image.index("endef", device_start)
         device = self.image[device_start:device_end]
-        self.assertIn("IMAGE_SIZE := 42036k", device)
+        self.assertNotIn("KERNEL_INITRAMFS", device)
+        self.assertIn("IMAGE_SIZE := 65536k", device)
+        self.assertIn("U-Boot loads at 0x90000000", device)
+        self.assertIn("verifies at 0x94000000", device)
+        self.assertIn("dynamic UBI fit volume is recreated to size", device)
         self.assertIn("append-metadata | check-size", device)
 
     def test_afe_sound_dai_provider_declares_zero_cells(self):

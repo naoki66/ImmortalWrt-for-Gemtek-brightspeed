@@ -123,6 +123,9 @@ jobs:
       - name: Verify device isolation
         shell: bash
         run: |
+          bash scripts/check-firmware-artifacts.sh \
+            --config .config \
+            --directory bin/targets/airoha/an7581
           kernel_config=$(find build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581 -path '*/linux-*/.config' -print -quit)
           manifest=$(find bin/targets/airoha/an7581 -maxdepth 1 -type f -name '*manifest' -print -quit)
           test -n "$kernel_config"

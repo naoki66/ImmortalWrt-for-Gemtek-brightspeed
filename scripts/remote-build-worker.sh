@@ -80,6 +80,9 @@ run_build() {
 	}
 	check_args=(--config .config --kernel-config "$kernel_config")
 	if [[ "$mode" == "world" ]]; then
+		bash scripts/check-firmware-artifacts.sh \
+			--config .config \
+			--directory bin/targets/airoha/an7581
 		manifest="$(find bin/targets/airoha/an7581 -maxdepth 1 -type f -name '*manifest' -print -quit)"
 		[[ -n "$manifest" ]] || {
 			echo "image manifest was not generated" >&2
