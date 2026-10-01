@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=asterisk-chan-en75xx
-PKG_RELEASE:=5
+PKG_RELEASE:=6
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/Sirherobrine23/airoha_voip.git
@@ -22,7 +22,8 @@ define Package/asterisk-chan-en75xx
   CATEGORY:=Network
   SUBMENU:=Telephony
   TITLE:=Asterisk channel driver for Airoha EN75xx FXS
-  DEPENDS:=+asterisk +asterisk-res-musiconhold \
+  DEPENDS:=+asterisk +asterisk-app-playtones +asterisk-app-record \
+	+asterisk-format-wav +asterisk-res-musiconhold +asterisk-sounds \
 	+kmod-airoha-en7581-pcm-spi
 endef
 
@@ -34,6 +35,8 @@ endef
 define Package/asterisk-chan-en75xx/conffiles
 /etc/asterisk/en75xx.conf
 /etc/asterisk/extensions-en75xx.conf
+/etc/asterisk/indications-en75xx.conf
+/etc/asterisk/musiconhold-en75xx.conf
 endef
 
 define Build/Compile
@@ -55,6 +58,10 @@ define Package/asterisk-chan-en75xx/install
 		$(1)/etc/asterisk/en75xx.conf
 	$(INSTALL_DATA) ./files/extensions-en75xx.conf \
 		$(1)/etc/asterisk/extensions-en75xx.conf
+	$(INSTALL_DATA) ./files/indications-en75xx.conf \
+		$(1)/etc/asterisk/indications-en75xx.conf
+	$(INSTALL_DATA) ./files/musiconhold-en75xx.conf \
+		$(1)/etc/asterisk/musiconhold-en75xx.conf
 	$(INSTALL_DIR) $(1)/etc/hotplug.d/misc
 	$(INSTALL_BIN) ./files/50-en75xx-fxs \
 		$(1)/etc/hotplug.d/misc/50-en75xx-fxs

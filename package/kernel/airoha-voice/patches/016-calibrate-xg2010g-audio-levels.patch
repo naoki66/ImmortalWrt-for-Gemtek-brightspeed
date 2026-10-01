@@ -1,0 +1,22 @@
+diff --git a/src/en75xx_slic_si3219x.c b/src/en75xx_slic_si3219x.c
+--- a/src/en75xx_slic_si3219x.c
++++ b/src/en75xx_slic_si3219x.c
+@@ -281,4 +281,4 @@ static ramData si3219x_read_ram(void *ctrl, uInt8 channel, uInt16 addr)
+ static int rxgain_db = -6;
+-static int txgain_db = -10;
+-static u32 rx_acgain = 0x04000000;
++static int txgain_db = -13;
++static u32 rx_acgain = 0x05a6703e;
+ static u32 tx_acgain;
+diff --git a/src/en75xx_pcm.c b/src/en75xx_pcm.c
+--- a/src/en75xx_pcm.c
++++ b/src/en75xx_pcm.c
+@@ -67,7 +67,7 @@ static int swap_samples = -1;
+ module_param_named(swap_samples, swap_samples, int, 0644);
+ MODULE_PARM_DESC(swap_samples, "Sample pair swap for 16-bit linear PCM (-1: auto/DTS, 0: disabled, 1: enabled/swap)");
+ 
+-static bool alc_enable = true;
++static bool alc_enable;
+ module_param_named(alc_enable, alc_enable, bool, 0644);
+ MODULE_PARM_DESC(alc_enable, "Enable vendor-derived Auto Level Control (ALC) and noise gate on RX");
+ 

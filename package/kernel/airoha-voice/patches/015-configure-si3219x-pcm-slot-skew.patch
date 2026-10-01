@@ -10,6 +10,15 @@ index 023e77e..74197fc 100644
  	unsigned int line;
  	unsigned int ring_on_ms;
  	unsigned int ring_off_ms;
+@@ -378,7 +379,7 @@ static int capture_slot_adj;
+  * playback_slot_adj moves what it receives (our TX).
+  */
+ static int capture_slot_adj;
+-static int playback_slot_adj;
++static int playback_slot_adj = 1;
+ 
+ /*
+  * The ProSLIC's PCMTX/PCMRX registers hold the number of PCLK cycles to
 @@ -398,11 +399,9 @@ static int playback_slot_adj;
   * was shifted the same way, which put wrapped audio on the earpiece and
   * is what made the handset howl.

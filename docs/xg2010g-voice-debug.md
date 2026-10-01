@@ -64,7 +64,11 @@ nodes controlled the same physical line:
 The test parameters were restored to `legacy_chan_sel=N` and
 `trace_chan_sel=N`; no selector override remains in the saved configuration.
 DTMF is not validated yet. FXS0 supplied dial tone, but Asterisk did not detect
-the dialled `600` before its timeout and congestion tone.
+the dialled `600` before its timeout and congestion tone. A direct hardware
+DTMF test on 2026-10-01 also returned no digits. Si32192 does not provide the
+DTMF decoder present in Si32193, so the r24 hardware-DTMF capability was a
+false advertisement and is disabled by r25. Digit collection depends on
+restoring nonzero PCM RX audio for Asterisk's software detector.
 
 ## PCM RX isolation on 2026-09-30
 
@@ -113,6 +117,28 @@ LuCI `Network -> ONU -> Voice` page shows the same read-only driver status and
 clearly reports a busy device instead of attempting control operations.
 
 ## Local FXS loopback
+
+### Playback bit alignment validated on 2026-10-01
+
+Live Asterisk tests isolated harsh distortion to the PCM playback direction.
+With the board slot base kept at bit 0, changing only
+`playback_slot_adj` from 0 to 1 changed the Si32192 `PCMRX` value from
+`0x2000` to `0x2001`; `PCMTX` remained `0x0000`. Extension `603` then
+played six stable 450 Hz tones without electrical noise or clipping.
+
+Extension `601` initially used the packaged `demo-congrats.gsm` prompt, whose
+GSM 6.10 compression limited speech clarity. A temporary 8 kHz, 16-bit mono
+PCM WAV prompt played clearly through the same Asterisk channel with no harsh
+noise or distortion. This proves that the Asterisk-to-Si32192 playback path is
+correct with a one-PCLK receive-slot adjustment. Keep capture adjustment at 0
+and make playback adjustment 1 the driver default.
+
+The final handset level calibration used `RXACGAIN=0x05a6703e`, approximately
+3 dB above the clean `0x04000000` playback baseline, and `txgain_db=-13` for
+capture. This produced clear PCM speech at a suitable earpiece level without
+background noise or clipping. ALC must default off: enabling it did not prevent
+the extension `600` acoustic feedback loop. With ALC off and capture at -13 dB,
+normal and loud Echo() speech remained stable; LEC also remained off.
 
 Start the service and use either parallel socket, or use the Asterisk console:
 

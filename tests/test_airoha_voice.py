@@ -13,9 +13,17 @@ CHINA_VOICE_PATCH = (
     REPO
     / "package/kernel/airoha-voice/patches/110-china-ringing-and-hardware-dtmf.patch"
 )
+SI32192_DTMF_DISABLE_PATCH = (
+    REPO
+    / "package/kernel/airoha-voice/patches/111-do-not-advertise-si32192-dtmf.patch"
+)
 SI3219X_SLOT_SKEW_PATCH = (
     REPO
     / "package/kernel/airoha-voice/patches/015-configure-si3219x-pcm-slot-skew.patch"
+)
+XG2010G_AUDIO_LEVELS_PATCH = (
+    REPO
+    / "package/kernel/airoha-voice/patches/016-calibrate-xg2010g-audio-levels.patch"
 )
 DTS = REPO / "target/linux/airoha/dts/an7581-gemtek-xg2010g-ubi.dts"
 SOC_DTS = REPO / "target/linux/airoha/dts/an7581.dtsi"
@@ -47,6 +55,14 @@ ASTERISK_DEFAULTS = (
     REPO
     / "package/network/services/asterisk-chan-en75xx/files/99-asterisk-en75xx"
 )
+ASTERISK_INDICATIONS = (
+    REPO
+    / "package/network/services/asterisk-chan-en75xx/files/indications-en75xx.conf"
+)
+ASTERISK_MOH = (
+    REPO
+    / "package/network/services/asterisk-chan-en75xx/files/musiconhold-en75xx.conf"
+)
 VOICE_PCM_ACTIVITY_PATCH = (
     REPO
     / "package/kernel/airoha-voice/patches/100-start-pcm-on-audio-activity.patch"
@@ -77,7 +93,13 @@ class VoiceStackSourceTests(unittest.TestCase):
         cls.patch = PATCH.read_text(encoding="utf-8")
         cls.en7581_pinmux_patch = EN7581_PINMUX_PATCH.read_text(encoding="utf-8")
         cls.china_voice_patch = CHINA_VOICE_PATCH.read_text(encoding="utf-8")
+        cls.si32192_dtmf_disable_patch = SI32192_DTMF_DISABLE_PATCH.read_text(
+            encoding="utf-8"
+        )
         cls.si3219x_slot_skew_patch = SI3219X_SLOT_SKEW_PATCH.read_text(
+            encoding="utf-8"
+        )
+        cls.xg2010g_audio_levels_patch = XG2010G_AUDIO_LEVELS_PATCH.read_text(
             encoding="utf-8"
         )
         cls.dts = DTS.read_text(encoding="utf-8")
@@ -91,6 +113,8 @@ class VoiceStackSourceTests(unittest.TestCase):
         cls.asterisk_config = ASTERISK_CONFIG.read_text(encoding="utf-8")
         cls.asterisk_dialplan = ASTERISK_DIALPLAN.read_text(encoding="utf-8")
         cls.asterisk_defaults = ASTERISK_DEFAULTS.read_text(encoding="utf-8")
+        cls.asterisk_indications = ASTERISK_INDICATIONS.read_text(encoding="utf-8")
+        cls.asterisk_moh = ASTERISK_MOH.read_text(encoding="utf-8")
         cls.voice_pcm_activity_patch = VOICE_PCM_ACTIVITY_PATCH.read_text(
             encoding="utf-8"
         )
@@ -175,7 +199,7 @@ class VoiceStackSourceTests(unittest.TestCase):
         for command in ("transport", "recover", "identity"):
             self.assertIn(command, self.voice_ctl)
         self.assertNotIn('!strcmp(command, "scan-second")', self.voice_ctl)
-        self.assertIn("PKG_RELEASE:=24", self.package)
+        self.assertIn("PKG_RELEASE:=27", self.package)
         self.assertIn("trace_chan_sel", trace_patch)
         self.assertIn("rebind_slic_device", self.voice_ctl)
         self.assertNotIn('"spi1.1"', self.voice_ctl)
@@ -193,9 +217,23 @@ class VoiceStackSourceTests(unittest.TestCase):
         self.assertIn("airoha,pcm-channel = <0>;", self.dts)
         self.assertIn("silabs,pcm-slot-skew = <0>;", self.dts)
         self.assertIn("pcm_slot_skew = 1", self.si3219x_slot_skew_patch)
+        self.assertIn(
+            "static int playback_slot_adj = 1;", self.si3219x_slot_skew_patch
+        )
         self.assertIn('"silabs,pcm-slot-skew"', self.si3219x_slot_skew_patch)
         self.assertNotIn("airoha,pcm-channel = <2>;", self.dts)
         self.assertNotIn("airoha,en7581-pcm-spi-si32192", self.dts)
+
+    def test_xg2010g_audio_levels_match_hardware_validation(self):
+        for contract in (
+            "+static int txgain_db = -13;",
+            "+static u32 rx_acgain = 0x05a6703e;",
+            "+static bool alc_enable;",
+        ):
+            self.assertIn(contract, self.xg2010g_audio_levels_patch)
+        self.assertNotIn(
+            "+static bool alc_enable = true;", self.xg2010g_audio_levels_patch
+        )
 
         isi_start = self.dts.index("isi0: spi@1fbd1000")
         first_child = self.dts.index("proslic@0", isi_start)
@@ -246,21 +284,45 @@ class VoiceStackSourceTests(unittest.TestCase):
         ):
             self.assertIn(command, self.voice_ctl)
 
-    def test_china_ringing_and_hardware_dtmf_are_configured(self):
+    def test_china_ringing_is_configured(self):
         for contract in (
             "ProSLIC_dbgSetRinging",
             ".freq = 25",
             ".amp = 55",
-            "SI3219X_IRQEN2_DTMF",
-            "ProSLIC_DTMFReadDigit",
-            "EN75XX_VOICE_CAP_DTMF",
-            "EN75XX_VOICE_GET_DTMF",
-            '"D1234567890*#ABC"',
         ):
             self.assertIn(contract, self.china_voice_patch)
 
+    def test_si32192_does_not_advertise_hardware_dtmf(self):
+        for contract in (
+            "Si32192 has no hardware DTMF decoder",
+            "-\t.get_dtmf = en75xx_si3219x_get_dtmf",
+            "SI3219X_IRQEN2_HOOK);",
+        ):
+            self.assertIn(contract, self.si32192_dtmf_disable_patch)
+
     def test_asterisk_channel_package_is_selected_and_buildable(self):
         self.assertIn("CONFIG_PACKAGE_asterisk-chan-en75xx=y", self.config)
+        for package in (
+            "asterisk-app-stack",
+            "asterisk-app-playtones",
+            "asterisk-app-record",
+            "asterisk-bridge-softmix",
+            "asterisk-codec-a-mu",
+            "asterisk-codec-alaw",
+            "asterisk-codec-g722",
+            "asterisk-codec-gsm",
+            "asterisk-codec-ulaw",
+            "asterisk-format-gsm",
+            "asterisk-format-pcm",
+            "asterisk-format-sln",
+            "asterisk-format-wav",
+            "asterisk-pbx-spool",
+            "asterisk-pjsip",
+            "asterisk-res-musiconhold",
+            "asterisk-res-rtp-asterisk",
+            "asterisk-sounds",
+        ):
+            self.assertIn(f"CONFIG_PACKAGE_{package}=y", self.config)
         self.assertIn("PKG_BUILD_DEPENDS:=asterisk", self.asterisk_package)
         self.assertIn("cd $(PKG_BUILD_DIR)/asterisk", self.asterisk_package)
         self.assertIn("-c chan_en75xx.c", self.asterisk_package)
@@ -281,9 +343,32 @@ class VoiceStackSourceTests(unittest.TestCase):
         self.assertIn("context = fxs", self.asterisk_config)
         self.assertIn("exten => 600,1,Answer()", self.asterisk_dialplan)
         self.assertIn("n,Echo()", self.asterisk_dialplan)
-        self.assertNotIn("Playback(", self.asterisk_dialplan)
+        self.assertIn("Echo()", self.asterisk_dialplan)
         self.assertIn("asterisk.general.enabled='1'", self.asterisk_defaults)
         self.assertIn("extensions-en75xx.conf", self.asterisk_defaults)
+        self.assertIn("country=cn", self.asterisk_defaults)
+        self.assertIn('indications-en75xx.conf', self.asterisk_defaults)
+        self.assertNotIn("busydetect = yes", self.asterisk_config)
+        self.assertNotIn("busycount = 4", self.asterisk_config)
+        self.assertIn("FXO-only options", self.asterisk_config)
+        for tone in (
+            "[cn]",
+            "dial = 450",
+            "busy = 450/350,0/350",
+            "ring = 450+25/1000,0/4000",
+        ):
+            self.assertIn(tone, self.asterisk_indications)
+        for extension, application in (
+            ("601", "Playback(demo-congrats)"),
+            ("602", "Record(/tmp/en75xx-recording.wav,3,10,k)"),
+            ("603", "PlayTones(450/200,0/200)"),
+            ("604", "MusicOnHold(en75xx-test,10)"),
+        ):
+            self.assertIn(f"exten => {extension},1,Answer()", self.asterisk_dialplan)
+            self.assertIn(application, self.asterisk_dialplan)
+        self.assertIn('musiconhold-en75xx.conf', self.asterisk_defaults)
+        self.assertIn("[en75xx-test]", self.asterisk_moh)
+        self.assertIn("mode = playlist", self.asterisk_moh)
 
     def test_pcm_runs_only_while_audio_is_active(self):
         self.assertIn("bool pcm_started;", self.voice_pcm_activity_patch)

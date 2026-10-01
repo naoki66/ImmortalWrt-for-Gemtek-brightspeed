@@ -4,6 +4,27 @@ uci -q set asterisk.general.enabled='1'
 uci -q set asterisk.general.interface=''
 uci -q commit asterisk
 
+indications=/etc/asterisk/indications.conf
+if [ -f "$indications" ]; then
+	cn_include='#include "indications-en75xx.conf"'
+	if ! grep -qxF "$cn_include" "$indications"; then
+		printf '\n%s\n' "$cn_include" >> "$indications"
+	fi
+	if grep -q '^[[:space:]]*country=' "$indications"; then
+		sed -i 's/^[[:space:]]*country=.*/country=cn\t\t; default location/' "$indications"
+	else
+		printf '\ncountry=cn\t\t; default location\n' >> "$indications"
+	fi
+fi
+
+musiconhold=/etc/asterisk/musiconhold.conf
+if [ -f "$musiconhold" ]; then
+	moh_include='#include "musiconhold-en75xx.conf"'
+	if ! grep -qxF "$moh_include" "$musiconhold"; then
+		printf '\n%s\n' "$moh_include" >> "$musiconhold"
+	fi
+fi
+
 extensions=/etc/asterisk/extensions.conf
 include='#include "extensions-en75xx.conf"'
 

@@ -1,0 +1,44 @@
+From: XG2010G voice bring-up <noreply@example.com>
+Subject: [PATCH] voice: do not advertise DTMF decode on Si32192
+
+Si32192 has no hardware DTMF decoder.  Keep the generic voice UAPI hook for
+SLICs which implement DTMF decode, but do not bind it for Si32192 or enable
+its nonexistent DTMF interrupt.  Asterisk must decode digits from PCM audio
+on this board.
+---
+ src/en75xx_slic_si3219x.c | 23 +----------------------
+ 1 file changed, 1 insertion(+), 22 deletions(-)
+
+--- a/src/en75xx_slic_si3219x.c
++++ b/src/en75xx_slic_si3219x.c
+@@ -71,2 +71,0 @@
+-#define SI3219X_IRQEN2_DTMF	BIT(4)
+-#define SI3219X_REG_IRQ2		(PROSLIC_REG_IRQ1 + 1)
+@@ -490,18 +490,0 @@
+-static int en75xx_si3219x_get_dtmf(void *priv, u8 *digit)
+-{
+-	static const char digits[] = "D1234567890*#ABC";
+-	struct en75xx_si3219x *slic = priv;
+-	uInt8 raw;
+-	int irq2;
+-
+-	irq2 = si3219x_read_reg_checked(slic, 0, SI3219X_REG_IRQ2);
+-	if (irq2 < 0)
+-		return irq2;
+-	if (!(irq2 & SI3219X_IRQEN2_DTMF))
+-		return 0;
+-	if (ProSLIC_DTMFReadDigit(slic->channel, &raw) != RC_NONE)
+-		return -EIO;
+-
+-	*digit = digits[raw & 0xf];
+-	return 1;
+-}
+@@ -858,1 +838,0 @@
+-	.get_dtmf = en75xx_si3219x_get_dtmf,
+@@ -891,4 +870,3 @@ static void si3219x_apply_pcm_fixups(struct en75xx_si3219x *slic)
+ 
+ 	si3219x_write_reg(slic, 0, PROSLIC_REG_IRQEN1, 0);
+-	si3219x_write_reg(slic, 0, PROSLIC_REG_IRQEN2,
+-			  SI3219X_IRQEN2_HOOK | SI3219X_IRQEN2_DTMF);
++	si3219x_write_reg(slic, 0, PROSLIC_REG_IRQEN2, SI3219X_IRQEN2_HOOK);
+ 	si3219x_write_reg(slic, 0, PROSLIC_REG_IRQEN3, 0);
