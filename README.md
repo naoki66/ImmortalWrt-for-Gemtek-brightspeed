@@ -126,7 +126,7 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集
 | 应用 | 来源 | 功能 |
 |------|------|------|
 | `luci-app-airoha` | [`naoki66/luci-app-airoha`](https://github.com/naoki66/luci-app-airoha) | 合并应用（两个标签页）：SoC/NPU 状态与加速开关；FlowSense（PPE 硬件 offload、VLAN 标签/PPPoE 透传/AP 模式卸载状态与延迟检测） |
-| `luci-app-airoha-fancontrol` | [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) | 风扇速度/温度控制与曲线 |
+| `luci-app-airoha-fancontrol` | [`naoki66/luci-app-airoha`](https://github.com/naoki66/luci-app-airoha) | 风扇速度/温度控制与曲线 |
 | `luci-app-airoha-factory` | [`naoki66/luci-app-airoha`](https://github.com/naoki66/luci-app-airoha) | 原厂序列号、MAC/BSSID 与校准信息工具 |
 | `luci-app-airoha-recovery` | [`naoki66/luci-app-airoha`](https://github.com/naoki66/luci-app-airoha) | 一键重启进入 U-Boot HTTP Recovery（一次性触发） |
 | `luci-app-netmode` | [`naoki66/luci-app-airoha`](https://github.com/naoki66/luci-app-airoha) | Router/AP/有线回程网络模式控制 |
