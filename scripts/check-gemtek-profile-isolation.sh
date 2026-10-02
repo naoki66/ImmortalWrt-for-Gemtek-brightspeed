@@ -63,11 +63,10 @@ if grep -Eq '^CONFIG_(TARGET_airoha_an7581_DEVICE|TARGET_DEVICE_airoha_an7581_DE
 	required_kernel='CONFIG_NET_AIROHA_NPU=y'
 elif grep -Eq '^CONFIG_(TARGET_airoha_an7581_DEVICE|TARGET_DEVICE_airoha_an7581_DEVICE)_gemtek_xg2010g-ubi=y$' "$config_file"; then
 	profile="xg2010g"
-	forbidden_packages='(airoha-an7581-mt7996-board|airoha-en7581-mt7996-npu-firmware|hostapd.*|iw|iw-full|iwinfo|kmod-(mac80211.*|mt76.*|mt7996.*)|ucode-mod-nl80211|wireless-regdb|wpad.*)'
+	forbidden_packages='(airoha-an7581-mt7996-board|airoha-en7581-mt7996-npu-firmware|hostapd.*|iw|iw-full|iwinfo|kmod-(mac80211.*|mt76.*|mt7996.*|nf-conntrack-bridge|nft-bridge)|ucode-mod-nl80211|wireless-regdb|wpad.*)'
 	forbidden_build_config='CONFIG_TARGET_ROOTFS_INITRAMFS=y'
 	required_packages=(
-		kmod-nf-conntrack-bridge
-		kmod-nft-bridge
+		bridger
 		kmod-airoha-en7572
 		kmod-airoha-xpon
 		airoha-ponctl

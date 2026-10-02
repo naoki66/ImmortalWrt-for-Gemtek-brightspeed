@@ -248,9 +248,9 @@ define Device/gemtek_xg2010g-ubi
        the legacy 0x00600000 layout. Preserve bl2 and the boot/calibration volumes.
   DEVICE_PACKAGES := fitblk kmod-leds-gpio kmod-gpio-button-hotplug \
 	kmod-phy-airoha-en8811h kmod-phy-realtek rtl826x-firmware \
-	kmod-nf-conntrack-bridge kmod-nft-bridge \
 	kmod-airoha-en7572 kmod-airoha-xpon airoha-ponctl airoha-pond \
 	kmod-airoha-tod kmod-airoha-en7581-pcm-spi \
+	bridger \
 	-airoha-an7581-mt7996-board -airoha-en7581-mt7996-npu-firmware \
 	-kmod-mac80211 -kmod-mt7996-firmware -kmod-mt7996e \
 	-wpad-mbedtls -wpad-mesh-mbedtls -wireless-regdb
