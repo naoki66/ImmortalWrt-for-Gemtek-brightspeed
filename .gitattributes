@@ -15,6 +15,3 @@ package/lucky/** text eol=lf
 
 # luci JS must stay LF: the LuCI JS minifier turns a CRLF after a backslash
 # line continuation into two LFs, breaking multi-line string literals
-package/luci-app-netmode/** text eol=lf
-package/luci-app-mesh-conf/** text eol=lf
-package/luci-app-airoha/** text eol=lf

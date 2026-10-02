@@ -1,12 +1,17 @@
 """Board topology and upgrade compatibility regression checks (no hardware writes)."""
 import json
+import os
 import pathlib
 import subprocess
 import tempfile
 import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-COMMON = REPO / "package/luci-app-airoha/root/usr/libexec/rpcd/airoha-common.sh"
+APP_ROOT = pathlib.Path(os.environ.get(
+    "AIROHA_APP_ROOT",
+    REPO / "package/feeds/airoha/luci-app-airoha",
+))
+COMMON = APP_ROOT / "root/usr/libexec/rpcd/airoha-common.sh"
 NPU_BACKEND = COMMON.parent / "luci.airoha_npu"
 BASE = REPO / "target/linux/airoha/an7581/base-files"
 
@@ -234,7 +239,7 @@ uci() {
         busybox_makefile = (REPO / "package/utils/busybox/Makefile").read_text()
         backend = (COMMON.parent / "luci.airoha_npu").read_text()
         acl = (COMMON.parents[3] / "usr/share/rpcd/acl.d/luci-app-airoha.json").read_text()
-        frontend = (REPO / "package/luci-app-airoha/htdocs/luci-static/resources/view/airoha_npu/status.js").read_text()
+        frontend = (APP_ROOT / "htdocs/luci-static/resources/view/airoha_npu/status.js").read_text()
         for name, config in zip(("1710.config", "2010.config"), configs):
             if name == "2010.config":
                 self.assertIn("CONFIG_KERNEL_DEVMEM=y", config)

@@ -26,7 +26,7 @@ const { spawnSync } = require('child_process');
 
 const REPO = path.resolve(__dirname, '..', '..');
 const LUCI = path.join(__dirname, 'snapshot', 'bridgevlan.js');
-const PLUGIN = path.join(REPO, 'package', 'luci-app-mesh-conf', 'root', 'usr', 'libexec', 'rpcd', 'luci.meshconf');
+const PLUGIN = path.join(process.env.AIROHA_APP_ROOT || path.join(REPO, 'package', 'feeds', 'airoha', 'luci-app-mesh-conf'), 'root', 'usr', 'libexec', 'rpcd', 'luci.meshconf');
 const TMP = path.join(os.tmpdir(), 'luci-ui-checks', 'portspec-fixture.sh');
 
 function findBash() {

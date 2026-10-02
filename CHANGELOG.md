@@ -3,6 +3,16 @@
 本文件记录 Gemtek Brightspeed 固件仓库的重要功能、稳定性和维护变更。常规的
 ImmortalWrt 上游合并不逐项展开，仅记录会影响本设备构建或运行行为的内容。
 
+## 2026-10-02
+
+### LuCI Airoha 应用拆分为独立 feed
+
+- 将 `luci-app-airoha`、`luci-app-airoha-factory`、`luci-app-airoha-recovery`、
+  `luci-app-netmode` 和 `luci-app-mesh-conf` 迁移到
+  [`naoki66/luci-app-airoha`](https://github.com/naoki66/luci-app-airoha)。
+- `feeds.conf.default` 新增 `airoha` feed；设备配置中的包名和选择符号保持不变，
+  构建前通过 `scripts/feeds` 安装即可。
+
 ## 2026-10-01
 
 ### XG2010G FIT 动态扩容与产物检查

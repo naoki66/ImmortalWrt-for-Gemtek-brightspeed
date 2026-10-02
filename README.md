@@ -110,7 +110,7 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集
 - 无线栈补丁：
   - [mt76 patches](package/kernel/mt76/patches/) 中的 `001`（mt7996 PS sync TLV/MLO 稳定性）与 `9993`（operating-mode rate control）。
   - [mac80211 patch](package/kernel/mac80211/patches/subsys/411-mac80211-export-link-sta-capability-limits.patch) 与 [hostapd patches](package/network/services/hostapd/patches/)（6GHz、EHT、radio mask 及多 VAP 稳定性）。
-- 启动与设备定制：`03_wifi_defaults`（SSID、加密方式、US 区域码）、`03_wireless`（射频参数）、`18-xr1710g-firewall-defaults`（默认软件/硬件 flow offload）、`99-ppe-reload`（无线接口创建后重载防火墙）、`packet-steering.sh`（Wi-Fi worker/CPU 亲和性）、风扇服务、升级平台脚本，以及独立 [luci-app-airoha-recovery](package/luci-app-airoha-recovery/) U-Boot HTTP Recovery 页面。
+- 启动与设备定制：`03_wifi_defaults`（SSID、加密方式、US 区域码）、`03_wireless`（射频参数）、`18-xr1710g-firewall-defaults`（默认软件/硬件 flow offload）、`99-ppe-reload`（无线接口创建后重载防火墙）、`packet-steering.sh`（Wi-Fi worker/CPU 亲和性）、风扇服务、升级平台脚本，以及由 `airoha` feed 提供的 [luci-app-airoha-recovery](https://github.com/naoki66/luci-app-airoha/tree/master/luci-app-airoha-recovery) U-Boot HTTP Recovery 页面。
 
 ### 网络与无线默认行为
 
@@ -121,13 +121,16 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集
 
 ### 预装 LuCI 应用（25 个，含中文界面）
 
-#### 设备专属与仓库内置（来自 [package/](package/)）
+#### 设备专属与 Airoha feed
 
 | 应用 | 来源 | 功能 |
 |------|------|------|
-| `luci-app-airoha` | 本仓库合并（NPU 状态上游 [rchen14b/luci-app-airoha-npu](https://github.com/rchen14b/luci-app-airoha-npu) + [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) FlowSense） | 合并应用（两个标签页）：SoC/NPU 状态与加速开关；FlowSense（PPE 硬件 offload、VLAN 标签/PPPoE 透传/AP 模式卸载状态与延迟检测） |
+| `luci-app-airoha` | [`naoki66/luci-app-airoha`](https://github.com/naoki66/luci-app-airoha) | 合并应用（两个标签页）：SoC/NPU 状态与加速开关；FlowSense（PPE 硬件 offload、VLAN 标签/PPPoE 透传/AP 模式卸载状态与延迟检测） |
 | `luci-app-airoha-fancontrol` | [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) | 风扇速度/温度控制与曲线 |
-| `luci-app-airoha-recovery` | 本仓库 | 一键重启进入 U-Boot HTTP Recovery（一次性触发） |
+| `luci-app-airoha-factory` | [`naoki66/luci-app-airoha`](https://github.com/naoki66/luci-app-airoha) | 原厂序列号、MAC/BSSID 与校准信息工具 |
+| `luci-app-airoha-recovery` | [`naoki66/luci-app-airoha`](https://github.com/naoki66/luci-app-airoha) | 一键重启进入 U-Boot HTTP Recovery（一次性触发） |
+| `luci-app-netmode` | [`naoki66/luci-app-airoha`](https://github.com/naoki66/luci-app-airoha) | Router/AP/有线回程网络模式控制 |
+| `luci-app-mesh-conf` | [`naoki66/luci-app-airoha`](https://github.com/naoki66/luci-app-airoha) | Mesh 与有线回程配置 |
 | `luci-app-lucky` | [sirpdboy/luci-app-lucky](https://github.com/sirpdboy/luci-app-lucky) | Lucky（DDNS/反代/端口转发） |
 
 #### 网络与远程接入
@@ -204,6 +207,7 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集
 | [sync-upstream.yml](.github/workflows/sync-upstream.yml) | 每 3 天定时 + 手动 | 同步 ImmortalWrt 上游 |
 
 **构建配置**：仓库根目录的 [1710.config](1710.config) 和 [2010.config](2010.config) 分别对应 XR1710G 与 XG2010G。`1710.config` 使用 multi-profile 一次构建两个 XR1710G 固件：原版 U-Boot 分区和 OpenWrt U-Boot UBI 布局；Action 默认使用 `1710.config`，也可以在手动触发时选择 `2010.config`。构建流程会执行 `cp <config> .config && bash scripts/set-build-version.sh .config && make defconfig`。
+`feeds.conf.default` 已包含 `airoha` feed；构建前必须执行 `./scripts/feeds update airoha && ./scripts/feeds install -a -p airoha`，这样上述五个 LuCI 包会从独立仓库安装。
 构建时会通过 [scripts/set-build-version.sh](scripts/set-build-version.sh) 写入 LuCI 可见的构建日期和 commit hash。
 文件名只保留 `日期-本机commit`（较短），完整的 `日期-本机commit-上游commit` 写在 `CONFIG_VERSION_CODE`，
 可在 LuCI 状态页与 `/etc/openwrt_release` 中查看；需要把 revision 也拼进文件名时设

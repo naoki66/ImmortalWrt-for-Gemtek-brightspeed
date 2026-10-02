@@ -40,7 +40,7 @@ String.prototype.format = function(...args) {
     });
 };
 async function main() {
-    const base = '/package/luci-app-airoha/htdocs/luci-static/resources/view/';
+    const base = '/package/feeds/airoha/luci-app-airoha/htdocs/luci-static/resources/view/';
     const tokens = new Function('baseclass', await (await fetch(base + 'airoha/ds-tokens.js', { cache: 'no-store' })).text())(baseclass);
     const aui = new Function('baseclass', 'tokens', 'E', await (await fetch(base + 'airoha/ui.js', { cache: 'no-store' })).text())(baseclass, tokens, E);
     const source = (await (await fetch(base + 'airoha_npu/status.js', { cache: 'no-store' })).text()).replace(
