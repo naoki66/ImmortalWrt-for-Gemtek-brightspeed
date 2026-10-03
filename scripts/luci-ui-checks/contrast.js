@@ -20,7 +20,7 @@ const fs = require('fs');
 const path = require('path');
 
 const REPO = path.resolve(__dirname, '..', '..');
-const CSS_JS = path.join(REPO, 'package', 'luci-app-mesh-conf', 'htdocs',
+const CSS_JS = path.join(REPO, 'package', 'feeds', 'airoha', 'luci-app-mesh-conf', 'htdocs',
 	'luci-static', 'resources', 'view', 'meshconf', 'meshconf.js');
 
 /* --- colour math --------------------------------------------------------- */

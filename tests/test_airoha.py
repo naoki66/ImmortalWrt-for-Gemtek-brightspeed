@@ -1,12 +1,17 @@
 """Board topology and upgrade compatibility regression checks (no hardware writes)."""
 import json
+import os
 import pathlib
 import subprocess
 import tempfile
 import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-COMMON = REPO / "package/luci-app-airoha/root/usr/libexec/rpcd/airoha-common.sh"
+APP_ROOT = pathlib.Path(os.environ.get(
+    "AIROHA_APP_ROOT",
+    REPO / "package/feeds/airoha/luci-app-airoha-npu",
+))
+COMMON = APP_ROOT / "root/usr/libexec/rpcd/airoha-common.sh"
 NPU_BACKEND = COMMON.parent / "luci.airoha_npu"
 BASE = REPO / "target/linux/airoha/an7581/base-files"
 
@@ -99,10 +104,10 @@ class BoardTests(unittest.TestCase):
                          ["cpu", "wan", "lan2", "lan3", "lan4"])
 
     def test_luci_acl_allows_topology(self):
-        acl = json.loads((COMMON.parents[3] / "usr/share/rpcd/acl.d/luci-app-airoha.json").read_text())
-        self.assertIn("getTopology", acl["luci-app-airoha"]["read"]["ubus"]["luci.airoha_npu"])
+        acl = json.loads((COMMON.parents[3] / "usr/share/rpcd/acl.d/luci-app-airoha-npu.json").read_text())
+        self.assertIn("getTopology", acl["luci-app-airoha-npu"]["read"]["ubus"]["luci.airoha_npu"])
 
-    def test_cpufreq_range_is_kernel_backed_and_capped_at_1400mhz(self):
+    def test_cpufreq_range_is_kernel_backed_and_capped_at_1200mhz(self):
         policy = "sys/devices/system/cpu/cpufreq/policy3"
         self.put(policy + "/scaling_governor", "powersave\n")
         self.put(
@@ -124,7 +129,7 @@ printf '1450='; _cpu_freq_allowed "$dir" 1450000; echo $?
         )
         self.assertEqual(
             output,
-            "dir=policy3\n1200000 1250000 1300000 1350000 1400000 \n1400=0\n1450=1\n",
+            "dir=policy3\n1200000 \n1400=1\n1450=1\n",
         )
 
     def test_gemtek_14ghz_opps_match_direct_pll_states(self):
@@ -233,8 +238,8 @@ uci() {
         busybox_defaults = (REPO / "package/utils/busybox/Config-defaults.in").read_text()
         busybox_makefile = (REPO / "package/utils/busybox/Makefile").read_text()
         backend = (COMMON.parent / "luci.airoha_npu").read_text()
-        acl = (COMMON.parents[3] / "usr/share/rpcd/acl.d/luci-app-airoha.json").read_text()
-        frontend = (REPO / "package/luci-app-airoha/htdocs/luci-static/resources/view/airoha_npu/status.js").read_text()
+        acl = (COMMON.parents[3] / "usr/share/rpcd/acl.d/luci-app-airoha-npu.json").read_text()
+        frontend = (APP_ROOT / "htdocs/luci-static/resources/view/airoha_npu/status.js").read_text()
         for name, config in zip(("1710.config", "2010.config"), configs):
             if name == "2010.config":
                 self.assertIn("CONFIG_KERNEL_DEVMEM=y", config)

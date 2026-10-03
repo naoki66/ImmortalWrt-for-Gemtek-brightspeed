@@ -110,7 +110,7 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集
 - 无线栈补丁：
   - [mt76 patches](package/kernel/mt76/patches/) 中的 `001`（mt7996 PS sync TLV/MLO 稳定性）与 `9993`（operating-mode rate control）。
   - [mac80211 patch](package/kernel/mac80211/patches/subsys/411-mac80211-export-link-sta-capability-limits.patch) 与 [hostapd patches](package/network/services/hostapd/patches/)（6GHz、EHT、radio mask 及多 VAP 稳定性）。
-- 启动与设备定制：`03_wifi_defaults`（SSID、加密方式、US 区域码）、`03_wireless`（射频参数）、`18-xr1710g-firewall-defaults`（默认软件/硬件 flow offload）、`99-ppe-reload`（无线接口创建后重载防火墙）、`packet-steering.sh`（Wi-Fi worker/CPU 亲和性）、风扇服务、升级平台脚本，以及独立 [luci-app-airoha-recovery](package/luci-app-airoha-recovery/) U-Boot HTTP Recovery 页面。
+- 启动与设备定制：`03_wifi_defaults`（SSID、加密方式、US 区域码）、`03_wireless`（射频参数）、`18-xr1710g-firewall-defaults`（默认软件/硬件 flow offload）、`99-ppe-reload`（无线接口创建后重载防火墙）、`packet-steering.sh`（Wi-Fi worker/CPU 亲和性）、风扇服务、升级平台脚本，以及由 `airoha` feed 提供的附属 LuCI 应用。
 
 ### 网络与无线默认行为
 
@@ -121,13 +121,16 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集
 
 ### 预装 LuCI 应用（25 个，含中文界面）
 
-#### 设备专属与仓库内置（来自 [package/](package/)）
+#### 设备专属与 Airoha feed
 
 | 应用 | 来源 | 功能 |
 |------|------|------|
-| `luci-app-airoha` | 本仓库合并（NPU 状态上游 [rchen14b/luci-app-airoha-npu](https://github.com/rchen14b/luci-app-airoha-npu) + [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) FlowSense） | 合并应用（两个标签页）：SoC/NPU 状态与加速开关；FlowSense（PPE 硬件 offload、VLAN 标签/PPPoE 透传/AP 模式卸载状态与延迟检测） |
-| `luci-app-airoha-fancontrol` | [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) | 风扇速度/温度控制与曲线 |
-| `luci-app-airoha-recovery` | 本仓库 | 一键重启进入 U-Boot HTTP Recovery（一次性触发） |
+| `luci-app-airoha-npu` | [`naoki66/luci-app-airoha`](https://github.com/naoki66/luci-app-airoha) Airoha feed | SoC/NPU 状态与加速开关 |
+| `luci-app-airoha-fancontrol` | [`naoki66/luci-app-airoha`](https://github.com/naoki66/luci-app-airoha) | 风扇速度/温度控制与曲线 |
+| `luci-app-airoha-factory` | [`naoki66/luci-app-airoha`](https://github.com/naoki66/luci-app-airoha) | 原厂序列号、MAC/BSSID 与校准信息工具 |
+| `luci-app-airoha-recovery` | [`naoki66/luci-app-airoha`](https://github.com/naoki66/luci-app-airoha) | 一键重启进入 U-Boot HTTP Recovery（一次性触发） |
+| `luci-app-mesh-conf` | [`naoki66/luci-app-airoha`](https://github.com/naoki66/luci-app-airoha) | Mesh 与有线回程配置 |
+| `luci-app-netmode` | [`naoki66/luci-app-airoha`](https://github.com/naoki66/luci-app-airoha) | Router/AP/有线回程网络模式控制 |
 | `luci-app-lucky` | [sirpdboy/luci-app-lucky](https://github.com/sirpdboy/luci-app-lucky) | Lucky（DDNS/反代/端口转发） |
 
 #### 网络与远程接入
@@ -265,7 +268,7 @@ bash scripts/summarize-build-errors.sh build.log
 - [naoki66/openwrt-pon-userspace](https://github.com/naoki66/openwrt-pon-userspace) - `airoha-ponctl`、`airoha-pond` 和整合 IPTV/语音页面的 LuCI ONU 用户态来源。
 
 ### LuCI 应用来源
-- [rchen14b/luci-app-airoha-npu](https://github.com/rchen14b/luci-app-airoha-npu) - Airoha NPU 状态监控（PR #4 合并中文翻译）；现已并入合并应用 luci-app-airoha
+- [naoki66/luci-app-airoha](https://github.com/naoki66/luci-app-airoha) - Airoha LuCI 应用 feed，包含 `luci-app-airoha-npu`
 - [Gilly1970/Gemtek-W1700K](https://github.com/Gilly1970/Gemtek-W1700K) - Airoha 风扇控制与 FlowSense（commit db3f1c8）
 - [sirpdboy/luci-app-lucky](https://github.com/sirpdboy/luci-app-lucky) - Lucky 多功能工具
 

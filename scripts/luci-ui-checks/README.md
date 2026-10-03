@@ -3,7 +3,7 @@
 Maintainer checks that grew out of the two pages that used to edit the same
 `bridge-vlan` model:
 
-- `package/luci-app-mesh-conf/` (the mesh-conf page) — **rewritten**: it is a
+- `package/feeds/airoha/luci-app-mesh-conf/` (the mesh-conf page) — **rewritten**: it is a
   802.11s / wired-config-sync page now and has no VLAN editor any more.
 - `luci-mod-network`'s Switch view, `view/network/switch-vlan.*` (upstream, patched
   from `patches/feeds/`)
@@ -21,8 +21,8 @@ upstream files the checks compare against are pinned in `snapshot/`.
 From the repository root:
 
 ```sh
-node scripts/luci-ui-checks/syncheck.js    package/luci-app-mesh-conf/htdocs/luci-static/resources/view/meshconf/meshconf.js
-node scripts/luci-ui-checks/tokencheck.js  package/luci-app-mesh-conf/htdocs/luci-static/resources/view/meshconf/meshconf.js
+node scripts/luci-ui-checks/syncheck.js    package/feeds/airoha/luci-app-mesh-conf/htdocs/luci-static/resources/view/meshconf/meshconf.js
+node scripts/luci-ui-checks/tokencheck.js  package/feeds/airoha/luci-app-mesh-conf/htdocs/luci-static/resources/view/meshconf/meshconf.js
 node scripts/luci-ui-checks/portcheck.js
 node scripts/luci-ui-checks/contrast.js
 node scripts/luci-ui-checks/ringcheck.js
