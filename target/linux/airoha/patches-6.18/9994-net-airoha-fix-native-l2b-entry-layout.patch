@@ -5,7 +5,8 @@ Native L2B entries use a different layout from the software bridge
 profile and IPv4 entries. Writing the template ib2 at offset 16 corrupts
 the learned source MAC; the native forwarding control is at offset 44.
 Keep the template and IPv4/IPv6 subflow paths unchanged. Add a distinct
-native layout, preserve its learned key, and decode it consistently.
+native layout, preserve its learned key through the final hardware commit,
+and decode it consistently.
 Do not redirect native entries through an unverified NPU stats layout.
 
 This is the PR #11 change adapted to run after the XR1710G bridge
@@ -65,6 +66,30 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  	u32 bytes;
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -719,8 +719,23 @@ static int airoha_ppe_foe_commit_entry(struct airoha_ppe *ppe,
+ 	struct airoha_foe_entry *hwe = ppe->foe + hash * sizeof(*hwe);
+ 	u32 ts = airoha_ppe_get_timestamp(ppe);
+ 	struct airoha_eth *eth = ppe->eth;
+ 	struct airoha_npu *npu;
++	struct airoha_foe_l2b native_l2 = {};
++	bool native_l2b;
+ 	int err = 0;
+ 
++	native_l2b = airoha_is_7581(eth) &&
++		FIELD_GET(AIROHA_FOE_IB1_BIND_PACKET_TYPE, hwe->ib1) ==
++		PPE_PKT_TYPE_BRIDGE &&
++		FIELD_GET(AIROHA_FOE_IB1_BIND_PACKET_TYPE, e->ib1) ==
++		PPE_PKT_TYPE_BRIDGE;
++	if (native_l2b)
++		native_l2 = hwe->l2b;
++
+ 	memcpy(&hwe->d, &e->d, sizeof(*hwe) - sizeof(hwe->ib1));
++	if (native_l2b)
++		/* The generic copy uses the software bridge layout. Restore the
++		 * native learned key, while keeping the new forwarding fields. */
++		memcpy(&hwe->l2b, &native_l2,
++		       offsetof(struct airoha_foe_l2b, data));
+ 	wmb();
 @@ -643,6 +643,10 @@ static void airoha_ppe_foe_flow_stats_update(struct airoha_ppe *ppe,
  	int ppe_num_stats_entries;
  	u8 nbq;
