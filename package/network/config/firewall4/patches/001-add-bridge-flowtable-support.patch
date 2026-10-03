@@ -13,7 +13,7 @@ Signed-off-by: Bohdan Chubuk <chbgdn@gmail.com>
 ---
 --- a/root/usr/share/ucode/fw4.uc	2026-07-01 09:54:35.812914268 +0300
 +++ b/root/usr/share/ucode/fw4.uc	2026-07-01 09:54:55.802938364 +0300
-@@ -575,6 +575,43 @@
+@@ -575,6 +575,59 @@
  		return false;
  	},
  
@@ -45,13 +45,29 @@ Signed-off-by: Bohdan Chubuk <chbgdn@gmail.com>
 +	resolve_bridge_devices: function(devices) {
 +		let bridge_devs = [];
 +
-+		for (let dev in devices)
-+			if (fs.access(`/sys/class/net/${dev}/brport`))
-+				push(bridge_devs, dev);
-+			else if (fs.access(`/sys/class/net/${dev}/bridge`))
-+				push(bridge_devs, dev);
++		if (!length(devices))
++			return bridge_devs;
 +
-+		return bridge_devs;
++		let devstatus = {};
++		let bus = ubus.connect();
++		if (bus) {
++			devstatus = bus.call("network.device", "status") || {};
++			bus.disconnect();
++		}
++
++		let dir = fs.opendir("/sys/class/net");
++		let entry;
++
++		if (dir) {
++			while ((entry = dir.read()) != null)
++				if (fs.access(`/sys/class/net/${entry}/brport`))
++					push(bridge_devs,
++						...resolve_lower_devices(devstatus, entry));
++
++			dir.close();
++		}
++
++		return sort(uniq(bridge_devs));
 +	},
 +
  	read_state: function() {
