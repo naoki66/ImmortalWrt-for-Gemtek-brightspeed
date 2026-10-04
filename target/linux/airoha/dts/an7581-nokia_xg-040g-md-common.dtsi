@@ -8,6 +8,10 @@
 #include "an758x-nokia_xg-040g-common.dtsi"
 
 / {
+	aliases {
+		pon-calibration = &pon_calibration_storage;
+	};
+
 	gpio-keys {
 		compatible = "gpio-keys";
 
@@ -33,18 +37,21 @@
 			color = <LED_COLOR_ID_GREEN>;
 			function = LED_FUNCTION_WAN;
 			gpios = <&en7581_pinctrl 18 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "pon0-registration";
 		};
 
 		led-2 {
 			color = <LED_COLOR_ID_RED>;
 			function = LED_FUNCTION_WAN;
 			gpios = <&en7581_pinctrl 19 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "pon0-los";
 		};
 
 		led-3 {
 			color = <LED_COLOR_ID_GREEN>;
 			function = LED_FUNCTION_WAN_ONLINE;
 			gpios = <&en7581_pinctrl 20 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "pon0-online";
 		};
 
 		led-4 {
@@ -97,6 +104,13 @@
 &en7581_pinctrl {
 	gpio-ranges = <&en7581_pinctrl 0 13 50>;
 
+	pon_pins: pon-pins {
+		mux {
+			function = "pon";
+			groups = "pon_tx_disable_gpio";
+		};
+	};
+
 	mdio_pins: mdio-pins {
 		mux {
 			function = "mdio";
@@ -131,15 +145,25 @@
 	};
 };
 
+&i2c0 {
+	en7572: optical-front-end@50 {
+		compatible = "airoha,en7572";
+		reg = <0x50>;
+		tx-disable-gpios = <&en7581_pinctrl 38 GPIO_ACTIVE_HIGH>;
+		nvmem-cells = <&pon_calibration>;
+		nvmem-cell-names = "calibration";
+	};
+};
+
 &mdio {
-	/* Airoha EN8811 2.5Gbps phy */
+	/* Airoha EN8811H 2.5Gbps PHY */
 	en8811: ethernet-phy@f {
 		compatible = "ethernet-phy-id03a2.a411";
 		reg = <0xf>;
 
 		reset-gpios = <&en7581_pinctrl 31 GPIO_ACTIVE_LOW>;
-		reset-assert-us = <10000>;
-		reset-deassert-us = <20000>;
+		reset-assert-us = <1000000>;
+		reset-deassert-us = <100000>;
 
 		leds {
 			#address-cells = <1>;

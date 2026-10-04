@@ -79,7 +79,14 @@ platform_do_upgrade() {
 		gemtek,xr1710g|\
 		nokia,xg-040g-md-ubi|\
 		quantum,q1000k-ubi)
-			fit_do_upgrade "$1"
+			case "$board" in
+				nokia,xg-040g-md-ubi)
+					airoha_require_ubi_layout bosa ri && fit_do_upgrade "$1"
+					;;
+				*)
+					fit_do_upgrade "$1"
+					;;
+			esac
 			;;
 		*)
 			nand_do_upgrade "$1"
