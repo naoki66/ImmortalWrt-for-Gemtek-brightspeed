@@ -261,9 +261,9 @@ define Device/gemtek_xg2010g-ubi
   KERNEL_IN_UBI := 1
   KERNEL := kernel-bin | gzip
   IMAGES := sysupgrade.itb
-  # U-Boot loads at 0x90000000 and verifies at 0x94000000. Keep the FIT
-  # within that 64 MiB gap; the dynamic UBI fit volume is recreated to size.
-  IMAGE_SIZE := 65536k
+  # The dynamic UBI fit volume is recreated to the uploaded image size.
+  # The 128 MiB package limit is independent of UBI volume placement.
+  IMAGE_SIZE := 131072k
   IMAGE/sysupgrade.itb := append-kernel | \
 	fit gzip $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb external-static-with-rootfs | \
 	append-metadata | check-size
