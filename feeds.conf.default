@@ -10,3 +10,6 @@ src-git pon_userspace https://github.com/naoki66/openwrt-pon-userspace.git
 #src-git targets https://github.com/openwrt/targets.git
 #src-git oldpackages http://git.openwrt.org/packages.git
 #src-link custom /usr/src/openwrt/custom-feed
+src-git easytier https://github.com/EasyTier/luci-app-easytier.git;main
+src-git openwrt_bandix https://github.com/timsaya/openwrt-bandix.git;main
+src-git luci_app_bandix https://github.com/timsaya/luci-app-bandix.git;main
