@@ -18,7 +18,7 @@ XR1710G 与 XG2010G 设备维护的 Airoha AN7581 固件项目。
 当前维护两个相互隔离的硬件配置：
 
 - **XR1710G**：Brightspeed 10G Wi-Fi 7 路由器，使用 `1710.config`，包含 MT7996 无线、NPU 和 RTL8261BE 以太网支持。
-- **XG2010G**：Brightspeed 10G XG(S)-PON/XE-PON 网关，使用 `2010.config`，PON 驱动与用户态基于 [pbs05/openwrt-pon-drivers](https://github.com/pbs05/openwrt-pon-drivers) ，并保留 NPU、RTL8261BE 以太网和语音相关支持。
+- **XG2010G**：Brightspeed 10G XG(S)-PON/XE-PON 网关，使用 `2010.config`，PON 驱动与用户态基于 [pbs05/openwrt-pon-drivers](https://github.com/pbs05/openwrt-pon-drivers) ，并保留 NPU、RTL8261BE 以太网和语音相关支持。另有 2 GiB DRAM 变体 `2010-2g.config`。
 
 ## 支持设备
 
@@ -27,6 +27,7 @@ XR1710G 与 XG2010G 设备维护的 Airoha AN7581 固件项目。
 | Brightspeed/Gemtek XR1710G（原版 U-Boot 分区） | [`1710.config`](1710.config) | Wi-Fi 7 路由器固件 | [`an7581-xr1710g.dts`](target/linux/airoha/dts/an7581-xr1710g.dts) |
 | Brightspeed/Gemtek XR1710G（OpenWrt U-Boot UBI 布局） | [`1710.config`](1710.config) | 参考 XG2010G 的整盘 UBI 引导方案 | [`an7581-gemtek-xr1710g-ubi.dts`](target/linux/airoha/dts/an7581-gemtek-xr1710g-ubi.dts) |
 | Brightspeed/Gemtek XG2010G | [`2010.config`](2010.config) | XG(S)-PON 网关移植基线 | [`an7581-gemtek-xg2010g-ubi.dts`](target/linux/airoha/dts/an7581-gemtek-xg2010g-ubi.dts) |
+| Brightspeed/Gemtek XG2010G（2 GiB） | [`2010-2g.config`](2010-2g.config) | XG(S)-PON 网关，2 GiB DRAM 变体 | [`an7581-gemtek-xg2010g-2g-ubi.dts`](target/linux/airoha/dts/an7581-gemtek-xg2010g-2g-ubi.dts) |
 
 ### XR1710G
 
@@ -206,7 +207,7 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集
 | [build-firmware.yml](.github/workflows/build-firmware.yml) | 手动 (workflow_dispatch) | 构建固件并发布 Release |
 | [sync-upstream.yml](.github/workflows/sync-upstream.yml) | 每 3 天定时 + 手动 | 同步 ImmortalWrt 上游 |
 
-**构建配置**：仓库根目录的 [1710.config](1710.config) 和 [2010.config](2010.config) 分别对应 XR1710G 与 XG2010G。`1710.config` 使用 multi-profile 一次构建两个 XR1710G 固件：原版 U-Boot 分区和 OpenWrt U-Boot UBI 布局；Action 默认使用 `1710.config`，也可以在手动触发时选择 `2010.config`。构建流程会执行 `cp <config> .config && bash scripts/set-build-version.sh .config && make defconfig`。
+**构建配置**：仓库根目录的 [1710.config](1710.config)、[2010.config](2010.config) 和 [2010-2g.config](2010-2g.config) 分别对应 XR1710G、XG2010G（1 GiB）与 XG2010G（2 GiB）。`1710.config` 使用 multi-profile 一次构建两个 XR1710G 固件：原版 U-Boot 分区和 OpenWrt U-Boot UBI 布局；Action 默认使用 `1710.config`，也可以在手动触发时选择 `2010.config` 或 `2010-2g.config`。构建流程会执行 `cp <config> .config && bash scripts/set-build-version.sh .config && make defconfig`。
 构建时会通过 [scripts/set-build-version.sh](scripts/set-build-version.sh) 写入 LuCI 可见的构建日期和 commit hash。
 文件名只保留 `日期-本机commit`（较短），完整的 `日期-本机commit-上游commit` 写在 `CONFIG_VERSION_CODE`，
 可在 LuCI 状态页与 `/etc/openwrt_release` 中查看；需要把 revision 也拼进文件名时设
