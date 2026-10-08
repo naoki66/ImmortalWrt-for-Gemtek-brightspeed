@@ -239,21 +239,23 @@ define Device/gemtek_xr1710g-common
 endef
 
 define Device/gemtek_xr1710g
+  # DEVICE_DTS must be set before the common block: the common IMAGE/KERNEL
+  # lines use := and freeze $(firstword $(DEVICE_DTS)) at eval time.
+  DEVICE_DTS := an7581-xr1710g
   $(call Device/gemtek_xr1710g-common)
   DEVICE_ALT0_VENDOR := Brightspeed
   DEVICE_ALT0_MODEL := XR1710G
   SUPPORTED_DEVICES := gemtek,xr1710g
-  DEVICE_DTS := an7581-xr1710g
 endef
 TARGET_DEVICES += gemtek_xr1710g
 
 define Device/gemtek_xr1710g-ubi
+  DEVICE_DTS := an7581-gemtek-xr1710g-ubi
   $(call Device/gemtek_xr1710g-common)
   DEVICE_MODEL := XR1710G (OpenWrt U-Boot UBI layout)
   DEVICE_ALT0_VENDOR := Brightspeed
   DEVICE_ALT0_MODEL := XR1710G (OpenWrt U-Boot UBI layout)
   SUPPORTED_DEVICES := gemtek,xr1710g-ubi
-  DEVICE_DTS := an7581-gemtek-xr1710g-ubi
   DEVICE_COMPAT_VERSION := 2.0
   DEVICE_COMPAT_MESSAGE := Firmware requires the XR1710G OpenWrt U-Boot UBI layout \
        with bl2 at 0x00000000 and the UBI partition extending from \
@@ -293,19 +295,21 @@ define Device/gemtek_xg2010g-common
 endef
 
 define Device/gemtek_xg2010g-ubi
+  # DEVICE_DTS must be set before the common block: the common IMAGE line
+  # uses := and freezes $(firstword $(DEVICE_DTS)) at eval time.
+  DEVICE_DTS := an7581-gemtek-xg2010g-ubi
   $(call Device/gemtek_xg2010g-common)
   DEVICE_MODEL := XG2010G
   DEVICE_VARIANT := UBI
-  DEVICE_DTS := an7581-gemtek-xg2010g-ubi
   SUPPORTED_DEVICES := gemtek,xg2010g-ubi gemtek,xg2010g
 endef
 TARGET_DEVICES += gemtek_xg2010g-ubi
 
 define Device/gemtek_xg2010g-2g-ubi
+  DEVICE_DTS := an7581-gemtek-xg2010g-2g-ubi
   $(call Device/gemtek_xg2010g-common)
   DEVICE_MODEL := XG2010G (2 GiB)
   DEVICE_VARIANT := UBI
-  DEVICE_DTS := an7581-gemtek-xg2010g-2g-ubi
   SUPPORTED_DEVICES := gemtek,xg2010g-2g-ubi gemtek,xg2010g-2g
 endef
 TARGET_DEVICES += gemtek_xg2010g-2g-ubi
