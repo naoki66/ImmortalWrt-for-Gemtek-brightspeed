@@ -3,6 +3,33 @@
 本文件记录 Gemtek Brightspeed 固件仓库的重要功能、稳定性和维护变更。常规的
 ImmortalWrt 上游合并不逐项展开，仅记录会影响本设备构建或运行行为的内容。
 
+## 2026-10-08
+
+### 同步 ImmortalWrt 上游至 6.18.54
+
+- 合并 `immortalwrt/immortalwrt` 的 306 个上游提交，内核补丁基线从 6.18.52
+  推进到 6.18.54。
+- 上游将 RTL8261C/D 的 LED 支持从 `hack-6.18/750-*` 迁出，改为新增
+  `pending-6.18/721-02-net-phy-realtek-add-LED-support-for-RTL8261C-D.patch`
+  并补齐亮度、极性和使能位处理，因此删除本地已无用的 `hack-6.18/750-*`。
+- `pending-6.18/737-02` phylink PCS 补丁改用上游版本：本地此前的 v15 写法
+  与上游 v3 写法功能完全等价，而上游版本已按 6.18.54 基线校订行号。
+- `pending-6.18/743` RTL8261N USXGMII SerDes 补丁保留本地的 `sds_work`
+  竞态修复语义（`READ_ONCE`/`WRITE_ONCE` 发布顺序，以及每次寄存器访问前和
+  重新排队前的 disable 检查），叠加在上游的行号框架之上。
+
+### 修正路由式 IPTV 组播丢包（引入 PonWrt #29）
+
+- 引入 `pbs05/ponwrt#29` 的 `airoha: restore opt-in fraglist GRO` 修复。上游
+  `hack-6.18/600` 把 `NETIF_F_GRO_FRAGLIST` 设为默认开启后，fraglist GRO 会把
+  同流连续 UDP 报文合并成保留 DF 标志的超大 skb，该 skb 经 IPv4 组播路由转发
+  时在 `ipmr_prepare_xmit()` 被静默丢弃，导致高码率 IPTV 流大量丢包（组播不可
+  分片、无法收到 ICMP 错误，只有 `FragFails` 递增）。
+- 新增 `target/linux/airoha/patches-6.18/980-revert-fraglist-gro-by-default.patch`，
+  在 airoha target 内把 fraglist GRO 恢复为 opt-in 默认关闭，不改动通用补丁。
+- 该修复只影响 `NETIF_F_GRO_FRAGLIST` 软件路径，与 XR1710G 的
+  `NETIF_F_GRO_HW` 硬件 GRO（916-02 补丁）互不影响。
+
 ## 2026-10-01
 
 ### XG2010G FIT 动态扩容与产物检查
