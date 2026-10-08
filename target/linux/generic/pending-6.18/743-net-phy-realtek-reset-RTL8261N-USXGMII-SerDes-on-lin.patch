@@ -208,7 +208,7 @@ Signed-off-by: Daniel Golle <daniel@makrotopia.org>
  	int ret;
 --- a/drivers/net/phy/realtek/phy_patch_rtl826x.h
 +++ b/drivers/net/phy/realtek/phy_patch_rtl826x.h
-@@ -5,6 +5,11 @@
+@@ -5,6 +5,10 @@
  
  #include <linux/phy.h>
  
