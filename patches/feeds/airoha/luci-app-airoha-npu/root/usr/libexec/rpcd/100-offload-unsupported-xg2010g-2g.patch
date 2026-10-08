@@ -1,0 +1,14 @@
+diff --git a/luci-app-airoha-npu/root/usr/libexec/rpcd/airoha-common.sh b/luci-app-airoha-npu/root/usr/libexec/rpcd/airoha-common.sh
+index 1975485..7cf9fee 100644
+--- a/luci-app-airoha-npu/root/usr/libexec/rpcd/airoha-common.sh
++++ b/luci-app-airoha-npu/root/usr/libexec/rpcd/airoha-common.sh
+@@ -100,7 +100,8 @@ airoha_npu_version() {
+ 
+ airoha_bridge_offload_supported() {
+ 	case "$(airoha_board_compat)" in
+-		gemtek,xg2010g|gemtek,xg2010g-ubi|gemtek,xg2010g-recovery) return 1 ;;
++		gemtek,xg2010g|gemtek,xg2010g-ubi|gemtek,xg2010g-recovery|\
++		gemtek,xg2010g-2g|gemtek,xg2010g-2g-ubi|gemtek,xg2010g-2g-recovery) return 1 ;;
+ 		*) return 0 ;;
+ 	esac
+ }
