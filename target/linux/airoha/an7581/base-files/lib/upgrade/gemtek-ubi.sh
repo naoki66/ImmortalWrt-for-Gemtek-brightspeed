@@ -5,7 +5,8 @@ gemtek_ubi_layout_check() {
 	local board="${1:-$(board_name)}" mtd bl2="" ubi="" dev attached=""
 	local count=0 volume found bytes rootdisk
 	case "$board" in
-		gemtek,xg2010g|gemtek,xg2010g-ubi|gemtek,xr1710g-ubi) ;;
+		gemtek,xg2010g|gemtek,xg2010g-ubi|gemtek,xg2010g-2g|\
+		gemtek,xg2010g-2g-ubi|gemtek,xr1710g-ubi) ;;
 		*) return 1 ;;
 	esac
 	for mtd in /sys/class/mtd/mtd[0-9]*; do
@@ -56,7 +57,8 @@ gemtek_ubi_layout_check() {
 gemtek_ubi_compat_migrate() {
 	local board="${1:-$(board_name)}" version
 	case "$board" in
-		gemtek,xg2010g|gemtek,xg2010g-ubi|gemtek,xr1710g-ubi) ;;
+		gemtek,xg2010g|gemtek,xg2010g-ubi|gemtek,xg2010g-2g|\
+		gemtek,xg2010g-2g-ubi|gemtek,xr1710g-ubi) ;;
 		*) return 0 ;;
 	esac
 	uci -q get 'system.@system[0]' >/dev/null || return 1

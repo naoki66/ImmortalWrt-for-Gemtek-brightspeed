@@ -262,11 +262,8 @@ define Device/gemtek_xr1710g-ubi
 endef
 TARGET_DEVICES += gemtek_xr1710g-ubi
 
-define Device/gemtek_xg2010g-ubi
+define Device/gemtek_xg2010g-common
   DEVICE_VENDOR := Gemtek
-  DEVICE_MODEL := XG2010G
-  DEVICE_VARIANT := UBI
-  DEVICE_DTS := an7581-gemtek-xg2010g-ubi
   DEVICE_COMPAT_VERSION := 2.0
   DEVICE_COMPAT_MESSAGE := Firmware requires the XG2010G OpenWrt U-Boot UBI layout \
        with bl2 at 0x00000000 and ubi starting at 0x00020000, containing \
@@ -292,10 +289,26 @@ define Device/gemtek_xg2010g-ubi
   IMAGE/sysupgrade.itb := append-kernel | \
 	fit gzip $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb external-static-with-rootfs | \
 	append-metadata | check-size
-  SUPPORTED_DEVICES := gemtek,xg2010g-ubi gemtek,xg2010g
   SOC := an7581
 endef
+
+define Device/gemtek_xg2010g-ubi
+  $(call Device/gemtek_xg2010g-common)
+  DEVICE_MODEL := XG2010G
+  DEVICE_VARIANT := UBI
+  DEVICE_DTS := an7581-gemtek-xg2010g-ubi
+  SUPPORTED_DEVICES := gemtek,xg2010g-ubi gemtek,xg2010g
+endef
 TARGET_DEVICES += gemtek_xg2010g-ubi
+
+define Device/gemtek_xg2010g-2g-ubi
+  $(call Device/gemtek_xg2010g-common)
+  DEVICE_MODEL := XG2010G (2 GiB)
+  DEVICE_VARIANT := UBI
+  DEVICE_DTS := an7581-gemtek-xg2010g-2g-ubi
+  SUPPORTED_DEVICES := gemtek,xg2010g-2g-ubi gemtek,xg2010g-2g
+endef
+TARGET_DEVICES += gemtek_xg2010g-2g-ubi
 
 define Device/quantum_q1000k-ubi
   DEVICE_VENDOR := Quantum Fiber

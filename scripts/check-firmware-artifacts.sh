@@ -37,7 +37,7 @@ while IFS= read -r symbol; do
 	symbol="${symbol%=y}"
 	devices+=("${symbol##*_DEVICE_}")
 done < <(
-	grep -E '^CONFIG_(TARGET_airoha_an7581_DEVICE|TARGET_DEVICE_airoha_an7581_DEVICE)_gemtek_(xr1710g(-ubi)?|xg2010g-ubi)=y$' \
+	grep -E '^CONFIG_(TARGET_airoha_an7581_DEVICE|TARGET_DEVICE_airoha_an7581_DEVICE)_gemtek_(xr1710g(-ubi)?|xg2010g(-2g)?-ubi)=y$' \
 		"$config_file" || true
 )
 
