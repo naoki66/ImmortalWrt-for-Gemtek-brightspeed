@@ -2,10 +2,13 @@
 # Run on the XG2010G after LAN is up; does not change configuration or rules.
 set -eu
 
-[ "$(cat /tmp/sysinfo/board_name)" = "gemtek,xg2010g" ] || {
-	echo "This check is for Gemtek XG2010G." >&2
-	exit 1
-}
+case "$(cat /tmp/sysinfo/board_name)" in
+	gemtek,xg2010g|gemtek,xg2010g-ubi|gemtek,xg2010g-2g|gemtek,xg2010g-2g-ubi) ;;
+	*)
+		echo "This check is for Gemtek XG2010G." >&2
+		exit 1
+		;;
+esac
 
 status="$(ubus call network.interface.lan status)"
 [ "$(printf '%s' "$status" | jsonfilter -e '@.up')" = "true" ]

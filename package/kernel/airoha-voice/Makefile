@@ -20,7 +20,7 @@ include $(INCLUDE_DIR)/package.mk
 define KernelPackage/airoha-en7581-pcm-spi
   SUBMENU:=Voice over IP
   TITLE:=Airoha EN7581 single-SLIC voice stack
-  DEPENDS:=@TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi
+  DEPENDS:=@TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi||TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-2g-ubi
   FILES:= \
 	$(PKG_BUILD_DIR)/src/en75xx-lec.ko \
 	$(PKG_BUILD_DIR)/src/en75xx-pcm.ko \

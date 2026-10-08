@@ -130,7 +130,7 @@ endif
 define Build/Configure
 	rm -f $(PKG_BUILD_DIR)/.config
 	touch $(PKG_BUILD_DIR)/.config
-ifeq ($(CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi),y)
+ifneq ($(strip $(CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi)$(CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-2g-ubi)),)
 	echo "CONFIG_DEVMEM=y" >> $(PKG_BUILD_DIR)/.config
 endif
 ifeq ($(DEVICE_TYPE),nas)
@@ -154,7 +154,7 @@ define Package/busybox/install
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(CP) $(PKG_INSTALL_DIR)/* $(1)/
-ifeq ($(CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi),y)
+ifneq ($(strip $(CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi)$(CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-2g-ubi)),)
 	ln -sf /bin/busybox $(1)/usr/bin/devmem
 endif
 	$(INSTALL_DIR) $(1)/etc/profile.d
