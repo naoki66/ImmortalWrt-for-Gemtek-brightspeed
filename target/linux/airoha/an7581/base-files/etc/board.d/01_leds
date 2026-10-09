@@ -24,7 +24,9 @@ gemtek,w1700k-ubi)
 	ucidef_set_led_netdev "lan4-green" "lan4" "green:lan-4" "lan4" "link_1000 tx rx"
 	;;
 gemtek,xg2010g-ubi|\
-gemtek,xg2010g)
+gemtek,xg2010g|\
+gemtek,xg2010g-2g-ubi|\
+gemtek,xg2010g-2g)
 	# GPIO42 and GPIO46 drive the LAN4 bicolor LED selected by link speed.
 	ucidef_set_led_netdev "lan4-yellow" "lan4" "yellow:lan-4" "lan4" "link_10 link_100"
 	ucidef_set_led_netdev "lan4-green" "lan4" "green:lan-4" "lan4" "link_1000 tx rx"

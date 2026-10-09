@@ -6,7 +6,7 @@ case "$(board_name)" in
 gemtek,xr1710g|gemtek,xr1710g-ubi)
 	governor='performance'
 	;;
-gemtek,xg2010g|gemtek,xg2010g-ubi)
+gemtek,xg2010g|gemtek,xg2010g-ubi|gemtek,xg2010g-2g|gemtek,xg2010g-2g-ubi)
 	governor='ondemand'
 	;;
 *) exit 0 ;;
