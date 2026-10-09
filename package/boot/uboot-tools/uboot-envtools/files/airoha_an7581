@@ -40,6 +40,8 @@ gemtek,xr1710g-ubi)
 	;;
 gemtek,xg2010g-ubi|\
 gemtek,xg2010g|\
+gemtek,xg2010g-2g-ubi|\
+gemtek,xg2010g-2g|\
 gemtek,w1700k-ubi|\
 nokia,xg-040g-md-ubi|\
 nokia,xg-040g-tf-ubi)

@@ -36,7 +36,9 @@ znxt,zn504xg-d|znxt,zn515xg-d|unionman,ung00a)
 	pon_data_target factory ubi 2359296
 	;;
 gemtek,xg2010g-ubi|\
-gemtek,xg2010g)
+gemtek,xg2010g|\
+gemtek,xg2010g-2g-ubi|\
+gemtek,xg2010g-2g)
 	pon_data_target factory ubi 2097152
 	;;
 nokia,xg-040g-md-ubi|nokia,xg-040g-tf-ubi|nokia,xg-040g-mf-ubi)
@@ -54,7 +56,9 @@ json_close_object
 
 case "$board" in
 gemtek,xg2010g-ubi|\
-gemtek,xg2010g)
+gemtek,xg2010g|\
+gemtek,xg2010g-2g-ubi|\
+gemtek,xg2010g-2g)
 	identity_available=1
 	json_add_object identity
 	json_add_object targets
