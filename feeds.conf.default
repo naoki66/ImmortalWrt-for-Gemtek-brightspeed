@@ -13,3 +13,4 @@ src-git pon_userspace https://github.com/naoki66/openwrt-pon-userspace.git
 src-git easytier https://github.com/EasyTier/luci-app-easytier.git;main
 src-git openwrt_bandix https://github.com/timsaya/openwrt-bandix.git;main
 src-git luci_app_bandix https://github.com/timsaya/luci-app-bandix.git;main
+src-git helloworld https://github.com/fw876/helloworld.git;dev
