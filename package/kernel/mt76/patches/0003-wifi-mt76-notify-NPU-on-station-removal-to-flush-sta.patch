@@ -75,12 +75,12 @@ Signed-off-by: Ryan Chen <rchen14b@gmail.com>
  {
 --- a/mt7996/main.c
 +++ b/mt7996/main.c
-@@ -1203,6 +1203,8 @@ void mt7996_mac_sta_remove_link(struct mt7996_dev *dev,
+@@ -1313,6 +1313,8 @@ void mt7996_mac_sta_remove_link(struct mt7996_dev *dev,
  	if (msta_link->wcid.link_valid) {
  		mt7996_mac_wtbl_update(dev, msta_link->wcid.idx,
  				       MT_WTBL_UPDATE_ADM_COUNT_CLEAR);
 +		mt76_npu_del_sta(&dev->mt76, msta_link->wcid.phy_idx,
 +				 msta_link->wcid.idx);
  
- 		if (msta->deflink_id == link_id) {
- 			msta->deflink_id = IEEE80211_LINK_UNSPECIFIED;
+ 		mt7996_sta_deflink_release(dev, sta, link_id);
+ 		msta_link->wcid.link_valid = false;

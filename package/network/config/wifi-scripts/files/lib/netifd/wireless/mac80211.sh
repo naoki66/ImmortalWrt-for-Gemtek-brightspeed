@@ -517,8 +517,6 @@ mac80211_hostapd_setup_base() {
 
 	if [ "$enable_be" != "0" ]; then
 		append base_cfg "ieee80211be=1" "$N"
-
-
 		[ "$hwmode" = "a" ] && {
 			append base_cfg "eht_oper_chwidth=$eht_oper_chwidth" "$N"
 			append base_cfg "eht_oper_centr_freq_seg0_idx=$eht_center_seg0" "$N"
@@ -563,26 +561,12 @@ mac80211_hostapd_setup_bss() {
 
 	cat >> /var/run/hostapd-$phy$vif_phy_suffix.conf <<EOF
 $hostapd_cfg
-bssid=$macaddr
+${macaddr:+bssid=$macaddr}
 ${default_macaddr:+#default_macaddr}
 ${random_macaddr:+#random_macaddr}
 ${dtim_period:+dtim_period=$dtim_period}
 ${max_listen_int:+max_listen_interval=$max_listen_int}
 EOF
-}
-
-mac80211_get_addr() {
-	local phy="$1"
-	local idx="$(($2 + 1))"
-
-	head -n $idx /sys/class/ieee80211/${phy}/addresses | tail -n1
-}
-
-mac80211_generate_mac() {
-	local phy="$1"
-	local id="${macidx:-0}"
-
-	wdev_tool "$phy$phy_suffix" get_macaddr id=$id num_global=$num_global_macaddr mbssid=${multiple_bssid:-0} macaddr_base=${macaddr_base}
 }
 
 get_board_phy_name() (
@@ -717,8 +701,6 @@ mac80211_prepare_vif() {
 	default_macaddr=
 	random_macaddr=
 	if [ -z "$macaddr" ]; then
-		macaddr="$(mac80211_generate_mac $phy)"
-		macidx="$(($macidx + 1))"
 		default_macaddr=1
 	elif [ "$macaddr" = 'random' ]; then
 		macaddr="$(macaddr_random)"
@@ -1203,7 +1185,6 @@ drv_mac80211_setup() {
 
 	hostapd_conf_file="/var/run/hostapd-$phy$vif_phy_suffix.conf"
 
-	macidx=0
 	staidx=0
 
 	[ -n "$chanbw" ] && {
@@ -1258,7 +1239,8 @@ drv_mac80211_setup() {
 	[ -x /usr/sbin/wpa_supplicant ] && wpa_supplicant_start "$phy" "$radio"
 
 	json_set_namespace wdev_uc prev
-	wdev_tool "$phy$phy_suffix" set_config "$(json_dump)" $active_ifnames
+	wdev_tool "$phy$phy_suffix" set_config "$(json_dump)" \
+		num_global=$num_global_macaddr macaddr_base=$macaddr_base $active_ifnames
 	json_set_namespace "$prev"
 
 	[ -z "$phy_suffix" ] && {

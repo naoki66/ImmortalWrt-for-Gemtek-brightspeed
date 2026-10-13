@@ -42,14 +42,6 @@ function reset_config(phy, radio) {
 	system(`ucode /usr/share/hostap/wdev.uc ${name} set_config '{}'`);
 }
 
-function supports_antenna_control(phy) {
-	// MediaTek MT7996 exposes antenna masks but does not implement the
-	// nl80211 set-antenna operation; avoid resetting AP state for a command
-	// that can only fail with EOPNOTSUPP.
-	let uevent = fs.readfile(`/sys/class/ieee80211/${phy}/device/uevent`) ?? '';
-	return index(uevent, 'DRIVER=mt7996e') < 0;
-}
-
 function get_channel_frequency(band, channel) {
 	if (channel < 1)
 		return null;
@@ -93,8 +85,7 @@ function setup_phy(phy, config, data) {
 
 	let antenna_changed = (config.txantenna != data?.txantenna || config.rxantenna != data?.rxantenna);
 
-	let antenna_supported = supports_antenna_control(phy);
-	if (antenna_changed && antenna_supported)
+	if (antenna_changed)
 		reset_config(phy, config.radio);
 
 	netifd.set_data({
@@ -110,7 +101,7 @@ function setup_phy(phy, config, data) {
 		config.txpower = 'auto';
 
 	log(`Configuring '${phy}' distance: ${config.distance}`);
-	if (antenna_changed && antenna_supported) {
+	if (antenna_changed) {
 		log(`Setting antenna for '${phy}' txantenna: ${config.txantenna}, rxantenna: ${config.rxantenna}`);
 		system(`iw phy ${phy} set antenna ${config.txantenna} ${config.rxantenna} >/dev/null 2>&1`);
 	}
@@ -187,7 +178,6 @@ function setup() {
 	data.ifname_prefix = data.config.ifname_prefix;
 	if (!data.ifname_prefix)
 		data.ifname_prefix = data.phy + data.vif_phy_suffix + "-";
-	let active_ifnames = [];
 
 	log('Starting');
 
@@ -230,12 +220,10 @@ function setup() {
 
 		if (!v.config.ifname)
 			v.config.ifname = data.ifname_prefix + mode + mode_idx;
-		push(active_ifnames, v.config.ifname);
 
 		if (v.config.encryption == 'owe' && v.config.owe_transition) {
 			mode_idx = idx[mode]++;
 			v.config.owe_transition_ifname = data.ifname_prefix + mode + mode_idx;
-			push(active_ifnames, v.config.ifname);
 		}
 
 		switch (mode) {
@@ -250,7 +238,7 @@ function setup() {
 			if (mode != "ap")
 				data.config.noscan = true;
 			validate('iface', v.config);
-			iface.prepare(v.config, data.phy + data.phy_suffix, data.config.num_global_macaddr, data.config.macaddr_base);
+			iface.prepare(v.config);
 			netifd.set_vif(k, v.config.ifname);
 			break;
 		}
@@ -305,15 +293,12 @@ function setup() {
 		wdev_data[v.config.ifname] = config;
 	}
 
-	for (let ifname in active_ifnames) {
-		if (!wdev_data[ifname])
-			continue;
-
-		let if_config = {
-			[ifname]: wdev_data[ifname]
-		};
-		system(`ucode /usr/share/hostap/wdev.uc ${data.phy}${data.phy_suffix} set_config '${if_config}'`);
-	}
+	system([
+		"ucode", "/usr/share/hostap/wdev.uc", data.phy + data.phy_suffix, "set_config",
+		sprintf("%J", wdev_data),
+		`num_global=${data.config.num_global_macaddr ?? ""}`,
+		`macaddr_base=${data.config.macaddr_base ?? ""}`,
+	]);
 
 	if (fs.access('/usr/sbin/wpa_supplicant', 'x'))
 		supplicant.setup(supplicant_data, data);
