@@ -216,6 +216,10 @@ TARGET_DEVICES += nokia_xg-040g-tf-ubi
 define Device/gemtek_xr1710g-common
   DEVICE_VENDOR := Gemtek
   DEVICE_MODEL := XR1710G
+  # Retail branding only. Keep it out of DEVICE_ALT0_*: Device/Dump emits one
+  # Target Profile entry per ALT name on top of the primary one, so an alias
+  # here would print two menu lines for every XR1710G layout.
+  DEVICE_DESCRIPTION := Gemtek XR1710G, also sold as Brightspeed XR1710G
   DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware airoha-an7581-mt7996-board \
 		    kmod-nf-conntrack-bridge kmod-nft-bridge \
 		    fitblk uboot-envtools \
@@ -241,8 +245,6 @@ define Device/gemtek_xr1710g
   # lines use := and freeze $(firstword $(DEVICE_DTS)) at eval time.
   DEVICE_DTS := an7581-xr1710g
   $(call Device/gemtek_xr1710g-common)
-  DEVICE_ALT0_VENDOR := Brightspeed
-  DEVICE_ALT0_MODEL := XR1710G
   SUPPORTED_DEVICES := gemtek,xr1710g
 endef
 TARGET_DEVICES += gemtek_xr1710g
@@ -250,9 +252,10 @@ TARGET_DEVICES += gemtek_xr1710g
 define Device/gemtek_xr1710g-ubi
   DEVICE_DTS := an7581-gemtek-xr1710g-ubi
   $(call Device/gemtek_xr1710g-common)
-  DEVICE_MODEL := XR1710G (OpenWrt U-Boot UBI layout)
-  DEVICE_ALT0_VENDOR := Brightspeed
-  DEVICE_ALT0_MODEL := XR1710G (OpenWrt U-Boot UBI layout)
+  # Layout goes into DEVICE_VARIANT (like nokia_xg-040g-md-ubi), not into
+  # DEVICE_MODEL: that keeps the title free of a "(...)" suffix and the menu
+  # list at one line per layout. Matches gemtek_xg2010g-ubi in this file.
+  DEVICE_VARIANT := UBI
   SUPPORTED_DEVICES := gemtek,xr1710g-ubi
   DEVICE_COMPAT_VERSION := 2.0
   DEVICE_COMPAT_MESSAGE := Firmware requires the XR1710G OpenWrt U-Boot UBI layout \
