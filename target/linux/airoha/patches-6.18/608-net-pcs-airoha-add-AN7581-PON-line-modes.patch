@@ -508,7 +508,7 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
  #include <linux/phylink.h>
  #include <linux/regmap.h>
  
-@@ -1821,6 +1822,1476 @@ static void an7581_pcs_cdr_reset(struct
+@@ -1821,6 +1822,1539 @@ static void an7581_pcs_cdr_reset(struct
  			  AIROHA_PCS_PMA_FORCE_SEL_DA_CDR_LPF_LCK2DATA);
  }
  
@@ -1952,6 +1952,62 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
 +	return 0;
 +}
 +
++/*
++ * XPON PHY top reset.  Vendor xPON_Phy_Reset() for the GEPON (2.48832G /
++ * 1.25G) PHY: en7581_gepon_pon_phy_reset() switches WAN_SEL to a clock-safe
++ * window, holds and releases SCU RG_SCU_RST[0] (XPON PHY top reset), then
++ * restores WAN_SEL.  The vendor runs it before any GEPON register is
++ * programmed: phy_init.c xPON_Phy_Reset() is called unconditionally for
++ * XEPON_1G_1G, and again through PON_SET_PHY_SCU_RST on re-initialization.
++ * The PHY top reset restores the PHY defaults, so callers must re-apply
++ * GEPON_PHYSET10 afterwards.
++ */
++#define AIROHA_SCU_RST_CFG		0x830
++#define   AIROHA_SCU_XPON_PHY_TOP_RESET	BIT(0)
++
++static int an7581_pcs_pon_phy_top_reset(struct airoha_pcs_priv *priv)
++{
++	u32 wan_conf;
++	int ret;
++
++	ret = regmap_read(priv->scu, AIROHA_SCU_WAN_CONF, &wan_conf);
++	if (ret)
++		return ret;
++
++	/* Select the HSGMII window while the XPON PHY top reset is asserted. */
++	regmap_update_bits(priv->scu, AIROHA_SCU_WAN_CONF, AIROHA_SCU_WAN_SEL,
++			   AIROHA_SCU_WAN_SEL_HSGMII);
++	udelay(1);
++
++	regmap_set_bits(priv->scu, AIROHA_SCU_RST_CFG,
++			AIROHA_SCU_XPON_PHY_TOP_RESET);
++	udelay(1);
++	regmap_clear_bits(priv->scu, AIROHA_SCU_RST_CFG,
++			  AIROHA_SCU_XPON_PHY_TOP_RESET);
++	udelay(1);
++
++	return regmap_write(priv->scu, AIROHA_SCU_WAN_CONF, wan_conf);
++}
++
++int airoha_pcs_pon_phy_top_reset(struct phylink_pcs *pcs)
++{
++	struct airoha_pcs_port *port;
++	struct airoha_pcs_priv *priv;
++
++	if (!pcs)
++		return -EINVAL;
++
++	port = to_airoha_pcs_port(pcs);
++	priv = port->priv;
++
++	/* DTS and SoC match data provide the AN7581 and AN7583 register windows. */
++	if (priv->data->port_type != AIROHA_PCS_PON)
++		return -EOPNOTSUPP;
++
++	return an7581_pcs_pon_phy_top_reset(priv);
++}
++EXPORT_SYMBOL_GPL(airoha_pcs_pon_phy_top_reset);
++
 +int an7581_pcs_pon_start_rx(struct airoha_pcs_priv *priv, int index,
 +			    phy_interface_t interface)
 +{
@@ -1976,7 +2032,14 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
 +
 +int an7581_pcs_pon_stop_rx(struct airoha_pcs_priv *priv, int index)
 +{
-+	if (priv->pon_mode == AIROHA_PCS_PON_MODE_EPON_1G)
++	/*
++	 * GPON and 1G-EPON are brought up through an7581_pcs_bringup() and
++	 * never run the FIRST_PLUG_IN state machine, so they have no PLUG_OUT
++	 * step: only the 10G modes retain a first-plug calibration to power
++	 * down through TDC off plus L2R.
++	 */
++	if (priv->pon_mode == AIROHA_PCS_PON_MODE_GPON ||
++	    priv->pon_mode == AIROHA_PCS_PON_MODE_EPON_1G)
 +		return 0;
 +
 +	return an7581_pcs_pon_plug_out(priv, index);
@@ -1985,7 +2048,7 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
  static int an7581_pcs_phya_bringup(struct airoha_pcs_priv *priv,
  				   int index, phy_interface_t interface)
  {
-@@ -1834,6 +3296,8 @@ static int an7581_pcs_phya_bringup(struc
+@@ -1834,6 +3368,8 @@ static int an7581_pcs_phya_bringup(struc
  
  	an7581_pcs_tx_bringup(priv, index, interface);
  	an7581_pcs_rx_bringup(priv, index, interface);
@@ -3080,7 +3143,7 @@ Index: b/include/linux/pcs/pcs-airoha.h
 ===================================================================
 --- /dev/null
 +++ b/include/linux/pcs/pcs-airoha.h
-@@ -0,0 +1,87 @@
+@@ -0,0 +1,98 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef __LINUX_PCS_AIROHA_H
 +#define __LINUX_PCS_AIROHA_H
@@ -3158,6 +3221,17 @@ Index: b/include/linux/pcs/pcs-airoha.h
 + * first analog calibration result. Frontend and MAC providers own line state.
 + */
 +int airoha_pcs_pon_stop_rx(struct phylink_pcs *pcs);
++
++/**
++ * airoha_pcs_pon_phy_top_reset() - reset the XPON PHY through SCU
++ * @pcs: Airoha PON PCS provider
++ *
++ * Vendor xPON_Phy_Reset(): switch WAN_SEL to a clock-safe window, hold and
++ * release SCU RG_SCU_RST[0] (XPON PHY top reset), then restore WAN_SEL.
++ * Call it before programming any GEPON (2.48832G / 1.25G) register; the
++ * reset restores the PHY defaults, so re-apply GEPON_PHYSET10 afterwards.
++ */
++int airoha_pcs_pon_phy_top_reset(struct phylink_pcs *pcs);
 +
 +/**
 + * airoha_pcs_pon_get_rx_status() - read Airoha PON PMA receive status
