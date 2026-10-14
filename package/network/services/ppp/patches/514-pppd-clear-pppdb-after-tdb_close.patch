@@ -1,0 +1,59 @@
+pppd: clear pppdb after tdb_close() in ppp_safe_fork() child
+
+Backport of upstream ppp commit 26093eeea8; the change is byte-identical
+to upstream, only the context line numbers differ.
+
+ppp_safe_fork() closes the inherited TDB handle in the child so that a
+script cannot disturb the parent's database, but it leaves the global
+`pppdb' pointer pointing at the freed tdb_context.
+
+run_program() keeps running in that child and calls
+ppp_script_setenv("PPP_SCRIPT_INSTANCE", ...) before fexecve(). That call
+was added by e87ddf0085c6 for 2.5.4 and is what makes the stale pointer
+reachable again: ppp_script_setenv() sees pppdb != NULL and ends up in
+update_db_entry() -> tdb_store() -> tdb_lock() on the freed context.
+
+    ldr  w1, [x1, x22]        ; x22 = (list + 1) * 8
+                              ; x1  = tdb->locked  (already freed by
+                              ;       tdb_close() -> SAFE_FREE())
+
+The new environment string is malloc()ed immediately afterwards, so it
+frequently reuses the freed chunk and the outcome depends on heap
+layout. Observed on 2.5.4 + PPPoE (airoha/an7581): every script child
+dies, reproducibly
+
+    pppd: pppd: potentially unexpected fatal signal 11.
+    pc : 0045434e4154534e          <- ASCII "NSTANCE\0": the recycled
+                                      chunk now holds the
+                                      "PPP_SCRIPT_INSTANCE" string
+    Child process /lib/netifd/ppp-up (pid N) terminated with signal 11
+
+The parent only logs the failure and carries on, so ip-up, ip-down and
+ppp6-up are silently skipped. With netifd that means
+/lib/netifd/ppp-up never runs, notify_proto is never called and the WAN
+default route is never installed -- while PPPoE/LCP/IPCP themselves
+complete fine and the data plane works.
+
+Only builds with --enable-multilink (PPP_WITH_TDB) are affected; that is
+what the ppp-multilink package variant selects.
+
+Upstream: 26093eeea8 ("pppd: Clear pppdb after tdb_close() in ppp_safe_fork()")
+          Author: Adam Zegarek <keragez@gmail.com>
+Fixes:    e87ddf0085c6 ("run_program: Export the name of the script via PPP_SCRIPT_INSTANCE")
+Note:     droppable once ppp is bumped past 2.5.4 -- as of v2.5.4 the fix
+          exists only on upstream master, no release contains it.
+
+--- a/pppd/main.c
++++ b/pppd/main.c
+@@ -1755,8 +1755,10 @@
+ 	/* Executing in the child */
+ 	ppp_sys_close();
+ #ifdef PPP_WITH_TDB
+-	if (pppdb != NULL)
++	if (pppdb != NULL) {
+ 		tdb_close(pppdb);
++		pppdb = NULL;	/* tdb_close() can't null the caller's pointer */
++	}
+ #endif
+ 
+ 	/* make sure infd, outfd and errfd won't get tromped on below */
