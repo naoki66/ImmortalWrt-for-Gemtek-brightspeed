@@ -233,6 +233,16 @@ CONFIG_NEED_SG_DMA_LENGTH=y
 CONFIG_NET_AIROHA=y
 # CONFIG_NET_AIROHA_FLOW_STATS is not set
 CONFIG_NET_AIROHA_NPU=y
+# Bridge flowtable offload (bridged PPPoE / L2B into the Airoha PPE).
+# See an7581/config-6.18 for the per-symbol rationale; the same six options
+# are needed for the bridge-family flowtable to reach nf_flow_table.
+CONFIG_BRIDGE_NETFILTER=y
+CONFIG_NF_CONNTRACK_BRIDGE=y
+CONFIG_NF_FLOW_TABLE=y
+CONFIG_NF_FLOW_TABLE_INET=y
+CONFIG_NFT_FLOW_OFFLOAD=y
+CONFIG_NF_TABLES_BRIDGE=y
+CONFIG_NETFILTER_FAMILY_BRIDGE=y
 CONFIG_NET_DEVLINK=y
 CONFIG_NET_DSA=y
 CONFIG_NET_DSA_MT7530=y

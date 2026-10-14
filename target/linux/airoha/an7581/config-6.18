@@ -235,9 +235,34 @@ CONFIG_MUTEX_SPIN_ON_OWNER=y
 CONFIG_NEED_DMA_MAP_STATE=y
 CONFIG_NEED_SG_DMA_LENGTH=y
 CONFIG_NET_AIROHA=y
+# CONFIG_AIROHA_PON_COMPAT is not set by default here; the an7581 subtarget is
+# shared by PON and non-PON boards, and only the xPON boards need the legacy
+# FE/QDMA exports plus the PPE multicast provider. Select it from the PON
+# device seed configs (e.g. xg2010g) instead of enabling it target-wide.
 # CONFIG_AIROHA_PON_COMPAT is not set
 # CONFIG_NET_AIROHA_FLOW_STATS is not set
 CONFIG_NET_AIROHA_NPU=y
+# --- Bridge flowtable offload (bridged PPPoE / L2B into the Airoha PPE) ---
+# The generic config ships these off (its defaults are the most conservative
+# across all targets). Without them the bridge-family flowtable fw4 can build
+# never reaches nf_flow_table, so no bridged flow lands in the PPE:
+#   BRIDGE_NETFILTER       - bridge netfilter hooks (br_netfilter)
+#   NF_CONNTRACK_BRIDGE    - conntrack on the bridge, required for the PPPoE
+#                            and double-VLAN bridge conntrack added by
+#                            generic/pending 675-07 (a conntrack zone is a
+#                            hard requirement for those encapsulations)
+#   NF_FLOW_TABLE          - flowtable core
+#   NF_FLOW_TABLE_INET     - mixed IPv4/IPv6 flowtable (fw4 uses inet)
+#   NFT_FLOW_OFFLOAD       - the nft flow offload expression fw4 emits
+#   NF_TABLES_BRIDGE       - the bridge nft family fw4's `table bridge fw4` needs
+#   NETFILTER_XTABLES      - ebtables/xt bridge matching used by the filters
+CONFIG_BRIDGE_NETFILTER=y
+CONFIG_NF_CONNTRACK_BRIDGE=y
+CONFIG_NF_FLOW_TABLE=y
+CONFIG_NF_FLOW_TABLE_INET=y
+CONFIG_NFT_FLOW_OFFLOAD=y
+CONFIG_NF_TABLES_BRIDGE=y
+CONFIG_NETFILTER_FAMILY_BRIDGE=y
 CONFIG_NET_DEVLINK=y
 CONFIG_NET_DSA=y
 CONFIG_NET_DSA_MT7530=y
