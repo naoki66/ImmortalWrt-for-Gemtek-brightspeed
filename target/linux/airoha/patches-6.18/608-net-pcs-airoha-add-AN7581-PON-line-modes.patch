@@ -508,7 +508,7 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
  #include <linux/phylink.h>
  #include <linux/regmap.h>
  
-@@ -1821,6 +1822,1570 @@ static void an7581_pcs_cdr_reset(struct
+@@ -1821,6 +1822,1605 @@ static void an7581_pcs_cdr_reset(struct
  			  AIROHA_PCS_PMA_FORCE_SEL_DA_CDR_LPF_LCK2DATA);
  }
  
@@ -1162,6 +1162,40 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
 +		 0x9edf : 0xa49a);
 +
 +	return ret;
++}
++
++/*
++ * Run the PrCal sequence for a 1G PON line mode.
++ *
++ * GPON shares the XG-PON CDR feedback window: XPON_DIG_fm_on() takes
++ * fm_Sync_GPON / fm_Async_GPON down its XG-PON branch and programs
++ * SS_RX_FREQ_DET_1 = 0x7fff7fff with SS_RX_FREQ_DET_2 and SS_RX_FREQ_DET_3 =
++ * 0xa436..0xa4ff, and XPON_PrCal_WK() searches the CDR PR IDAC against
++ * FL_Out_target = 0xa49a for Sync_GPON (both in the vendor en7581_pma.c).
++ * an7581_pcs_rx_prcal() has no GPON row: the 1G modes map to 2500BASEX,
++ * whose 0xa000 target and 0x9f9c..0xa064 window belong to the 2.5G ethernet
++ * SerDes, so the 2.48832G receiver never reports a locked frequency feedback
++ * loop and get_rx_status() keeps freqdet_locked=0.  1G-EPON keeps the
++ * 1000BASEX row, whose 0xa3d6 target already is the vendor fm_Sync_EPON_1/2
++ * value.
++ */
++static void an7581_pcs_pon_1g_prcal(struct airoha_pcs_priv *priv, int index,
++				    phy_interface_t interface)
++{
++	struct regmap *pma = priv->pcs_pma[index];
++
++	if (priv->pon_mode != AIROHA_PCS_PON_MODE_GPON) {
++		an7581_pcs_rx_prcal(priv, index, interface);
++		return;
++	}
++
++	/* XPON_DIG_fm_on(fm_Sync_GPON): CDR_FB_CK frequency meter window. */
++	regmap_write(pma, 0x14c, 0x7fff7fff);
++	regmap_write(pma, 0x150, (0xa4ff << 16) | 0xa436);
++	regmap_write(pma, 0x154, (0xa4ff << 16) | 0xa436);
++
++	/* XPON_PrCal_WK(Sync_GPON) searches the PR IDAC against 0xa49a. */
++	(void)an7581_pcs_pon_xgpon_prcal(priv, index);
 +}
 +
 +static void an7581_pcs_pon_tdc_off(struct airoha_pcs_priv *priv, int index)
@@ -2028,9 +2062,10 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
 +		 * freqdet_locked=0 with frequency_target stuck at its reset value
 +		 * and the receiver never reaches downstream sync.  XG-PON and
 +		 * XGS-PON are covered by the first-plug PrCal; the 1G modes need
-+		 * this explicit run.
++		 * this explicit run, with the GPON window substituted because
++		 * the 2500BASEX row of rx_prcal() is the 2.5G ethernet one.
 +		 */
-+		an7581_pcs_rx_prcal(priv, index, interface);
++		an7581_pcs_pon_1g_prcal(priv, index, interface);
 +		return 0;
 +	}
 +
@@ -2049,12 +2084,12 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
 +			return ret;
 +		/*
 +		 * an7581_pcs_bringup() pulses the PMA global reset, which clears
-+		 * the FreqDet windows programmed by an7581_pcs_rx_prcal(), so
-+		 * re-arm them here exactly as an7581_pcs_pon_start_rx() does.
-+		 * The 1G modes reach this path whenever the receive path is
-+		 * restarted with a profile already configured.
++		 * the FreqDet windows programmed by the calibration, so re-arm
++		 * them here exactly as an7581_pcs_pon_start_rx() does.  The 1G
++		 * modes reach this path whenever the receive path is restarted
++		 * with a profile already configured.
 +		 */
-+		an7581_pcs_rx_prcal(priv, index, interface);
++		an7581_pcs_pon_1g_prcal(priv, index, interface);
 +		return 0;
 +	}
 +
@@ -2079,7 +2114,7 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
  static int an7581_pcs_phya_bringup(struct airoha_pcs_priv *priv,
  				   int index, phy_interface_t interface)
  {
-@@ -1834,6 +3399,8 @@ static int an7581_pcs_phya_bringup(struc
+@@ -1834,6 +3434,8 @@ static int an7581_pcs_phya_bringup(struc
  
  	an7581_pcs_tx_bringup(priv, index, interface);
  	an7581_pcs_rx_bringup(priv, index, interface);
