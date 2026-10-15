@@ -5,7 +5,7 @@ gemtek_ubi_layout_check() {
 	local board="${1:-$(board_name)}" mtd bl2="" ubi="" dev attached=""
 	local count=0 volume found bytes rootdisk
 	case "$board" in
-		gemtek,xg2010g|gemtek,xg2010g-ubi|gemtek,xg2010g-2g|\
+		gemtek,xg2010g-ubi|gemtek,xg2010g-2g|\
 		gemtek,xg2010g-2g-ubi|gemtek,xr1710g-ubi) ;;
 		*) return 1 ;;
 	esac
@@ -57,7 +57,7 @@ gemtek_ubi_layout_check() {
 gemtek_ubi_compat_migrate() {
 	local board="${1:-$(board_name)}" version
 	case "$board" in
-		gemtek,xg2010g|gemtek,xg2010g-ubi|gemtek,xg2010g-2g|\
+		gemtek,xg2010g-ubi|gemtek,xg2010g-2g|\
 		gemtek,xg2010g-2g-ubi|gemtek,xr1710g-ubi) ;;
 		*) return 0 ;;
 	esac

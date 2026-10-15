@@ -10,7 +10,6 @@ board_config_update
 case "$(board_name)" in
 	gemtek,w1700k-ubi|\
 	gemtek,xr1710g-ubi|\
-	gemtek,xg2010g|\
 	gemtek,xg2010g-ubi|\
 	gemtek,xg2010g-2g|\
 	gemtek,xg2010g-2g-ubi)

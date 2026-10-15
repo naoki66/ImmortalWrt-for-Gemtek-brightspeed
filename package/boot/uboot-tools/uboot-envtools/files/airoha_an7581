@@ -39,13 +39,18 @@ gemtek,xr1710g-ubi)
 	ubootenv_add_ubi_default
 	;;
 gemtek,xg2010g-ubi|\
-gemtek,xg2010g|\
 gemtek,xg2010g-2g-ubi|\
 gemtek,xg2010g-2g|\
 gemtek,w1700k-ubi|\
 nokia,xg-040g-md-ubi|\
 nokia,xg-040g-tf-ubi)
 	ubootenv_add_ubi_default
+	;;
+gemtek,xg2010g)
+	# The vendor partition table keeps the environment in the non-redundant
+	# "uenv" MTD partition (CONFIG_ENV_IS_IN_MTD, offset 0x0, 0x4000 bytes),
+	# not in UBI volumes like the OpenWrt U-Boot UBI layout does.
+	ubootenv_add_mtd "uenv" "0x0" "0x4000" "0x20000"
 	;;
 nokia,xg-040g-md)
 	ubootenv_add_mtd "u-boot-env" "0x1c000" "0x4000" "0x4000"

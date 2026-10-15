@@ -267,11 +267,6 @@ TARGET_DEVICES += gemtek_xr1710g-ubi
 
 define Device/gemtek_xg2010g-common
   DEVICE_VENDOR := Gemtek
-  DEVICE_COMPAT_VERSION := 2.0
-  DEVICE_COMPAT_MESSAGE := Firmware requires the XG2010G OpenWrt U-Boot UBI layout \
-       with bl2 at 0x00000000 and ubi starting at 0x00020000, containing \
-       fip, ubootenv, ubootenv2, factory and fit. Do not force an upgrade from \
-       the legacy 0x00600000 layout. Preserve bl2 and the boot/calibration volumes.
   DEVICE_PACKAGES := fitblk kmod-leds-gpio kmod-gpio-button-hotplug \
 	kmod-phy-airoha-en8811h kmod-phy-realtek rtl826x-firmware \
 	kmod-nf-conntrack-bridge kmod-nft-bridge \
@@ -295,13 +290,35 @@ define Device/gemtek_xg2010g-common
   SOC := an7581
 endef
 
+define Device/gemtek_xg2010g-ubi-common
+  # Only the UBI layout keeps everything but the preloader inside the UBI
+  # volumes, so the 2.0 compat version and its warning belong to the -ubi
+  # variants rather than to the vendor layout of Device/gemtek_xg2010g.
+  DEVICE_VARIANT := UBI
+  DEVICE_COMPAT_VERSION := 2.0
+  DEVICE_COMPAT_MESSAGE := Firmware requires the XG2010G OpenWrt U-Boot UBI layout \
+       with bl2 at 0x00000000 and ubi starting at 0x00020000, containing \
+       fip, ubootenv, ubootenv2, factory and fit. Do not force an upgrade from \
+       the legacy 0x00600000 layout. Preserve bl2 and the boot/calibration volumes.
+endef
+
+define Device/gemtek_xg2010g
+  # DEVICE_DTS must be set before the common block: the common IMAGE line
+  # uses := and freezes $(firstword $(DEVICE_DTS)) at eval time.
+  DEVICE_DTS := an7581-xg2010g
+  $(call Device/gemtek_xg2010g-common)
+  DEVICE_MODEL := XG2010G
+  SUPPORTED_DEVICES := gemtek,xg2010g
+endef
+TARGET_DEVICES += gemtek_xg2010g
+
 define Device/gemtek_xg2010g-ubi
   # DEVICE_DTS must be set before the common block: the common IMAGE line
   # uses := and freezes $(firstword $(DEVICE_DTS)) at eval time.
   DEVICE_DTS := an7581-gemtek-xg2010g-ubi
   $(call Device/gemtek_xg2010g-common)
+  $(call Device/gemtek_xg2010g-ubi-common)
   DEVICE_MODEL := XG2010G
-  DEVICE_VARIANT := UBI
   SUPPORTED_DEVICES := gemtek,xg2010g-ubi gemtek,xg2010g
 endef
 TARGET_DEVICES += gemtek_xg2010g-ubi
@@ -309,8 +326,8 @@ TARGET_DEVICES += gemtek_xg2010g-ubi
 define Device/gemtek_xg2010g-2g-ubi
   DEVICE_DTS := an7581-gemtek-xg2010g-2g-ubi
   $(call Device/gemtek_xg2010g-common)
+  $(call Device/gemtek_xg2010g-ubi-common)
   DEVICE_MODEL := XG2010G (2 GiB)
-  DEVICE_VARIANT := UBI
   SUPPORTED_DEVICES := gemtek,xg2010g-2g-ubi gemtek,xg2010g-2g
 endef
 TARGET_DEVICES += gemtek_xg2010g-2g-ubi

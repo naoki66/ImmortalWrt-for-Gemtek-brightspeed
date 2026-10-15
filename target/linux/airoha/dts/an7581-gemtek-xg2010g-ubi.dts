@@ -12,7 +12,7 @@
 
 / {
 	model = "Gemtek XG2010G";
-	compatible = "gemtek,xg2010g", "airoha,an7581", "airoha,en7581";
+	compatible = "gemtek,xg2010g-ubi", "airoha,an7581", "airoha,en7581";
 
 	aliases {
 		label-mac-device = &lan_10g_eth;

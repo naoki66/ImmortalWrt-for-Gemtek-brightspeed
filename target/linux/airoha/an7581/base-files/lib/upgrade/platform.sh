@@ -46,7 +46,6 @@ platform_check_image() {
 		return $?
 		;;
 	gemtek,xg2010g-ubi|\
-	gemtek,xg2010g|\
 	gemtek,xg2010g-2g-ubi|\
 	gemtek,xg2010g-2g|\
 	gemtek,xr1710g-ubi)
@@ -73,7 +72,6 @@ platform_do_upgrade() {
 
 	case "$board" in
 		gemtek,xg2010g-ubi|\
-		gemtek,xg2010g|\
 		gemtek,xg2010g-2g-ubi|\
 		gemtek,xg2010g-2g|\
 		gemtek,xr1710g-ubi)
@@ -81,6 +79,7 @@ platform_do_upgrade() {
 				airoha_require_ubi_layout factory && fit_do_upgrade "$1"
 			;;
 		gemtek,w1700k-ubi|\
+		gemtek,xg2010g|\
 		gemtek,xr1710g|\
 		nokia,xg-040g-md-ubi|\
 		nokia,xg-040g-tf-ubi|\
