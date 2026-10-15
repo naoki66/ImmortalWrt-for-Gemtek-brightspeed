@@ -1,6 +1,18 @@
 From: Yanghan Ye <yyh94306@gmail.com>
-Date: Fri, 14 Aug 2026 23:50:00 +0800
-Subject: [PATCH] PCI: mediatek-gen3: order EN7581 dual-HIF PERST release
+Date: Wed, 15 Oct 2026 00:00:00 +0800
+Subject: [PATCH] PCI: mediatek-gen3: configure EN7581 link before PERST and order dual-HIF PERST release
+
+EN7581 releases the endpoint reset from its SoC power-up callback, before
+the generic startup path normally programs the requested link width and
+speed. The endpoint can therefore train using stale controller defaults.
+
+Read max-link-speed before power-up. Configure RC mode and link width only
+on the primary MAC, while applying the requested speed to every active MAC
+before PERST is released. In particular, MAC1 is the second lane of PCIe0's
+bonded x2 link and must not be configured as another x2 root port.
+
+The generic startup path still applies the same primary-MAC configuration,
+keeping resume and non-EN7581 behavior unchanged.
 
 XR1710G connects one MT7996 endpoint to a Gen3 x2 link on PCIe0 and a
 Gen2 x1 secondary HIF on PCIe2. The secondary HIF must not leave reset
@@ -53,16 +65,87 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  	u32 flags;
  };
  
-@@ -454,6 +459,8 @@ static int mtk_pcie_startup_port(struct
+@@ -411,42 +416,56 @@ static void mtk_pcie_enable_msi(struct mtk_gen3_pcie *pcie)
+ 	writel_relaxed(val, pcie->base + PCIE_INT_ENABLE_REG);
+ }
+ 
+-static int mtk_pcie_startup_port(struct mtk_gen3_pcie *pcie)
++static void mtk_pcie_configure_link_speed(struct mtk_gen3_pcie *pcie,
++					  void __iomem *base)
++{
++	u32 val;
++
++	if (!pcie->max_link_speed)
++		return;
++
++	val = readl_relaxed(base + PCIE_SETTING_REG);
++	val &= ~PCIE_SETTING_GEN_SUPPORT;
++	if (pcie->max_link_speed >= 2)
++		val |= FIELD_PREP(PCIE_SETTING_GEN_SUPPORT,
++				  GENMASK(pcie->max_link_speed - 2, 0));
++	writel_relaxed(val, base + PCIE_SETTING_REG);
++
++	val = readl_relaxed(base + PCIE_CONF_LINK2_CTL_STS);
++	val &= ~PCIE_CONF_LINK2_LCR2_LINK_SPEED;
++	val |= FIELD_PREP(PCIE_CONF_LINK2_LCR2_LINK_SPEED,
++			  pcie->max_link_speed);
++	writel_relaxed(val, base + PCIE_CONF_LINK2_CTL_STS);
++}
++
++static void mtk_pcie_configure_root_link(struct mtk_gen3_pcie *pcie)
  {
- 	struct resource_entry *entry;
- 	struct pci_host_bridge *host = pci_host_bridge_from_priv(pcie);
+-	struct resource_entry *entry;
+-	struct pci_host_bridge *host = pci_host_bridge_from_priv(pcie);
+-	unsigned int table_index = 0;
+-	int err;
+ 	u32 val;
+ 
+-	/* Set as RC mode and set controller PCIe Gen speed restriction, if any */
+ 	val = readl_relaxed(pcie->base + PCIE_SETTING_REG);
+ 	val |= PCIE_RC_MODE;
+-	if (pcie->max_link_speed) {
+-		val &= ~PCIE_SETTING_GEN_SUPPORT;
+-
+-		/* Can enable link speed support only from Gen2 onwards */
+-		if (pcie->max_link_speed >= 2)
+-			val |= FIELD_PREP(PCIE_SETTING_GEN_SUPPORT,
+-					  GENMASK(pcie->max_link_speed - 2, 0));
+-	}
+ 	if (pcie->num_lanes) {
+ 		val &= ~PCIE_SETTING_LINK_WIDTH;
+-
+-		/* Zero means one lane, each bit activates x2/x4/x8/x16 */
+ 		if (pcie->num_lanes > 1)
+ 			val |= FIELD_PREP(PCIE_SETTING_LINK_WIDTH,
+ 					  GENMASK(fls(pcie->num_lanes >> 2), 0));
+ 	}
+ 	writel_relaxed(val, pcie->base + PCIE_SETTING_REG);
+ 
+-	/* Set Link Control 2 (LNKCTL2) speed restriction, if any */
+-	if (pcie->max_link_speed) {
+-		val = readl_relaxed(pcie->base + PCIE_CONF_LINK2_CTL_STS);
+-		val &= ~PCIE_CONF_LINK2_LCR2_LINK_SPEED;
+-		val |= FIELD_PREP(PCIE_CONF_LINK2_LCR2_LINK_SPEED, pcie->max_link_speed);
+-		writel_relaxed(val, pcie->base + PCIE_CONF_LINK2_CTL_STS);
+-	}
++	mtk_pcie_configure_link_speed(pcie, pcie->base);
++}
++
++static int mtk_pcie_startup_port(struct mtk_gen3_pcie *pcie)
++{
++	struct resource_entry *entry;
++	struct pci_host_bridge *host = pci_host_bridge_from_priv(pcie);
 +	unsigned int link_up_timeout_ms = pcie->soc->link_up_timeout_ms ?:
 +					  PCI_PM_D3COLD_WAIT;
- 	unsigned int table_index = 0;
- 	int err;
- 	u32 val;
-@@ -515,7 +522,7 @@ static int mtk_pcie_startup_port(struct
++	unsigned int table_index = 0;
++	int err;
++	u32 val;
++
++	mtk_pcie_configure_root_link(pcie);
+ 
+ 	/* If parameter is present, adjust SYS_CLK_RDY_TIME to avoid glitching */
+ 	if (pcie->soc->sys_clk_rdy_time_us) {
+@@ -503,7 +522,7 @@ static int mtk_pcie_startup_port(struct mtk_gen3_pcie *pcie)
  	/* Check if the link is up or not */
  	err = readl_poll_timeout(pcie->base + PCIE_LINK_STATUS_REG, val,
  				 !!(val & PCIE_PORT_LINKUP), 20,
@@ -71,7 +154,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  	if (err) {
  		const char *ltssm_state;
  		int ltssm_index;
-@@ -971,9 +978,10 @@ static int mtk_pcie_en7581_power_up(stru
+@@ -959,9 +978,10 @@ static int mtk_pcie_en7581_power_up(struct mtk_gen3_pcie *pcie)
  {
  	struct pci_host_bridge *host = pci_host_bridge_from_priv(pcie);
  	unsigned int num_lanes = max(1, pcie->num_lanes);
@@ -83,7 +166,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  	u32 val, args[2], size;
  	resource_size_t addr;
  	int i, err;
-@@ -981,18 +989,29 @@ static int mtk_pcie_en7581_power_up(stru
+@@ -969,18 +989,29 @@ static int mtk_pcie_en7581_power_up(struct mtk_gen3_pcie *pcie)
  	if (num_lanes > 2)
  		return dev_err_probe(dev, -EINVAL, "unsupported num-lanes, maximum 2 lanes supported\n");
  
@@ -118,7 +201,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  
  	/* Wait for the time needed to complete the reset lines assert. */
  	msleep(PCIE_EN7581_RESET_TIME_MS);
-@@ -1005,12 +1024,16 @@ static int mtk_pcie_en7581_power_up(stru
+@@ -993,12 +1024,16 @@ static int mtk_pcie_en7581_power_up(struct mtk_gen3_pcie *pcie)
  							   "mediatek,pbus-csr",
  							   ARRAY_SIZE(args),
  							   args);
@@ -139,7 +222,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  
  	addr = entry->res->start - entry->offset;
  	regmap_write(pbus_regmap, args[0], lower_32_bits(addr));
-@@ -1023,7 +1046,6 @@ static int mtk_pcie_en7581_power_up(stru
+@@ -1011,7 +1046,6 @@ static int mtk_pcie_en7581_power_up(struct mtk_gen3_pcie *pcie)
  		return err;
  	}
  
@@ -147,7 +230,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  	err = reset_control_bulk_assert(MAX_NUM_PERSTOUT_RESETS,
  					pcie->perstout_resets);
  	if (err) {
-@@ -1043,7 +1065,7 @@ static int mtk_pcie_en7581_power_up(stru
+@@ -1031,7 +1065,7 @@ static int mtk_pcie_en7581_power_up(struct mtk_gen3_pcie *pcie)
  	err = phy_init(pcie->phy);
  	if (err) {
  		dev_err(dev, "failed to initialize PHY\n");
@@ -156,9 +239,17 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  	}
  
  	err = phy_power_on(pcie->phy);
-@@ -1094,33 +1116,48 @@ static int mtk_pcie_en7581_power_up(stru
+@@ -1071,6 +1105,7 @@ static int mtk_pcie_en7581_power_up(struct mtk_gen3_pcie *pcie)
+ 	 * Wait is still needed for refclk to stabilize
+ 	 */
+ 	msleep(PCIE_T_PVPERL_MS);
++	mtk_pcie_configure_root_link(pcie);
  
- 		mtk_pcie_configure_link_speed(pcie, base);
+ 	/* Configure all the lines to the same EQ config */
+ 	for (i = 0; i < num_lanes; i++) {
+@@ -1079,30 +1114,50 @@ static int mtk_pcie_en7581_power_up(struct mtk_gen3_pcie *pcie)
+ 		if (i == 1)
+ 			base = pcie->sec_base;
  
 -		val = FIELD_PREP(PCIE_VAL_LN0_DOWNSTREAM, 0x47) |
 -			FIELD_PREP(PCIE_VAL_LN1_DOWNSTREAM, 0x47) |
@@ -171,6 +262,8 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 -			FIELD_PREP(PCIE_K_PRESET_TO_USE, 0x2) |
 -			FIELD_PREP(PCIE_K_FINETUNE_MAX, 0xf);
 -		writel_relaxed(val, base + PCIE_PIPE4_PIE8_REG);
++		mtk_pcie_configure_link_speed(pcie, base);
++
 +		if (!is_pcie2) {
 +			val = FIELD_PREP(PCIE_VAL_LN0_DOWNSTREAM, 0x47) |
 +				FIELD_PREP(PCIE_VAL_LN1_DOWNSTREAM, 0x47) |
@@ -184,12 +277,11 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 +				FIELD_PREP(PCIE_K_FINETUNE_MAX, 0xf);
 +			writel_relaxed(val, base + PCIE_PIPE4_PIE8_REG);
 +		}
- 	}
- 
- 	dev_info(dev, "pre-training link configuration: Gen%u x%u\n",
- 		 pcie->max_link_speed, pcie->num_lanes ?: 1);
- 
--	/* Deassert PERSTOUT for all relevant lines */
++	}
++
++	dev_info(dev, "pre-training link configuration: Gen%u x%u\n",
++		 pcie->max_link_speed, pcie->num_lanes ?: 1);
++
 +	if (wait_for_pcie0_perst) {
 +		err = regmap_read_poll_timeout(scu, SCU_PCIC, val,
 +					       val & SCU_PCIC_PERSTOUT0,
@@ -198,8 +290,9 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 +			dev_warn(dev, "timed out waiting for PCIe0 PERST\n");
 +		else
 +			dev_info(dev, "PCIe0 PERST released, starting PCIe2\n");
-+	}
-+
+ 	}
+ 
+-	/* Deassert PERSTOUT for all relevant lines */
  	err = reset_control_bulk_deassert(MAX_NUM_PERSTOUT_RESETS,
 -					  pcie->perstout_resets);
 +					pcie->perstout_resets);
@@ -218,7 +311,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  	clk_bulk_disable_unprepare(pcie->num_clks, pcie->clks);
  err_clk_prepare_enable:
  	pm_runtime_put_sync(dev);
-@@ -1131,6 +1168,9 @@ err_phy_deassert:
+@@ -1113,6 +1168,9 @@ err_phy_deassert:
  	phy_power_off(pcie->phy);
  err_phy_on:
  	phy_exit(pcie->phy);
@@ -228,7 +321,44 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  
  	return err;
  }
-@@ -1326,6 +1366,20 @@ static void mtk_pcie_remove(struct platf
+@@ -1209,7 +1267,11 @@ static int mtk_pcie_get_controller_max_link_speed(struct mtk_gen3_pcie *pcie)
+ 
+ static int mtk_pcie_setup(struct mtk_gen3_pcie *pcie)
+ {
+-	int err, max_speed;
++	int err, max_speed, requested_speed;
++
++	requested_speed = of_pci_get_max_link_speed(pcie->dev->of_node);
++	if (requested_speed > 0)
++		pcie->max_link_speed = requested_speed;
+ 
+ 	err = mtk_pcie_parse_port(pcie);
+ 	if (err)
+@@ -1227,17 +1289,15 @@ static int mtk_pcie_setup(struct mtk_gen3_pcie *pcie)
+ 	if (err)
+ 		return err;
+ 
+-	err = of_pci_get_max_link_speed(pcie->dev->of_node);
+-	if (err) {
++	if (requested_speed > 0) {
+ 		/* Get the maximum speed supported by the controller */
+ 		max_speed = mtk_pcie_get_controller_max_link_speed(pcie);
+ 
+-		/* Set max_link_speed only if the controller supports it */
+-		if (max_speed >= 0 && max_speed <= err) {
+-			pcie->max_link_speed = err;
+-			dev_info(pcie->dev,
+-				 "maximum controller link speed Gen%d, overriding to Gen%u",
+-				 max_speed, pcie->max_link_speed);
++		if (max_speed > 0 && max_speed < requested_speed) {
++			pcie->max_link_speed = max_speed;
++			dev_warn(pcie->dev,
++				 "limiting requested Gen%d link to controller Gen%d\n",
++				 requested_speed, max_speed);
+ 		}
+ 	}
+ 
+@@ -1306,6 +1366,20 @@ static void mtk_pcie_remove(struct platform_device *pdev)
  	mtk_pcie_power_down(pcie);
  }
  
@@ -249,7 +379,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  static void mtk_pcie_irq_save(struct mtk_gen3_pcie *pcie)
  {
  	int i;
-@@ -1455,6 +1509,7 @@ static const struct mtk_gen3_pcie_pdata
+@@ -1435,6 +1509,7 @@ static const struct mtk_gen3_pcie_pdata mtk_pcie_soc_en7581 = {
  		.id[2] = "phy-lane2",
  		.num_resets = 3,
  	},
@@ -257,7 +387,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  	.flags = SKIP_PCIE_RSTB,
  };
  
-@@ -1469,6 +1524,7 @@ MODULE_DEVICE_TABLE(of, mtk_pcie_of_matc
+@@ -1449,6 +1524,7 @@ MODULE_DEVICE_TABLE(of, mtk_pcie_of_match);
  static struct platform_driver mtk_pcie_driver = {
  	.probe = mtk_pcie_probe,
  	.remove = mtk_pcie_remove,
