@@ -508,7 +508,7 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
  #include <linux/phylink.h>
  #include <linux/regmap.h>
  
-@@ -1821,6 +1822,1605 @@ static void an7581_pcs_cdr_reset(struct
+@@ -1821,6 +1822,1638 @@ static void an7581_pcs_cdr_reset(struct
  			  AIROHA_PCS_PMA_FORCE_SEL_DA_CDR_LPF_LCK2DATA);
  }
  
@@ -1165,38 +1165,46 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
 +}
 +
 +/*
-+ * Run the PrCal sequence for a 1G PON line mode.
++ * GPON runs the same FIRST_PLUG_IN state machine as the 10G modes; only the
++ * PMA rate fields that pon_WanSelInit() selects for it differ.  The HAL picks
++ * the rate from the line mode, not from the interface: Async_GPON (2.48832G
++ * downstream, 1.24416G upstream) uses InitSpd_TXPLL/InitSpd_RX = 9/21, and
++ * XPON_RX()/XPON_TX() then load rate bodies that differ from the XG-PON ones
++ * in these fields (en7581_pma.c):
 + *
-+ * GPON shares the XG-PON CDR feedback window: XPON_DIG_fm_on() takes
-+ * fm_Sync_GPON / fm_Async_GPON down its XG-PON branch and programs
-+ * SS_RX_FREQ_DET_1 = 0x7fff7fff with SS_RX_FREQ_DET_2 and SS_RX_FREQ_DET_3 =
-+ * 0xa436..0xa4ff, and XPON_PrCal_WK() searches the CDR PR IDAC against
-+ * FL_Out_target = 0xa49a for Sync_GPON (both in the vendor en7581_pma.c).
-+ * an7581_pcs_rx_prcal() has no GPON row: the 1G modes map to 2500BASEX,
-+ * whose 0xa000 target and 0x9f9c..0xa064 window belong to the 2.5G ethernet
-+ * SerDes, so the 2.48832G receiver never reports a locked frequency feedback
-+ * loop and get_rx_status() keeps freqdet_locked=0.  1G-EPON keeps the
-+ * 1000BASEX row, whose 0xa3d6 target already is the vendor fm_Sync_EPON_1/2
-+ * value.
++ *   XPON_RX(21): rg_dig_reserve_0 = 0x300, RG_PXP_CDR_PR_XFICK_EN = 0,
++ *                RG_PXP_CDR_LPF_RATIO = 2, RX_BUSBIT_SEL_FORCE = 1,
++ *                rg_force_da_pxp_rx_osr_sel = 2, rg_xpon_rx_rate_ctrl = 0
++ *   XPON_RX_on(Async_GPON): RX FE gain 3, RG_PXP_RX_REV_0 = 0x18b0
++ *   XPON_TX(Async_GPON): tx_ckin_divisor = 2, tx_dly_data_ftune = 4
++ *   XPON_eye_setting(EO_Async_GPON): CDR LPF ratio 2, eye mask 0x55 and the
++ *                0x100..0x300 sample window
++ *
++ * XPON_TXPLL(9) and XPON_TXPLL(2) share their PCW values, XPON_ANA() ignores
++ * its rate argument, and both XPON_DIG_fm_on() and XPON_PrCal_WK() take GPON
++ * down the XG-PON branch, so nothing else changes.
++ *
++ * The 2500BASEX ethernet bring-up the 1G modes used before never programmed
++ * any of this: rg_dig_reserve_0 stayed 0, freqdet_locked stayed 0, PHYA never
++ * reported ready and the GEPON PHY never left PHYRDY code 0.
++ *
++ * 1G-EPON still uses the ethernet bring-up; it needs the same treatment with
++ * XPON_TXPLL(1), XPON_RX(1) and XPON_TX(Sync_EPON_1).
 + */
-+static void an7581_pcs_pon_1g_prcal(struct airoha_pcs_priv *priv, int index,
-+				    phy_interface_t interface)
-+{
-+	struct regmap *pma = priv->pcs_pma[index];
-+
-+	if (priv->pon_mode != AIROHA_PCS_PON_MODE_GPON) {
-+		an7581_pcs_rx_prcal(priv, index, interface);
-+		return;
-+	}
-+
-+	/* XPON_DIG_fm_on(fm_Sync_GPON): CDR_FB_CK frequency meter window. */
-+	regmap_write(pma, 0x14c, 0x7fff7fff);
-+	regmap_write(pma, 0x150, (0xa4ff << 16) | 0xa436);
-+	regmap_write(pma, 0x154, (0xa4ff << 16) | 0xa436);
-+
-+	/* XPON_PrCal_WK(Sync_GPON) searches the PR IDAC against 0xa49a. */
-+	(void)an7581_pcs_pon_xgpon_prcal(priv, index);
-+}
++static const struct an7581_pon_reg_field an7581_pon_gpon_rate[] = {
++	AN7581_PON_PMA(0x360, 31, 0, 0x300),
++	AN7581_PON_ANA(0x10c, 2, 2, 0),
++	AN7581_PON_ANA(0x0e8, 1, 0, 2),
++	AN7581_PON_ANA(0x0cc, 8, 8, 1),
++	AN7581_PON_PMA(0x76c, 17, 16, 2),
++	AN7581_PON_PMA(0x374, 1, 0, 0),
++	AN7581_PON_ANA(0x0d4, 15, 0, 0x18b0),
++	AN7581_PON_PMA(0x88c, 1, 0, 3),
++	AN7581_PON_PMA(0x77c, 19, 16, 2),
++	AN7581_PON_PMA(0x784, 1, 0, 0),
++	AN7581_PON_PMA(0x580, 1, 0, 0),
++	AN7581_PON_PMA(0x468, 6, 0, 4),
++};
 +
 +static void an7581_pcs_pon_tdc_off(struct airoha_pcs_priv *priv, int index)
 +{
@@ -1518,19 +1526,33 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
 +{
 +	struct regmap_field **ana = priv->pcs_ana_fields[index];
 +	struct regmap *pma = priv->pcs_pma[index];
++	u32 eye_mask, x_min, x_max;
++	u8 lpf_ratio;
 +
-+	/* WAN_SEL 9 uses the XG-PON 9.95328G eye mask and horizontal range. */
-+	regmap_field_write(ana[AN7581_PCS_CDR_LPF_RATIO], 0);
++	/* XPON_eye_setting() keeps a separate window for the 2.48832G rate. */
++	if (priv->pon_mode == AIROHA_PCS_PON_MODE_GPON) {
++		lpf_ratio = 2;
++		eye_mask = 0x55;
++		x_min = 0x100;
++		x_max = 0x300;
++	} else {
++		lpf_ratio = 0;
++		eye_mask = 0xff;
++		x_min = 0x1c0;
++		x_max = 0x240;
++	}
++
++	regmap_field_write(ana[AN7581_PCS_CDR_LPF_RATIO], lpf_ratio);
 +	regmap_update_bits(pma, AIROHA_PCS_PMA_RX_EYE_TOP_EYECNT_CTRL_0,
 +			   AIROHA_PCS_PMA_EYE_MASK |
 +			   AIROHA_PCS_PMA_CNTFOREVER |
 +			   AIROHA_PCS_PMA_CNTLEN,
-+			   FIELD_PREP(AIROHA_PCS_PMA_EYE_MASK, 0xff) |
++			   FIELD_PREP(AIROHA_PCS_PMA_EYE_MASK, eye_mask) |
 +			   FIELD_PREP(AIROHA_PCS_PMA_CNTLEN, 0xf8));
 +	regmap_update_bits(pma, AIROHA_PCS_PMA_RX_EYE_TOP_EYEINDEX_CTRL_0,
 +			   AIROHA_PCS_PMA_X_MIN | AIROHA_PCS_PMA_X_MAX,
-+			   FIELD_PREP(AIROHA_PCS_PMA_X_MIN, 0x1c0) |
-+			   FIELD_PREP(AIROHA_PCS_PMA_X_MAX, 0x240));
++			   FIELD_PREP(AIROHA_PCS_PMA_X_MIN, x_min) |
++			   FIELD_PREP(AIROHA_PCS_PMA_X_MAX, x_max));
 +	regmap_clear_bits(pma, AIROHA_PCS_PMA_RX_EYE_TOP_EYECNT_CTRL_2,
 +			  AIROHA_PCS_PMA_DATA_SHIFT);
 +	regmap_update_bits(pma, AIROHA_PCS_PMA_RX_EYE_TOP_EYEINDEX_CTRL_1,
@@ -1880,8 +1902,16 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
 +	int prcal_ret;
 +	int ret;
 +
-+	if (priv->data->port_type != AIROHA_PCS_PON ||
-+	    interface != PHY_INTERFACE_MODE_10GBASER)
++	/*
++	 * The HAL selects the PMA rate from the line mode rather than from the
++	 * interface, so GPON runs the same FIRST_PLUG_IN sequence over the
++	 * 2.48832G rate fields.  1G-EPON keeps the ethernet bring-up until its
++	 * rate body is ported.
++	 */
++	if (priv->data->port_type != AIROHA_PCS_PON)
++		return -EOPNOTSUPP;
++	if (interface != PHY_INTERFACE_MODE_10GBASER &&
++	    priv->pon_mode != AIROHA_PCS_PON_MODE_GPON)
 +		return -EOPNOTSUPP;
 +
 +	priv->pon_last_error = 0;
@@ -1890,6 +1920,14 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
 +	ret = an7581_pcs_pon_xgpon_static(priv, index);
 +	if (ret)
 +		goto fail;
++	/* XPON_RX(21) and XPON_TX(Async_GPON) replace the 10G rate fields. */
++	if (priv->pon_mode == AIROHA_PCS_PON_MODE_GPON) {
++		ret = an7581_pcs_pon_apply_fields(priv, index,
++						  an7581_pon_gpon_rate,
++						  ARRAY_SIZE(an7581_pon_gpon_rate));
++		if (ret)
++			goto fail;
++	}
 +	an7581_pcs_pon_apply_impedance_defaults(priv, index);
 +
 +	/* FIRST_PLUG_IN starts with preset, TDC off, RX_on, PrCal, and L2R. */
@@ -2047,25 +2085,19 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
 +{
 +	int ret;
 +
-+	/* 1G and 2.5G PON modes use the existing bring-up path. */
-+	if (priv->pon_mode == AIROHA_PCS_PON_MODE_GPON ||
-+	    priv->pon_mode == AIROHA_PCS_PON_MODE_EPON_1G) {
++	/*
++	 * 1G-EPON still uses the ethernet bring-up path.  an7581_pcs_bringup()
++	 * only runs an7581_pcs_rx_prcal() when manual_rx_calib is set, and that
++	 * flag is set only for pre-E2 silicon (PRODUCT_ID < 2), so on E2+ parts
++	 * the FreqDet lock/unlock windows stay at their reset values; run the
++	 * calibration explicitly, exactly as the 1000BASEX row of rx_prcal()
++	 * expects for a 1.25G receiver.
++	 */
++	if (priv->pon_mode == AIROHA_PCS_PON_MODE_EPON_1G) {
 +		ret = an7581_pcs_bringup(priv, index, interface);
 +		if (ret)
 +			return ret;
-+		/*
-+		 * an7581_pcs_phya_bringup() runs an7581_pcs_rx_prcal() only when
-+		 * manual_rx_calib is set, and that flag is set only for pre-E2
-+		 * silicon (PRODUCT_ID < 2).  rx_prcal() is the sole writer of the
-+		 * FreqDet lock/unlock windows, so on E2+ parts the PMA frequency
-+		 * feedback loop has no window to lock on: get_rx_status() reports
-+		 * freqdet_locked=0 with frequency_target stuck at its reset value
-+		 * and the receiver never reaches downstream sync.  XG-PON and
-+		 * XGS-PON are covered by the first-plug PrCal; the 1G modes need
-+		 * this explicit run, with the GPON window substituted because
-+		 * the 2500BASEX row of rx_prcal() is the 2.5G ethernet one.
-+		 */
-+		an7581_pcs_pon_1g_prcal(priv, index, interface);
++		an7581_pcs_rx_prcal(priv, index, interface);
 +		return 0;
 +	}
 +
@@ -2076,8 +2108,7 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
 +			      phy_interface_t interface)
 +{
 +	/* 10G modes retain first calibration and use the PLUG_IN retrain path. */
-+	if (priv->pon_mode == AIROHA_PCS_PON_MODE_GPON ||
-+	    priv->pon_mode == AIROHA_PCS_PON_MODE_EPON_1G) {
++	if (priv->pon_mode == AIROHA_PCS_PON_MODE_EPON_1G) {
 +		int ret = an7581_pcs_bringup(priv, index, interface);
 +
 +		if (ret)
@@ -2085,11 +2116,11 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
 +		/*
 +		 * an7581_pcs_bringup() pulses the PMA global reset, which clears
 +		 * the FreqDet windows programmed by the calibration, so re-arm
-+		 * them here exactly as an7581_pcs_pon_start_rx() does.  The 1G
-+		 * modes reach this path whenever the receive path is restarted
-+		 * with a profile already configured.
++		 * them here exactly as an7581_pcs_pon_start_rx() does.  1G-EPON
++		 * reaches this path whenever the receive path is restarted with
++		 * a profile already configured.
 +		 */
-+		an7581_pcs_pon_1g_prcal(priv, index, interface);
++		an7581_pcs_rx_prcal(priv, index, interface);
 +		return 0;
 +	}
 +
@@ -2099,10 +2130,12 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
 +int an7581_pcs_pon_stop_rx(struct airoha_pcs_priv *priv, int index)
 +{
 +	/*
-+	 * GPON and 1G-EPON are brought up through an7581_pcs_bringup() and
-+	 * never run the FIRST_PLUG_IN state machine, so they have no PLUG_OUT
-+	 * step: only the 10G modes retain a first-plug calibration to power
-+	 * down through TDC off plus L2R.
++	 * GPON and 1G-EPON re-run the whole bring-up on every activation (their
++	 * drivers never take the retrain path) and 1G-EPON is still brought up
++	 * through an7581_pcs_bringup(), so neither needs the PLUG_OUT handoff
++	 * the 10G modes use to power down a retained first-plug calibration.
++	 * The PMA accesses that handoff performs are only validated for the 10G
++	 * modes.
 +	 */
 +	if (priv->pon_mode == AIROHA_PCS_PON_MODE_GPON ||
 +	    priv->pon_mode == AIROHA_PCS_PON_MODE_EPON_1G)
@@ -2114,7 +2147,7 @@ Index: b/drivers/net/pcs/airoha/pcs-an7581.c
  static int an7581_pcs_phya_bringup(struct airoha_pcs_priv *priv,
  				   int index, phy_interface_t interface)
  {
-@@ -1834,6 +3434,8 @@ static int an7581_pcs_phya_bringup(struc
+@@ -1834,6 +3467,8 @@ static int an7581_pcs_phya_bringup(struc
  
  	an7581_pcs_tx_bringup(priv, index, interface);
  	an7581_pcs_rx_bringup(priv, index, interface);
