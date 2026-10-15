@@ -1,8 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 /dts-v1/;
-#include <dt-bindings/leds/common.h>
+
+
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
 #include <dt-bindings/phy/phy.h>
 #include "an7581.dtsi"
 #include "an7581-npu-mt7996.dtsi"
@@ -11,11 +13,12 @@
 	compatible = "gemtek,xr1710g",
 		     "airoha,an7581", "airoha,en7581";
 	aliases {
-		serial0 = &uart1;
+		label-mac-device = &lan_10g_eth;
 		led-boot = &led_status_red;
 		led-failsafe = &led_status_blue;
-		led-upgrade = &led_status_blue;
 		led-running = &led_status_green;
+		led-upgrade = &led_status_blue;
+		serial0 = &uart1;
 	};
 	chosen {
 		rootdisk = <&ubi_rootfs>;
@@ -29,7 +32,8 @@
 	};
 	keys {
 		compatible = "gpio-keys";
-		key-restart {
+
+		key-reset {
 			label = "reset";
 			gpios = <&en7581_pinctrl 0 GPIO_ACTIVE_LOW>;
 			linux,code = <KEY_RESTART>;
@@ -37,21 +41,29 @@
 	};
 	leds {
 		compatible = "gpio-leds";
-		led_status_green: led-status-green {
-			label = "status:green";
-			gpios = <&en7581_pinctrl 17 GPIO_ACTIVE_LOW>;
-		};
-		led_status_blue: led-status-blue {
-			label = "status:blue";
-			gpios = <&en7581_pinctrl 19 GPIO_ACTIVE_LOW>;
-		};
+
 		led_status_red: led-status-red {
-			label = "status:red";
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_STATUS;
 			gpios = <&en7581_pinctrl 29 GPIO_ACTIVE_LOW>;
 			default-state = "on";
 		};
+
+		led_status_green: led-status-green {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_STATUS;
+			gpios = <&en7581_pinctrl 17 GPIO_ACTIVE_LOW>;
+		};
+
+		led_status_blue: led-status-blue {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_STATUS;
+			gpios = <&en7581_pinctrl 19 GPIO_ACTIVE_LOW>;
+		};
+		
 		led_status_white: led-status-white {
-			label = "status:white";
+			color = <LED_COLOR_ID_WHITE>;
+			function = LED_FUNCTION_STATUS;
 			gpios = <&en7581_pinctrl 20 GPIO_ACTIVE_LOW>;
 		};
 	};
@@ -129,15 +141,25 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		partition@0 {
-			label = "vendor";
-			reg = <0x00000000 0x00600000>;
+			label = "bootloader";
+			reg = <0x00000000 0x00200000>;
+			read-only;
+		};
+
+		partition@200000 {
+			label = "uenv";
+			reg = <0x00200000 0x00200000>;
+		};
+
+		partition@400000 {
+			label = "dsd";
+			reg = <0x00400000 0x00200000>;
 			/*
-			 * Intentionally NOT marked read-only so the factory
-			 * provisioning data at offset 0x400000 (MAC addresses,
-			 * serial number, Wi-Fi defaults, admin credentials, ...)
-			 * can be rewritten from the luan-app-airoha-factory LuCI
-			 * page.  Re-add "read-only;" here if the partition should
-			 * be locked down again.
+			 * Factory provisioning data: MAC addresses, serial number,
+			 * Wi-Fi defaults, admin credentials, ...  Intentionally NOT
+			 * marked read-only so it can be rewritten from the
+			 * luan-app-airoha-factory LuCI page.  Re-add "read-only;"
+			 * here if the partition should be locked down again.
 			 */
 		};
 		partition@600000 {
@@ -374,6 +396,7 @@
 			reset-before-id-read;
 			reset-assert-us = <200000>;
 			reset-deassert-us = <200000>;
+			reset-before-id-read;
 			tx-polarity = <PHY_POL_INVERT>;
 			rx-polarity = <PHY_POL_INVERT>;
 			realtek,patch-rtk-serdes;
@@ -384,6 +407,7 @@
 			reset-gpios = <&en7581_pinctrl 31 GPIO_ACTIVE_LOW>;
 			reset-assert-us = <200000>;
 			reset-deassert-us = <200000>;
+			reset-before-id-read;
 			tx-polarity = <PHY_POL_INVERT>;
 			rx-polarity = <PHY_POL_INVERT>;
 			realtek,patch-rtk-serdes;
