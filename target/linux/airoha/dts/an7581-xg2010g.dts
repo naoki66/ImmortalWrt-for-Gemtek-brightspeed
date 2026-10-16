@@ -12,7 +12,6 @@
 	compatible = "gemtek,xg2010g",
 		     "airoha,an7581", "airoha,en7581";
 	aliases {
-		label-mac-device = &lan_10g_eth;
 		led-boot = &led_status_red;
 		led-failsafe = &led_status_blue;
 		led-running = &led_status_green;
