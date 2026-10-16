@@ -226,7 +226,6 @@
 };
 
 &i2c0 {
-	compatible = "airoha,airoha-i2c";
 	clock-frequency = <400000>;
 	status = "okay";
 	hwmon@2e {
