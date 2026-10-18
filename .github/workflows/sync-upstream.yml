@@ -5,16 +5,22 @@ on:
     - cron: '0 19 */3 * *'
   workflow_dispatch:
 
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
 jobs:
   sync-upstream:
-    runs-on: ubuntu-latest
+    # Pin the runner image: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
+          ref: main
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -29,7 +35,7 @@ jobs:
           git remote set-url upstream https://github.com/immortalwrt/immortalwrt.git
 
       - name: Fetch upstream
-        run: git fetch upstream master
+        run: git fetch --no-tags upstream master
 
       - name: Check for updates
         id: check
@@ -54,8 +60,10 @@ jobs:
           }
 
       - name: Push to origin
+        # The default branch of this fork is main (there is no master branch here),
+        # so push the checked-out commit explicitly instead of a named branch.
         if: steps.check.outputs.has_updates == 'true'
-        run: git push origin master
+        run: git push origin HEAD:main
 
       - name: Show result
         if: always()
