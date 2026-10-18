@@ -14,8 +14,9 @@ permissions:
 
 jobs:
   sync-upstream:
-    # Pin the runner image: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
-    runs-on: ubuntu-24.04
+    # Self-hosted runner on alex@10.10.30.6: GitHub-hosted minutes for this private
+    # repo are exhausted, self-hosted runners are not metered.
+    runs-on: [self-hosted, linux, x64]
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -28,6 +29,19 @@ jobs:
         run: |
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions"
+
+      - name: Verify clean worktree
+        # Build artifacts and temp files must never leak into the sync commit:
+        # the job only ever commits the merge result, and a worktree with
+        # tracked modifications is refused outright.
+        run: |
+          dirty=$(git status --porcelain --untracked-files=no)
+          if [ -n "$dirty" ]; then
+            echo "::error::Tracked files are modified in the workspace; refusing to merge"
+            echo "$dirty"
+            exit 1
+          fi
+          echo "tracked files clean; untracked/ignored entries: $(git status --porcelain | wc -l)"
 
       - name: Add upstream remote
         run: |
