@@ -14,75 +14,56 @@ permissions:
 
 jobs:
   sync-upstream:
-    # Self-hosted runner on alex@10.10.30.6: GitHub-hosted minutes for this private
-    # repo are exhausted, self-hosted runners are not metered.
+    # Self-hosted runner on alex@10.10.30.6: GitHub-hosted minutes for this
+    # private repo are exhausted, self-hosted runners are not metered.
     runs-on: [self-hosted, linux, x64]
+    env:
+      # Persistent clone owned by this job. It only ever holds tracked sources;
+      # the build artifacts of this repo live in a separate tree, so nothing
+      # generated can reach the sync commit.
+      SYNC_DIR: /home/alex/ci/sync-main
+      UPSTREAM_URL: https://github.com/immortalwrt/immortalwrt.git
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          ref: main
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Configure Git
+      - name: Sync upstream master into main
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_URL: https://github.com/${{ github.repository }}.git
         run: |
-          git config user.email "actions@github.com"
+          set -euo pipefail
+          AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          ghgit() { git -c "http.https://github.com/.extraheader=$AUTH" "$@"; }
+
+          mkdir -p "$(dirname "$SYNC_DIR")"
+          if [ ! -d "$SYNC_DIR/.git" ]; then
+            echo "== seeding $SYNC_DIR (full clone, slow path) =="
+            ghgit clone --no-single-branch "$REPO_URL" "$SYNC_DIR"
+          fi
+
+          cd "$SYNC_DIR"
+          git remote set-url origin "$REPO_URL"
+          ghgit fetch --prune --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
+          git checkout --force -B main origin/main
+          git reset --hard origin/main
+          git clean -ffdxq
           git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
 
-      - name: Verify clean worktree
-        # Build artifacts and temp files must never leak into the sync commit:
-        # the job only ever commits the merge result, and a worktree with
-        # tracked modifications is refused outright.
-        run: |
-          dirty=$(git status --porcelain --untracked-files=no)
-          if [ -n "$dirty" ]; then
-            echo "::error::Tracked files are modified in the workspace; refusing to merge"
-            echo "$dirty"
-            exit 1
-          fi
-          echo "tracked files clean; untracked/ignored entries: $(git status --porcelain | wc -l)"
+          git remote add upstream "$UPSTREAM_URL" 2>/dev/null ||
+            git remote set-url upstream "$UPSTREAM_URL"
+          git fetch --no-tags upstream master
 
-      - name: Add upstream remote
-        run: |
-          git remote add upstream https://github.com/immortalwrt/immortalwrt.git 2>/dev/null || true
-          git remote set-url upstream https://github.com/immortalwrt/immortalwrt.git
-
-      - name: Fetch upstream
-        run: git fetch --no-tags upstream master
-
-      - name: Check for updates
-        id: check
-        run: |
-          LOCAL=$(git rev-parse HEAD)
-          REMOTE=$(git rev-parse upstream/master)
           if git merge-base --is-ancestor upstream/master HEAD; then
-            echo "No updates available (upstream: ${REMOTE:0:7}, local: ${LOCAL:0:7})"
-            echo "has_updates=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Updates available: ${LOCAL:0:7} -> ${REMOTE:0:7}"
-            echo "has_updates=true" >> "$GITHUB_OUTPUT"
+            echo "No upstream updates (main $(git rev-parse --short HEAD), upstream $(git rev-parse --short upstream/master))"
+            exit 0
           fi
 
-      - name: Merge upstream
-        if: steps.check.outputs.has_updates == 'true'
-        run: |
-          git merge --no-edit upstream/master || {
-            echo "::error::Merge failed. Conflicts need manual resolution."
+          echo "== merging upstream/master $(git rev-parse --short upstream/master) into main $(git rev-parse --short HEAD)"
+          if ! git merge --no-ff --no-edit -m "Merge upstream immortalwrt/immortalwrt into main" upstream/master; then
+            echo "::error::Merge conflicts need manual resolution"
             git diff --name-only --diff-filter=U
             exit 1
-          }
+          fi
 
-      - name: Push to origin
-        # The default branch of this fork is main (there is no master branch here),
-        # so push the checked-out commit explicitly instead of a named branch.
-        if: steps.check.outputs.has_updates == 'true'
-        run: git push origin HEAD:main
-
-      - name: Show result
-        if: always()
-        run: |
-          echo "=== Sync Result ==="
-          git log --oneline -5 || true
-          echo "=== Remote Status ==="
-          git remote -v || true
+          echo "== pushing $(git rev-parse --short HEAD) to main =="
+          ghgit push origin HEAD:main
