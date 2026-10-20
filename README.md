@@ -107,7 +107,7 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集
   - `910-02`、`912`、`913`：USB/PCIe 时钟、PCIe 3.0 x2 链路与复位修复。
   - `181`、`924`、`926`：NPU 异常恢复、固件加载、coherent mailbox DMA 与 mailbox 等待时间限制。
   - `915-01`、`916-02`、`9990`、`9993`、`9999-11`：PPE/flowtable 硬件卸载、WLAN 流绑定、VLAN ingress 与 XFRM 流支持。
-  - `920-xg2010g-pon-*`、`607-cpufreq`、`990-01`：XG2010G PON 兼容层、Airoha 网络、MTU、CPU 频率与桥接 FDB 漫游修复；`920-xg2010g-pon-*` 在 XR1710G 配置中保持关闭。
+  - `920-20`、`607-cpufreq`、`990-01`：Airoha 网络、MTU、CPU 频率与桥接 FDB 漫游修复。`920-20-net-airoha-legacy-xpon-compat.patch` 提供旧版 xPON 兼容层（PON 寄存器导出、PPE tag lookup、PTP ToD/PHC 驱动），该层属于共享的 AN7581 目标，PON 与非 PON 板型都会应用，仅在 `CONFIG_AIROHA_PON_COMPAT=y` 时生效——由 `kmod-airoha-xpon` 等 PON 包自动打开，XR1710G 等纯网口配置中保持关闭。
 - 无线栈补丁：
   - [mt76 patches](package/kernel/mt76/patches/) 中的 `001`（mt7996 PS sync TLV/MLO 稳定性）与 `9993`（operating-mode rate control）。
   - [mac80211 patch](package/kernel/mac80211/patches/subsys/411-mac80211-export-link-sta-capability-limits.patch) 与 [hostapd patches](package/network/services/hostapd/patches/)（6GHz、EHT、radio mask 及多 VAP 稳定性）。
