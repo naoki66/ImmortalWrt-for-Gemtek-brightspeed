@@ -109,6 +109,9 @@ ifeq ($(CONFIG_TARGET_DEFAULT_LAN_IP_FROM_PREINIT),y)
 	echo 'json_select ..' >>$(1)/etc/board.d/99-lan-ip
 	echo 'board_config_flush' >>$(1)/etc/board.d/99-lan-ip
 endif
+ifneq ($(call qstrip,$(CONFIG_TARGET_HOSTNAME)),)
+	$(SED) "s#hostname='ImmortalWrt'#hostname='$(call qstrip,$(CONFIG_TARGET_HOSTNAME))'#" $(1)/bin/config_generate
+endif
 endef
 
 define Build/Prepare
