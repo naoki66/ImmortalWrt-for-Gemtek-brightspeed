@@ -13,16 +13,6 @@ config EXTRA_IMAGE_NAME
 		Add this to the output image filenames, to distinguish between
 		different builds for the same hardware type.
 
-config TARGET_HOSTNAME
-	string
-	prompt "Default hostname" if IMAGEOPT
-	default ""
-	help
-		Default hostname written to /etc/config/system on first boot.
-		Set by scripts/set-build-version.sh so every device build carries a
-		concise model name (XG2010G, XR1710G, XG-040G-MD, XG-040G-TF, ...).
-		Leave empty to keep the built-in default.
-
 config TARGET_DEFAULT_LAN_IP_FROM_PREINIT
 	bool "Use preinit IP configuration as default LAN IP" if IMAGEOPT
 	default n
