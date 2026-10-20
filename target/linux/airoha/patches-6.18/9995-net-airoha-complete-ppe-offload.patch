@@ -1,0 +1,692 @@
+From: liujixings <liujixings@outlook.com>
+Subject: [PATCH] net: airoha: complete PPE offload for PON, QinQ, multicast and aging
+
+Improve the AN7581 PPE offload paths:
+
+- PON: classify the flow using the outer VLAN tag and the P-bit the PPE
+  actually emits (0). Fall back to the "all P-bits share one GEM" check so
+  valid VID mappings are no longer rejected.
+- QinQ: allow a second VLAN_PUSH and PPPoE_PUSH at the same time, accept
+  S-tags (0x88a8) and reject only TPIDs the PPE cannot reproduce.
+- VPM: it selects the outer TPID index (1 -> 0x8100, 2 -> 0x88a8), not the
+  number of VLAN tags.
+- Multicast: read and update native L2B entries through their own layout
+  and match the VLAN reported by IGMP snooping.
+- Aging: enable the PPE aging bits, scan mode, bind limits and unbind age,
+  and expose the bind rate as a module parameter.
+- Observability: count every flow that never reaches the FOE together with
+  the reason, add a debugfs summary and enable CONFIG_NET_AIROHA_FLOW_STATS
+  so per-entry packets/bytes counters are populated for IPv4/IPv6 flows.
+
+Signed-off-by: liujixings <liujixings@outlook.com>
+---
+--- a/drivers/net/ethernet/airoha/airoha_eth.h
++++ b/drivers/net/ethernet/airoha/airoha_eth.h
+@@ -550,6 +550,22 @@
+ 	FLOW_TYPE_L2_SUBFLOW,
+ };
+ 
++/* Why a flow submitted by nf_flowtable never reached the FOE table. */
++enum airoha_ppe_drop_reason {
++	AIROHA_PPE_DROP_RULE_META,
++	AIROHA_PPE_DROP_RULE_CONTROL,
++	AIROHA_PPE_DROP_RULE_BASIC,
++	AIROHA_PPE_DROP_ADDR_TYPE,
++	AIROHA_PPE_DROP_ACTION,
++	AIROHA_PPE_DROP_VLAN_ACTION,
++	AIROHA_PPE_DROP_PPPOE_ACTION,
++	AIROHA_PPE_DROP_PORTS,
++	AIROHA_PPE_DROP_INVALID_MAC,
++	AIROHA_PPE_DROP_PON_MAPPING,
++	AIROHA_PPE_DROP_WDMA,
++	__AIROHA_PPE_DROP_MAX,
++};
++
+ struct airoha_flow_table_entry {
+ 	union {
+ 		struct hlist_node list; /* PPE L3 flow entry */
+@@ -734,6 +750,8 @@
+ 	struct airoha_foe_stats *foe_stats;
+ 	dma_addr_t foe_stats_dma;
+ 
++	atomic64_t drop[__AIROHA_PPE_DROP_MAX];
++
+ 	struct dentry *debugfs_dir;
+ };
+ 
+--- a/drivers/net/ethernet/airoha/airoha_regs.h
++++ b/drivers/net/ethernet/airoha/airoha_regs.h
+@@ -286,6 +286,8 @@
+ 
+ #define REG_PPE_TB_CFG(_n)			(((_n) ? PPE2_BASE : PPE1_BASE) + 0x21c)
+ #define PPE_SRAM_TB_NUM_ENTRY_MASK		GENMASK(26, 24)
++#define PPE_TB_CFG_SCAN_MODE_MASK		GENMASK(17, 16)
++#define PPE_SCAN_MODE_CHECK_AGE			1
+ #define PPE_TB_CFG_KEEPALIVE_MASK		GENMASK(13, 12)
+ #define PPE_TB_CFG_AGE_TCP_FIN_MASK		BIT(11)
+ #define PPE_TB_CFG_AGE_UDP_MASK			BIT(10)
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -27,6 +27,21 @@
+ DEFINE_MUTEX(flow_offload_mutex);
+ static DEFINE_SPINLOCK(ppe_lock);
+ 
++/* Number of PPE hash lookups between two binding checks. Higher values
++ * look up the flow table less often and raise the CPU cost of a miss;
++ * lower values bind faster but consume more PPE bandwidth.
++ */
++static int ppe_bind_rate = 0x1e;
++module_param(ppe_bind_rate, int, 0644);
++MODULE_PARM_DESC(ppe_bind_rate, "PPE L2B/L4 bind rate (default 0x1e)");
++
++static void airoha_ppe_drop_inc(struct airoha_ppe *ppe,
++				enum airoha_ppe_drop_reason reason)
++{
++	if (ppe)
++		atomic64_inc(&ppe->drop[reason]);
++}
++
+ static const struct rhashtable_params airoha_flow_table_params = {
+ 	.head_offset = offsetof(struct airoha_flow_table_entry, node),
+ 	.key_offset = offsetof(struct airoha_flow_table_entry, cookie),
+@@ -155,6 +170,7 @@
+ static void airoha_ppe_hw_init(struct airoha_ppe *ppe)
+ {
+ 	u32 sram_ppe_num_data_entries = PPE_SRAM_NUM_ENTRIES, sram_num_entries;
++	u32 bind_rate = clamp_val(ppe_bind_rate, 0, 0xffff);
+ 	u32 sram_tb_size, dram_num_entries;
+ 	struct airoha_eth *eth = ppe->eth;
+ 	int i, sram_num_stats_entries;
+@@ -197,12 +213,31 @@
+ 			      FIELD_PREP(PPE_SRAM_HASH1_MODE_MASK, 1) |
+ 			      FIELD_PREP(PPE_DRAM_HASH1_MODE_MASK, 3));
+ 
++		/* Without the AGE_* bits the PPE never expires entries and a
++		 * stale flow keeps matching until it is explicitly removed.
++		 * SCAN_MODE selects the ageing timer as the scan source.
++		 */
+ 		airoha_fe_rmw(eth, REG_PPE_TB_CFG(i),
++			      PPE_TB_CFG_AGE_PREBIND_MASK |
++			      PPE_TB_CFG_AGE_NON_L4_MASK |
++			      PPE_TB_CFG_AGE_UNBIND_MASK |
++			      PPE_TB_CFG_AGE_TCP_MASK |
++			      PPE_TB_CFG_AGE_UDP_MASK |
++			      PPE_TB_CFG_AGE_TCP_FIN_MASK |
++			      PPE_TB_CFG_SCAN_MODE_MASK |
+ 			      PPE_TB_CFG_SEARCH_MISS_MASK |
+ 			      PPE_SRAM_TB_NUM_ENTRY_MASK |
+ 			      PPE_DRAM_TB_NUM_ENTRY_MASK |
+ 			      PPE_TB_CFG_KEEPALIVE_MASK |
+ 			      PPE_TB_ENTRY_SIZE_MASK,
++			      PPE_TB_CFG_AGE_PREBIND_MASK |
++			      PPE_TB_CFG_AGE_NON_L4_MASK |
++			      PPE_TB_CFG_AGE_UNBIND_MASK |
++			      PPE_TB_CFG_AGE_TCP_MASK |
++			      PPE_TB_CFG_AGE_UDP_MASK |
++			      PPE_TB_CFG_AGE_TCP_FIN_MASK |
++			      FIELD_PREP(PPE_TB_CFG_SCAN_MODE_MASK,
++					 PPE_SCAN_MODE_CHECK_AGE) |
+ 			      FIELD_PREP(PPE_TB_CFG_SEARCH_MISS_MASK, 3) |
+ 			      FIELD_PREP(PPE_TB_ENTRY_SIZE_MASK, 0) |
+ 			      FIELD_PREP(PPE_SRAM_TB_NUM_ENTRY_MASK,
+@@ -210,11 +245,28 @@
+ 			      FIELD_PREP(PPE_DRAM_TB_NUM_ENTRY_MASK,
+ 					 dram_num_entries));
+ 
++		/* Keep bind slots at their maximum so a bound flow is not
++		 * evicted before the aging timer retires it.
++		 */
++		airoha_fe_wr(eth, REG_PPE_BIND_LIMIT0(i),
++			     PPE_BIND_LIMIT0_QUARTER_MASK |
++			     PPE_BIND_LIMIT0_HALF_MASK);
++		airoha_fe_wr(eth, REG_PPE_BIND_LIMIT1(i),
++			     PPE_BIND_LIMIT1_FULL_MASK |
++			     FIELD_PREP(PPE_BIND_LIMIT1_NON_L4_MASK, 1));
++
++		/* Retire a bound flow only after it stopped forwarding packets
++		 * for the configured delay.
++		 */
++		airoha_fe_wr(eth, REG_PPE_UNBIND_AGE(i),
++			     FIELD_PREP(PPE_UNBIND_AGE_MIN_PACKETS_MASK, 1000) |
++			     FIELD_PREP(PPE_UNBIND_AGE_DELTA_MASK, 3));
++
+ 		airoha_fe_rmw(eth, REG_PPE_BIND_RATE(i),
+ 			      PPE_BIND_RATE_L2B_BIND_MASK |
+ 			      PPE_BIND_RATE_BIND_MASK,
+-			      FIELD_PREP(PPE_BIND_RATE_L2B_BIND_MASK, 0x1e) |
+-			      FIELD_PREP(PPE_BIND_RATE_BIND_MASK, 0x1e));
++			      FIELD_PREP(PPE_BIND_RATE_L2B_BIND_MASK, bind_rate) |
++			      FIELD_PREP(PPE_BIND_RATE_BIND_MASK, bind_rate));
+ 
+ 		airoha_fe_wr(eth, REG_PPE_HASH_SEED(i), PPE_HASH_SEED);
+ 		airoha_fe_clear(eth, REG_PPE_PPE_FLOW_CFG(i),
+@@ -331,6 +383,15 @@
+ 	return 0;
+ }
+ 
++static bool airoha_ppe_netdev_is_wlan(const struct net_device *netdev)
++{
++#if IS_ENABLED(CONFIG_CFG80211)
++	return netdev->ieee80211_ptr != NULL;
++#else
++	return false;
++#endif
++}
++
+ static int airoha_get_dsa_port(struct net_device **dev)
+ {
+ #if IS_ENABLED(CONFIG_NET_DSA)
+@@ -399,23 +460,30 @@
+ 	if (!table)
+ 		return -EOPNOTSUPP;
+ 
+-	/* nf_flow_table orders VLAN_PUSH from upper devices toward hardware.
+-	 * The final VLAN is the outer service tag seen by pon0; untagged packets
+-	 * use VID_ANY and P-bit 0, matching ndo_start_xmit classification.
++	/* nf_flow_table orders VLAN_PUSH from the upper devices towards the
++	 * hardware, so hdr[0] is the outer service tag the PON MAC transmits.
++	 * Untagged packets use VID_ANY, matching ndo_start_xmit classification.
+ 	 */
+-	vlan_id = data->vlan.num ?
+-		data->vlan.hdr[data->vlan.num - 1].id : AIROHA_PON_VID_ANY;
+-	if (!data->vlan.num) {
+-		tag = airoha_ppe_pon_lookup_tag(table, vlan_id, 0);
+-		if (!(tag & AIROHA_PON_QDMA_VALID))
+-			return -EOPNOTSUPP;
++	vlan_id = data->vlan.num ? data->vlan.hdr[0].id : AIROHA_PON_VID_ANY;
++
++	/* VLAN_PUSH actions carry no PCP, so the PON MAC always emits P-bit 0
++	 * for an offloaded flow. Accept that exact mapping first: it is the
++	 * classification the line card will really apply. Requiring all eight
++	 * P-bits to share one GEM rejects perfectly valid VID mappings.
++	 */
++	tag = airoha_ppe_pon_lookup_tag(table, vlan_id, 0);
++	if (tag & AIROHA_PON_QDMA_VALID) {
+ 		*pon_tag = tag;
+ 		return 0;
+ 	}
+ 
+-	/* nf_flow_table VLAN actions provide VID while dynamic PCP remains in skb.
+-	 * Offload is valid when all eight P-bits resolve to one GEM/T-CONT;
+-	 * split mappings retain per-packet classification on the software path.
++	if (!data->vlan.num)
++		return -EOPNOTSUPP;
++
++	/* Fallback: tagged flows whose P-bit 0 is unmapped are still safe to
++	 * offload when every P-bit resolves to the same T-CONT/GEM. Split
++	 * mappings stay on the software path, which selects the channel per
++	 * packet from the actual priority.
+ 	 */
+ 	for (pbit = 0; pbit < 8; pbit++) {
+ 		tag = airoha_ppe_pon_lookup_tag(table, vlan_id, pbit);
+@@ -433,6 +501,17 @@
+ 	return 0;
+ }
+ 
++/* IB1 VPM selects the TPID used for the outer tag the PPE inserts:
++ * 1 -> 0x8100, 2 -> 0x88a8.
++ */
++static u32 airoha_ppe_vpm(const struct airoha_flow_data *data)
++{
++	if (!data->vlan.num)
++		return 0;
++
++	return data->vlan.hdr[0].proto == htons(ETH_P_8021AD) ? 2 : 1;
++}
++
+ static int airoha_ppe_foe_entry_prepare(struct airoha_eth *eth,
+ 					struct airoha_foe_entry *hwe,
+ 					struct net_device *netdev, int type,
+@@ -453,7 +532,7 @@
+ 	      FIELD_PREP(AIROHA_FOE_IB1_BIND_PACKET_TYPE, type) |
+ 	      FIELD_PREP(AIROHA_FOE_IB1_BIND_UDP, l4proto == IPPROTO_UDP) |
+ 	      FIELD_PREP(AIROHA_FOE_IB1_BIND_VLAN_LAYER, data->vlan.num) |
+-	      FIELD_PREP(AIROHA_FOE_IB1_BIND_VPM, data->vlan.num) |
++	      FIELD_PREP(AIROHA_FOE_IB1_BIND_VPM, airoha_ppe_vpm(data)) |
+ 	      FIELD_PREP(AIROHA_FOE_IB1_BIND_PPPOE, data->pppoe.num) |
+ 	      AIROHA_FOE_IB1_BIND_TTL;
+ 	hwe->ib1 = val;
+@@ -976,17 +1055,92 @@
+ 	}
+ }
+ 
+-static bool airoha_ppe_mc_match(const struct airoha_foe_entry *hwe,
+-					const struct airoha_ppe_mc_info *info)
++/* AN7581 hardware-learned bridge entries use the native L2B layout, while
++ * CPU templates and DRAM copies keep the software bridge layout.
++ */
++static bool airoha_ppe_mc_uses_l2b(const struct airoha_ppe *ppe,
++				   const struct airoha_foe_entry *hwe)
+ {
+-	u8 mac[ETH_ALEN];
++	return airoha_is_7581(ppe->eth) &&
++	       FIELD_GET(AIROHA_FOE_IB1_BIND_PACKET_TYPE, hwe->ib1) ==
++	       PPE_PKT_TYPE_BRIDGE;
++}
++
++static u32 airoha_ppe_mc_ib2(const struct airoha_foe_entry *hwe, bool l2b)
++{
++	return l2b ? hwe->l2b.ib2 : hwe->bridge.ib2;
++}
++
++static void airoha_ppe_mc_set_ib2(struct airoha_foe_entry *hwe, bool l2b,
++				  u32 ib2)
++{
++	if (l2b)
++		hwe->l2b.ib2 = ib2;
++	else
++		hwe->bridge.ib2 = ib2;
++}
+ 
+-	if (!(hwe->bridge.ib2 & AIROHA_FOE_IB2_MULTICAST))
++static u16 airoha_ppe_mc_vlan(const struct airoha_foe_entry *hwe, bool l2b,
++			      int index)
++{
++	if (l2b)
++		return index ? hwe->l2b.vlan2 : hwe->l2b.vlan1;
++
++	return index ? hwe->bridge.l2.common.vlan2 :
++		       hwe->bridge.l2.common.vlan1;
++}
++
++static void airoha_ppe_mc_dest_mac(const struct airoha_foe_entry *hwe, bool l2b,
++				   u8 *mac)
++{
++	u32 hi = l2b ? hwe->l2b.dest_mac_hi :
++		       hwe->bridge.l2.common.dest_mac_hi;
++	u16 lo = l2b ? hwe->l2b.dest_mac_lo :
++		       hwe->bridge.l2.common.dest_mac_lo;
++
++	put_unaligned_be32(hi, mac);
++	put_unaligned_be16(lo, mac + 4);
++}
++
++static bool airoha_ppe_mc_match(const struct airoha_ppe *ppe,
++				const struct airoha_foe_entry *hwe,
++				const struct airoha_ppe_mc_info *info)
++{
++	u8 mac[ETH_ALEN], entry_mac[ETH_ALEN];
++	u16 outer, inner, vlan1, vlan2;
++	bool l2b;
++
++	if (FIELD_GET(AIROHA_FOE_IB1_BIND_PACKET_TYPE, hwe->ib1) !=
++	    PPE_PKT_TYPE_BRIDGE)
++		return false;
++
++	l2b = airoha_ppe_mc_uses_l2b(ppe, hwe);
++	if (!(airoha_ppe_mc_ib2(hwe, l2b) & AIROHA_FOE_IB2_MULTICAST))
+ 		return false;
+ 
+ 	airoha_ppe_mc_group_mac(info, mac);
+-	return hwe->bridge.l2.common.dest_mac_hi == get_unaligned_be32(mac) &&
+-	       hwe->bridge.l2.common.dest_mac_lo == get_unaligned_be16(mac + 4);
++	airoha_ppe_mc_dest_mac(hwe, l2b, entry_mac);
++	if (!ether_addr_equal(mac, entry_mac))
++		return false;
++
++	vlan1 = airoha_ppe_mc_vlan(hwe, l2b, 0) & VLAN_VID_MASK;
++	vlan2 = airoha_ppe_mc_vlan(hwe, l2b, 1) & VLAN_VID_MASK;
++
++	/* Untagged video services carry no tag in the FOE even when the
++	 * bridge is VLAN aware, so such an entry always matches.
++	 */
++	if (!vlan1 && !vlan2)
++		return true;
++
++	if (!info->vlan_tag_num)
++		return false;
++
++	outer = info->outer_tci & VLAN_VID_MASK;
++	inner = info->inner_tci & VLAN_VID_MASK;
++	if (inner)
++		return vlan1 == outer && vlan2 == inner;
++
++	return vlan1 == outer || vlan2 == outer;
+ }
+ 
+ static struct airoha_foe_entry *
+@@ -1001,7 +1155,7 @@
+ 		struct airoha_foe_entry *hwe;
+ 
+ 		hwe = airoha_ppe_foe_get_entry_locked(ppe, foe_index);
+-		if (hwe && airoha_ppe_mc_match(hwe, info)) {
++		if (hwe && airoha_ppe_mc_match(ppe, hwe, info)) {
+ 			*hash = foe_index;
+ 			return hwe;
+ 		}
+@@ -1013,7 +1167,7 @@
+ 		if (i == foe_index)
+ 			continue;
+ 		hwe = airoha_ppe_foe_get_entry_locked(ppe, i);
+-		if (hwe && airoha_ppe_mc_match(hwe, info)) {
++		if (hwe && airoha_ppe_mc_match(ppe, hwe, info)) {
+ 			*hash = i;
+ 			return hwe;
+ 		}
+@@ -1026,14 +1180,17 @@
+ 				 struct airoha_foe_entry *hwe, u32 hash,
+ 				 u32 port_mask)
+ {
++	bool l2b = airoha_ppe_mc_uses_l2b(ppe, hwe);
++	u32 ib2;
+ 	int err;
+ 
+ 	/* SDK bits 0-3 are the only unambiguous EN7581 LAN mapping. */
+ 	if (port_mask & ~0x0fU)
+ 		return -EOPNOTSUPP;
+ 
+-	hwe->bridge.ib2 &= ~AIROHA_FOE_IB2_PORT_AG;
+-	hwe->bridge.ib2 |= FIELD_PREP(AIROHA_FOE_IB2_PORT_AG, port_mask);
++	ib2 = airoha_ppe_mc_ib2(hwe, l2b) & ~AIROHA_FOE_IB2_PORT_AG;
++	ib2 |= FIELD_PREP(AIROHA_FOE_IB2_PORT_AG, port_mask);
++	airoha_ppe_mc_set_ib2(hwe, l2b, ib2);
+ 	err = airoha_ppe_foe_commit_entry(ppe, hwe, hash, false);
+ 
+ 	return err;
+@@ -1089,7 +1246,9 @@
+ 		struct airoha_foe_entry *hwe;
+ 
+ 		hwe = airoha_ppe_foe_get_entry_locked(ppe, i);
+-		if (!hwe || !(hwe->bridge.ib2 & AIROHA_FOE_IB2_MULTICAST))
++		if (!hwe ||
++		    !(airoha_ppe_mc_ib2(hwe, airoha_ppe_mc_uses_l2b(ppe, hwe)) &
++		      AIROHA_FOE_IB2_MULTICAST))
+ 			continue;
+ 		hwe->ib1 &= ~AIROHA_FOE_IB1_BIND_STATE;
+ 		hwe->ib1 |= FIELD_PREP(AIROHA_FOE_IB1_BIND_STATE,
+@@ -1118,8 +1277,10 @@
+ 
+ 	spin_lock_bh(&ppe_lock);
+ 	hwe = airoha_ppe_mc_find_locked(ppe, info, foe_index, &hash);
+-	port_mask = hwe ? FIELD_GET(AIROHA_FOE_IB2_PORT_AG,
+-					  hwe->bridge.ib2) : 0;
++	port_mask = hwe ?
++		FIELD_GET(AIROHA_FOE_IB2_PORT_AG,
++			  airoha_ppe_mc_ib2(hwe, airoha_ppe_mc_uses_l2b(ppe, hwe))) :
++		0;
+ 	spin_unlock_bh(&ppe_lock);
+ 
+ 	return hwe ? (port_mask & 0x0f) : -ENOENT;
+@@ -1716,8 +1877,10 @@
+ 			      airoha_flow_table_params))
+ 		return -EEXIST;
+ 
+-	if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_META))
++	if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_META)) {
++		airoha_ppe_drop_inc(eth->ppe, AIROHA_PPE_DROP_RULE_META);
+ 		return -EOPNOTSUPP;
++	}
+ 
+ 	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CONTROL)) {
+ 		struct flow_match_control match;
+@@ -1725,9 +1888,13 @@
+ 		flow_rule_match_control(rule, &match);
+ 		addr_type = match.key->addr_type;
+ 		if (flow_rule_has_control_flags(match.mask->flags,
+-						f->common.extack))
++						f->common.extack)) {
++			airoha_ppe_drop_inc(eth->ppe,
++					    AIROHA_PPE_DROP_RULE_CONTROL);
+ 			return -EOPNOTSUPP;
++		}
+ 	} else {
++		airoha_ppe_drop_inc(eth->ppe, AIROHA_PPE_DROP_RULE_CONTROL);
+ 		return -EOPNOTSUPP;
+ 	}
+ 
+@@ -1737,6 +1904,7 @@
+ 		flow_rule_match_basic(rule, &match);
+ 		l4proto = match.key->ip_proto;
+ 	} else {
++		airoha_ppe_drop_inc(eth->ppe, AIROHA_PPE_DROP_RULE_BASIC);
+ 		return -EOPNOTSUPP;
+ 	}
+ 
+@@ -1757,6 +1925,7 @@
+ 			memcpy(data.eth.h_dest, match.key->dst, ETH_ALEN);
+ 			memcpy(data.eth.h_source, match.key->src, ETH_ALEN);
+ 		} else {
++			airoha_ppe_drop_inc(eth->ppe, AIROHA_PPE_DROP_PORTS);
+ 			return -EOPNOTSUPP;
+ 		}
+ 		break;
+@@ -1767,14 +1936,18 @@
+ 		offload_type = PPE_PKT_TYPE_IPV6_ROUTE_5T;
+ 		break;
+ 	default:
++		airoha_ppe_drop_inc(eth->ppe, AIROHA_PPE_DROP_ADDR_TYPE);
+ 		return -EOPNOTSUPP;
+ 	}
+ 
+ 	flow_action_for_each(i, act, &rule->action) {
+ 		switch (act->id) {
+ 		case FLOW_ACTION_MANGLE:
+-			if (offload_type == PPE_PKT_TYPE_BRIDGE)
++			if (offload_type == PPE_PKT_TYPE_BRIDGE) {
++				airoha_ppe_drop_inc(eth->ppe,
++						    AIROHA_PPE_DROP_ACTION);
+ 				return -EOPNOTSUPP;
++			}
+ 
+ 			if (act->mangle.htype == FLOW_ACT_MANGLE_HDR_TYPE_ETH)
+ 				airoha_ppe_flow_mangle_eth(act, &data.eth);
+@@ -1785,9 +1958,17 @@
+ 		case FLOW_ACTION_CSUM:
+ 			break;
+ 		case FLOW_ACTION_VLAN_PUSH:
++			/* The PPE can only reproduce 0x8100 and 0x88a8 outer
++			 * tags (IB1 VPM); 0x9100 would silently be emitted as
++			 * 0x8100, so keep it on the software path.
++			 */
+ 			if (data.vlan.num == 2 ||
+-			    act->vlan.proto != htons(ETH_P_8021Q))
++			    (act->vlan.proto != htons(ETH_P_8021Q) &&
++			     act->vlan.proto != htons(ETH_P_8021AD))) {
++				airoha_ppe_drop_inc(eth->ppe,
++						    AIROHA_PPE_DROP_VLAN_ACTION);
+ 				return -EOPNOTSUPP;
++			}
+ 
+ 			data.vlan.hdr[data.vlan.num].id = act->vlan.vid;
+ 			data.vlan.hdr[data.vlan.num].proto = act->vlan.proto;
+@@ -1796,42 +1977,59 @@
+ 		case FLOW_ACTION_VLAN_POP:
+ 			break;
+ 		case FLOW_ACTION_PPPOE_PUSH:
+-			if (data.pppoe.num == 1 || data.vlan.num == 2)
++			if (data.pppoe.num == 1) {
++				airoha_ppe_drop_inc(eth->ppe,
++						    AIROHA_PPE_DROP_PPPOE_ACTION);
+ 				return -EOPNOTSUPP;
++			}
+ 
+ 			data.pppoe.sid = act->pppoe.sid;
+ 			data.pppoe.num++;
+ 			break;
+ 		default:
++			airoha_ppe_drop_inc(eth->ppe, AIROHA_PPE_DROP_ACTION);
+ 			return -EOPNOTSUPP;
+ 		}
+ 	}
+ 
+ 	if (!is_valid_ether_addr(data.eth.h_source) ||
+-	    !is_valid_ether_addr(data.eth.h_dest))
++	    !is_valid_ether_addr(data.eth.h_dest)) {
++		airoha_ppe_drop_inc(eth->ppe, AIROHA_PPE_DROP_INVALID_MAC);
+ 		return -EINVAL;
++	}
+ 
+ 	err = airoha_ppe_foe_entry_prepare(eth, &hwe, odev, offload_type,
+ 					   &data, l4proto, dsfield,
+ 					   &egress_dev);
+ 	if (err) {
+ 		if (err == -EOPNOTSUPP && egress_dev &&
+-		    test_bit(AIROHA_DEV_F_PON, &egress_dev->flags))
++		    test_bit(AIROHA_DEV_F_PON, &egress_dev->flags)) {
++			airoha_ppe_drop_inc(eth->ppe,
++					    AIROHA_PPE_DROP_PON_MAPPING);
+ 			NL_SET_ERR_MSG_MOD(f->common.extack,
+ 					   "PON egress has no unambiguous VLAN/P-bit to GEM mapping");
++		} else if (err == -EINVAL && odev &&
++			   airoha_ppe_netdev_is_wlan(odev)) {
++			airoha_ppe_drop_inc(eth->ppe, AIROHA_PPE_DROP_WDMA);
++			NL_SET_ERR_MSG_MOD(f->common.extack,
++					   "WLAN egress requires an MTK WDMA forward path (WED/WNPU)");
++		}
+ 		return err;
+ 	}
+ 
+ 	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_PORTS)) {
+ 		struct flow_match_ports ports;
+ 
+-		if (offload_type == PPE_PKT_TYPE_BRIDGE)
++		if (offload_type == PPE_PKT_TYPE_BRIDGE) {
++			airoha_ppe_drop_inc(eth->ppe, AIROHA_PPE_DROP_PORTS);
+ 			return -EOPNOTSUPP;
++		}
+ 
+ 		flow_rule_match_ports(rule, &ports);
+ 		data.src_port = ports.key->src;
+ 		data.dst_port = ports.key->dst;
+ 	} else if (offload_type != PPE_PKT_TYPE_BRIDGE) {
++		airoha_ppe_drop_inc(eth->ppe, AIROHA_PPE_DROP_PORTS);
+ 		return -EOPNOTSUPP;
+ 	}
+ 
+@@ -1858,8 +2056,10 @@
+ 		if (act->id != FLOW_ACTION_MANGLE)
+ 			continue;
+ 
+-		if (offload_type == PPE_PKT_TYPE_BRIDGE)
++		if (offload_type == PPE_PKT_TYPE_BRIDGE) {
++			airoha_ppe_drop_inc(eth->ppe, AIROHA_PPE_DROP_ACTION);
+ 			return -EOPNOTSUPP;
++		}
+ 
+ 		switch (act->mangle.htype) {
+ 		case FLOW_ACT_MANGLE_HDR_TYPE_TCP:
+@@ -1873,11 +2073,14 @@
+ 			/* handled earlier */
+ 			break;
+ 		default:
++			airoha_ppe_drop_inc(eth->ppe, AIROHA_PPE_DROP_ACTION);
+ 			return -EOPNOTSUPP;
+ 		}
+ 
+-		if (err)
++		if (err) {
++			airoha_ppe_drop_inc(eth->ppe, AIROHA_PPE_DROP_ACTION);
+ 			return err;
++		}
+ 	}
+ 
+ 	if (addr_type == FLOW_DISSECTOR_KEY_IPV4_ADDRS) {
+--- a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
+@@ -222,6 +222,97 @@
+ }
+ DEFINE_SHOW_ATTRIBUTE(airoha_ppe_debugfs_config);
+ 
++static int airoha_ppe_debugfs_summary_show(struct seq_file *m, void *private)
++{
++	static const char *const ppe_type_str[] = {
++		[PPE_PKT_TYPE_IPV4_HNAPT] = "IPv4 5T",
++		[PPE_PKT_TYPE_IPV4_ROUTE] = "IPv4 3T",
++		[PPE_PKT_TYPE_BRIDGE] = "L2B",
++		[PPE_PKT_TYPE_IPV4_DSLITE] = "DS-LITE",
++		[PPE_PKT_TYPE_IPV6_ROUTE_3T] = "IPv6 3T",
++		[PPE_PKT_TYPE_IPV6_ROUTE_5T] = "IPv6 5T",
++		[PPE_PKT_TYPE_IPV6_6RD] = "6RD",
++	};
++	static const char *const drop_str[__AIROHA_PPE_DROP_MAX] = {
++		[AIROHA_PPE_DROP_RULE_META] = "rule_meta",
++		[AIROHA_PPE_DROP_RULE_CONTROL] = "rule_control",
++		[AIROHA_PPE_DROP_RULE_BASIC] = "rule_basic",
++		[AIROHA_PPE_DROP_ADDR_TYPE] = "addr_type",
++		[AIROHA_PPE_DROP_ACTION] = "action",
++		[AIROHA_PPE_DROP_VLAN_ACTION] = "vlan_action",
++		[AIROHA_PPE_DROP_PPPOE_ACTION] = "pppoe_action",
++		[AIROHA_PPE_DROP_PORTS] = "ports",
++		[AIROHA_PPE_DROP_INVALID_MAC] = "invalid_mac",
++		[AIROHA_PPE_DROP_PON_MAPPING] = "pon_mapping",
++		[AIROHA_PPE_DROP_WDMA] = "wdma",
++	};
++	u64 entry_packets[ARRAY_SIZE(ppe_type_str)] = {};
++	u64 entry_bytes[ARRAY_SIZE(ppe_type_str)] = {};
++	u32 entry_total[ARRAY_SIZE(ppe_type_str)] = {};
++	u32 entry_bound[ARRAY_SIZE(ppe_type_str)] = {};
++	struct airoha_ppe *ppe = m->private;
++	struct airoha_eth *eth = ppe->eth;
++	u32 total, i;
++
++	/* Hardware counters only exist when the flow stats region is
++	 * enabled; without it every packets/bytes value stays zero.
++	 */
++	total = airoha_ppe_get_total_num_entries(ppe);
++	for (i = 0; i < total; i++) {
++		struct airoha_foe_stats64 stats = {};
++		struct airoha_foe_entry *hwe;
++		u32 state, type;
++
++		hwe = airoha_ppe_foe_get_entry(ppe, i);
++		if (!hwe)
++			continue;
++
++		state = FIELD_GET(AIROHA_FOE_IB1_BIND_STATE,
++				  READ_ONCE(hwe->ib1));
++		if (state == AIROHA_FOE_STATE_INVALID)
++			continue;
++
++		type = FIELD_GET(AIROHA_FOE_IB1_BIND_PACKET_TYPE,
++				 READ_ONCE(hwe->ib1));
++		if (type >= ARRAY_SIZE(ppe_type_str) || !ppe_type_str[type])
++			continue;
++
++		entry_total[type]++;
++		if (state == AIROHA_FOE_STATE_BIND)
++			entry_bound[type]++;
++
++		airoha_ppe_foe_entry_get_stats(ppe, i, &stats);
++		entry_packets[type] += stats.packets;
++		entry_bytes[type] += stats.bytes;
++	}
++
++	seq_puts(m, "type      total bound packets bytes\n");
++	for (i = 0; i < ARRAY_SIZE(ppe_type_str); i++) {
++		if (!ppe_type_str[i])
++			continue;
++		seq_printf(m, "%-9s %5u %5u %llu %llu\n", ppe_type_str[i],
++			   entry_total[i], entry_bound[i],
++			   entry_packets[i], entry_bytes[i]);
++	}
++
++	for (i = 0; i < eth->soc->num_ppe; i++) {
++		seq_printf(m, "ppe%u bind_rate=%08x tb_cfg=%08x unbind_age=%08x bind_age0=%08x bind_age1=%08x\n",
++			   i, airoha_fe_rr(eth, REG_PPE_BIND_RATE(i)),
++			   airoha_fe_rr(eth, REG_PPE_TB_CFG(i)),
++			   airoha_fe_rr(eth, REG_PPE_UNBIND_AGE(i)),
++			   airoha_fe_rr(eth, REG_PPE_BND_AGE0(i)),
++			   airoha_fe_rr(eth, REG_PPE_BND_AGE1(i)));
++	}
++
++	seq_puts(m, "offload drops:\n");
++	for (i = 0; i < ARRAY_SIZE(drop_str); i++)
++		seq_printf(m, " %-13s %lld\n", drop_str[i],
++			   (long long)atomic64_read(&ppe->drop[i]));
++
++	return 0;
++}
++DEFINE_SHOW_ATTRIBUTE(airoha_ppe_debugfs_summary);
++
+ int airoha_ppe_debugfs_init(struct airoha_ppe *ppe)
+ {
+ 	ppe->debugfs_dir = debugfs_create_dir("ppe", NULL);
+@@ -231,6 +322,8 @@
+ 			    &airoha_ppe_debugfs_foe_all_fops);
+ 	debugfs_create_file("bind", 0444, ppe->debugfs_dir, ppe,
+ 			    &airoha_ppe_debugfs_foe_bind_fops);
++	debugfs_create_file("summary", 0444, ppe->debugfs_dir, ppe,
++			    &airoha_ppe_debugfs_summary_fops);
+ 
+ 	return 0;
+ }

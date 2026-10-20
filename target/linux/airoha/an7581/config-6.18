@@ -240,7 +240,7 @@ CONFIG_NET_AIROHA=y
 # FE/QDMA exports plus the PPE multicast provider. Select it from the PON
 # device seed configs (e.g. xg2010g) instead of enabling it target-wide.
 # CONFIG_AIROHA_PON_COMPAT is not set
-# CONFIG_NET_AIROHA_FLOW_STATS is not set
+CONFIG_NET_AIROHA_FLOW_STATS=y
 CONFIG_NET_AIROHA_NPU=y
 # --- Bridge flowtable offload (bridged PPPoE / L2B into the Airoha PPE) ---
 # The generic config ships these off (its defaults are the most conservative
