@@ -38,3 +38,9 @@ git-src
 .vscode*
 .workbuddy
 .codex-run*
+
+# 本地编译临时环境/文件，避免 git add 时被带入提交
+# set-build-version.sh 重写 .config 时生成的临时文件（异常中断会残留）
+*.config.version.*
+# 本地损坏/备份的 .git 目录（体积大，禁止推送）
+/.git_broken/
