@@ -35,7 +35,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	struct airoha_foe_entry data;
 @@ -746,6 +752,7 @@ static inline bool airoha_is_valid_gdm_de
  
- void airoha_ppe_set_mtu(struct airoha_gdm_dev *dev);
+ void airoha_ppe_set_xmit_frame_size(struct airoha_gdm_dev *dev);
  void airoha_ppe_set_cpu_port(struct airoha_gdm_dev *dev, u8 ppe_id, u8 fport);
 +void airoha_ppe_remove_egress_flows(struct airoha_gdm_dev *dev);
  bool airoha_ppe_is_enabled(struct airoha_eth *eth, int index);
@@ -106,11 +106,13 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  EXPORT_SYMBOL_GPL(airoha_eth_pon_configure_epon);
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
-@@ -4,6 +4,7 @@
+@@ -4,7 +4,8 @@
   * Author: Lorenzo Bianconi <lorenzo@kernel.org>
   */
  
 +#include <linux/airoha-eth.h>
+ #include <linux/if_pppox.h>
+ #include <linux/if_vlan.h>
  #include <linux/ip.h>
  #include <linux/ipv6.h>
  #include <linux/of_platform.h>
@@ -234,7 +236,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  			 */
 -			channel = dsa_port >= 0 ? dsa_port : port->id;
 -			channel = channel % AIROHA_NUM_QOS_CHANNELS;
-+			if (dev->flags & AIROHA_PRIV_F_PON) {
++			if (test_bit(AIROHA_DEV_F_PON, &dev->flags)) {
 +				err = airoha_ppe_pon_select_flow(dev, data,
 +								 &pon_tag);
 +				if (err)
@@ -334,7 +336,7 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 +					   &egress_dev);
 +	if (err) {
 +		if (err == -EOPNOTSUPP && egress_dev &&
-+		    egress_dev->flags & AIROHA_PRIV_F_PON)
++		    test_bit(AIROHA_DEV_F_PON, &egress_dev->flags))
 +			NL_SET_ERR_MSG_MOD(f->common.extack,
 +					   "PON egress has no unambiguous VLAN/P-bit to GEM mapping");
  		return err;

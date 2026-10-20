@@ -29,12 +29,13 @@ needless headroom.
 Signed-off-by: naoki66 <naoki66@local>
 ---
  drivers/net/ethernet/airoha/airoha_eth.c | 13 ++++++++++---
- drivers/net/ethernet/airoha/airoha_ppe.c | 24 ++++++++++++++++++++----
- 2 files changed, 30 insertions(+), 7 deletions(-)
+ drivers/net/ethernet/airoha/airoha_ppe.c | 25 +++++++++++++++++++++----
+ 2 files changed, 31 insertions(+), 7 deletions(-)
 
---- a/drivers/net/ethernet/airoha/airoha_eth.c
-+++ b/drivers/net/ethernet/airoha/airoha_eth.c
-@@ -17,6 +17,7 @@
+diff -urN a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
+--- a/drivers/net/ethernet/airoha/airoha_eth.c	2026-10-20 16:46:22.973470554 +0800
++++ b/drivers/net/ethernet/airoha/airoha_eth.c	2026-10-20 16:47:30.805862615 +0800
+@@ -16,6 +16,7 @@
  #include <net/pkt_cls.h>
  #include <net/tcp.h>
  #include <uapi/linux/ppp_defs.h>
@@ -42,13 +43,13 @@ Signed-off-by: naoki66 <naoki66@local>
  
  #include "airoha_regs.h"
  #include "airoha_eth.h"
-@@ -2150,12 +2151,23 @@
- static void airoha_dev_set_mtu(struct net_device *netdev)
+@@ -2172,12 +2173,23 @@
+ static void airoha_dev_set_xmit_frame_size(struct net_device *netdev)
  {
  	struct airoha_gdm_dev *dev = netdev_priv(netdev);
 +	u32 len = netdev->mtu;
  
- 	airoha_ppe_set_mtu(dev);
+ 	airoha_ppe_set_xmit_frame_size(dev);
 -	if (!airoha_is_lan_gdm_dev(dev))
 +	/* A PPPoE session can only egress through an uplink GDM; its 8-byte
 +	 * session header (PPPOE_SES_HLEN) sits between the Ethernet header and
@@ -57,28 +58,30 @@ Signed-off-by: naoki66 <naoki66@local>
 +	 * VLAN_ETH_HLEN already covers. LAN ports stay VLAN-only.
 +	 */
 +	if (!airoha_is_lan_gdm_dev(dev)) {
-+		if (dev->flags & AIROHA_PRIV_F_PON)
++		if (test_bit(AIROHA_DEV_F_PON, &dev->flags))
 +			len += PPPOE_SES_HLEN;
 +
- 		airoha_fe_rmw(dev->eth, REG_WAN_MTU0,
- 			      WAN_MTU0_MASK,
--			      FIELD_PREP(WAN_MTU0_MASK, netdev->mtu + VLAN_ETH_HLEN));
-+			      FIELD_PREP(WAN_MTU0_MASK, len + VLAN_ETH_HLEN));
+ 		airoha_fe_rmw(dev->eth, REG_WAN_MTU0, WAN_MTU0_MASK,
+ 			      FIELD_PREP(WAN_MTU0_MASK,
+-					 VLAN_ETH_HLEN + netdev->mtu));
++					 VLAN_ETH_HLEN + len));
 +	}
  }
  
  static int airoha_dev_open(struct net_device *netdev)
---- a/drivers/net/ethernet/airoha/airoha_ppe.c
-+++ b/drivers/net/ethernet/airoha/airoha_ppe.c
-@@ -11,6 +11,7 @@
- #include <linux/rhashtable.h>
- #include <net/ipv6.h>
- #include <linux/if_vlan.h>
-+#include <linux/if_pppox.h>
- #include <net/pkt_cls.h>
- #include <net/route.h>
+diff -urN a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c	2026-10-20 16:46:22.978230549 +0800
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c	2026-10-20 16:47:30.809991206 +0800
+@@ -4,6 +4,8 @@
+  * Author: Lorenzo Bianconi <lorenzo@kernel.org>
+  */
  
-@@ -115,6 +116,7 @@
++#include <linux/if_pppox.h>
++#include <linux/if_vlan.h>
+ #include <linux/ip.h>
+ #include <linux/ipv6.h>
+ #include <linux/of_platform.h>
+@@ -114,6 +115,7 @@
  		struct airoha_gdm_dev *d = port->devs[i];
  		struct net_device *netdev;
  		struct airoha_qdma *q;
@@ -86,17 +89,15 @@ Signed-off-by: naoki66 <naoki66@local>
  
  		if (!d)
  			continue;
-@@ -124,11 +126,21 @@
+@@ -123,10 +125,21 @@
  			continue;
  
  		netdev = netdev_from_priv(d);
 -		if (netif_running(netdev))
 -			len = max_t(u32, len, netdev->mtu);
--	}
 +		if (!netif_running(netdev))
 +			continue;
- 
--	len += VLAN_ETH_HLEN;
++
 +		/* The register is compared against the on-wire L2 length, so
 +		 * every encapsulation on this egress path has to be added to
 +		 * the aggregated MTU. VLAN_ETH_HLEN applies to all ports; an
@@ -104,11 +105,12 @@ Signed-off-by: naoki66 <naoki66@local>
 +		 * PPPOE_SES_HLEN sits between Ethernet and the IP payload.
 +		 */
 +		mtu = netdev->mtu + VLAN_ETH_HLEN;
-+		if (d->flags & AIROHA_PRIV_F_PON)
++		if (test_bit(AIROHA_DEV_F_PON, &d->flags))
 +			mtu += PPPOE_SES_HLEN;
 +
 +		len = max_t(u32, len, mtu);
-+	}
+ 	}
+-	len += VLAN_ETH_HLEN;
+ 
  	ppe_id = !airoha_is_lan_gdm_dev(dev) && airoha_ppe_is_enabled(eth, 1);
  	index = port->id == AIROHA_GDM4_IDX ? 7 : port->id;
- 	airoha_fe_rmw(eth, REG_PPE_MTU(ppe_id, index),

@@ -332,16 +332,16 @@ diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/air
 index fa9a8edce22f..83daec003257 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
-@@ -555,6 +555,9 @@ struct airoha_gdm_dev {
+@@ -605,6 +605,9 @@ struct airoha_gdm_dev {
+ 	unsigned long flags;
  	int nbq;
  
  	struct airoha_hw_stats stats;
 +
 +	struct phylink *phylink;
 +	struct phylink_config phylink_config;
- };
  
- struct airoha_gdm_port {
+ 	/* Serialize netdev_tx_completed_queue() calls per TX queue during
 @@ -562,8 +565,10 @@ struct airoha_gdm_port {
  	int id;
  	int users;

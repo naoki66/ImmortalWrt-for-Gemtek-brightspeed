@@ -246,14 +246,13 @@ index 433a646..d474b26 100644
  	return 0;
  
  error_napi_stop:
-@@ -4377,5 +4377,7 @@ static void airoha_remove(struct platform_device *pdev)
+@@ -4265,4 +4265,6 @@ static void airoha_remove(struct platform_device *pdev)
  	struct airoha_eth *eth = platform_get_drvdata(pdev);
  	int i;
  
 +	WRITE_ONCE(airoha_pon_eth, NULL);
 +
- 	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++)
- 		airoha_qdma_stop_napi(&eth->qdma[i]);
+ 	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++) {
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
 index cd13c1c..1ee1496 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
