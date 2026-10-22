@@ -1,0 +1,320 @@
+From: liujixings <liujixings@outlook.com>
+Subject: [PATCH] net: airoha: decode L2 encapsulation for native L2B offload
+
+Bridged frames are punted with PPE_CPU_REASON_HIT_UNBIND once the PPE has
+allocated a native AN7581 L2B entry, but only HIT_UNBIND_RATE_REACHED was
+handled, so bridged PPPoE passthrough, 802.1Q and PHY-to-VLAN flows were
+never bound and stayed on the CPU path.
+
+Bind them and rebuild the egress header from a full decode of the frame:
+Ethernet, up to two VLAN tags and an optional PPPoE session. Resolve the
+bridge master through the ingress VLAN upper for PON/direct GDM parents,
+keep transparent bridges untagged internally, derive the egress tag stack
+from the forward path (including a VLAN upper egress), and program the
+innermost EtherType and IB1 PSN bit. Also stop using ip_hdr() on RX skbs
+which have no network header yet.
+
+Signed-off-by: liujixings <liujixings@outlook.com>
+---
+--- a/include/linux/soc/airoha/airoha_offload.h
++++ b/include/linux/soc/airoha/airoha_offload.h
+@@ -11,6 +11,14 @@
+ #include <linux/workqueue.h>
+ 
+ enum {
++	PPE_CPU_REASON_NO_FLOW_IS_ASSIGNED = 0x07,
++	PPE_CPU_REASON_UN_HIT = 0x0d,
++	/* The PPE allocated an L2B entry but has not bound it yet. Bridged
++	 * traffic, including non-IP frames such as PPPoE passthrough and
++	 * 802.1Q frames, is punted with this reason and must be bound by the
++	 * CPU before it can be forwarded by hardware.
++	 */
++	PPE_CPU_REASON_HIT_UNBIND = 0x0e,
+ 	PPE_CPU_REASON_HIT_UNBIND_RATE_REACHED = 0x0f,
+ 	/* The PPE punts the first packet of a multicast flow so that the CPU
+ 	 * can fill and bind the L2B entry: the hardware itself never binds
+--- a/drivers/net/ethernet/airoha/airoha_eth.h
++++ b/drivers/net/ethernet/airoha/airoha_eth.h
+@@ -542,6 +542,10 @@
+ 		u16 sid;
+ 		u8 num;
+ 	} pppoe;
++	/* Innermost EtherType carried by a bridged frame, in network byte
++	 * order. Native L2B entries use it to rebuild the egress header.
++	 */
++	__be16 l2_etype;
+ };
+ 
+ enum airoha_flow_entry_type {
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -1132,6 +1132,7 @@
+ 		    is_multicast_ether_addr(eth_hdr(q->skb)->h_dest))
+ 			airoha_ppe_mc_note_rx_reason(reason);
+ 		switch (reason) {
++		case PPE_CPU_REASON_HIT_UNBIND:
+ 		case PPE_CPU_REASON_HIT_UNBIND_RATE_REACHED:
+ 			airoha_ppe_check_skb(&eth->ppe->dev, q->skb, hash,
+ 					     false);
+@@ -1140,6 +1141,14 @@
+ 				airoha_ppe_mc_learn_skb(&eth->ppe->dev,
+ 							q->skb, hash);
+ 			break;
++		case PPE_CPU_REASON_UN_HIT:
++		case PPE_CPU_REASON_NO_FLOW_IS_ASSIGNED:
++			/* Bridged non-IP frames (PPPoE passthrough, 802.1Q) are
++			 * punted before the PPE binds the L2B entry.
++			 */
++			airoha_ppe_check_skb(&eth->ppe->dev, q->skb, hash,
++					     false);
++			break;
+ 		case PPE_CPU_REASON_MULTICAST_TO_CPU:
+ 		case PPE_CPU_REASON_MULTICAST_TO_GMAC1_CPU:
+ 			/* Hardware only allocates the L2B multicast entry and
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -415,6 +415,72 @@
+ #endif
+ }
+ 
++struct airoha_ppe_l2_info {
++	__be16 etype;
++	__be16 vlan_proto[2];
++	u16 vlan[2];
++	u16 pppoe_sid;
++	u8 vlan_num;
++	u8 l3_off;
++	bool pppoe;
++};
++
++/* Decode the complete L2 encapsulation carried by a bridged frame:
++ * Ethernet -> up to two 802.1Q/802.1ad tags -> optional PPPoE session.
++ * The L2B hardware entry keeps the ingress key learned by the PPE, while
++ * the egress tag stack and EtherType must be rebuilt from this data.
++ */
++static void airoha_ppe_parse_l2(struct sk_buff *skb,
++				struct airoha_ppe_l2_info *info)
++{
++	const struct ethhdr *eh = eth_hdr(skb);
++	const u8 *p = (const u8 *)eh + ETH_HLEN;
++	const u8 *end = skb->data + skb_headlen(skb);
++	__be16 proto = eh->h_proto;
++	int n = 0;
++
++	memset(info, 0, sizeof(*info));
++
++	if (skb_vlan_tag_present(skb)) {
++		info->vlan[0] = skb_vlan_tag_get_id(skb);
++		info->vlan_proto[0] = skb->vlan_proto;
++		n = 1;
++	}
++
++	while (n < ARRAY_SIZE(info->vlan) && eth_type_vlan(proto)) {
++		const struct vlan_hdr *vh;
++		u16 vid;
++
++		if (p + VLAN_HLEN > end)
++			break;
++
++		vh = (const struct vlan_hdr *)p;
++		vid = ntohs(vh->h_vlan_TCI) & VLAN_VID_MASK;
++		if (!vid)
++			break;
++
++		info->vlan[n] = vid;
++		info->vlan_proto[n] = proto;
++		proto = vh->h_vlan_encapsulated_proto;
++		p += VLAN_HLEN;
++		n++;
++	}
++
++	info->vlan_num = n;
++	info->etype = proto;
++	info->l3_off = p - skb->data;
++
++	if (proto == htons(ETH_P_PPP_SES) && p + PPPOE_SES_HLEN <= end) {
++		const struct pppoe_hdr *ph = (const struct pppoe_hdr *)p;
++
++		if (ph->ver == 1 && ph->type == 1) {
++			info->pppoe = true;
++			info->pppoe_sid = ntohs(ph->sid);
++			info->l3_off += PPPOE_SES_HLEN;
++		}
++	}
++}
++
+ static void airoha_ppe_foe_set_bridge_addrs(struct airoha_foe_bridge *br,
+ 					    struct ethhdr *eh)
+ {
+@@ -684,6 +750,11 @@
+ 			FIELD_GET(AIROHA_PON_QDMA_GEM_MASK, pon_tag);
+ 	} else if (data->pppoe.num) {
+ 		l2->etype = ETH_P_PPP_SES;
++	} else if (data->l2_etype) {
++		/* Native L2B: rebuild the egress EtherType from the innermost
++		 * header of the bridged frame.
++		 */
++		l2->etype = ntohs(data->l2_etype);
+ 	}
+ 
+ 	return 0;
+@@ -1721,8 +1792,17 @@
+ 	}
+ 
+ 	if (type == PPE_PKT_TYPE_BRIDGE) {
++		struct airoha_ppe_l2_info l2info;
++
+ 		memcpy(&e, hwe, sizeof(e));
+ 
++		/* Native entries are allocated without forwarding fields: fill
++		 * in the egress EtherType decoded from the frame. The learned
++		 * ingress key, including its VLAN, is kept untouched.
++		 */
++		airoha_ppe_parse_l2(skb, &l2info);
++		e.l2b.etype = ntohs(l2info.etype);
++
+ 		/* 保留硬件填写的 ingress key，仅补齐 egress 字段。 */
+ 		e.ib1 &= ~AIROHA_FOE_IB1_BIND_STATE;
+ 		e.ib1 |= FIELD_PREP(AIROHA_FOE_IB1_BIND_STATE,
+@@ -1735,8 +1815,19 @@
+ 			     AIROHA_FOE_IB2_PSE_QOS;
+ 	} else if (type == PPE_PKT_TYPE_IPV4_HNAPT ||
+ 		   type == PPE_PKT_TYPE_IPV4_ROUTE) {
+-		const struct iphdr *iph = ip_hdr(skb);
++		struct airoha_ppe_l2_info l2info;
+ 		struct airoha_foe_mac_info *l2 = &e.ipv4.l2;
++		const struct iphdr *iph;
++
++		/* An RX skb has no network header yet: locate IPv4 after the
++		 * complete Ethernet/VLAN/PPPoE encapsulation.
++		 */
++		airoha_ppe_parse_l2(skb, &l2info);
++		if (l2info.l3_off + sizeof(*iph) > skb_headlen(skb))
++			goto out_bad;
++		iph = (const struct iphdr *)(skb->data + l2info.l3_off);
++		if (iph->version != 4)
++			goto out_bad;
+ 
+ 		memset(&e, 0, sizeof(e));
+ 		e.ib1 = (hwe->ib1 & ~AIROHA_FOE_IB1_BIND_STATE) |
+@@ -2113,7 +2204,7 @@
+ 	struct net_device_path_stack stack;
+ 	struct net_device_path_ctx ctx = {};
+ 	struct ethhdr *eh = eth_hdr(skb);
+-	struct vlan_ethhdr *veh;
++	struct airoha_ppe_l2_info l2;
+ 	struct airoha_flow_data data = {};
+ 	struct net_device *master, *egress;
+ 	u16 vid, proto;
+@@ -2129,35 +2220,56 @@
+ 	if (!skb->dev)
+ 		return false;
+ 
++	airoha_ppe_parse_l2(skb, &l2);
++
+ 	/* Resolve the FDB in the packet's VLAN. A trunk port PVID describes
+ 	 * untagged traffic only and must not replace an skb hardware VLAN tag.
+ 	 */
+ 	master = airoha_ppe_foe_get_bridge_master(skb->dev);
++	if (!master && l2.vlan_num) {
++		struct net_device *vdev;
++
++		/* PON and direct GDM netdevs deliver tagged frames through the
++		 * parent device. Locate the VLAN upper which is the actual
++		 * bridge port before resolving the bridge master.
++		 */
++		rcu_read_lock();
++		vdev = __vlan_find_dev_deep_rcu(skb->dev, l2.vlan_proto[0],
++						 l2.vlan[0]);
++		if (vdev) {
++			master = netif_is_bridge_master(vdev) ? vdev :
++				 netdev_master_upper_dev_get_rcu(vdev);
++			if (master && !netif_is_bridge_master(master))
++				master = NULL;
++			if (master)
++				dev_hold(master);
++		}
++		rcu_read_unlock();
++	}
+ 	if (!master)
+ 		return false;
+ 
+ 	rcu_read_lock();
+ 	ctx.dev = master;
+-	if (is_vlan_dev(skb->dev)) {
++	if (!br_vlan_enabled(master)) {
++		/* VLAN transparent bridge: frames are untagged inside the
++		 * bridge, so the egress tag stack is derived exclusively from
++		 * the egress VLAN upper. This is the PHY <-> VLAN bridge case.
++		 */
++		ctx.num_vlans = 0;
++	} else if (is_vlan_dev(skb->dev)) {
+ 		vid = vlan_dev_vlan_id(skb->dev);
+ 		if (vid) {
+ 			ctx.vlan[0].id = vid;
+ 			ctx.vlan[0].proto = vlan_dev_vlan_proto(skb->dev);
+ 			ctx.num_vlans = 1;
+ 		}
+-	} else if (skb_vlan_tag_present(skb)) {
+-		ctx.vlan[0].id = skb_vlan_tag_get_id(skb);
+-		ctx.vlan[0].proto = skb->vlan_proto;
+-		ctx.num_vlans = 1;
+-	} else if (eth_type_vlan(eh->h_proto) &&
+-		   (u8 *)eh + VLAN_ETH_HLEN <= skb_tail_pointer(skb)) {
+-		veh = (struct vlan_ethhdr *)eh;
+-		vid = ntohs(veh->h_vlan_TCI) & VLAN_VID_MASK;
+-		if (vid) {
+-			ctx.vlan[0].id = vid;
+-			ctx.vlan[0].proto = veh->h_vlan_proto;
+-			ctx.num_vlans = 1;
++	} else if (l2.vlan_num) {
++		for (i = 0; i < l2.vlan_num; i++) {
++			ctx.vlan[i].id = l2.vlan[i];
++			ctx.vlan[i].proto = l2.vlan_proto[i];
+ 		}
++		ctx.num_vlans = l2.vlan_num;
+ 	} else if (br_vlan_enabled(master) &&
+ 		   netif_is_bridge_port(skb->dev) &&
+ 		   !br_vlan_get_pvid_rcu(skb->dev, &vid) && vid &&
+@@ -2175,17 +2287,37 @@
+ 		return false;
+ 	}
+ 
++	/* __dev_fill_forward_path() updates ctx.vlan with the bridge push/pop
++	 * decision, so it now describes the egress tag stack.
++	 */
+ 	data.vlan.num = ctx.num_vlans;
+ 	for (i = 0; i < ctx.num_vlans; i++) {
+ 		data.vlan.hdr[i].id = ctx.vlan[i].id;
+ 		data.vlan.hdr[i].proto = ctx.vlan[i].proto;
+ 	}
+ 
+-	/* The path immediately below the bridge is the real egress port. It
+-	 * can be an AP netdev (resolved to WDMA by entry_prepare), a direct
+-	 * GDM netdev, or a DSA user port.
++	/* L2B entries keep the frame's innermost EtherType. A PPPoE session
++	 * header is forwarded unchanged and only needs the IB1 PSN flag.
++	 */
++	data.l2_etype = l2.etype;
++	data.pppoe.num = l2.pppoe;
++	data.pppoe.sid = l2.pppoe_sid;
++
++	/* A VLAN upper is not a DMA capable egress device: the PPE must
++	 * target its real device. DSA user ports have to stay visible so that
++	 * entry_prepare() can resolve their conduit and port index.
+ 	 */
+-	egress = (struct net_device *)stack.path[1].dev;
++	egress = NULL;
++	for (i = 1; i < stack.num_paths; i++) {
++		if (stack.path[i].type == DEV_PATH_DSA) {
++			egress = (struct net_device *)stack.path[i].dev;
++			break;
++		}
++	}
++	if (!egress)
++		egress = (struct net_device *)stack.path[stack.num_paths - 1].dev;
++	if (egress && is_vlan_dev(egress))
++		egress = vlan_dev_real_dev(egress);
+ 	if (!egress) {
+ 		rcu_read_unlock();
+ 		dev_put(master);
