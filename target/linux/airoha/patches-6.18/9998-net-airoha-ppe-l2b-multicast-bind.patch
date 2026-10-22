@@ -166,10 +166,26 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  
  	return NOTIFY_DONE;
  }
-@@ -1623,12 +1631,155 @@
+@@ -1623,12 +1631,191 @@
  	.notifier_call = airoha_ppe_mc_switchdev_event,
  };
  
++/* 回退匹配：MDB 条目可能带 VLAN（例如 vid 1），而 lan1 无 tag 入向时
++ * skb 上并没有 VLAN 信息（VID 由桥的 PVID 决定），此时按 MAC 找到该条目。
++ */
++static struct airoha_ppe_mc_entry *
++airoha_ppe_mc_find_mac(struct airoha_eth *eth, const u8 *mac)
++{
++	struct airoha_ppe_mc_entry *entry;
++
++	list_for_each_entry(entry, &airoha_ppe_mc_list, list) {
++		if (entry->eth == eth && ether_addr_equal(entry->mac, mac))
++			return entry;
++	}
++
++	return NULL;
++}
++
 +/* 把硬件已分配但未绑定的 L2B 组播条目绑定到桥 MDB 给出的出向端口掩码。
 + *
 + * 硬件在首个组播包上送 CPU 之前已经按硬件私有布局填好 ingress key
@@ -186,6 +202,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
 +	struct ethhdr *eh;
 +	u32 state, type, mask = 0;
 +	u16 vid = 0;
++	bool bound = false;
 +	int err;
 +
 +	atomic64_inc(&airoha_ppe_mc_punt_count);
@@ -204,6 +221,8 @@ Signed-off-by: liujixings <liujixings@outlook.com>
 +
 +	spin_lock_bh(&airoha_ppe_mc_lock);
 +	mc = airoha_ppe_mc_find(ppe->eth, eh->h_dest, vid);
++	if (!mc)
++		mc = airoha_ppe_mc_find_mac(ppe->eth, eh->h_dest);
 +	if (mc)
 +		mask = mc->port_mask;
 +	spin_unlock_bh(&airoha_ppe_mc_lock);
@@ -304,6 +323,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
 +		pr_info_ratelimited("airoha-ppe: bound mc %pM vid %u mask %#x hash %u type %u ib1 %08x ib2 %08x\n",
 +				    eh->h_dest, vid, mask, hash, type, e.ib1,
 +				    dbg_ib2);
++		bound = true;
 +	}
 +	goto out;
 +
@@ -311,6 +331,22 @@ Signed-off-by: liujixings <liujixings@outlook.com>
 +	atomic64_inc(&airoha_ppe_mc_learn_bad_count);
 +out:
 +	spin_unlock_bh(&ppe_lock);
++
++	/* 绑定成功后停止 retry work 的重复尝试；这里在释放 ppe_lock 之后
++	 * 再取 mc 锁并重新查找，保持与 airoha_ppe_mc_update_ppe() 相同的
++	 * 锁序，同时避免使用可能已被 DEL 释放的指针。
++	 */
++	if (bound) {
++		spin_lock_bh(&airoha_ppe_mc_lock);
++		mc = airoha_ppe_mc_find(ppe->eth, eh->h_dest, vid);
++		if (!mc)
++			mc = airoha_ppe_mc_find_mac(ppe->eth, eh->h_dest);
++		if (mc) {
++			mc->bound = true;
++			mc->last_err = 0;
++		}
++		spin_unlock_bh(&airoha_ppe_mc_lock);
++	}
 +}
 +
  #ifdef CONFIG_DEBUG_FS
@@ -323,7 +359,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  	seq_puts(m, "mac               vid mask bound retries last_err\n");
  	list_for_each_entry(entry, &airoha_ppe_mc_list, list)
  		seq_printf(m, "%pM %5u %04x %5u %7u %8d\n",
-@@ -1644,7 +1795,14 @@
+@@ -1644,7 +1831,14 @@
  	seq_printf(m, " dsa=%llu", airoha_ppe_mc_dsa_count);
  #endif
  	seq_puts(m, "\n");
@@ -339,7 +375,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  }
  #endif
  
-@@ -1660,14 +1818,14 @@
+@@ -1660,14 +1854,14 @@
  	unregister_switchdev_blocking_notifier(&airoha_ppe_mc_nb);
  	cancel_delayed_work_sync(&airoha_ppe_mc_work);
  
