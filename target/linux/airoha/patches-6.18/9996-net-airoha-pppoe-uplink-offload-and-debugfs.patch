@@ -1,0 +1,343 @@
+From: liujixings <liujixings@outlook.com>
+Subject: [PATCH] net: airoha: offload PPPoE uploads and expose QDMA/NPU state
+
+Complete the hardware offload path of a PPPoE WAN and improve the
+observability of the QDMA and NPU blocks:
+
+- PPPoE: nf_flowtable redirects an upload flow to the ppp netdev, which is
+  not a GDM device, so airoha_ppe_flow_offload_replace() rejected it with
+  -EINVAL and every upload flow stayed on the software path. Resolve the PON
+  GDM device from the PON flow table mapping the outer VLAN to a GEM/T-CONT
+  and use it as the egress device. Flows without a session id or without a
+  matching mapping get their own drop reasons.
+- QDMA: dump the per-ring software/hardware indices, descriptor counts, RX
+  ring threshold and TX queue stop state through debugfs. The data path is
+  not modified.
+- NPU: record the firmware version and mailbox error/timeout counters, and
+  expose them together with the core debug registers through debugfs.
+
+Signed-off-by: liujixings <liujixings@outlook.com>
+---
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -4,6 +4,8 @@
+  * Author: Lorenzo Bianconi <lorenzo@kernel.org>
+  */
+ #include <linux/airoha-eth.h>
++#include <linux/debugfs.h>
++#include <linux/seq_file.h>
+ #include <linux/of.h>
+ #include <linux/of_net.h>
+ #include <linux/of_reserved_mem.h>
+@@ -25,6 +27,7 @@
+ #include "airoha_eth.h"
+ 
+ static const struct net_device_ops airoha_netdev_ops;
++static struct dentry *airoha_eth_dbgfs_dir;
+ 
+ #ifdef CONFIG_AIROHA_PON_COMPAT
+ #define AIROHA_PON_FE_BASE		0x1fb50000
+@@ -4948,6 +4951,72 @@
+ 	return 0;
+ }
+ 
++/* Dump the QDMA ring state. The data path keeps no per-ring software counter,
++ * so a stalled or starved ring can otherwise only be spotted by packet drops.
++ * Comparing the software indices with the hardware ones tells whether the DMA
++ * engine or the CPU side is the bottleneck on a single saturated flow.
++ */
++static int airoha_qdma_debugfs_show(struct seq_file *s, void *data)
++{
++	struct airoha_eth *eth = s->private;
++	int i, j;
++
++	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++) {
++		struct airoha_qdma *qdma = &eth->qdma[i];
++
++		seq_printf(s, "qdma%d global_cfg=0x%08x\n", i,
++			   airoha_qdma_rr(qdma, REG_QDMA_GLOBAL_CFG));
++
++		for (j = 0; j < ARRAY_SIZE(qdma->q_tx); j++) {
++			struct airoha_queue *q = &qdma->q_tx[j];
++
++			if (!q->ndesc)
++				continue;
++
++			seq_printf(s,
++				   "  txq%-2d ndesc=%d used=%d free_thr=%d stopped=%d hw_cpu=%lu hw_dma=%lu\n",
++				   j, q->ndesc, q->queued, q->free_thr,
++				   q->txq_stopped,
++				   FIELD_GET(TX_RING_CPU_IDX_MASK,
++					     airoha_qdma_rr(qdma, REG_TX_CPU_IDX(j))),
++				   FIELD_GET(TX_RING_DMA_IDX_MASK,
++					     airoha_qdma_rr(qdma, REG_TX_DMA_IDX(j))));
++		}
++
++		for (j = 0; j < ARRAY_SIZE(qdma->q_rx); j++) {
++			struct airoha_queue *q = &qdma->q_rx[j];
++
++			if (!q->ndesc)
++				continue;
++
++			seq_printf(s,
++				   "  rxq%-2d ndesc=%d used=%d thr=%lu hw_cpu=%lu hw_dma=%lu\n",
++				   j, q->ndesc, q->queued,
++				   FIELD_GET(RX_RING_THR_MASK,
++					     airoha_qdma_rr(qdma, REG_RX_RING_SIZE(j))),
++				   FIELD_GET(RX_RING_CPU_IDX_MASK,
++					     airoha_qdma_rr(qdma, REG_RX_CPU_IDX(j))),
++				   FIELD_GET(RX_RING_DMA_IDX_MASK,
++					     airoha_qdma_rr(qdma, REG_RX_DMA_IDX(j))));
++		}
++	}
++
++	return 0;
++}
++
++static int airoha_qdma_debugfs_open(struct inode *inode, struct file *file)
++{
++	return single_open(file, airoha_qdma_debugfs_show, inode->i_private);
++}
++
++static const struct file_operations airoha_qdma_debugfs_fops = {
++	.owner		= THIS_MODULE,
++	.open		= airoha_qdma_debugfs_open,
++	.read		= seq_read,
++	.llseek		= seq_lseek,
++	.release	= single_release,
++};
++
+ static int airoha_probe(struct platform_device *pdev)
+ {
+ 	struct reset_control_bulk_data *xsi_rsts;
+@@ -5061,6 +5130,10 @@
+ 	if (err)
+ 		goto error_napi_stop;
+ 
++	airoha_eth_dbgfs_dir = debugfs_create_dir("airoha_eth", NULL);
++	debugfs_create_file("qdma", 0444, airoha_eth_dbgfs_dir, eth,
++			    &airoha_qdma_debugfs_fops);
++
+ #ifdef CONFIG_AIROHA_PON_COMPAT
+ 	if (pon_compat)
+ 		WRITE_ONCE(airoha_pon_eth, eth);
+@@ -5114,6 +5187,9 @@
+ 	WRITE_ONCE(airoha_pon_eth, NULL);
+ #endif
+ 
++	debugfs_remove_recursive(airoha_eth_dbgfs_dir);
++	airoha_eth_dbgfs_dir = NULL;
++
+ 	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++) {
+ 		airoha_qdma_stop_napi(&eth->qdma[i]);
+ 		airoha_qdma_tx_cleanup(&eth->qdma[i]);
+--- a/drivers/net/ethernet/airoha/airoha_eth.h
++++ b/drivers/net/ethernet/airoha/airoha_eth.h
+@@ -562,6 +562,7 @@
+ 	AIROHA_PPE_DROP_PORTS,
+ 	AIROHA_PPE_DROP_INVALID_MAC,
+ 	AIROHA_PPE_DROP_PON_MAPPING,
++	AIROHA_PPE_DROP_PPP_UPLINK,
+ 	AIROHA_PPE_DROP_WDMA,
+ 	__AIROHA_PPE_DROP_MAX,
+ };
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -5,6 +5,7 @@
+  */
+ 
+ #include <linux/airoha-eth.h>
++#include <linux/if_arp.h>
+ #include <linux/if_pppox.h>
+ #include <linux/if_vlan.h>
+ #include <linux/ip.h>
+@@ -1859,6 +1860,40 @@
+ 	return airoha_ppe_get_entry_idle_time(ppe, e->data.ib1);
+ }
+ 
++/* nf_flow_table redirects a PPPoE flow to the ppp netdev. That device is not a
++ * GDM device, but the session is really transmitted by the PON MAC, so resolve
++ * the uplink GDM whose flow table maps the outer VLAN to a GEM/T-CONT. Without
++ * this every upload flow of a PPPoE WAN stays on the software path.
++ */
++static struct net_device *
++airoha_ppe_ppp_uplink_dev(struct airoha_eth *eth,
++			  struct airoha_flow_data *data)
++{
++	int i, j;
++
++	for (i = 0; i < ARRAY_SIZE(eth->ports); i++) {
++		struct airoha_gdm_port *port = eth->ports[i];
++
++		if (!port)
++			continue;
++
++		for (j = 0; j < ARRAY_SIZE(port->devs); j++) {
++			struct airoha_gdm_dev *dev = port->devs[j];
++			u32 pon_tag = 0;
++
++			if (!dev || !test_bit(AIROHA_DEV_F_PON, &dev->flags))
++				continue;
++
++			if (airoha_ppe_pon_select_flow(dev, data, &pon_tag))
++				continue;
++
++			return netdev_from_priv(dev);
++		}
++	}
++
++	return NULL;
++}
++
+ static int airoha_ppe_flow_offload_replace(struct airoha_eth *eth,
+ 					   struct flow_cls_offload *f)
+ {
+@@ -1998,6 +2033,27 @@
+ 		return -EINVAL;
+ 	}
+ 
++	if (odev && odev->type == ARPHRD_PPP) {
++		struct net_device *uplink;
++
++		if (!data.pppoe.num) {
++			airoha_ppe_drop_inc(eth->ppe, AIROHA_PPE_DROP_PPPOE_ACTION);
++			NL_SET_ERR_MSG_MOD(f->common.extack,
++					   "PPPoE egress without a session id");
++			return -EOPNOTSUPP;
++		}
++
++		uplink = airoha_ppe_ppp_uplink_dev(eth, &data);
++		if (!uplink) {
++			airoha_ppe_drop_inc(eth->ppe, AIROHA_PPE_DROP_PPP_UPLINK);
++			NL_SET_ERR_MSG_MOD(f->common.extack,
++					   "PPPoE session has no PON VLAN/P-bit to GEM mapping");
++			return -EOPNOTSUPP;
++		}
++
++		odev = uplink;
++	}
++
+ 	err = airoha_ppe_foe_entry_prepare(eth, &hwe, odev, offload_type,
+ 					   &data, l4proto, dsfield,
+ 					   &egress_dev);
+--- a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
+@@ -244,6 +244,7 @@
+ 		[AIROHA_PPE_DROP_PORTS] = "ports",
+ 		[AIROHA_PPE_DROP_INVALID_MAC] = "invalid_mac",
+ 		[AIROHA_PPE_DROP_PON_MAPPING] = "pon_mapping",
++		[AIROHA_PPE_DROP_PPP_UPLINK] = "ppp_uplink",
+ 		[AIROHA_PPE_DROP_WDMA] = "wdma",
+ 	};
+ 	u64 entry_packets[ARRAY_SIZE(ppe_type_str)] = {};
+--- a/drivers/net/ethernet/airoha/airoha_npu.c
++++ b/drivers/net/ethernet/airoha/airoha_npu.c
+@@ -4,6 +4,7 @@
+  * Author: Lorenzo Bianconi <lorenzo@kernel.org>
+  */
+ 
++#include <linux/debugfs.h>
+ #include <linux/devcoredump.h>
+ #include <linux/devm-helpers.h>
+ #include <linux/firmware.h>
+@@ -12,6 +13,7 @@
+ #include <linux/of_platform.h>
+ #include <linux/of_reserved_mem.h>
+ #include <linux/regmap.h>
++#include <linux/seq_file.h>
+ 
+ #include "airoha_eth.h"
+ 
+@@ -214,10 +216,14 @@
+ 
+ 	spin_unlock_bh(&core->lock);
+ 
+-	if (ret == -ETIMEDOUT)
++	if (ret == -ETIMEDOUT) {
++		atomic64_inc(&npu->mbox_timeouts);
+ 		dev_err_ratelimited(npu->dev,
+ 				    "mailbox function %d timed out\n",
+ 				    func_id);
++	} else if (ret) {
++		atomic64_inc(&npu->mbox_errors);
++	}
+ 
+ 	return ret;
+ }
+@@ -723,6 +729,45 @@
+ 	.disable_locking	= true,
+ };
+ 
++static int airoha_npu_debugfs_info(struct seq_file *m, void *data)
++{
++	struct airoha_npu *npu = m->private;
++	int i;
++
++	seq_printf(m, "firmware: %u.%u\n",
++		   npu->version >> 16, npu->version & 0xffff);
++	seq_printf(m, "mailbox_errors: %llu\n",
++		   (u64)atomic64_read(&npu->mbox_errors));
++	seq_printf(m, "mailbox_timeouts: %llu\n",
++		   (u64)atomic64_read(&npu->mbox_timeouts));
++	seq_printf(m, "ppe_stats: %s\n",
++		   npu->stats ? "mapped" : "unavailable");
++
++	for (i = 0; i < ARRAY_SIZE(npu->cores); i++) {
++		u32 val[3];
++
++		regmap_bulk_read(npu->regmap, REG_PC_DBG(i), val,
++				 ARRAY_SIZE(val));
++		seq_printf(m, "core%u: pc=%08x sp=%08x lr=%08x\n",
++			   i, val[0], val[1], val[2]);
++	}
++
++	return 0;
++}
++
++static int airoha_npu_debugfs_open(struct inode *inode, struct file *file)
++{
++	return single_open(file, airoha_npu_debugfs_info, inode->i_private);
++}
++
++static const struct file_operations airoha_npu_debugfs_fops = {
++	.owner = THIS_MODULE,
++	.open = airoha_npu_debugfs_open,
++	.read = seq_read,
++	.llseek = seq_lseek,
++	.release = single_release,
++};
++
+ static int airoha_npu_probe(struct platform_device *pdev)
+ {
+ 	struct device *dev = &pdev->dev;
+@@ -837,9 +882,15 @@
+ 	msleep(100);
+ 
+ 	if (!airoha_npu_wlan_msg_get(npu, 0, WLAN_FUNC_GET_WAIT_NPU_VERSION,
+-				     &val, sizeof(val), GFP_KERNEL))
++				     &val, sizeof(val), GFP_KERNEL)) {
++		npu->version = val;
+ 		dev_info(dev, "NPU fw version: %0d.%d\n",
+ 			 (val >> 16) & 0xffff, val & 0xffff);
++	}
++
++	debugfs_create_file("info", 0444,
++			    debugfs_create_dir("airoha_npu", NULL),
++			    npu, &airoha_npu_debugfs_fops);
+ 
+ 	platform_set_drvdata(pdev, npu);
+ 
+--- a/include/linux/soc/airoha/airoha_offload.h
++++ b/include/linux/soc/airoha/airoha_offload.h
+@@ -182,6 +182,11 @@
+ 
+ 	struct airoha_foe_stats __iomem *stats;
+ 
++	/* Firmware version reported by the NPU and mailbox health counters. */
++	u32 version;
++	atomic64_t mbox_errors;
++	atomic64_t mbox_timeouts;
++
+ 	struct {
+ 		int (*ppe_init)(struct airoha_npu *npu);
+ 		int (*ppe_deinit)(struct airoha_npu *npu);

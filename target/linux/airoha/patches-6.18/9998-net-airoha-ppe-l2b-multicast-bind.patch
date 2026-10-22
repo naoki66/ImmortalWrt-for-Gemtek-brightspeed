@@ -1,0 +1,358 @@
+From: liujixings <liujixings@outlook.com>
+Subject: [PATCH] net: airoha: bind PPE multicast entries from the CPU
+
+AN7581 does not bind multicast forwarding entries in hardware. It
+allocates an entry and punts the first multicast packet with the
+multicast-to-CPU reason; software has to program the egress mask (from the
+bridge MDB) and move the entry to the BIND state.
+
+- Handle PPE_CPU_REASON_MULTICAST_TO_CPU/_GMAC1_CPU in the QDMA RX path.
+- Add airoha_ppe_mc_learn_skb(): keep the hardware-learned ingress key,
+  program the MDB port mask and commit the entry as BIND. Native L2B
+  entries keep their hardware key; IPv4 entries get orig = new tuple and
+  the egress MAC/VLAN so bridged multicast is forwarded untagged to the
+  DSA conduit.
+- Protect the MDB registry with a spinlock: the learn path runs in RX
+  softirq context and must not take a mutex.
+- Export learn counters and skip/error diagnostics.
+
+Signed-off-by: liujixings <liujixings@outlook.com>
+---
+--- a/include/linux/soc/airoha/airoha_offload.h
++++ b/include/linux/soc/airoha/airoha_offload.h
+@@ -12,6 +12,12 @@
+ 
+ enum {
+ 	PPE_CPU_REASON_HIT_UNBIND_RATE_REACHED = 0x0f,
++	/* The PPE punts the first packet of a multicast flow so that the CPU
++	 * can fill and bind the L2B entry: the hardware itself never binds
++	 * multicast entries.
++	 */
++	PPE_CPU_REASON_MULTICAST_TO_CPU = 0x18,
++	PPE_CPU_REASON_MULTICAST_TO_GMAC1_CPU = 0x19,
+ };
+ 
+ struct airoha_ppe_dev {
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -1128,9 +1128,25 @@
+ 				     PKT_HASH_TYPE_L4);
+ 
+ 		reason = FIELD_GET(AIROHA_RXD4_PPE_CPU_REASON, msg1);
+-		if (reason == PPE_CPU_REASON_HIT_UNBIND_RATE_REACHED)
++		switch (reason) {
++		case PPE_CPU_REASON_HIT_UNBIND_RATE_REACHED:
+ 			airoha_ppe_check_skb(&eth->ppe->dev, q->skb, hash,
+ 					     false);
++			if (skb_mac_header_was_set(q->skb) &&
++			    is_multicast_ether_addr(eth_hdr(q->skb)->h_dest))
++				airoha_ppe_mc_learn_skb(&eth->ppe->dev,
++							q->skb, hash);
++			break;
++		case PPE_CPU_REASON_MULTICAST_TO_CPU:
++		case PPE_CPU_REASON_MULTICAST_TO_GMAC1_CPU:
++			/* Hardware only allocates the L2B multicast entry and
++			 * punts the packet: the CPU has to bind it.
++			 */
++			airoha_ppe_mc_learn_skb(&eth->ppe->dev, q->skb, hash);
++			break;
++		default:
++			break;
++		}
+ 
+ 		done++;
+ 		if (test_bit(AIROHA_DEV_F_PON, &dev->flags)) {
+--- a/drivers/net/ethernet/airoha/airoha_eth.h
++++ b/drivers/net/ethernet/airoha/airoha_eth.h
+@@ -881,6 +881,8 @@
+ bool airoha_ppe_is_enabled(struct airoha_eth *eth, int index);
+ void airoha_ppe_check_skb(struct airoha_ppe_dev *dev, struct sk_buff *skb,
+ 			  u16 hash, bool rx_wlan);
++void airoha_ppe_mc_learn_skb(struct airoha_ppe_dev *dev, struct sk_buff *skb,
++			     u32 hash);
+ int airoha_ppe_setup_tc_block_cb(struct airoha_ppe_dev *dev, void *type_data);
+ int airoha_ppe_init(struct airoha_eth *eth);
+ void airoha_ppe_deinit(struct airoha_eth *eth);
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -6,10 +6,12 @@
+ 
+ #include <linux/airoha-eth.h>
+ #include <linux/airoha_ppe_compat.h>
++#include <linux/atomic.h>
+ #include <linux/if_arp.h>
+ #include <linux/if_pppox.h>
+ #include <linux/if_vlan.h>
+ #include <linux/ip.h>
++#include <linux/udp.h>
+ #include <linux/etherdevice.h>
+ #include <linux/ipv6.h>
+ #include <linux/of_platform.h>
+@@ -1372,10 +1374,11 @@
+ /* ---- 桥接组播登记（IGMP snooping MDB → PPE L2B） ----------------------
+  *
+  * 桥代码在 MDB add/del 时通过 switchdev blocking notifier 通知每个桥端口。
+- * AN7581 的 L2B 组播条目由硬件在首个组播包到达时学习，CPU 只能修改它的
+- * 出向端口掩码，不能创建条目（key/ingress_vlan 等字段是硬件私有的）。
+- * 所以 ADD 先登记，立即尝试一次 update；若硬件尚未学到（-ENOENT），由
+- * delayed work 每秒重试，直到绑定成功或该组被删除。
++ * AN7581 的硬件不会自行把组播条目置为 BIND：它只分配条目并把首个组播包
++ * 连同 FOE 索引上送 CPU（PPE_CPU_REASON_MULTICAST_TO_CPU），由 CPU 填充
++ * 出向端口掩码并绑定（见 airoha_ppe_mc_learn_skb()）。因此 ADD 先登记，
++ * 立即尝试一次 update；若条目尚未绑定（-ENOENT），由 delayed work 每秒
++ * 重试，直到绑定成功或该组被删除。
+  */
+ #define AIROHA_PPE_MC_RETRY_MS	1000
+ 
+@@ -1396,12 +1399,17 @@
+ };
+ 
+ static LIST_HEAD(airoha_ppe_mc_list);
+-static DEFINE_MUTEX(airoha_ppe_mc_lock);
++static DEFINE_SPINLOCK(airoha_ppe_mc_lock);
+ static u64 airoha_ppe_mc_add_count;
+ static u64 airoha_ppe_mc_del_count;
+ static u64 airoha_ppe_mc_update_ok_count;
+ static u64 airoha_ppe_mc_update_missing_count;
+ static u64 airoha_ppe_mc_skipped_count;
++static atomic64_t airoha_ppe_mc_punt_count;
++static atomic64_t airoha_ppe_mc_learn_ok_count;
++static atomic64_t airoha_ppe_mc_learn_nomdb_count;
++static atomic64_t airoha_ppe_mc_learn_bad_count;
++static atomic64_t airoha_ppe_mc_learn_err_count;
+ #if IS_ENABLED(CONFIG_NET_DSA)
+ static u64 airoha_ppe_mc_dsa_count;
+ #endif
+@@ -1467,7 +1475,7 @@
+ 	struct airoha_ppe_mc_entry *entry;
+ 	bool retry = false;
+ 
+-	mutex_lock(&airoha_ppe_mc_lock);
++	spin_lock_bh(&airoha_ppe_mc_lock);
+ 	list_for_each_entry(entry, &airoha_ppe_mc_list, list) {
+ 		int err;
+ 
+@@ -1490,7 +1498,7 @@
+ 
+ 	if (retry)
+ 		airoha_ppe_mc_schedule_retry();
+-	mutex_unlock(&airoha_ppe_mc_lock);
++	spin_unlock_bh(&airoha_ppe_mc_lock);
+ }
+ 
+ static int airoha_ppe_mc_switchdev_event(struct notifier_block *nb,
+@@ -1566,13 +1574,13 @@
+ 	/* GDM1..GDM4 → PORT_AG bit 0..3。 */
+ 	bit = BIT(dev->port->id - 1);
+ 
+-	mutex_lock(&airoha_ppe_mc_lock);
++	spin_lock_bh(&airoha_ppe_mc_lock);
+ 	entry = airoha_ppe_mc_find(eth, mdb->addr, mdb->vid);
+ 
+ 	if (event == SWITCHDEV_PORT_OBJ_ADD) {
+ 		airoha_ppe_mc_add_count++;
+ 		if (!entry) {
+-			entry = kzalloc(sizeof(*entry), GFP_KERNEL);
++			entry = kzalloc(sizeof(*entry), GFP_ATOMIC);
+ 			if (!entry)
+ 				goto unlock;
+ 
+@@ -1614,7 +1622,7 @@
+ 	}
+ 
+ unlock:
+-	mutex_unlock(&airoha_ppe_mc_lock);
++	spin_unlock_bh(&airoha_ppe_mc_lock);
+ 
+ 	return NOTIFY_DONE;
+ }
+@@ -1623,12 +1631,155 @@
+ 	.notifier_call = airoha_ppe_mc_switchdev_event,
+ };
+ 
++/* 把硬件已分配但未绑定的 L2B 组播条目绑定到桥 MDB 给出的出向端口掩码。
++ *
++ * 硬件在首个组播包上送 CPU 之前已经按硬件私有布局填好 ingress key
++ * （in_dmac/in_smac/ingress_vlan/hsk_l2），CPU 不能重建这些字段，只需补上
++ * egress 掩码并把 IB1 置为 BIND，然后按 FOE 索引写回 SRAM。
++ */
++void airoha_ppe_mc_learn_skb(struct airoha_ppe_dev *dev, struct sk_buff *skb,
++			     u32 hash)
++{
++	struct airoha_ppe *ppe = dev->priv;
++	struct airoha_ppe_mc_entry *mc;
++	struct airoha_foe_entry e;
++	struct airoha_foe_entry *hwe;
++	struct ethhdr *eh;
++	u32 state, type, mask = 0;
++	u16 vid = 0;
++	int err;
++
++	atomic64_inc(&airoha_ppe_mc_punt_count);
++
++	if (!skb || !skb->dev || !skb_mac_header_was_set(skb))
++		return;
++
++	eh = eth_hdr(skb);
++	if (!is_multicast_ether_addr(eh->h_dest))
++		return;
++
++	if (is_vlan_dev(skb->dev))
++		vid = vlan_dev_vlan_id(skb->dev);
++	else if (skb_vlan_tag_present(skb))
++		vid = skb_vlan_tag_get_id(skb);
++
++	spin_lock_bh(&airoha_ppe_mc_lock);
++	mc = airoha_ppe_mc_find(ppe->eth, eh->h_dest, vid);
++	if (mc)
++		mask = mc->port_mask;
++	spin_unlock_bh(&airoha_ppe_mc_lock);
++
++	if (!mask) {
++		atomic64_inc(&airoha_ppe_mc_learn_nomdb_count);
++		return;
++	}
++
++	if (hash >= airoha_ppe_get_total_num_entries(ppe)) {
++		atomic64_inc(&airoha_ppe_mc_learn_bad_count);
++		return;
++	}
++
++	spin_lock_bh(&ppe_lock);
++	hwe = airoha_ppe_foe_get_entry_locked(ppe, hash);
++	if (!hwe) {
++		pr_info_ratelimited("airoha-ppe: mc %pM hash %u has no entry\n",
++				    eh->h_dest, hash);
++		goto out_bad;
++	}
++
++	type = FIELD_GET(AIROHA_FOE_IB1_BIND_PACKET_TYPE, hwe->ib1);
++	state = FIELD_GET(AIROHA_FOE_IB1_BIND_STATE, hwe->ib1);
++	if (state == AIROHA_FOE_STATE_BIND) {
++		pr_info_ratelimited("airoha-ppe: mc skip bound %pM hash %u type %u\n",
++				    eh->h_dest, hash, type);
++		atomic64_inc(&airoha_ppe_mc_learn_bad_count);
++		goto out;
++	}
++
++	if (type == PPE_PKT_TYPE_BRIDGE) {
++		memcpy(&e, hwe, sizeof(e));
++
++		/* 保留硬件填写的 ingress key，仅补齐 egress 字段。 */
++		e.ib1 &= ~AIROHA_FOE_IB1_BIND_STATE;
++		e.ib1 |= FIELD_PREP(AIROHA_FOE_IB1_BIND_STATE,
++				    AIROHA_FOE_STATE_BIND);
++		e.l2b.ib2 |= AIROHA_FOE_IB2_MULTICAST;
++		e.l2b.ib2 &= ~AIROHA_FOE_IB2_PORT_AG;
++		e.l2b.ib2 |= FIELD_PREP(AIROHA_FOE_IB2_PORT_AG, mask);
++		e.l2b.ib2 |= FIELD_PREP(AIROHA_FOE_IB2_PSE_PORT,
++					FE_PSE_PORT_GDM1) |
++			     AIROHA_FOE_IB2_PSE_QOS;
++	} else if (type == PPE_PKT_TYPE_IPV4_HNAPT ||
++		   type == PPE_PKT_TYPE_IPV4_ROUTE) {
++		const struct iphdr *iph = ip_hdr(skb);
++		struct airoha_foe_mac_info *l2 = &e.ipv4.l2;
++
++		memset(&e, 0, sizeof(e));
++		e.ib1 = (hwe->ib1 & ~AIROHA_FOE_IB1_BIND_STATE) |
++			FIELD_PREP(AIROHA_FOE_IB1_BIND_STATE,
++				   AIROHA_FOE_STATE_BIND);
++
++		/* 桥接组播不做 NAT：new tuple 与 orig 相同。 */
++		e.ipv4.orig_tuple.src_ip = iph->saddr;
++		e.ipv4.orig_tuple.dest_ip = iph->daddr;
++		if (iph->protocol == IPPROTO_UDP) {
++			const struct udphdr *uh = (const struct udphdr *)
++				((const u8 *)iph + iph->ihl * 4);
++
++			e.ipv4.orig_tuple.dest_port = uh->dest;
++			e.ipv4.orig_tuple.src_port = uh->source;
++		}
++		e.ipv4.new_tuple = e.ipv4.orig_tuple;
++
++		l2->common.dest_mac_hi = get_unaligned_be32(eh->h_dest);
++		l2->common.dest_mac_lo = get_unaligned_be16(eh->h_dest + 4);
++		l2->common.src_mac_hi = get_unaligned_be32(eh->h_source);
++		l2->src_mac_lo = get_unaligned_be16(eh->h_source + 4);
++
++		e.ipv4.data = FIELD_PREP(AIROHA_FOE_SHAPER_ID, 0x7f) |
++			      FIELD_PREP(AIROHA_FOE_CHANNEL, 1);
++		e.ipv4.ib2 = AIROHA_FOE_IB2_MULTICAST |
++			     FIELD_PREP(AIROHA_FOE_IB2_PORT_AG, mask) |
++			     FIELD_PREP(AIROHA_FOE_IB2_PSE_PORT,
++					FE_PSE_PORT_GDM1) |
++			     AIROHA_FOE_IB2_PSE_QOS |
++			     AIROHA_FOE_IB2_FAST_PATH;
++	} else {
++		pr_info_ratelimited("airoha-ppe: mc skip %pM vid %u hash %u ib1 %08x type %u state %u\n",
++				    eh->h_dest, vid, hash, hwe->ib1, type,
++				    state);
++		atomic64_inc(&airoha_ppe_mc_learn_bad_count);
++		goto out;
++	}
++
++	err = airoha_ppe_foe_commit_entry(ppe, &e, hash, false);
++	if (err) {
++		atomic64_inc(&airoha_ppe_mc_learn_err_count);
++		pr_info_ratelimited("airoha-ppe: mc bind failed for %pM hash %u type %u err %d\n",
++				    eh->h_dest, hash, type, err);
++	} else {
++		u32 dbg_ib2 = type == PPE_PKT_TYPE_BRIDGE ?
++			      e.l2b.ib2 : e.ipv4.ib2;
++
++		atomic64_inc(&airoha_ppe_mc_learn_ok_count);
++		pr_info_ratelimited("airoha-ppe: bound mc %pM vid %u mask %#x hash %u type %u ib1 %08x ib2 %08x\n",
++				    eh->h_dest, vid, mask, hash, type, e.ib1,
++				    dbg_ib2);
++	}
++	goto out;
++
++out_bad:
++	atomic64_inc(&airoha_ppe_mc_learn_bad_count);
++out:
++	spin_unlock_bh(&ppe_lock);
++}
++
+ #ifdef CONFIG_DEBUG_FS
+ void airoha_ppe_mc_dump(struct seq_file *m)
+ {
+ 	struct airoha_ppe_mc_entry *entry;
+ 
+-	mutex_lock(&airoha_ppe_mc_lock);
++	spin_lock_bh(&airoha_ppe_mc_lock);
+ 	seq_puts(m, "mac               vid mask bound retries last_err\n");
+ 	list_for_each_entry(entry, &airoha_ppe_mc_list, list)
+ 		seq_printf(m, "%pM %5u %04x %5u %7u %8d\n",
+@@ -1644,7 +1795,14 @@
+ 	seq_printf(m, " dsa=%llu", airoha_ppe_mc_dsa_count);
+ #endif
+ 	seq_puts(m, "\n");
+-	mutex_unlock(&airoha_ppe_mc_lock);
++	spin_unlock_bh(&airoha_ppe_mc_lock);
++
++	seq_printf(m, "learn: punts=%llu ok=%llu no_mdb=%llu bad=%llu err=%llu\n",
++		   (u64)atomic64_read(&airoha_ppe_mc_punt_count),
++		   (u64)atomic64_read(&airoha_ppe_mc_learn_ok_count),
++		   (u64)atomic64_read(&airoha_ppe_mc_learn_nomdb_count),
++		   (u64)atomic64_read(&airoha_ppe_mc_learn_bad_count),
++		   (u64)atomic64_read(&airoha_ppe_mc_learn_err_count));
+ }
+ #endif
+ 
+@@ -1660,14 +1818,14 @@
+ 	unregister_switchdev_blocking_notifier(&airoha_ppe_mc_nb);
+ 	cancel_delayed_work_sync(&airoha_ppe_mc_work);
+ 
+-	mutex_lock(&airoha_ppe_mc_lock);
++	spin_lock_bh(&airoha_ppe_mc_lock);
+ 	list_for_each_entry_safe(entry, tmp, &airoha_ppe_mc_list, list) {
+ 		if (eth && entry->eth != eth)
+ 			continue;
+ 		list_del(&entry->list);
+ 		kfree(entry);
+ 	}
+-	mutex_unlock(&airoha_ppe_mc_lock);
++	spin_unlock_bh(&airoha_ppe_mc_lock);
+ }
+ 
+ static void airoha_ppe_foe_remove_flow(struct airoha_ppe *ppe,
