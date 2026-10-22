@@ -1,0 +1,70 @@
+From: liujixings <liujixings@outlook.com>
+Subject: [PATCH] net: airoha: recover the downlink PPPoE session id
+
+nf_flow_rule_route_common() only emits FLOW_ACTION_PPPOE_PUSH for the
+opposite tuple, so the rule describing the WAN-to-LAN direction has no
+PPPoE action at all. The driver therefore programmed pppoe_id = 0 for the
+downlink entry and the PPE could not match the session header on the PON
+side.
+
+The flow_cls_offload cookie is the flow_offload_tuple of the direction
+being installed, and its ingress encapsulation already carries the PPPoE
+session id discovered by the forward path. Read it when no PPPoE push
+action was present and fill data.pppoe, which makes the entry carry
+IB1_PPPOE and the session id like the uplink entry.
+
+Signed-off-by: liujixings <liujixings@outlook.com>
+---
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -22,6 +22,7 @@
+ #include <net/pkt_cls.h>
+ #include <net/route.h>
+ #include <net/switchdev.h>
++#include <net/netfilter/nf_flow_table.h>
+ #if IS_ENABLED(CONFIG_NET_DSA)
+ #include <net/dsa.h>
+ #endif
+@@ -2605,6 +2606,33 @@ static const struct airoha_gdm_dev *
+ 	return NULL;
+ }
+ 
++/* The ingress encapsulation of a flow tuple is not translated into a flow
++ * action: nf_flow_rule_route_common() only pushes the PPPoE header of the
++ * opposite tuple. The tuple itself is exposed through the classifier cookie,
++ * so recover the PPPoE session id the forward path resolved for this
++ * direction (WAN-to-LAN) and carry it into the FOE entry.
++ */
++static void
++airoha_ppe_flow_offload_ingress_pppoe(struct flow_cls_offload *f,
++				      struct airoha_flow_data *data)
++{
++	const struct flow_offload_tuple *tuple =
++		(const void *)(uintptr_t)f->cookie;
++	int i;
++
++	if (!tuple || data->pppoe.num)
++		return;
++
++	for (i = 0; i < tuple->encap_num; i++) {
++		if (tuple->encap[i].proto != htons(ETH_P_PPP_SES))
++			continue;
++
++		data->pppoe.sid = tuple->encap[i].id;
++		data->pppoe.num = 1;
++		return;
++	}
++}
++
+ static int airoha_ppe_flow_offload_replace(struct airoha_eth *eth,
+ 					   struct flow_cls_offload *f)
+ {
+@@ -2735,6 +2764,8 @@ static int airoha_ppe_flow_offload_replace(struct airoha_eth *eth,
+ 		}
+ 	}
+ 
++	airoha_ppe_flow_offload_ingress_pppoe(f, &data);
++
+ 	if (!is_valid_ether_addr(data.eth.h_source) ||
+ 	    !is_valid_ether_addr(data.eth.h_dest)) {
+ 		airoha_ppe_drop_inc(eth->ppe, AIROHA_PPE_DROP_INVALID_MAC);

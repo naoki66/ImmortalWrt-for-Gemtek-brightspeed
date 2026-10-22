@@ -58,11 +58,13 @@
 这些补丁**已应用**到 `build_dir` 内核树（`nf_flow_table_path.c` 中 `nft_flow_offload_is_bridging`
 在 77/316/554 行可见；`nf_conntrack_bridge.c` 中 `pppoe_present` / `PPPOE_SES_HLEN` 在 261-296、478-484 行可见）。
 
-**userspace 侧**：`package/network/config/firewall4/patches/001-add-bridge-flowtable-support.patch`
-已经会在 offload device 集合含桥端口时生成 `table bridge fw4 { flowtable fb ... }`，
-并有 `supports_bridge_flowtable()` 用 `nft -c` 探测——不支持时静默回落。
+**userspace 侧**：原先的 `package/network/config/firewall4/patches/001-add-bridge-flowtable-support.patch`
+已移除。内核 6.18.55 没有 `NFPROTO_BRIDGE` 类型的 flowtable 后端，且
+`nft_flow_offload_validate()` 拒绝 IPv4/IPv6/INET 之外的 family，因此
+`table bridge fw4 { flowtable fb ... }` 不可能生效，保留只会产生恒空的表。
 
-**所以桥 flowtable 生成链路是通的；卡点只在 `CONFIG_BRIDGE_NETFILTER` / `CONFIG_NF_FLOW_TABLE` 未开。**
+**所以桥流量的硬件加速不走 flowtable**，而是由 AN7581 native L2B 的 QDMA RX
+punt 学习路径完成（见 `docs/airoha-bridge-flowtable-offload.md`）。
 
 ### 3. FLOW_ACTION_PPPOE_PUSH —— ⚠️ 机制存在，但**前提是桥上 conntrack 能解析 PPPoE**
 

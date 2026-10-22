@@ -254,7 +254,7 @@ CONFIG_NET_AIROHA_NPU=y
 #   NF_FLOW_TABLE          - flowtable core
 #   NF_FLOW_TABLE_INET     - mixed IPv4/IPv6 flowtable (fw4 uses inet)
 #   NFT_FLOW_OFFLOAD       - the nft flow offload expression fw4 emits
-#   NF_TABLES_BRIDGE       - the bridge nft family fw4's `table bridge fw4` needs
+#   NF_TABLES_BRIDGE       - bridge nft family (no bridge flowtable backend exists)
 #   NETFILTER_XTABLES      - ebtables/xt bridge matching used by the filters
 CONFIG_BRIDGE_NETFILTER=y
 CONFIG_NF_CONNTRACK_BRIDGE=y

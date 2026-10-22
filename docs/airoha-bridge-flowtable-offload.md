@@ -1,35 +1,41 @@
 # Airoha 透明桥 flowtable 本地适配
 
-## 范围
+## 结论（2026-10-22）
 
-本说明记录本仓库对 `firewall4` 透明桥 flowtable 的本地适配。它不替换
-`firewall4` 的原始包说明，也不把上游提交说明作为本项目的功能承诺。
+当前内核（6.18.55）**不支持 bridge-family flowtable**，因此本仓库不再生成
+`table bridge fw4` / `flowtable bridge fw4 fb`。桥接流量的硬件加速由 AN7581
+native L2B 路径完成，与 `nf_tables` flowtable 无关。
 
-## 本地改动
+依据：
 
-- `PKG_RELEASE` 从 `4` 提升到 `5`，使新生成的 `firewall4` 包可以被升级系统识别。
-- bridge flowtable 仍然只在 `nft -c` 能通过完整 bridge 规则检查时生成；内核不支持
-  bridge flowtable 时继续使用普通 `inet` 防火墙路径。
-- bridge 端口发现不再只检查已解析的 offload 设备。现在通过 ubus 的
-  `network.device status` 解析 VLAN/bridge 的 lower device，再生成去重后的物理设备集合。
+1. `net/netfilter/nf_flow_table_inet.c` 只注册 `flowtable_ipv4`、`flowtable_ipv6`、
+   `flowtable_inet` 三种类型，没有 `NFPROTO_BRIDGE` 类型；
+2. `nft_flow_offload_validate()` 对 IPv4/IPv6/INET 之外的 family 直接返回
+   `-EOPNOTSUPP`；
+3. `nf_flowtable_parse_hook()` 把 hooknum 固定为 `NF_NETDEV_INGRESS`、pf 固定为
+   `NFPROTO_NETDEV`；桥接行为是在 `nft_flow_route()` 中由
+   `nft_flow_offload_is_bridging()` 在运行时判定的，不存在 bridge 专用的 hook 后端。
+
+因此 `nft add flowtable bridge ...` 必然报 `No such file or directory`（ENOENT），
+`table bridge fw4` 即使创建也永远是空表。保留该脚手架只会造成“已启用桥接卸载”的
+误判，故已移除：
+
+- 删除 `package/network/config/firewall4/patches/001-add-bridge-flowtable-support.patch`；
+- 删除 `/etc/hotplug.d/net/50-fw4-bridge-reload`。
 
 ## 与 Airoha PPE 的关系
 
-该改动只负责让 firewall4 选择正确的 bridge 设备，不能单独证明硬件转发已经生效。
-AN7581 native L2B entry 的布局和学习 key 保留由
-`9994-net-airoha-fix-native-l2b-entry-layout.patch` 负责；两者共同组成当前
-XG2010G 透明桥 offload 的软件入口和 PPE 写入路径。
+透明桥的 L2 转发加速由 `9994` / `9999-net-airoha-ppe-l2b-encap-decode` 系列补丁
+实现：QDMA RX 上报未绑定条目后，驱动解析完整的
+Ethernet + VLAN(1~2 层) + 可选 PPPoE 封装，填写 native L2B 条目并绑定。
+该路径不依赖 nft flowtable，也不依赖 br_netfilter。
 
-PON 注册、OMCI、光模块控制以及 `pon0` 上的普通三层 NAT 不属于本改动范围。
-1710G 只有在 WAN 加入 LAN bridge 的 AP/透明桥模式下才可能受益。
+`inet` 表的路由/NAT 卸载（IPv4/IPv6）仍由 `firewall4` 的
+`flow_offloading` / `flow_offloading_hw` 选项控制，与本次移除的 bridge 脚手架无关。
 
 ## 运行时验收
 
-在目标设备上应分别确认：
-
-1. `nft list flowtable bridge fw4 fb` 包含实际 bridge lower device；
-2. 对应 TC flower 规则显示 `in_hw`；
-3. Airoha PPE/debugfs 能看到 native L2B entry；
-4. 双向 LAN/VLAN 流量下吞吐和 CPU 占用相较软件转发有可重复改善。
-
-静态补丁检查或成功生成固件不等于硬件 offload 已验证。
+1. `nft list tables` 中不应再出现 `table bridge fw4`；若出现，说明旧配置残留，
+   执行 `/etc/init.d/firewall reload` 即可清理。
+2. 桥接转发产生的 L2B 条目在 PPE debugfs 中可见，且状态为 `BND`；
+3. 双向 LAN/VLAN 流量下，CPU 侧收包数应远小于总包数。

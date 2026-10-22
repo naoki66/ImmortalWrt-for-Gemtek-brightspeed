@@ -6,9 +6,9 @@
 
 1. **流量路径必须是「桥转发」**（`PPE_PKT_TYPE_BRIDGE` / native L2B），而不是三层路由；
    因为拨号主机在桥内，PPPoE 会话终结在主机侧，本机不终结该 PPPoE 会话。
-2. **firewall4 必须下发一条 bridge-family flowtable**（`table bridge fw4 → flowtable fb`，
-   `flags offload`），把 bridge 端口纳入 offload device 集合。仅配 `flow_offloading_hw=1`
-   但只有 `inet` 表时，纯 L2 桥流量不会进 PPE。
+2. **不需要 bridge-family flowtable**：内核 6.18.55 没有 `NFPROTO_BRIDGE`
+   flowtable 后端，`flow offload` 表达式也拒绝该 family。桥接转发由 native L2B
+   的 RX punt 学习路径直接写入 PPE；`flow_offloading_hw` 仅影响 inet 表的路由/NAT。
 3. **TC flower 规则必须携带 `FLOW_ACTION_PPPOE_PUSH` 动作**，驱动据此把 PPPoE
    Session-ID 写进 FOE 的 `pppoe_id` 字段、把 `ib1.PPPOE` 置位、把 L2 etype 设为
    `ETH_P_PPP_SES`。这是「PPPoE 能硬件转发」的关键，普通 L2B 桥转发不涉及这一路。
