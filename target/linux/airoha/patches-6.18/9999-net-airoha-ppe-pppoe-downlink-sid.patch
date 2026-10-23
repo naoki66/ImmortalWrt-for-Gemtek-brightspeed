@@ -10,8 +10,15 @@ side.
 The flow_cls_offload cookie is the flow_offload_tuple of the direction
 being installed, and its ingress encapsulation already carries the PPPoE
 session id discovered by the forward path. Read it when no PPPoE push
-action was present and fill data.pppoe, which makes the entry carry
-IB1_PPPOE and the session id like the uplink entry.
+action was present and fill data.pppoe.sid.
+
+Only the session id is recovered: this direction egresses towards the LAN,
+so the frame must stay plain Ethernet. data.pppoe.num drives
+AIROHA_FOE_IB1_BIND_PPPOE (IB1 PSN, "egress packet has PPPoE session"), so
+setting it here made the PPE prepend a PPPoE header on the LAN egress:
+clients received PPPoE frames instead of IP and every offloaded flow
+stalled. Keep ->num untouched; IB1 PSN stays clear while pppoe_id is still
+written for the PON-side match.
 
 Signed-off-by: liujixings <liujixings@outlook.com>
 ---
@@ -25,7 +32,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  #if IS_ENABLED(CONFIG_NET_DSA)
  #include <net/dsa.h>
  #endif
-@@ -2605,6 +2606,33 @@ static const struct airoha_gdm_dev *
+@@ -2605,6 +2606,36 @@ static const struct airoha_gdm_dev *
  	return NULL;
  }
  
@@ -34,6 +41,10 @@ Signed-off-by: liujixings <liujixings@outlook.com>
 + * opposite tuple. The tuple itself is exposed through the classifier cookie,
 + * so recover the PPPoE session id the forward path resolved for this
 + * direction (WAN-to-LAN) and carry it into the FOE entry.
++ *
++ * Only the session id is recovered. This direction egresses towards the LAN,
++ * so ->num must stay zero: it maps to IB1 PSN ("egress packet has PPPoE
++ * session") and would make the PPE push a PPPoE header on the LAN egress.
 + */
 +static void
 +airoha_ppe_flow_offload_ingress_pppoe(struct flow_cls_offload *f,
@@ -51,7 +62,6 @@ Signed-off-by: liujixings <liujixings@outlook.com>
 +			continue;
 +
 +		data->pppoe.sid = tuple->encap[i].id;
-+		data->pppoe.num = 1;
 +		return;
 +	}
 +}
@@ -59,7 +69,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  static int airoha_ppe_flow_offload_replace(struct airoha_eth *eth,
  					   struct flow_cls_offload *f)
  {
-@@ -2735,6 +2764,8 @@ static int airoha_ppe_flow_offload_replace(struct airoha_eth *eth,
+@@ -2735,6 +2767,8 @@ static int airoha_ppe_flow_offload_replace(struct airoha_eth *eth,
  		}
  	}
  
