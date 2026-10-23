@@ -240,7 +240,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
 +	spin_lock_bh(&ppe_lock);
 +	hwe = airoha_ppe_foe_get_entry_locked(ppe, hash);
 +	if (!hwe) {
-+		pr_info_ratelimited("airoha-ppe: mc %pM hash %u has no entry\n",
++		pr_debug_ratelimited("airoha-ppe: mc %pM hash %u has no entry\n",
 +				    eh->h_dest, hash);
 +		goto out_bad;
 +	}
@@ -248,7 +248,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
 +	type = FIELD_GET(AIROHA_FOE_IB1_BIND_PACKET_TYPE, hwe->ib1);
 +	state = FIELD_GET(AIROHA_FOE_IB1_BIND_STATE, hwe->ib1);
 +	if (state == AIROHA_FOE_STATE_BIND) {
-+		pr_info_ratelimited("airoha-ppe: mc skip bound %pM hash %u type %u\n",
++		pr_debug_ratelimited("airoha-ppe: mc skip bound %pM hash %u type %u\n",
 +				    eh->h_dest, hash, type);
 +		atomic64_inc(&airoha_ppe_mc_learn_bad_count);
 +		goto out;
@@ -303,7 +303,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
 +			     AIROHA_FOE_IB2_PSE_QOS |
 +			     AIROHA_FOE_IB2_FAST_PATH;
 +	} else {
-+		pr_info_ratelimited("airoha-ppe: mc skip %pM vid %u hash %u ib1 %08x type %u state %u\n",
++		pr_debug_ratelimited("airoha-ppe: mc skip %pM vid %u hash %u ib1 %08x type %u state %u\n",
 +				    eh->h_dest, vid, hash, hwe->ib1, type,
 +				    state);
 +		atomic64_inc(&airoha_ppe_mc_learn_bad_count);
@@ -313,14 +313,14 @@ Signed-off-by: liujixings <liujixings@outlook.com>
 +	err = airoha_ppe_foe_commit_entry(ppe, &e, hash, false);
 +	if (err) {
 +		atomic64_inc(&airoha_ppe_mc_learn_err_count);
-+		pr_info_ratelimited("airoha-ppe: mc bind failed for %pM hash %u type %u err %d\n",
++		pr_debug_ratelimited("airoha-ppe: mc bind failed for %pM hash %u type %u err %d\n",
 +				    eh->h_dest, hash, type, err);
 +	} else {
 +		u32 dbg_ib2 = type == PPE_PKT_TYPE_BRIDGE ?
 +			      e.l2b.ib2 : e.ipv4.ib2;
 +
 +		atomic64_inc(&airoha_ppe_mc_learn_ok_count);
-+		pr_info_ratelimited("airoha-ppe: bound mc %pM vid %u mask %#x hash %u type %u ib1 %08x ib2 %08x\n",
++		pr_debug_ratelimited("airoha-ppe: bound mc %pM vid %u mask %#x hash %u type %u ib1 %08x ib2 %08x\n",
 +				    eh->h_dest, vid, mask, hash, type, e.ib1,
 +				    dbg_ib2);
 +		bound = true;
