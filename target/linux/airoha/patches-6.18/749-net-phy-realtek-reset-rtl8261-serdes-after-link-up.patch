@@ -1,0 +1,174 @@
+From: Yanghan Ye <yyh94306@gmail.com>
+Date: Fri, 23 Oct 2026 01:00:00 +0800
+Subject: [PATCH] net: phy: realtek: reset RTL8261 host SerDes after link up
+
+The XR1710G field report shows that after a copper renegotiation the RTK
+SerDes flow_s pulse can restore the in-band receive direction while the
+transmit direction stays stale. The PHY then reports link up, the MAC
+keeps counting transmitted frames, but nothing reaches the copper side
+and no error counter moves.
+
+The MediaTek SDK work-around for this block resets the USXGMII SerDes
+unconditionally one second after the media link comes up. The existing
+polling work only resets the block while the SerDes link status reads
+down, so a latched-up but half-dead block is never recovered.
+
+Wait for the link to settle after the carrier is seen, then assert and
+release the SerDes reset once per copper AN cycle and restore the tuned
+flow_s values. If the in-band word does not come back, fall back to the
+existing flow_s retry path.
+
+Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+--- a/drivers/net/phy/realtek/realtek.h
++++ b/drivers/net/phy/realtek/realtek.h
+@@ -13,6 +13,8 @@
+ 	RTL826X_RTK_SERDES_PULSE,
+ 	RTL826X_RTK_SERDES_RELEASE,
+ 	RTL826X_RTK_SERDES_CHECK_CARRIER,
++	RTL826X_RTK_SERDES_SETTLE,
++	RTL826X_RTK_SERDES_VERIFY,
+ };
+ 
+ struct rtl826x_priv {
+@@ -20,6 +22,9 @@
+ 	enum rtl826x_rtk_serdes_state rtk_serdes_state;
+ 	u32 rtk_serdes_pulse_count;
+ 	u8 rtk_serdes_carrier_polls;
++	u8 rtk_serdes_verify_polls;
++	u8 rtk_serdes_full_resets;
++	unsigned long rtk_serdes_settle_until;
+ 	bool enable_pma_low_power:1;
+ 	bool patch_rtk_serdes:1;
+ 	struct phy_device *phydev;
+--- a/drivers/net/phy/realtek/realtek_main.c
++++ b/drivers/net/phy/realtek/realtek_main.c
+@@ -27,6 +27,14 @@
+ 
+ /* Let the HZ-driven PCS poll observe the new in-band word before retrying. */
+ #define RTL826X_RTK_SERDES_CARRIER_GRACE_POLLS	120
++/* Give the freshly established copper link time to settle before resetting
++ * the host SerDes block, matching the vendor SDK work-around.
++ */
++#define RTL826X_RTK_SERDES_SETTLE_MS		1000
++/* After the reset, allow a few polls for the in-band word to come back. */
++#define RTL826X_RTK_SERDES_VERIFY_POLLS		3
++/* One full reset per copper AN cycle is enough; later recovery uses pulses. */
++#define RTL826X_RTK_SERDES_MAX_FULL_RESETS	1
+ 
+ #define RTL8201F_IER				0x13
+ 
+@@ -3557,6 +3565,8 @@
+ 		priv->rtk_serdes_state = RTL826X_RTK_SERDES_PULSE;
+ 		priv->rtk_serdes_pulse_count = 0;
+ 		priv->rtk_serdes_carrier_polls = 0;
++		priv->rtk_serdes_verify_polls = 0;
++		priv->rtk_serdes_full_resets = 0;
+ 	}
+ 	if (phydev->autoneg == AUTONEG_DISABLE)
+ 		return genphy_c45_pma_setup_forced(phydev);
+@@ -3610,6 +3620,32 @@
+ 	return 0;
+ }
+ 
++static int rtl826x_rtk_serdes_full_reset(struct phy_device *phydev)
++{
++	int ret;
++
++	/* The MediaTek SDK work-around resets the USXGMII block unconditionally
++	 * once the media side link has come up. Pulsing the in-band word alone
++	 * can leave the transmit half of the block stale: the PHY reports link
++	 * up and the MAC keeps counting transmitted frames, but nothing ever
++	 * reaches the copper side. Reset both halves and restore the tuned
++	 * flow_s values afterwards.
++	 */
++	ret = rtl826x_phy_patch_sds_set(phydev, RTL826X_SDS_PAGE_RESET,
++					RTL826X_SDS_REG_RESET,
++					RTL826X_SDS_RESET_ASSERT);
++	if (ret < 0)
++		return ret;
++
++	ret = rtl826x_phy_patch_sds_set(phydev, RTL826X_SDS_PAGE_RESET,
++					RTL826X_SDS_REG_RESET,
++					RTL826X_SDS_RESET_RELEASE);
++	if (ret < 0)
++		return ret;
++
++	return rtl826x_phy_patch_rtk_serdes(phydev);
++}
++
+ static int rtl826x_read_status(struct phy_device *phydev)
+ {
+ 	struct rtl826x_priv *priv = phydev->priv;
+@@ -3676,6 +3712,8 @@
+ 			priv->rtk_serdes_state = RTL826X_RTK_SERDES_PULSE;
+ 			priv->rtk_serdes_pulse_count = 0;
+ 			priv->rtk_serdes_carrier_polls = 0;
++			priv->rtk_serdes_verify_polls = 0;
++			priv->rtk_serdes_full_resets = 0;
+ 		}
+ 
+ 		if (!aneg_done || priv->rtk_serdes_state == RTL826X_RTK_SERDES_PULSE) {
+@@ -3694,6 +3732,8 @@
+ 		priv->rtk_serdes_state = RTL826X_RTK_SERDES_PULSE;
+ 		priv->rtk_serdes_pulse_count = 0;
+ 		priv->rtk_serdes_carrier_polls = 0;
++		priv->rtk_serdes_verify_polls = 0;
++		priv->rtk_serdes_full_resets = 0;
+ 	}
+ 
+ 	if (!aneg_done) {
+@@ -3715,6 +3755,20 @@
+ 		}
+ 
+ 		if (netif_carrier_ok(phydev->attached_dev)) {
++			if (priv->rtk_serdes_full_resets <
++			    RTL826X_RTK_SERDES_MAX_FULL_RESETS) {
++				/* The in-band word is flowing again, but the egress
++				 * half of the block may still be stale. Let the link
++				 * settle, then reset the block unconditionally like
++				 * the vendor SDK does in its link-up path.
++				 */
++				priv->rtk_serdes_full_resets++;
++				priv->rtk_serdes_settle_until = jiffies +
++					msecs_to_jiffies(RTL826X_RTK_SERDES_SETTLE_MS);
++				priv->rtk_serdes_state = RTL826X_RTK_SERDES_SETTLE;
++				return 0;
++			}
++
+ 			phydev_info(phydev,
+ 				    "RTK SerDes carrier recovered after %u flow_s pulse(s)\n",
+ 				    priv->rtk_serdes_pulse_count);
+@@ -3729,6 +3783,33 @@
+ 		priv->rtk_serdes_carrier_polls = 0;
+ 
+ 		return rtl826x_rtk_serdes_pulse(phydev);
++	case RTL826X_RTK_SERDES_SETTLE:
++		if (time_before(jiffies, priv->rtk_serdes_settle_until))
++			return 0;
++
++		ret = rtl826x_rtk_serdes_full_reset(phydev);
++		if (ret < 0)
++			return ret;
++
++		phydev_info(phydev,
++			    "reset host SerDes after link up to clear stale egress path\n");
++		priv->rtk_serdes_verify_polls = 0;
++		priv->rtk_serdes_state = RTL826X_RTK_SERDES_VERIFY;
++		return 0;
++	case RTL826X_RTK_SERDES_VERIFY:
++		if (phydev->attached_dev &&
++		    netif_carrier_ok(phydev->attached_dev)) {
++			priv->rtk_serdes_state = RTL826X_RTK_SERDES_IDLE;
++			return 0;
++		}
++
++		if (priv->rtk_serdes_verify_polls++ <
++		    RTL826X_RTK_SERDES_VERIFY_POLLS)
++			return 0;
++
++		priv->rtk_serdes_verify_polls = 0;
++		priv->rtk_serdes_pulse_count = 0;
++		return rtl826x_rtk_serdes_pulse(phydev);
+ 	case RTL826X_RTK_SERDES_IDLE:
+ 		return 0;
+ 	}
