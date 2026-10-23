@@ -143,8 +143,9 @@ config defaults
         option flow_offloading_hw '1'      # ← 生成 `flags offload`，缺此项只会软件加速
 ```
 
-本仓库对 XR1710G 已由 `target/linux/airoha/an7581/base-files/etc/uci-defaults/`
-下的 `18-xr1710g-firewall-defaults` 自动置这两项。
+本仓库对 XG-040G-MD、XG2010G（含 2 GiB 版）与 XR1710G 已由
+`target/linux/airoha/an7581/base-files/etc/uci-defaults/` 下的
+`18-xr1710g-firewall-defaults` 自动置这两项。
 
 ### 4.3 桥/VLAN 配置要点
 
@@ -204,7 +205,8 @@ FIELD_PREP(WAN_MTU0_MASK, netdev->mtu + VLAN_ETH_HLEN)
 
 3. **PPE 里有 FOE（尤其 IB1.PPPOE / pppoe_id）**
    ```
-   cat /sys/kernel/debug/airoha_ppe*/...            # 视 debugfs 节点而定
+   cat /sys/kernel/debug/ppe/entries
+   cat /sys/kernel/debug/ppe/cdm1/bind              # 按引擎拆分，AN7581 另有 cdm2
    ```
    期望：能看到 `PPE_PKT_TYPE_BRIDGE` 表项，且 `pppoe_id` 与现场 SID 一致。
 

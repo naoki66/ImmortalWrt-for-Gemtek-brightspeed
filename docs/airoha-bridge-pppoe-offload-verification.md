@@ -231,7 +231,9 @@ conntrack -L -o extended | grep -c HW_OFFLOAD
 # 4. PPE 里有 BRIDGE 表项（含 pppoe_id）
 mount -t debugfs none /sys/kernel/debug 2>/dev/null
 cat /sys/kernel/debug/ppe/entries | grep -i L2B | head
-cat /sys/kernel/debug/ppe/bind
+cat /sys/kernel/debug/ppe/bind              # 聚合视图，含 DRAM 表项
+cat /sys/kernel/debug/ppe/cdm1/bind         # 仅 CDM1 所属 SRAM 表项
+cat /sys/kernel/debug/ppe/cdm2/bind         # 仅 CDM2 所属 SRAM 表项（AN7581 双 PPE）
 
 # 5. 大包验证 MTU（第 4 项是否修好）
 ping -M do -s 1464 -c 3 <对端>    # 1464+8+28 = 1500，PPPoE 满帧
