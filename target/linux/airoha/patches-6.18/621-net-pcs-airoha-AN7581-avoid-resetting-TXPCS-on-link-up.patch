@@ -42,7 +42,6 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  	.pon_stop_rx = an7581_pcs_pon_stop_rx,
  };
 
- static const struct airoha_pcs_match_data an7581_pcs_pcie = {
 @@ -1420,7 +1418,6 @@ static const struct airoha_pcs_match_dat
  	.usxgmii_ber_time_fixup = true,
  	.alloc_regmap_fields = an7581_pcs_pcie_alloc_regmap_fields,
