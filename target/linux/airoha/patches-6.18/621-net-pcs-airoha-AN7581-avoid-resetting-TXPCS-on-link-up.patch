@@ -32,13 +32,16 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
  	.rxlock_workaround = an7581_pcs_rxlock_workaround,
  };
  
-@@ -1410,7 +1409,6 @@ static const struct airoha_pcs_match_dat
+@@ -1410,9 +1409,8 @@ static const struct airoha_pcs_match_dat
  	.usxgmii_ber_time_fixup = true,
  	.alloc_regmap_fields = an7581_pcs_alloc_regmap_fields,
  	.bringup = an7581_pcs_bringup,
 -	.link_up = an7581_pcs_phya_link_up,
+ 	.pon_start_rx = an7581_pcs_pon_start_rx,
+ 	.pon_retrain_rx = an7581_pcs_pon_retrain_rx,
+ 	.pon_stop_rx = an7581_pcs_pon_stop_rx,
  };
- 
+
  static const struct airoha_pcs_match_data an7581_pcs_pcie = {
 @@ -1420,7 +1418,6 @@ static const struct airoha_pcs_match_dat
  	.usxgmii_ber_time_fixup = true,
