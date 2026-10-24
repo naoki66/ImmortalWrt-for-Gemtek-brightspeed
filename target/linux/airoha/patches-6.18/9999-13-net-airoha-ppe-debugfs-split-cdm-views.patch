@@ -41,7 +41,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  {
  	static const char *const ppe_type_str[] = {
  		[PPE_PKT_TYPE_IPV4_HNAPT] = "IPv4 5T",
-@@ -53,14 +63,13 @@ static int airoha_ppe_debugfs_foe_show(struct seq_file *m, void *private,
+@@ -53,11 +63,9 @@ static int airoha_ppe_debugfs_foe_show(struct seq_file *m, void *private,
  		[AIROHA_FOE_STATE_BIND] = "BND",
  		[AIROHA_FOE_STATE_FIN] = "FIN",
  	};
@@ -55,31 +55,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  		const char *state_str, *type_str = "UNKNOWN";
  		void *src_addr = NULL, *dest_addr = NULL;
  		u16 *src_port = NULL, *dest_port = NULL;
-+		struct airoha_foe_mac_info_common native_l2 = {};
- 		struct airoha_foe_mac_info_common *l2;
- 		unsigned char h_source[ETH_ALEN] = {};
- 		struct airoha_foe_stats64 stats = {};
-@@ -133,7 +142,18 @@ static int airoha_ppe_debugfs_foe_show(struct seq_file *m, void *private,
- 			break;
- 		}
- 
--		if (type >= PPE_PKT_TYPE_IPV6_ROUTE_3T) {
-+		if (airoha_is_7581(ppe->eth) && type == PPE_PKT_TYPE_BRIDGE) {
-+			data = hwe->l2b.data;
-+			ib2 = hwe->l2b.ib2;
-+			native_l2.dest_mac_hi = hwe->l2b.dest_mac_hi;
-+			native_l2.dest_mac_lo = hwe->l2b.dest_mac_lo;
-+			native_l2.src_mac_hi = hwe->l2b.src_mac_hi;
-+			native_l2.vlan1 = hwe->l2b.vlan1;
-+			native_l2.vlan2 = hwe->l2b.vlan2;
-+			native_l2.etype = hwe->l2b.etype;
-+			l2 = &native_l2;
-+			*((__be16 *)&h_source[4]) = cpu_to_be16(hwe->l2b.src_mac_lo);
-+		} else if (type >= PPE_PKT_TYPE_IPV6_ROUTE_3T) {
- 			data = hwe->ipv6.data;
- 			ib2 = hwe->ipv6.ib2;
- 			l2 = &hwe->ipv6.l2;
-@@ -164,16 +184,33 @@ static int airoha_ppe_debugfs_foe_show(struct seq_file *m, void *private,
+@@ -176,16 +184,33 @@ static int airoha_ppe_debugfs_foe_show(struct seq_file *m, void *private,
  
  static int airoha_ppe_debugfs_foe_all_show(struct seq_file *m, void *private)
  {
@@ -115,7 +91,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  static int airoha_ppe_debugfs_config_show(struct seq_file *m, void *private)
  {
  	struct airoha_ppe *ppe = m->private;
-@@ -210,7 +247,9 @@ static int airoha_ppe_debugfs_config_show(struct seq_file *m, void *private)
+@@ -222,7 +247,9 @@ static int airoha_ppe_debugfs_config_show(struct seq_file *m, void *private)
  }
  DEFINE_SHOW_ATTRIBUTE(airoha_ppe_debugfs_config);
  
@@ -126,7 +102,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  {
  	static const char *const ppe_type_str[] = {
  		[PPE_PKT_TYPE_IPV4_HNAPT] = "IPv4 5T",
-@@ -221,32 +260,16 @@ static int airoha_ppe_debugfs_summary_show(struct seq_file *m, void *private)
+@@ -233,33 +260,16 @@ static int airoha_ppe_debugfs_summary_show(struct seq_file *m, void *private)
  		[PPE_PKT_TYPE_IPV6_ROUTE_5T] = "IPv6 5T",
  		[PPE_PKT_TYPE_IPV6_6RD] = "6RD",
  	};
@@ -141,6 +117,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
 -		[AIROHA_PPE_DROP_PORTS] = "ports",
 -		[AIROHA_PPE_DROP_INVALID_MAC] = "invalid_mac",
 -		[AIROHA_PPE_DROP_PON_MAPPING] = "pon_mapping",
+-		[AIROHA_PPE_DROP_PPP_UPLINK] = "ppp_uplink",
 -		[AIROHA_PPE_DROP_WDMA] = "wdma",
 -	};
  	u64 entry_packets[ARRAY_SIZE(ppe_type_str)] = {};
@@ -161,7 +138,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  		struct airoha_foe_stats64 stats = {};
  		struct airoha_foe_entry *hwe;
  		u32 state, type;
-@@ -282,15 +305,49 @@ static int airoha_ppe_debugfs_summary_show(struct seq_file *m, void *private)
+@@ -295,15 +305,49 @@ static int airoha_ppe_debugfs_summary_show(struct seq_file *m, void *private)
  			   entry_total[i], entry_bound[i],
  			   entry_packets[i], entry_bytes[i]);
  	}
@@ -214,7 +191,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  
  	seq_puts(m, "offload drops:\n");
  	for (i = 0; i < ARRAY_SIZE(drop_str); i++)
-@@ -301,6 +358,19 @@ static int airoha_ppe_debugfs_summary_show(struct seq_file *m, void *private)
+@@ -314,6 +358,19 @@ static int airoha_ppe_debugfs_summary_show(struct seq_file *m, void *private)
  }
  DEFINE_SHOW_ATTRIBUTE(airoha_ppe_debugfs_summary);
  
@@ -234,7 +211,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  static int airoha_ppe_debugfs_multicast_show(struct seq_file *m, void *private)
  {
  	airoha_ppe_mc_dump(m);
-@@ -311,6 +381,18 @@ DEFINE_SHOW_ATTRIBUTE(airoha_ppe_debugfs_multicast);
+@@ -324,6 +381,18 @@ DEFINE_SHOW_ATTRIBUTE(airoha_ppe_debugfs_multicast);
  
  int airoha_ppe_debugfs_init(struct airoha_ppe *ppe)
  {
@@ -253,7 +230,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  	ppe->debugfs_dir = debugfs_create_dir("ppe", NULL);
  	debugfs_create_file("config", 0444, ppe->debugfs_dir, ppe,
  			    &airoha_ppe_debugfs_config_fops);
-@@ -323,5 +405,21 @@ int airoha_ppe_debugfs_init(struct airoha_ppe *ppe)
+@@ -336,5 +405,21 @@ int airoha_ppe_debugfs_init(struct airoha_ppe *ppe)
  	debugfs_create_file("multicast", 0444, ppe->debugfs_dir, ppe,
  			    &airoha_ppe_debugfs_multicast_fops);
  
