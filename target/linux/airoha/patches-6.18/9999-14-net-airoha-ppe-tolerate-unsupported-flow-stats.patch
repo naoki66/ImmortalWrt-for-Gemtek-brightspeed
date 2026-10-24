@@ -23,7 +23,7 @@ Signed-off-by: liujixings <liujixings@outlook.com>
 ---
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
-@@ -723,7 +723,10 @@ static void airoha_ppe_foe_flow_stat_entry_reset(struct airoha_ppe *ppe,
+@@ -723,6 +723,9 @@ static void airoha_ppe_foe_flow_stat_entry_reset(struct airoha_ppe *ppe,
  						 struct airoha_npu *npu,
  						 int index)
  {
