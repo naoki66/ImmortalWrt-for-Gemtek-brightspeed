@@ -1,0 +1,64 @@
+From: liujixings <liujixings@outlook.com>
+Subject: [PATCH] net: airoha: ppe: keep offload setup when flow stats are unsupported
+
+Not every NPU firmware variant implements the PPE flow stats mailbox
+command. On the EN7581 + MT7996 firmware the NPU completes the HWNAT
+init handshake (PPE_FLOW_CFG is programmed) but never answers
+PPE_FUNC_SET_WAIT_FLOW_STATS_SETUP, so airoha_npu_ppe_stats_setup()
+returns -ETIMEDOUT and airoha_ppe_offload_setup() bails out through
+error_npu_put.
+
+After that eth->npu stays NULL, airoha_ppe_hw_init() is never run (the
+table base register keeps reading zero) and airoha_ppe_foe_entry_commit()
+rejects every entry with -ENODEV, so neither routed nor L2B bridged
+traffic can ever be offloaded.
+
+Flow stats are an optional accounting feature: the debugfs status already
+reports them as "unavailable" when the NPU stats window is not mapped.
+Treat a stats setup failure as non fatal, skip the stats reset and the
+stats readout while npu->stats is NULL, and let the rest of the PPE
+offload setup complete.
+
+Signed-off-by: liujixings <liujixings@outlook.com>
+---
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -723,7 +723,10 @@ static void airoha_ppe_foe_flow_stat_entry_reset(struct airoha_ppe *ppe,
+ 						 struct airoha_npu *npu,
+ 						 int index)
+ {
++	if (!npu->stats)
++		return;
++
+ 	memset_io(&npu->stats[index], 0, sizeof(*npu->stats));
+ 	memset(&ppe->foe_stats[index], 0, sizeof(*ppe->foe_stats));
+ }
+@@ -1947,7 +1950,7 @@ void airoha_ppe_foe_entry_get_stats(struct airoha_ppe *ppe, u32 hash,
+ 	rcu_read_lock();
+ 
+ 	npu = rcu_dereference(eth->npu);
+-	if (npu) {
++	if (npu && npu->stats) {
+ 		u64 packets = ppe->foe_stats[index].packets;
+ 		u64 bytes = ppe->foe_stats[index].bytes;
+ 		struct airoha_foe_stats npu_stats;
+@@ -2078,12 +2081,16 @@ static int airoha_ppe_offload_setup(struct airoha_eth *eth)
+ 	ppe_num_stats_entries = airoha_ppe_get_total_num_stats_entries(ppe);
+ 	if (ppe_num_stats_entries > 0) {
+ 		err = npu->ops.ppe_init_stats(npu, ppe->foe_stats_dma,
+ 					      ppe_num_stats_entries);
+-		if (err)
+-			goto error_npu_put;
++		if (err) {
++			dev_warn(eth->dev,
++				 "PPE flow stats unavailable: %d\n", err);
++			err = 0;
++		}
+ 	}
+ 
+ 	airoha_ppe_hw_init(ppe);
+-	airoha_ppe_foe_flow_stats_reset(ppe, npu);
++	if (npu->stats)
++		airoha_ppe_foe_flow_stats_reset(ppe, npu);
+ 
+ 	rcu_assign_pointer(eth->npu, npu);
