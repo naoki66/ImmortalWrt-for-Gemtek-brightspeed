@@ -25,7 +25,7 @@ Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 Assisted-by: Codex:GPT-5.6-sol
 --- a/drivers/net/pcs/airoha/pcs-an7581.c
 +++ b/drivers/net/pcs/airoha/pcs-an7581.c
-@@ -1484,28 +1484,22 @@
+@@ -1484,28 +1484,22 @@ static unsigned int an7581_pcs_apply_cdr
  static u32 an7581_pcs_rx_prcal_idac_major(struct airoha_pcs_priv *priv,
  					  int index, u32 target_fl_out)
  {
@@ -59,7 +59,7 @@ Assisted-by: Codex:GPT-5.6-sol
  	}
  
  	return cdr_pr_idac;
-@@ -1514,103 +1508,21 @@
+@@ -1514,97 +1508,21 @@ static u32 an7581_pcs_rx_prcal_idac_majo
  static u32 an7581_pcs_rx_prcal_idac_minor(struct airoha_pcs_priv *priv, int index,
  					  u32 target_fl_out, u32 cdr_pr_idac_major)
  {
@@ -126,15 +126,9 @@ Assisted-by: Codex:GPT-5.6-sol
 -		 */
 -		dev_dbg(priv->dev, "Tested CDR Pr Idac: %x Fl Out: %x Diff: %u\n",
 -			cdr_pr_idac_tmp, fl_out, fl_out_diff_new);
--
--		/* Exact match, set the bit and exit */
--		if (!fl_out_diff_new) {
--			cdr_pr_idac |= BIT(prcal_search_bit);
--			break;
--		}
--
--		if (fl_out_diff && fl_out_diff_new > fl_out_diff &&
--		    (abs_diff(fl_out_diff_new, fl_out_diff) * 100) / fl_out_diff > 10) {
+-		if (fl_out_diff_new > fl_out_diff && fl_out_diff &&
+-		    (abs_diff(fl_out_diff_new, fl_out_diff) * 100) /
+-		    fl_out_diff > 10) {
 -			/* Exit early if we are already at the deadline */
 -			if (prcal_search_bit == 0)
 -				break;
@@ -169,7 +163,7 @@ Assisted-by: Codex:GPT-5.6-sol
  	}
  
  	return cdr_pr_idac;
-@@ -1698,17 +1610,8 @@
+@@ -1692,17 +1610,8 @@ static void an7581_pcs_rx_prcal(struct a
  	regmap_set_bits(pcs_pma, AIROHA_PCS_PMA_PXP_CDR_PR_PIEYE_PWDB,
  			AIROHA_PCS_PMA_FORCE_DA_CDR_PR_PWDB);
  
@@ -189,7 +183,7 @@ Assisted-by: Codex:GPT-5.6-sol
  	 */
  	cdr_pr_idac_major = an7581_pcs_rx_prcal_idac_major(priv, index, target_fl_out);
  
-@@ -1717,33 +1620,6 @@
+@@ -1711,33 +1620,6 @@ static void an7581_pcs_rx_prcal(struct a
  
  	fl_out = an7581_pcs_apply_cdr_pr_idac(priv, index, cdr_pr_idac);
  	fl_out_diff = abs_diff(fl_out, target_fl_out);

@@ -1,0 +1,95 @@
+From: Yanghan Ye <yyh94306@gmail.com>
+Date: Sat, 08 Aug 2026 22:18:53 +0800
+Subject: [PATCH] net: pcs: airoha: AN7581: avoid resetting TXPCS on link up
+
+The AN7581 SDK does not reset PCS logic from its normal link-up path.
+It performs the global PCS/PMA reset during PHY initialization and only
+resets the CDR when signal detection reports a signal while the PCS is
+not locked.
+
+The Linux driver instead unconditionally toggles HSG_TXPCS_RST_N after
+phylink has reported link up.  This can disturb a freshly negotiated
+link and does not match the SDK state machine, especially for USXGMII
+where link-up follows in-band autonegotiation.
+
+Remove the AN7581 link-up callback.  Keep the initialization reset and
+the existing SigDet/CDR recovery workaround unchanged.
+
+Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+---
+ drivers/net/pcs/airoha/pcs-airoha-common.c |  3 ---
+ drivers/net/pcs/airoha/pcs-airoha.h        |  6 ------
+ drivers/net/pcs/airoha/pcs-an7581.c        | 14 --------------
+ 3 files changed, 23 deletions(-)
+
+--- a/drivers/net/pcs/airoha/pcs-airoha-common.c
++++ b/drivers/net/pcs/airoha/pcs-airoha-common.c
+@@ -1399,7 +1399,6 @@ static const struct airoha_pcs_match_dat
+ 	.usxgmii_ber_time_fixup = true,
+ 	.alloc_regmap_fields = an7581_pcs_alloc_regmap_fields,
+ 	.bringup = an7581_pcs_bringup,
+-	.link_up = an7581_pcs_phya_link_up,
+ 	.rxlock_workaround = an7581_pcs_rxlock_workaround,
+ };
+ 
+@@ -1410,7 +1409,6 @@ static const struct airoha_pcs_match_dat
+ 	.usxgmii_ber_time_fixup = true,
+ 	.alloc_regmap_fields = an7581_pcs_alloc_regmap_fields,
+ 	.bringup = an7581_pcs_bringup,
+-	.link_up = an7581_pcs_phya_link_up,
+ };
+ 
+ static const struct airoha_pcs_match_data an7581_pcs_pcie = {
+@@ -1420,7 +1418,6 @@ static const struct airoha_pcs_match_dat
+ 	.usxgmii_ber_time_fixup = true,
+ 	.alloc_regmap_fields = an7581_pcs_pcie_alloc_regmap_fields,
+ 	.bringup = an7581_pcs_bringup,
+-	.link_up = an7581_pcs_phya_link_up,
+ };
+ 
+ static const struct airoha_pcs_match_data an7581_pcs_usb = {
+--- a/drivers/net/pcs/airoha/pcs-airoha.h
++++ b/drivers/net/pcs/airoha/pcs-airoha.h
+@@ -1695,7 +1695,6 @@ int an7581_pcs_bringup(struct airoha_pcs
+ int an7581_pcs_usb_bringup(struct airoha_pcs_priv *priv,
+ 			   int index, phy_interface_t interface);
+ 
+-void an7581_pcs_phya_link_up(struct airoha_pcs_priv *priv, int index);
+ int an7581_pcs_rxlock_workaround(struct airoha_pcs_priv *priv, int index);
+ #else
+ static inline int an7581_pcs_alloc_regmap_fields(struct airoha_pcs_priv *priv)
+@@ -1720,11 +1719,6 @@ static inline int an7581_pcs_usb_bringup
+ 	return -EOPNOTSUPP;
+ }
+ 
+-static inline void an7581_pcs_phya_link_up(struct airoha_pcs_priv *priv,
+-					   int index)
+-{
+-}
+-
+ static inline int an7581_pcs_rxlock_workaround(struct airoha_pcs_priv *priv,
+ 					       int index)
+ {
+--- a/drivers/net/pcs/airoha/pcs-an7581.c
++++ b/drivers/net/pcs/airoha/pcs-an7581.c
+@@ -1989,20 +1989,6 @@ int an7581_pcs_usb_bringup(struct airoha
+ 	return 0;
+ }
+ 
+-void an7581_pcs_phya_link_up(struct airoha_pcs_priv *priv, int index)
+-{
+-	struct regmap *pcs_pma = priv->pcs_pma[index];
+-
+-	/* Reset TXPCS on link up */
+-	regmap_clear_bits(pcs_pma, AIROHA_PCS_PMA_SW_RST_SET,
+-			  AIROHA_PCS_PMA_SW_HSG_TXPCS_RST_N);
+-
+-	usleep_range(100, 200);
+-
+-	regmap_set_bits(pcs_pma, AIROHA_PCS_PMA_SW_RST_SET,
+-			AIROHA_PCS_PMA_SW_HSG_TXPCS_RST_N);
+-}
+-
+ static int __an7581_pcs_alloc_regmap_fields(struct airoha_pcs_priv *priv, int index,
+ 					    const struct reg_field *fields)
+ {

@@ -1,0 +1,102 @@
+From: Yanghan Ye <yyh94306@gmail.com>
+Date: Sun, 9 Aug 2026 00:00:00 +0800
+Subject: [PATCH] net: pcs: airoha: fix calibration arithmetic and retry limit
+
+Use unsigned-safe absolute differences in the AN7581 RX calibration
+search, avoid dividing by a zero difference, and stop calibration after
+the configured retry limit.
+
+Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+---
+--- a/drivers/net/pcs/airoha/pcs-an7581.c
++++ b/drivers/net/pcs/airoha/pcs-an7581.c
+@@ -3,6 +3,7 @@
+  * Copyright (c) 2024 AIROHA Inc
+  * Author: Christian Marangi <ansuelsmth@gmail.com>
+  */
++#include <linux/math.h>
+ #include <linux/phy/phy.h>
+ #include <linux/phylink.h>
+ #include <linux/regmap.h>
+@@ -1498,7 +1499,7 @@ static u32 an7581_pcs_rx_prcal_idac_majo
+ 		fl_out = an7581_pcs_apply_cdr_pr_idac(priv, index, cdr_pr_idac_tmp);
+ 
+ 		/* Use absolute values to find the closest one to target */
+-		fl_out_diff_new = abs(fl_out - target_fl_out);
++		fl_out_diff_new = abs_diff(fl_out, target_fl_out);
+ 		dev_dbg(priv->dev, "Tested CDR Pr Idac: %x Fl Out: %x Diff: %u\n",
+ 			cdr_pr_idac_tmp, fl_out, fl_out_diff_new);
+ 		if (fl_out_diff_new < fl_out_diff) {
+@@ -1520,7 +1521,7 @@ static u32 an7581_pcs_rx_prcal_idac_mino
+ 	int prcal_search_bit;
+ 
+ 	fl_out = an7581_pcs_apply_cdr_pr_idac(priv, index, cdr_pr_idac);
+-	fl_out_diff = abs(fl_out - target_fl_out);
++	fl_out_diff = abs_diff(fl_out, target_fl_out);
+ 
+ 	/* Deadline search part.
+ 	 * We start from top bits to bottom as we progressively decrease the
+@@ -1534,7 +1535,7 @@ static u32 an7581_pcs_rx_prcal_idac_mino
+ 		fl_out = an7581_pcs_apply_cdr_pr_idac(priv, index, cdr_pr_idac_tmp);
+ 
+ 		/* Use absolute values to find the closest one to target */
+-		fl_out_diff_new = abs(fl_out - target_fl_out);
++		fl_out_diff_new = abs_diff(fl_out, target_fl_out);
+ 		dev_dbg(priv->dev, "Tested CDR Pr Idac: %x Fl Out: %x Diff: %u\n",
+ 			cdr_pr_idac_tmp, fl_out, fl_out_diff_new);
+ 		if (fl_out_diff_new < fl_out_diff) {
+@@ -1564,7 +1565,7 @@ static u32 an7581_pcs_rx_prcal_idac_mino
+ 		fl_out = an7581_pcs_apply_cdr_pr_idac(priv, index, cdr_pr_idac_tmp);
+ 
+ 		/* Use absolute values to find the closest one to target */
+-		fl_out_diff_new = abs(fl_out - target_fl_out);
++		fl_out_diff_new = abs_diff(fl_out, target_fl_out);
+ 		/* Assume we found the deadline when the new absolue signal difference
+ 		 * from target is greater than the previous and the difference is at
+ 		 * least 10% greater between the old and new value.
+@@ -1574,8 +1575,9 @@ static u32 an7581_pcs_rx_prcal_idac_mino
+ 		 */
+ 		dev_dbg(priv->dev, "Tested CDR Pr Idac: %x Fl Out: %x Diff: %u\n",
+ 			cdr_pr_idac_tmp, fl_out, fl_out_diff_new);
+-		if (fl_out_diff_new > fl_out_diff &&
+-		    (abs(fl_out_diff_new - fl_out_diff) * 100) / fl_out_diff > 10) {
++		if (fl_out_diff_new > fl_out_diff && fl_out_diff &&
++		    (abs_diff(fl_out_diff_new, fl_out_diff) * 100) /
++		    fl_out_diff > 10) {
+ 			/* Exit early if we are already at the deadline */
+ 			if (prcal_search_bit == 0)
+ 				break;
+@@ -1708,7 +1710,7 @@ static void an7581_pcs_rx_prcal(struct a
+ 						     target_fl_out, cdr_pr_idac_major);
+ 
+ 	fl_out = an7581_pcs_apply_cdr_pr_idac(priv, index, cdr_pr_idac);
+-	fl_out_diff = abs(fl_out - target_fl_out);
++	fl_out_diff = abs_diff(fl_out, target_fl_out);
+ 	if (fl_out_diff > 100) {
+ 		u32 pr_idac_major = FIELD_GET(AIROHA_PCS_PMA_FORCE_CDR_PR_IDAC_MAJOR,
+ 					      cdr_pr_idac_major);
+@@ -1728,7 +1730,7 @@ static void an7581_pcs_rx_prcal(struct a
+ 
+ 			fl_out_tmp = an7581_pcs_apply_cdr_pr_idac(priv, index,
+ 								  cdr_pr_idac_tmp);
+-			fl_out_diff_tmp = abs(fl_out_tmp - target_fl_out);
++			fl_out_diff_tmp = abs_diff(fl_out_tmp, target_fl_out);
+ 			if (fl_out_diff_tmp < fl_out_diff) {
+ 				fl_out = fl_out_tmp;
+ 				fl_out_diff = fl_out_diff_tmp;
+@@ -1886,12 +1888,12 @@ retry_calibration:
+ 	 * If it's detected that the FreqDet module is not locked, retry
+ 	 * calibration. From observation on real hardware with a 10g SFP module,
+ 	 * it required a maximum of an additional calibration to actually make
+-	 * the FreqDet module to lock. Try 10 times before failing to handle
+-	 * really strange case.
++	 * the FreqDet module to lock. Try AIROHA_PCS_MAX_CALIBRATION_TRY times
++	 * before failing to handle really strange cases.
+ 	 */
+ 	regmap_read(pcs_pma, AIROHA_PCS_PMA_RX_FREQDET, &val);
+ 	if (!(val & AIROHA_PCS_PMA_FBCK_LOCK)) {
+-		if (calibration_try > AIROHA_PCS_MAX_CALIBRATION_TRY) {
++		if (calibration_try >= AIROHA_PCS_MAX_CALIBRATION_TRY) {
+ 			dev_err(priv->dev, "No FBCK Lock from FreqDet module after %d calibration try. PCS won't work.\n",
+ 				AIROHA_PCS_MAX_CALIBRATION_TRY);
+ 			return -EIO;

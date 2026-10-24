@@ -1,0 +1,71 @@
+From: Gilly <gilroyscott1970@gmail.com>
+Date: Tue, 6 May 2026 13:30:00 +1000
+Subject: [PATCH] net: pcs: airoha: extend E2 RX calibration and recovery
+
+The AN7581 PCS driver skips manual RX calibration for SoC revisions
+>= E2, on the assumption that E2+ silicon autocalibrates correctly.
+In practice E2 silicon (PRODUCT_ID = 2) on Gemtek W1700K HW.1.1
+boards leaves RX permanently stuck on ~80% of cold boots when manual
+calibration is skipped, while HW.1.0 (PRODUCT_ID = 1) is reliable.
+
+The manual calibration path retries up to AIROHA_PCS_MAX_CALIBRATION_TRY
+times when the FreqDet module fails to lock; the autocalibration path
+has no equivalent retry. Extend the threshold to include E2 silicon.
+
+XR1710G routes its 10G LAN port through the PON PCS instance. The SDK
+applies the same RX calibration and CDR recovery sequence to either
+external SerDes, but Linux only enabled both mechanisms for the ETH PCS.
+Apply E2 manual calibration to both ETH and PON PCS instances and enable
+the existing signal-detect/CDR recovery callback for PON as well.
+
+Signed-off-by: Gilly <gilroyscott1970@gmail.com>
+Assisted-by: Codex:GPT-5.6-sol
+Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+--- a/drivers/net/pcs/airoha/pcs-airoha-common.c
++++ b/drivers/net/pcs/airoha/pcs-airoha-common.c
+@@ -1454,18 +1454,19 @@ static int airoha_pcs_probe(struct platf
+ 	if (IS_ERR(priv->xfi_rst))
+ 		return dev_err_probe(dev, PTR_ERR(priv->xfi_rst), "failed to get xfi reset lines\n");
+ 
+-	/* For Ethernet PCS, read the AN7581 SoC revision to check if
+-	 * manual rx calibration is needed. This is only limited to
+-	 * any SoC revision before E2.
++	/* For the external Ethernet SerDes, read the AN7581 SoC revision to
++	 * check if manual RX calibration is needed. Extend the threshold to
++	 * include E2 silicon.
+ 	 */
+-	if (device_is_compatible(dev, "airoha,an7581-pcs-eth")) {
++	if (device_is_compatible(dev, "airoha,an7581-pcs-eth") ||
++	    device_is_compatible(dev, "airoha,an7581-pcs-pon")) {
+ 		u32 val;
+ 
+ 		ret = regmap_read(priv->scu, AIROHA_SCU_PDIDR, &val);
+ 		if (ret)
+ 			return ret;
+ 
+-		if (FIELD_GET(AIROHA_SCU_PRODUCT_ID, val) < 0x2)
++		if (FIELD_GET(AIROHA_SCU_PRODUCT_ID, val) < 0x3)
+ 			priv->manual_rx_calib = true;
+ 	}
+ 
+@@ -1539,6 +1540,7 @@ static const struct airoha_pcs_match_dat
+ 	.usxgmii_ber_time_fixup = true,
+ 	.alloc_regmap_fields = an7581_pcs_alloc_regmap_fields,
+ 	.bringup = an7581_pcs_bringup,
++	.rxlock_workaround = an7581_pcs_rxlock_workaround,
+ };
+ 
+ static const struct airoha_pcs_match_data an7581_pcs_pcie = {
+--- a/drivers/net/pcs/airoha/pcs-an7581.c
++++ b/drivers/net/pcs/airoha/pcs-an7581.c
+@@ -1872,8 +1872,8 @@ retry_calibration:
+ 
+ 	an7581_pcs_cdr_reset(priv, index, interface, false);
+ 
+-	/* Manual RX calibration is required only for SoC before E2
+-	 * revision. E2+ SoC autocalibrate RX and only CDR reset is needed.
++	/* Manual RX calibration is required for SoC revisions through E2.
++	 * E3+ SoCs autocalibrate RX and only CDR reset is needed.
+ 	 */
+ 	if (!priv->manual_rx_calib)
+ 		return 0;
