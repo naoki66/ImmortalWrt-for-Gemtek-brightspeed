@@ -19,6 +19,7 @@ Improve the AN7581 PPE offload paths:
   so per-entry packets/bytes counters are populated for IPv4/IPv6 flows.
 
 Signed-off-by: liujixings <liujixings@outlook.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h

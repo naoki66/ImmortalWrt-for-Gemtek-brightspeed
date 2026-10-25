@@ -7,6 +7,7 @@ map and gate the merge with the existing
 mediatek,eeprom-merge-otp device-tree property.
 
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 
 --- a/mt7915/eeprom.c
 +++ b/mt7915/eeprom.c

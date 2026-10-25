@@ -5,6 +5,7 @@ Subject: [PATCH] hostapd: mtk: 6G band does not require DFS
 The 6GHz band does not require DFS scanning. Skip the DFS check for
 6GHz frequencies to avoid unnecessary channel availability checks
 on 6GHz AP interfaces.
+Signed-off-by: naoki66 <naoki66@qq.com>
 
 --- a/src/ap/dfs.c
 +++ b/src/ap/dfs.c

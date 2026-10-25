@@ -6,6 +6,7 @@ in-band configuration. Advertise the mode to phylink and perform that
 reset when phylink enables it.
 
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 
 --- a/drivers/net/phy/realtek/realtek_main.c
 +++ b/drivers/net/phy/realtek/realtek_main.c

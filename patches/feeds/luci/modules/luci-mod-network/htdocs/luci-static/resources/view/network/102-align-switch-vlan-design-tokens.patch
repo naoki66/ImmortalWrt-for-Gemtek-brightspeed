@@ -1,3 +1,7 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] align switch vlan design tokens
+
+---
 diff --git a/modules/luci-mod-network/htdocs/luci-static/resources/view/network/switch-vlan.css b/modules/luci-mod-network/htdocs/luci-static/resources/view/network/switch-vlan.css
 index 6c351b4..19b4195 100644
 --- a/modules/luci-mod-network/htdocs/luci-static/resources/view/network/switch-vlan.css

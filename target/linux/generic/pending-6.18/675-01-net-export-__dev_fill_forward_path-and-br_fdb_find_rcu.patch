@@ -11,6 +11,7 @@ bridge FDB.
 These are prerequisites for nft_flow_offload bridging support.
 
 Signed-off-by: Ryan Chen <rchen14b@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
  include/linux/netdevice.h |  2 ++
  net/bridge/br_fdb.c       |  1 +

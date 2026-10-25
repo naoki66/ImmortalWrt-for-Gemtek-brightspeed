@@ -18,6 +18,7 @@ Copy the resulting egress VLAN stack into the fallback flow template so PPE
 performs the same tag push or pop selected by the bridge path.
 
 Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c

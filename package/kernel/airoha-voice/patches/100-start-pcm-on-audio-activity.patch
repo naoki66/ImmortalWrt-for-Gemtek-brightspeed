@@ -1,3 +1,7 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] start pcm on audio activity
+
+---
 --- a/src/en75xx_voice_core.c
 +++ b/src/en75xx_voice_core.c
 @@ -33,6 +33,7 @@ struct en75xx_voice_line {

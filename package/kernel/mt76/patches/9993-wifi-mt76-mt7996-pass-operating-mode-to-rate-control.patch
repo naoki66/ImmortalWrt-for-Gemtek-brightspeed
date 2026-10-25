@@ -14,6 +14,7 @@ changes already cause mt7996_mcu_add_rate_ctrl() to rebuild this TLV.
 
 Assisted-by: Codex:gpt-5.6-sol
 Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
  mt7996/mcu.c | 14 +++++++++++---
  1 file changed, 11 insertions(+), 3 deletions(-)

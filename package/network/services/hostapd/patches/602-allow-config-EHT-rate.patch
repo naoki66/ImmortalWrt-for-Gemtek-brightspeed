@@ -7,6 +7,7 @@ The first five values (0-4) are used in hostapd.conf and must maintain
 their defined values. 320MHz was placed after 8640MHz instead of as
 the 5th value, making it impossible to configure 320MHz channel width
 via hostapd.conf.
+Signed-off-by: naoki66 <naoki66@qq.com>
 
 --- a/src/common/defs.h
 +++ b/src/common/defs.h

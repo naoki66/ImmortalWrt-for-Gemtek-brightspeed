@@ -1,3 +1,7 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] dawn 6ghz band
+
+---
 diff --git a/net/dawn/files/dawn.config b/net/dawn/files/dawn.config
 index 1154d2b..ee7e30e 100644
 --- a/net/dawn/files/dawn.config

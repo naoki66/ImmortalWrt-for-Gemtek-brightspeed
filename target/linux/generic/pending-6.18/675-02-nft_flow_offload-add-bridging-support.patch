@@ -27,6 +27,7 @@ Adapted for Airoha AN7581 PPE offload.
 Signed-off-by: Ryan Chen <rchen14b@gmail.com>
 Assisted-by: Codex:gpt-5.6-sol
 Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
 diff --git a/net/netfilter/nf_flow_table_path.c b/net/netfilter/nf_flow_table_path.c
 --- a/net/netfilter/nf_flow_table_path.c

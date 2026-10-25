@@ -1,3 +1,7 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] add en7581 xg2010g support
+
+---
 diff --git a/src/en75xx_isi_spi.c b/src/en75xx_isi_spi.c
 index 8812076..3f4ddba 100644
 --- a/src/en75xx_isi_spi.c

@@ -11,6 +11,7 @@ This matches the upstream AN7581 AFE v4 series and is required for the
 EN7581 AFE where IRQ1 registers live in a second MMIO window.
 
 Signed-off-by: Christian Marangi <ansuelsmth@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
  sound/soc/mediatek/common/mtk-afe-fe-dai.c | 14 +++++++-----
  sound/soc/mediatek/common/mtk-base-afe.h   |  2 ++

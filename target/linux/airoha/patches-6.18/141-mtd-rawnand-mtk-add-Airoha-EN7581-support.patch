@@ -6,6 +6,7 @@ the EN7581 register layout, polling completion, byte counters, and controller
 initialization required by the parallel data path.
 
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 
 diff --git a/drivers/mtd/nand/raw/Kconfig b/drivers/mtd/nand/raw/Kconfig
 index 7408f34..e34f942 100644

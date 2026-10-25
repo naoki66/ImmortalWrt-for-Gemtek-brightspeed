@@ -16,6 +16,7 @@ Remove the AN7581 link-up callback.  Keep the initialization reset and
 the existing SigDet/CDR recovery workaround unchanged.
 
 Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
  drivers/net/pcs/airoha/pcs-airoha-common.c |  3 ---
  drivers/net/pcs/airoha/pcs-airoha.h        |  6 ------

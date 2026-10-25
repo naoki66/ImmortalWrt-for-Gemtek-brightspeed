@@ -21,6 +21,7 @@ the existing signal-detect/CDR recovery callback for PON as well.
 Signed-off-by: Gilly <gilroyscott1970@gmail.com>
 Assisted-by: Codex:GPT-5.6-sol
 Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 --- a/drivers/net/pcs/airoha/pcs-airoha-common.c
 +++ b/drivers/net/pcs/airoha/pcs-airoha-common.c
 @@ -1454,18 +1454,19 @@ static int airoha_pcs_probe(struct platf

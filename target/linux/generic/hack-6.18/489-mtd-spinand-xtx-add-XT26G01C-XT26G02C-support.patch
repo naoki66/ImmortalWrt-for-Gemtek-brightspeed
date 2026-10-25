@@ -10,6 +10,7 @@ XT26G01C: 1 Gbit, 2048+128 page, 64 pages/block, 1024 blocks
 XT26G02C: 2 Gbit, 2048+128 page, 64 pages/block, 2048 blocks
 
 Signed-off-by: 1261685372 <1261685372@users.noreply.github.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
 diff --git a/drivers/mtd/nand/spi/xtx.c b/drivers/mtd/nand/spi/xtx.c
 index 5915b37..d8c15eb 100644

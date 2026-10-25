@@ -16,6 +16,7 @@ returns to O5. Serialize mapping replacement with TC callbacks and remove
 only FOEs whose egress device uses the changed PON mapping.
 
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 
 ---
 --- a/drivers/net/ethernet/airoha/airoha_eth.h

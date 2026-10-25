@@ -13,6 +13,7 @@ descriptor. This follows the upstream v4 design for this AFE and avoids
 claiming the ToD register range while preserving the IRQ1 registers.
 
 Signed-off-by: Codex <codex@openai.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
  sound/soc/mediatek/an7581/an7581-afe-pcm.c | 31 +++++++++++++++++++---
  sound/soc/mediatek/an7581/an7581-reg.h     |  8 +++---

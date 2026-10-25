@@ -10,6 +10,7 @@ every probe instead of depending on a previous boot or a devmem override.
 ---
  src/en75xx_isi_spi.c | 4 ++--
  1 file changed, 2 insertions(+), 2 deletions(-)
+Signed-off-by: naoki66 <naoki66@qq.com>
 
 --- a/src/en75xx_isi_spi.c
 +++ b/src/en75xx_isi_spi.c

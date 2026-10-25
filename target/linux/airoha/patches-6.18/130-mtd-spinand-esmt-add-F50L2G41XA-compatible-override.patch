@@ -10,6 +10,7 @@ then describe the ESMT part under its real 2c:24 ID.  Boards which do
 not opt in keep matching the existing Micron entry.
 
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 
 ---
  Documentation/devicetree/bindings/mtd/spi-nand.yaml |  7 +-

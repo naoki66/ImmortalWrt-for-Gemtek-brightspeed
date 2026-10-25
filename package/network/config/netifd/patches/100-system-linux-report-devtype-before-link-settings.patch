@@ -15,6 +15,7 @@ Report devtype before querying link settings because the device topology is
 independent of ethtool link mode support.
 
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
  system-linux.c | 7 +++++--
  1 file changed, 5 insertions(+), 2 deletions(-)

@@ -6,6 +6,7 @@ Correct the TXPLL spread-spectrum delta field order and the two-lane
 TXPLL TCL enable field locations for AN7581 PCIe PCS instances.
 
 Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
 --- a/drivers/net/pcs/airoha/pcs-an7581.c
 +++ b/drivers/net/pcs/airoha/pcs-an7581.c

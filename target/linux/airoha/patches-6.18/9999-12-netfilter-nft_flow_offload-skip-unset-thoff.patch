@@ -12,6 +12,7 @@ Adapted from openwrt-pon 675-09 for the XR1710G tree, where 9999-11
 extends the same TCP validation block for XFRM/SOE flows.
 
 Signed-off-by: Bohdan Chubuk <chbgdn@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
 --- a/net/netfilter/nft_flow_offload.c
 +++ b/net/netfilter/nft_flow_offload.c

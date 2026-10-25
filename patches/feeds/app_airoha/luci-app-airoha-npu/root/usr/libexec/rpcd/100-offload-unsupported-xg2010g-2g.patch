@@ -1,3 +1,7 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] offload unsupported xg2010g 2g
+
+---
 diff --git a/luci-app-airoha-npu/root/usr/libexec/rpcd/airoha-common.sh b/luci-app-airoha-npu/root/usr/libexec/rpcd/airoha-common.sh
 index 1975485..7cf9fee 100644
 --- a/luci-app-airoha-npu/root/usr/libexec/rpcd/airoha-common.sh

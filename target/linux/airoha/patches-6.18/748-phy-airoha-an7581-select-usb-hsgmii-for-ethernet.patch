@@ -11,6 +11,7 @@ restore the USB selection for USB operation.  USB2 SerDes keeps its
 existing PCIe/USB selection in SSTR.
 
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 
 --- a/drivers/phy/airoha/phy-airoha-usb.c
 +++ b/drivers/phy/airoha/phy-airoha-usb.c

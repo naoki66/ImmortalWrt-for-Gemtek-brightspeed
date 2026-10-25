@@ -1,3 +1,7 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] fix channel analysis render and scan
+
+---
 diff --git a/modules/luci-mod-status/htdocs/luci-static/resources/view/status/channel_analysis.js b/modules/luci-mod-status/htdocs/luci-static/resources/view/status/channel_analysis.js
 index 30dc22f..ca5ed05 100644
 --- a/modules/luci-mod-status/htdocs/luci-static/resources/view/status/channel_analysis.js

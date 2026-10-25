@@ -11,6 +11,7 @@ target, so it is applied on every AN7581 board: PON and non-PON alike.
 It stays functional only when CONFIG_AIROHA_PON_COMPAT is selected (the
 xPON packages do this); otherwise the code is compiled out and non-PON
 boards keep their original behaviour.
+Signed-off-by: naoki66 <naoki66@qq.com>
 
 ---
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c

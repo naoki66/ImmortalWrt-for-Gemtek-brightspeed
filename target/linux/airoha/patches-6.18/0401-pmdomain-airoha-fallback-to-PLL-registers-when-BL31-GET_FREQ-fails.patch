@@ -15,6 +15,7 @@ while keeping the SMC path for platforms where firmware support is
 present.
 
 Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
  .../pmdomain/mediatek/airoha-cpu-pmdomain.c   | 189 +++++++++++++++++-
  1 file changed, 180 insertions(+), 9 deletions(-)

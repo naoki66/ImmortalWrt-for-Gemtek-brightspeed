@@ -8,6 +8,7 @@ provider. Variant callbacks select the receiver calibration sequence and
 register layout used by AN7581 and AN7583.
 
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
  drivers/net/pcs/airoha/pcs-airoha-common.c |  241 ++++++++
  drivers/net/pcs/airoha/pcs-airoha.h        |  105 +++

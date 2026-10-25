@@ -1,3 +1,7 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] usb pcie
+
+---
 diff --git a/drivers/clk/clk-en7523.c b/drivers/clk/clk-en7523.c
 index 15bbdeb60b8e..d7352019ab23 100644
 --- a/drivers/clk/clk-en7523.c

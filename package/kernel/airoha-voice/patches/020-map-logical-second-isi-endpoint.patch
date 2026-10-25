@@ -1,3 +1,7 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] map logical second isi endpoint
+
+---
 diff --git a/src/en75xx_isi_spi.c b/src/en75xx_isi_spi.c
 index 3f4ddba..a3e9f18 100644
 --- a/src/en75xx_isi_spi.c

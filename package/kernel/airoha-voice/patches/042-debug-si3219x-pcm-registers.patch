@@ -1,3 +1,7 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] debug si3219x pcm registers
+
+---
 diff --git a/src/en75xx_slic_si3219x.c b/src/en75xx_slic_si3219x.c
 index a5a7962..51904a4 100644
 --- a/src/en75xx_slic_si3219x.c

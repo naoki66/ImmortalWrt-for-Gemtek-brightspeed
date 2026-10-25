@@ -8,6 +8,7 @@ on this board.
 ---
  src/en75xx_slic_si3219x.c | 23 +----------------------
  1 file changed, 1 insertion(+), 22 deletions(-)
+Signed-off-by: naoki66 <naoki66@qq.com>
 
 --- a/src/en75xx_slic_si3219x.c
 +++ b/src/en75xx_slic_si3219x.c

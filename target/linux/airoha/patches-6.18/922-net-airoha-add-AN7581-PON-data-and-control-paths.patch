@@ -9,6 +9,7 @@ flow tables, and shared QDMA data-path counters.
 Transport OMCI and OAM through dedicated control netdevs while the Ethernet driver owns QDMA, DMA, IRQ and NAPI.
 
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
  drivers/net/ethernet/airoha/airoha_eth.c  |  715 ++++++++++++++++++++++++++++--
  drivers/net/ethernet/airoha/airoha_eth.h  |   55 +++++++++++++++++++++++++++++-

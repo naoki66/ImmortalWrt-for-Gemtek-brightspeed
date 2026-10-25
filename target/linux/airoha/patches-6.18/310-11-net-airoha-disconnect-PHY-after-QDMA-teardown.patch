@@ -4,6 +4,7 @@ Subject: [PATCH] net: airoha: disconnect PHY after shared QDMA teardown
 
 The Airoha driver tears down the shared QDMA ring at the end of
 airoha_dev_stop(). Disconnect the PHY after that teardown completes.
+Signed-off-by: naoki66 <naoki66@qq.com>
 
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c

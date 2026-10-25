@@ -10,6 +10,7 @@ UAPI so digit recognition can be validated independently of PCM RX.
  src/en75xx_slic_si3219x.c         | 37 +++++++++++++++++++++++++++++++++----
  src/en75xx_voice_core.c           | 16 ++++++++++++++++
  4 files changed, 58 insertions(+), 4 deletions(-)
+Signed-off-by: naoki66 <naoki66@qq.com>
 
 --- a/include/en75xx_voice.h
 +++ b/include/en75xx_voice.h

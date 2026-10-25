@@ -5,6 +5,7 @@ Expose the read-only AN7583 eFuse image through NVMEM. Platform firmware
 copies the image to a non-secure DMA buffer through its eFuse SMC service.
 
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 
 ---
 --- a/drivers/nvmem/Kconfig

@@ -17,6 +17,7 @@ observability of the QDMA and NPU blocks:
   expose them together with the core debug registers through debugfs.
 
 Signed-off-by: liujixings <liujixings@outlook.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c

@@ -22,6 +22,7 @@ Based on commit bf8ce0c0bf10 from ericwoud/bpir-nftflow-nf-next-20260707.
 
 Signed-off-by: Eric Woudstra <ericwouds@gmail.com>
 Signed-off-by: Bohdan Chubuk <chbgdn@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
  include/linux/netfilter_bridge.h           |   6 +
  net/bridge/netfilter/nf_conntrack_bridge.c | 203 ++++++++++++++++++---

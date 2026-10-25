@@ -10,6 +10,7 @@ Use the same 100 ms bound as the PPE initialization handshake and report the
 function ID that failed.
 
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
  drivers/net/ethernet/airoha/airoha_npu.c | 8 +++++++-
  1 file changed, 7 insertions(+), 1 deletion(-)

@@ -15,6 +15,7 @@ Optimizations to reduce CPU overhead under FDB churn:
 - Skip multicast/broadcast FDB entries
 
 Signed-off-by: Chad Monroe <chad@monroe.io>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
  include/net/netfilter/nf_flow_table.h |   12 ++
  net/netfilter/nf_flow_table_core.c    |  139 ++++++++++++++++++++++++++

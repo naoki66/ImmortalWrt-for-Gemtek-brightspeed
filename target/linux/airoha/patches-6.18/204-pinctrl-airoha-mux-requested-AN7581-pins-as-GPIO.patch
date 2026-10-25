@@ -34,6 +34,7 @@ Only AN7581 provides force-GPIO ranges. GPIO0--5 and GPIO47--49 retain
 their existing mux handling, while AN7583 and EN7523 remain unchanged.
 
 Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 Assisted-by: Codex:GPT-5.6-sol
 --- a/drivers/pinctrl/airoha/airoha-common.h
 +++ b/drivers/pinctrl/airoha/airoha-common.h

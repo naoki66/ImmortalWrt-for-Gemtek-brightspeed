@@ -11,6 +11,7 @@ Assisted-by: Codex:gpt-5.5 <codex@openai.invalid>
 Signed-off-by: Jihong Min <hurryman2212@gmail.com>
 Assisted-by: Codex:gpt-5.6-sol
 Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
 diff --git a/net/netfilter/nf_flow_table_ip.c b/net/netfilter/nf_flow_table_ip.c
 index 0b7bdfd..731545a 100644

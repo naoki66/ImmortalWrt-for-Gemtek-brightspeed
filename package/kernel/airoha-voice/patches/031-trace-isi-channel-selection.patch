@@ -1,3 +1,7 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] trace isi channel selection
+
+---
 diff --git a/src/en75xx_isi_spi.c b/src/en75xx_isi_spi.c
 --- a/src/en75xx_isi_spi.c
 +++ b/src/en75xx_isi_spi.c

@@ -1,3 +1,7 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] configure si3219x pcm slot skew
+
+---
 diff --git a/src/en75xx_slic_si3219x.c b/src/en75xx_slic_si3219x.c
 index 023e77e..74197fc 100644
 --- a/src/en75xx_slic_si3219x.c

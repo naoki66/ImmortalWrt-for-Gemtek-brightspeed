@@ -30,6 +30,7 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
 [yyh: adapt the optional operations to the flex-array, little-endian patch database and preserve the vendor reset-before-patch ordering]
 Assisted-by: Codex:GPT-5.6-sol
 Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 --- a/drivers/net/phy/realtek/phy_patch_rtl826x.c
 +++ b/drivers/net/phy/realtek/phy_patch_rtl826x.c
 @@ -230,7 +230,7 @@

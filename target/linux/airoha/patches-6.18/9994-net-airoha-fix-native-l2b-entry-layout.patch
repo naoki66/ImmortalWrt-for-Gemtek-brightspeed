@@ -13,6 +13,7 @@ This is the PR #11 change adapted to run after the XR1710G bridge
 fallback and VLAN-aware subflow patches already present in this tree.
 
 Signed-off-by: liujixings <liujixings@outlook.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h

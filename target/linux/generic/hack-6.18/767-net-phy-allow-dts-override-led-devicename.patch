@@ -5,6 +5,7 @@ Allow PHY LED nodes to specify a custom devicename via the
 'linux,led-devicename' property. This is useful when the default
 devicename (e.g. "mt7530-0:09") is not user-friendly and a simpler
 name like "lan3" is preferred in the sysfs LED class device name.
+Signed-off-by: naoki66 <naoki66@qq.com>
 
 --- a/drivers/net/phy/phy_device.c
 +++ b/drivers/net/phy/phy_device.c

@@ -17,6 +17,7 @@ forced-mode speed configuration remain gated on their respective
 negotiation modes as before.
 
 Signed-off-by: Ryan Chen <rchen14b@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
  drivers/net/pcs/airoha/pcs-airoha-common.c | 136 ++++++++++++---------
  1 file changed, 70 insertions(+), 66 deletions(-)

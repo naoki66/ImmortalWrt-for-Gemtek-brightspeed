@@ -1,3 +1,7 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] skip wireless bridge members
+
+---
 diff --git a/modules/luci-mod-network/htdocs/luci-static/resources/tools/bridgevlan.js b/modules/luci-mod-network/htdocs/luci-static/resources/tools/bridgevlan.js
 index 011e26f..b368530 100644
 --- a/modules/luci-mod-network/htdocs/luci-static/resources/tools/bridgevlan.js

@@ -25,6 +25,7 @@ kernel handles GSO skbs in the multicast forwarding path.
 Links: https://github.com/openwrt/openwrt/issues/25713
        https://github.com/openwrt/openwrt/issues/18214
 Signed-off-by: ming <ming@localhost>
+Signed-off-by: naoki66 <naoki66@qq.com>
 --- a/include/linux/netdev_features.h
 +++ b/include/linux/netdev_features.h
 @@ -237,10 +237,10 @@ static inline int find_next_netdev_featu

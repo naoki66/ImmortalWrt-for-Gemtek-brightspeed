@@ -9,6 +9,7 @@ disabled because the NFI register bank and package pins are shared with
 SNFI. Each board selects exactly one flash interface.
 
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 
 diff --git a/arch/arm64/boot/dts/airoha/en7581.dtsi b/arch/arm64/boot/dts/airoha/en7581.dtsi
 index ff6908a76..73ea272aa 100644

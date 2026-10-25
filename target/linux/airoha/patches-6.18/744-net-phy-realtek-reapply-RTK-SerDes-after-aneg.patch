@@ -32,6 +32,7 @@ This does not read Airoha MMIO or add a retry limit, DTE XS or PCS reset,
 TXPLL reset, or TX FIR default.
 
 Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 Assisted-by: Codex:GPT-5.6-sol
 --- a/drivers/net/phy/realtek/phy_patch_rtl826x.c
 +++ b/drivers/net/phy/realtek/phy_patch_rtl826x.c

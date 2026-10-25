@@ -7,6 +7,7 @@ GPIO data path. Add a pin group which omits GPIO38 so the optical frontend
 can control that line through the GPIO descriptor API.
 
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 
 ---
  drivers/pinctrl/airoha/pinctrl-an7581.c | 24 ++++++++++++++++++++++--

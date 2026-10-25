@@ -1,3 +1,7 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] fix init script load
+
+---
 diff --git a/net/vlmcsd/files/vlmcsd.init b/net/vlmcsd/files/vlmcsd.init
 --- a/net/vlmcsd/files/vlmcsd.init
 +++ b/net/vlmcsd/files/vlmcsd.init

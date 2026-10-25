@@ -1,3 +1,7 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] debug dma mask override
+
+---
 diff --git a/src/en75xx_pcm.c b/src/en75xx_pcm.c
 --- a/src/en75xx_pcm.c
 +++ b/src/en75xx_pcm.c

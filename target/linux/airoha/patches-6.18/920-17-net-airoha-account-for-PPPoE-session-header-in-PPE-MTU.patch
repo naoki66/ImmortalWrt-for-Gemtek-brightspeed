@@ -1,5 +1,5 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: naoki66 <naoki66@local>
+From: naoki66 <naoki66@qq.com>
 Date: Wed, 14 Oct 2026 09:00:00 +0800
 Subject: [PATCH] net: airoha: account for the PPPoE session header in PPE/WAN
  egress MTU
@@ -26,7 +26,7 @@ PPPoE-capable uplink contributes mtu + VLAN_ETH_HLEN + PPPOE_SES_HLEN, while
 a LAN port keeps the VLAN-only accounting and is not given eight bytes of
 needless headroom.
 
-Signed-off-by: naoki66 <naoki66@local>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
  drivers/net/ethernet/airoha/airoha_eth.c | 13 ++++++++++---
  drivers/net/ethernet/airoha/airoha_ppe.c | 25 +++++++++++++++++++++----

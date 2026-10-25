@@ -19,6 +19,7 @@ This notifies the NPU firmware to update its per-band station tracking
 and routing decisions.
 
 Signed-off-by: Ryan Chen <rchen14b@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
  mt76.h        |  6 ++++++
  mt7996/main.c |  2 ++

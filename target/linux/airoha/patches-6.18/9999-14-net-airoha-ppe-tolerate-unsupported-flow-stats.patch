@@ -28,6 +28,7 @@ the diversion as well while npu->stats is NULL and leave the real egress
 in place.
 
 Signed-off-by: liujixings <liujixings@outlook.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c

@@ -23,6 +23,7 @@ Based on commit 71117bbe4757 from ericwoud/bpir-nftflow-nf-next-20260707.
 
 Signed-off-by: Eric Woudstra <ericwouds@gmail.com>
 Signed-off-by: Bohdan Chubuk <chbgdn@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 ---
  net/netfilter/utils.c | 52 ++++++++++++++++++++++++++++++++++++++-----
  1 file changed, 46 insertions(+), 6 deletions(-)

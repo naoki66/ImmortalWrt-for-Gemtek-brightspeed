@@ -1,3 +1,7 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] cn all 30dbm
+
+---
 diff --git a/db.txt b/db.txt
 index 72f7900..e98fbad 100644
 --- a/db.txt

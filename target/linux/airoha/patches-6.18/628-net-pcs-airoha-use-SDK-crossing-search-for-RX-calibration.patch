@@ -22,6 +22,7 @@ individual author. The reference implementation is RX_PRCal() in:
 linux/arch/arm64/mach-econet/sgmii/air_eth_xsgmii.c
 
 Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
 Assisted-by: Codex:GPT-5.6-sol
 --- a/drivers/net/pcs/airoha/pcs-an7581.c
 +++ b/drivers/net/pcs/airoha/pcs-an7581.c
