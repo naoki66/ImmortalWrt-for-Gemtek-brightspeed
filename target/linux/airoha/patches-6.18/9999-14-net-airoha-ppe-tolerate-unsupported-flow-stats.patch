@@ -19,6 +19,14 @@ Treat a stats setup failure as non fatal, skip the stats reset and the
 stats readout while npu->stats is NULL, and let the rest of the PPE
 offload setup complete.
 
+Keeping the offload setup alive is not enough on its own: the per-entry
+stats update rewrites IB2 so every accelerated flow is diverted to PSE
+port 6 (CDM3/QDMA2_HWF) for the NPU to account it. Without a mapped stats
+window nothing ever drains that queue, so it fills up until the PSE
+shared buffer is exhausted and the whole switch stops forwarding. Skip
+the diversion as well while npu->stats is NULL and leave the real egress
+in place.
+
 Signed-off-by: liujixings <liujixings@outlook.com>
 ---
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
@@ -33,6 +41,20 @@ Signed-off-by: liujixings <liujixings@outlook.com>
  	memset_io(&npu->stats[index], 0, sizeof(*npu->stats));
  	memset(&ppe->foe_stats[index], 0, sizeof(*ppe->foe_stats));
  }
+@@ -846,6 +849,13 @@ static void airoha_ppe_foe_flow_stats_update(struct airoha_ppe *ppe,
+ 	if (airoha_is_7581(ppe->eth) && type == PPE_PKT_TYPE_BRIDGE)
+ 		return;
+ 
++	/* Flow accounting diverts every accelerated flow to CDM3 for the
++	 * NPU to consume; without a mapped stats window those frames are
++	 * neither accounted nor released, so keep the real egress here.
++	 */
++	if (!npu->stats)
++		return;
++
+ 	ppe_num_stats_entries = airoha_ppe_get_total_num_stats_entries(ppe);
+ 	if (ppe_num_stats_entries < 0)
+ 		return;
 @@ -1947,7 +1950,7 @@ void airoha_ppe_foe_entry_get_stats(struct airoha_ppe *ppe, u32 hash,
  	rcu_read_lock();
  
