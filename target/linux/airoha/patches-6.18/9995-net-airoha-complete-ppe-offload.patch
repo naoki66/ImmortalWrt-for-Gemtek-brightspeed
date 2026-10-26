@@ -72,13 +72,13 @@ Signed-off-by: naoki66 <naoki66@qq.com>
  DEFINE_MUTEX(flow_offload_mutex);
  static DEFINE_SPINLOCK(ppe_lock);
  
-+/* Number of PPE hash lookups between two binding checks. Higher values
-+ * look up the flow table less often and raise the CPU cost of a miss;
-+ * lower values bind faster but consume more PPE bandwidth.
++/* Flow rate, in packets per second, above which the PPE promotes an
++ * UNBIND entry to BIND. Vendor SDK default: 30
++ * (CONFIG_RA_HW_NAT_BINDING_THRESHOLD), writable via ppe/bind_rate.
 + */
 +static int ppe_bind_rate = 0x1e;
 +module_param(ppe_bind_rate, int, 0644);
-+MODULE_PARM_DESC(ppe_bind_rate, "PPE L2B/L4 bind rate (default 0x1e)");
++MODULE_PARM_DESC(ppe_bind_rate, "PPE bind threshold in packets per second (default 30)");
 +
 +static void airoha_ppe_drop_inc(struct airoha_ppe *ppe,
 +				enum airoha_ppe_drop_reason reason)
@@ -584,7 +584,16 @@ Signed-off-by: naoki66 <naoki66@qq.com>
  	if (addr_type == FLOW_DISSECTOR_KEY_IPV4_ADDRS) {
 --- a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
-@@ -222,6 +222,97 @@
+@@ -4,6 +4,8 @@
+  * Author: Lorenzo Bianconi <lorenzo@kernel.org>
+  */
+ 
++#include <linux/uaccess.h>
++
+ #include "airoha_regs.h"
+ #include "airoha_eth.h"
+ 
+@@ -222,15 +224,178 @@ static int airoha_ppe_debugfs_config_show(struct seq_file *m, void *private)
  }
  DEFINE_SHOW_ATTRIBUTE(airoha_ppe_debugfs_config);
  
@@ -679,10 +688,82 @@ Signed-off-by: naoki66 <naoki66@qq.com>
 +}
 +DEFINE_SHOW_ATTRIBUTE(airoha_ppe_debugfs_summary);
 +
++static int airoha_ppe_debugfs_bind_rate_show(struct seq_file *m, void *private)
++{
++	struct airoha_ppe *ppe = m->private;
++	struct airoha_eth *eth = ppe->eth;
++	unsigned int i;
++
++	for (i = 0; i < eth->soc->num_ppe; i++) {
++		u32 rate = airoha_fe_rr(eth, REG_PPE_BIND_RATE(i));
++
++		seq_printf(m, "ppe%u: l2b=%u l3=%u\n", i,
++			   FIELD_GET(PPE_BIND_RATE_L2B_BIND_MASK, rate),
++			   FIELD_GET(PPE_BIND_RATE_BIND_MASK, rate));
++	}
++
++	return 0;
++}
++
++static int airoha_ppe_debugfs_bind_rate_open(struct inode *inode,
++					     struct file *file)
++{
++	return single_open(file, airoha_ppe_debugfs_bind_rate_show,
++			   inode->i_private);
++}
++
++static ssize_t
++airoha_ppe_debugfs_bind_rate_write(struct file *file, const char __user *user_buf,
++				   size_t count, loff_t *ppos)
++{
++	struct seq_file *m = file->private_data;
++	struct airoha_ppe *ppe = m->private;
++	struct airoha_eth *eth = ppe->eth;
++	unsigned int l2b, l3, i;
++	char buf[32];
++	int ret;
++
++	if (count >= sizeof(buf))
++		return -EINVAL;
++	if (copy_from_user(buf, user_buf, count))
++		return -EFAULT;
++	buf[count] = '\0';
++
++	ret = sscanf(buf, "%u %u", &l2b, &l3);
++	if (ret == 1)
++		l3 = l2b;
++	else if (ret != 2)
++		return -EINVAL;
++	if (l2b > 0xffff || l3 > 0xffff)
++		return -ERANGE;
++
++	for (i = 0; i < eth->soc->num_ppe; i++)
++		airoha_fe_rmw(eth, REG_PPE_BIND_RATE(i),
++			      PPE_BIND_RATE_L2B_BIND_MASK |
++			      PPE_BIND_RATE_BIND_MASK,
++			      FIELD_PREP(PPE_BIND_RATE_L2B_BIND_MASK, l2b) |
++			      FIELD_PREP(PPE_BIND_RATE_BIND_MASK, l3));
++
++	return count;
++}
++
++static const struct file_operations airoha_ppe_debugfs_bind_rate_fops = {
++	.owner = THIS_MODULE,
++	.open = airoha_ppe_debugfs_bind_rate_open,
++	.read = seq_read,
++	.llseek = seq_lseek,
++	.release = single_release,
++	.write = airoha_ppe_debugfs_bind_rate_write,
++};
++
  int airoha_ppe_debugfs_init(struct airoha_ppe *ppe)
  {
  	ppe->debugfs_dir = debugfs_create_dir("ppe", NULL);
-@@ -231,6 +322,8 @@
+ 	debugfs_create_file("config", 0444, ppe->debugfs_dir, ppe,
+ 			    &airoha_ppe_debugfs_config_fops);
++	debugfs_create_file("bind_rate", 0644, ppe->debugfs_dir, ppe,
++			    &airoha_ppe_debugfs_bind_rate_fops);
+ 	debugfs_create_file("entries", 0444, ppe->debugfs_dir, ppe,
  			    &airoha_ppe_debugfs_foe_all_fops);
  	debugfs_create_file("bind", 0444, ppe->debugfs_dir, ppe,
  			    &airoha_ppe_debugfs_foe_bind_fops);
