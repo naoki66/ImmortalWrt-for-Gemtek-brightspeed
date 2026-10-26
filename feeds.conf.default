@@ -1,4 +1,13 @@
 src-git packages https://github.com/immortalwrt/packages.git
+# Temporary: luci-theme-argon v3.1.0 from jerrykuku, because immortalwrt/luci
+# still ships 3.0.0. Listed before luci so scripts/feeds keeps the first feed
+# providing a source package. --directory is required for a repo whose Makefile
+# sits at its root, otherwise the scan yields an empty package path. Pin the
+# commit rather than the tag: a tag checkout leaves HEAD detached and
+# `feeds update` then fails on `git pull --ff-only`.
+# Drop this line and move patches/feeds/argon/ back under luci when
+# immortalwrt/luci picks up 3.1.0.
+src-git --directory=luci-theme-argon argon https://github.com/jerrykuku/luci-theme-argon.git^96734f4f52e98ac70f564ca4b92644b849e189ba
 src-git luci https://github.com/immortalwrt/luci.git
 src-git routing https://github.com/openwrt/routing.git
 src-git telephony https://github.com/openwrt/telephony.git
