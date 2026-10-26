@@ -529,9 +529,11 @@ define KernelPackage/crypto-hw-eip93
   DEPENDS:=@(TARGET_ramips_mt7621||TARGET_airoha) \
 	+kmod-crypto-authenc \
 	+kmod-crypto-des \
+	+kmod-crypto-gcm \
 	+kmod-crypto-md5 \
 	+kmod-crypto-sha1 \
-	+kmod-crypto-sha256
+	+kmod-crypto-sha256 \
+	+kmod-crypto-user
   KCONFIG:= \
 	CONFIG_CRYPTO_HW=y \
 	CONFIG_CRYPTO_DEV_EIP93 \
