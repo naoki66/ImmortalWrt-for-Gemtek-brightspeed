@@ -160,9 +160,6 @@ define Device/nokia_xg-040g-md-ubi
 	fit gzip $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb external-static-with-rootfs | \
 	append-metadata
   DEVICE_PACKAGES += fitblk
-  ARTIFACT/bl31-uboot.fip := an7581-bl31-uboot nokia_xg-040g-md
-  ARTIFACT/preloader.bin := an7581-preloader nokia_xg-040g-md
-  ARTIFACTS := bl31-uboot.fip preloader.bin
 endef
 TARGET_DEVICES += nokia_xg-040g-md-ubi
 
