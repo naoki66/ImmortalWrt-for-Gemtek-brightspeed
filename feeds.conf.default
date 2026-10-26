@@ -10,7 +10,5 @@ src-git onu_config https://github.com/naoki66/OpenWrt_ONU_CONFIG.git
 #src-git oldpackages http://git.openwrt.org/packages.git
 #src-link custom /usr/src/openwrt/custom-feed
 src-git easytier https://github.com/EasyTier/luci-app-easytier.git;main
-src-git openwrt_bandix https://github.com/timsaya/openwrt-bandix.git;main
-src-git luci_app_bandix https://github.com/timsaya/luci-app-bandix.git;main
 src-git helloworld https://github.com/fw876/helloworld.git;dev
 src-git --directory=luci-app-pushbot pushbot https://github.com/naoki66/luci-app-pushbot.git
