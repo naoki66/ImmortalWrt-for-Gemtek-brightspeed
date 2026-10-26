@@ -1,0 +1,21 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] luci-mod-network: hide Switch/VLAN config from the Network menu
+
+The page stays reachable at /cgi-bin/luci/admin/network/switch-vlan: LuCI
+only builds menu entries for nodes that carry a title, while the dispatcher
+resolves routes from the entry itself, so dropping the title hides the item
+without taking the page away.
+
+---
+diff --git a/modules/luci-mod-network/root/usr/share/luci/menu.d/luci-mod-network.json b/modules/luci-mod-network/root/usr/share/luci/menu.d/luci-mod-network.json
+index 911a366..ad1e20c 100644
+--- a/modules/luci-mod-network/root/usr/share/luci/menu.d/luci-mod-network.json
++++ b/modules/luci-mod-network/root/usr/share/luci/menu.d/luci-mod-network.json
+@@ -47,7 +47,6 @@
+ 	},
+ 
+ 	"admin/network/switch-vlan": {
+-		"title": "Switch/VLAN config",
+ 		"order": 12,
+ 		"action": {
+ 			"type": "view",
