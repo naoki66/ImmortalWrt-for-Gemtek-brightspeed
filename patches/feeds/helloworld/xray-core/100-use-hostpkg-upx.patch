@@ -1,0 +1,18 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] xray-core: use hostpkg upx
+
+On this branch the upx/host binary is installed into STAGING_DIR_HOSTPKG,
+not STAGING_DIR_HOST, so Build/Install failed with ENOENT (Error 127).
+Use the same prefix that host-build.mk actually installs to.
+
+--- a/xray-core/Makefile
++++ b/xray-core/Makefile
+@@ -73,7 +73,7 @@
+ define Build/Install
+ 	$(INSTALL_DIR) $(PKG_BUILD_DIR)/.upx
+ 	$(INSTALL_BIN) $(GO_PKG_BUILD_BIN_DIR)/main $(PKG_BUILD_DIR)/.upx/xray
+-	$(STAGING_DIR_HOST)/bin/upx --lzma --best $(PKG_BUILD_DIR)/.upx/xray
++	$(STAGING_DIR_HOSTPKG)/bin/upx --lzma --best $(PKG_BUILD_DIR)/.upx/xray
+ endef
+ 
+ # Go's -s -w flags strip the binary before UPX; do not strip it again.
