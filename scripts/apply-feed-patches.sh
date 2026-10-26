@@ -4,7 +4,7 @@
 #
 # Layout: patches/feeds/<feed>/<path inside the feed>/NNN-name.patch
 # e.g.    patches/feeds/luci/modules/luci-mod-network/htdocs/luci-static/
-#             resources/tools/100-skip-wireless-bridge-members.patch
+#             resources/view/network/102-align-switch-vlan-design-tokens.patch
 #
 # The directory mirroring the patched file is only a filing convention; the
 # actual target paths live inside the patch and are relative to the feed's
