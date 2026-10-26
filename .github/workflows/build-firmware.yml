@@ -88,15 +88,19 @@ jobs:
       - name: Configure
         run: |
           cp '${{ inputs.config_seed }}' .config
+          # 先让 defconfig 补齐/校正配置，再写入版本字段，避免被默认值覆盖
+          make defconfig
           BUILD_DATE='${{ steps.version.outputs.date }}' \
           BUILD_ID='${{ steps.version.outputs.build_id }}' \
           REPO_COMMIT='${{ steps.version.outputs.repo_commit }}' \
           UPSTREAM_COMMIT='${{ steps.version.outputs.upstream_commit }}' \
           VERSION_CODE='${{ steps.version.outputs.version_code }}' \
           bash scripts/set-build-version.sh .config
-          make defconfig
           bash scripts/check-gemtek-profile-isolation.sh --config .config
-          grep -E 'CONFIG_(IMAGEOPT|EXTRA_IMAGE_NAME|VERSIONOPT|VERSION_DIST|VERSION_NUMBER|VERSION_CODE|VERSION_FILENAMES|VERSION_CODE_FILENAMES)[= ]' .config
+          grep -q '^CONFIG_VERSION_DIST="ImmortalWrt naoki66 ' .config
+          grep -q "^CONFIG_VERSION_PRODUCT=\"${{ steps.version.outputs.device_model }}\"" .config
+          grep -q '^CONFIG_VERSION_NUMBER="' .config
+          grep -E 'CONFIG_(IMAGEOPT|EXTRA_IMAGE_NAME|VERSIONOPT|VERSION_DIST|VERSION_PRODUCT|VERSION_NUMBER|VERSION_CODE|VERSION_FILENAMES|VERSION_CODE_FILENAMES)[= ]' .config
 
       - name: Download sources
         run: make download -j$(nproc)

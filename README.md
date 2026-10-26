@@ -207,7 +207,7 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集
 | [build-firmware.yml](.github/workflows/build-firmware.yml) | 手动 (workflow_dispatch) | 构建固件并发布 Release |
 | [sync-upstream.yml](.github/workflows/sync-upstream.yml) | 每 3 天定时 + 手动 | 同步 ImmortalWrt 上游 |
 
-**构建配置**：仓库根目录的 [1710.config](1710.config)、[2010.config](2010.config) 和 [2010-2g.config](2010-2g.config) 分别对应 XR1710G、XG2010G（1 GiB）与 XG2010G（2 GiB）。`1710.config` 使用 multi-profile 一次构建两个 XR1710G 固件：原版 U-Boot 分区和 OpenWrt U-Boot UBI 布局；Action 默认使用 `1710.config`，也可以在手动触发时选择 `2010.config` 或 `2010-2g.config`。构建流程会执行 `cp <config> .config && bash scripts/set-build-version.sh .config && make defconfig`。
+**构建配置**：仓库根目录的 [1710.config](1710.config)、[2010.config](2010.config) 和 [2010-2g.config](2010-2g.config) 分别对应 XR1710G、XG2010G（1 GiB）与 XG2010G（2 GiB）。`1710.config` 使用 multi-profile 一次构建两个 XR1710G 固件：原版 U-Boot 分区和 OpenWrt U-Boot UBI 布局；Action 默认使用 `1710.config`，也可以在手动触发时选择 `2010.config` 或 `2010-2g.config`。构建流程会执行 `cp <config> .config && make defconfig && bash scripts/set-build-version.sh .config`，即在 `defconfig` 之后再写入版本字段，避免版本/文件名配置被默认值覆盖。
 构建时会通过 [scripts/set-build-version.sh](scripts/set-build-version.sh) 写入 LuCI 可见的构建日期和 commit hash。
 文件名只保留 `日期-本机commit`（较短），完整的 `日期-本机commit-上游commit` 写在 `CONFIG_VERSION_CODE`，
 可在 LuCI 状态页与 `/etc/openwrt_release` 中查看；需要把 revision 也拼进文件名时设
@@ -242,11 +242,18 @@ cd ImmortalWrt-for-Gemtek-brightspeed
 ./scripts/feeds install -a
 bash scripts/fix-stale-golang-host.sh
 cp 1710.config .config
-bash scripts/set-build-version.sh .config
 make defconfig
+bash scripts/set-build-version.sh .config
 make -j$(nproc) world 2>&1 | tee build.log
 bash scripts/summarize-build-errors.sh build.log
 ```
+
+> [!NOTE]
+> 仓库根目录的 `040.config`、`1710.config`、`2010.config`、`2010-2g.config` 是种子文件，
+> `make defconfig` 与 `make menuconfig` 只会改写 `.config`，不会修改这些种子文件。
+> 如果执行过 `make menuconfig` 或 `make defconfig`，编译前请重新执行
+> `bash scripts/set-build-version.sh .config`，恢复 `CONFIG_VERSION_*`、
+> `CONFIG_TARGET_HOSTNAME`、`CONFIG_EXTRA_IMAGE_NAME` 等构建信息后再运行 `make world`。
 
 构建环境要求：GNU/Linux 系统（Debian 11+ 推荐），AMD64 架构，至少 4GB RAM 和 25GB 可用磁盘空间。详细依赖请参考 [ImmortalWrt 官方文档](https://openwrt.org/docs/guide-developer/build-system/install-buildsystem)。
 
