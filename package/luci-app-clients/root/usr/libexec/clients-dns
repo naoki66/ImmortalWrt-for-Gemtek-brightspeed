@@ -1,0 +1,447 @@
+#!/usr/bin/ucode
+// SPDX-License-Identifier: Apache-2.0
+'use strict';
+
+/*
+ * clients-dns - DNS query archive for the LuCI "Clients" page.
+ *
+ * dnsmasq is restarted with `log-queries=extra`, which prints one line per
+ * event with the query id and the client's address/port in front:
+ *
+ *   Oct 25 22:57:33 dnsmasq[1]: 1 10.10.20.93/49601 query[A] github.com from 10.10.20.93
+ *   Oct 25 22:57:33 dnsmasq[1]: 1 10.10.20.93/49601 forwarded github.com to 10.10.20.1
+ *   Oct 25 22:57:33 dnsmasq[1]: 1 10.10.20.93/49601 reply github.com is 20.205.243.166
+ *
+ * The id + client pair is what makes this tractable: the three lines of one
+ * lookup can be joined without guessing from the domain, which matters because
+ * the same name is often asked twice in the same second (A and AAAA) and three
+ * clients can look up the same name at once.
+ *
+ * The script is incremental. It keeps a byte offset inside the archive file
+ * itself, reads only what was appended since the last run, and remembers open
+ * queries between runs so a lookup that spans two collections still gets its
+ * response time. A partial last line is left for the next run rather than being
+ * parsed half-way.
+ *
+ * Output: /tmp/clients-dns.json
+ *
+ *   { "version": 1, "updated": 1792939942, "offset": 8192,
+ *     "queries": { "<id>": { "t": ..., "server": "..." } },
+ *     "records": [
+ *       { "t": 1792939942, "domain": "github.com", "qtype": "A", "kind": "query",
+ *         "client": "10.10.20.93", "server": "10.10.20.1", "ms": null, "result": null }
+ *     ] }
+ *
+ * Everything lives in /tmp on purpose: this is a status page and it must not
+ * wear the flash. logread would have been simpler than a file, but the logd
+ * ring buffer is 64 KB by default and a busy DNS client overwrites it in
+ * minutes, which would make the page show a random handful of the newest
+ * lookups.
+ */
+
+let fs = require('fs');
+
+const ARCHIVE = '/tmp/clients-dns.json';
+const DEFAULT_LOG = '/tmp/dnsmasq.log';
+
+/* A thousand rows is several pages of table and roughly 150 KB of JSON - small
+ * enough to rewrite on every pass without noticing. */
+const MAX_RECORDS = 1000;
+
+/* A query that never got an answer is forgotten after this long: dnsmasq can
+ * drop a lookup silently (server timeout), and keeping the half-record forever
+ * would leave a row that always says "pending". */
+const PENDING_TTL = 60;
+
+const MONTHS = {
+	Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6,
+	Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12
+};
+
+/* ---------------- helpers ---------------- */
+
+let run = function(cmd) {
+	let handle = fs.popen(cmd);
+	let out;
+
+	if (!handle)
+		return '';
+
+	try {
+		out = handle.read('all');
+	}
+	catch (e) {
+		out = null;
+	}
+
+	handle.close();
+
+	return out ?? '';
+};
+
+let read = function(path) {
+	try {
+		return fs.readfile(path) ?? '';
+	}
+	catch (e) {
+		return '';
+	}
+};
+
+/*
+ * Local wall-clock to epoch. The log prints local time ("Oct 25 22:57:33"), the
+ * kernel counts UTC, so the offset has to come out exactly once: build the
+ * epoch as if the text were UTC, then subtract the zone offset.
+ *
+ * `days_from_civil` is Howard Hinnant's algorithm - it is branch-free, exact for
+ * every proleptic Gregorian date, and avoids pulling a date library into a
+ * script that runs every ten seconds.
+ */
+let days_from_civil = function(y, m, d) {
+	y -= (m <= 2) ? 1 : 0;
+
+	let era = int(y / 400);
+	let yoe = y - era * 400;
+	let doy = int((153 * (m + ((m > 2) ? -3 : 9)) + 2) / 5) + d - 1;
+	let doe = yoe * 365 + int(yoe / 4) - int(yoe / 100) + doy;
+
+	return era * 146097 + doe - 719468;
+};
+
+let zone_offset = function() {
+	/* "+0800" -> 28800. A zone without an offset (rare) falls back to UTC, which
+	 * mislabels the hour but never the order of the rows. */
+	let text = trim(run('date +%z'));
+
+	if (!length(text) || text == 'Z')
+		return 0;
+
+	let sign = (substr(text, 0, 1) == '-') ? -1 : 1;
+	let digits = substr(text, 1);
+	let hours = int(substr(digits, 0, 2)) ?? 0;
+	let minutes = int(substr(digits, 2, 2)) ?? 0;
+
+	return sign * (hours * 3600 + minutes * 60);
+};
+
+let local_year = function() {
+	return int(trim(run('date +%Y'))) ?? 1970;
+};
+
+/* ---------------- parsing ---------------- */
+
+const TIME_RE = /^([A-Z][a-z][a-z]) +([0-9]+) ([0-9][0-9]):([0-9][0-9]):([0-9][0-9]) dnsmasq\[[0-9]+\]: /;
+const QUERY_RE = /^([0-9]+) ([0-9a-fA-F.:]+)\/([0-9]+) query\[([A-Za-z0-9]+)\] ([^ ]+) from /;
+const FORWARD_RE = /^([0-9]+) ([0-9a-fA-F.:]+)\/([0-9]+) forwarded ([^ ]+) to ([^ ]+)/;
+const REPLY_RE = /^([0-9]+) ([0-9a-fA-F.:]+)\/([0-9]+) (reply|cached|config) ([^ ]+) is (.*)$/;
+
+/*
+ * Only the three actions that make a row are parsed. Everything else dnsmasq
+ * logs - interface changes, DHCP activity, "read /etc/hosts - 6 names" - is
+ * noise for this page and is skipped by the shape of the line, not by a list of
+ * known prefixes.
+ */
+let parse_line = function(line, ctx) {
+	let stamp = match(line, TIME_RE);
+
+	if (stamp == null)
+		return null;
+
+	let month = MONTHS[stamp[1]];
+
+	if (month == null)
+		return null;
+
+	let day = int(stamp[2]) ?? 0;
+	let hour = int(stamp[3]) ?? 0;
+	let minute = int(stamp[4]) ?? 0;
+	let second = int(stamp[5]) ?? 0;
+	let body = substr(line, length(stamp[0]));
+
+	/* The year is not in the log. Take the current one, but a line dated more
+	 * than a day in the future can only be December seen from January - rebuild
+	 * it with the previous year rather than subtracting an approximate 365
+	 * days, which would land a day off across a leap year. */
+	let year = ctx.year;
+	let t = days_from_civil(year, month, day) * 86400 + hour * 3600 + minute * 60 + second - ctx.zone;
+
+	if (t > ctx.now + 86400) {
+		year -= 1;
+		t = days_from_civil(year, month, day) * 86400 + hour * 3600 + minute * 60 + second - ctx.zone;
+	}
+
+	let query = match(body, QUERY_RE);
+
+	if (query != null)
+		return {
+			t: t, kind: 'query', id: query[1], client: query[2],
+			domain: query[5], qtype: uc(query[4])
+		};
+
+	let forward = match(body, FORWARD_RE);
+
+	if (forward != null)
+		return { t: t, kind: 'forward', id: forward[1], client: forward[2], server: forward[5] };
+
+	let reply = match(body, REPLY_RE);
+
+	if (reply != null)
+		return {
+			t: t, kind: 'reply', id: reply[1], client: reply[2],
+			action: reply[4], domain: reply[5], result: trim(reply[6])
+		};
+
+	return null;
+};
+
+/* ---------------- archive ---------------- */
+
+let empty_archive = function() {
+	return { version: 1, updated: 0, offset: 0, queries: {}, records: [] };
+};
+
+let load_archive = function() {
+	let raw = read(ARCHIVE);
+
+	if (!length(raw))
+		return empty_archive();
+
+	let data = null;
+
+	try {
+		data = json(raw);
+	}
+	catch (e) {
+		data = null;
+	}
+
+	if (data == null || type(data.records) != 'array')
+		return empty_archive();
+
+	if (type(data.records) != 'array')
+		data.records = [];
+
+	if (type(data.queries) != 'object')
+		data.queries = {};
+
+	if (type(data.offset) != 'int' && type(data.offset) != 'double')
+		data.offset = 0;
+
+	return data;
+};
+
+let write_archive = function(data) {
+	let text = sprintf('%J\n', data);
+
+	if (fs.writefile(ARCHIVE + '.new', text) != length(text))
+		return false;
+
+	try {
+		fs.chmod(ARCHIVE + '.new', 0600);
+	}
+	catch (e) {}
+
+	return fs.rename(ARCHIVE + '.new', ARCHIVE) ? true : false;
+};
+
+let log_path = function() {
+	let configured = trim(run('uci -q get dhcp.@dnsmasq[0].logfacility'));
+
+	/* dnsmasq accepts either a file or a syslog facility. Only a path is useful
+	 * here; anything else falls back to the default the package sets up. */
+	if (length(configured) && index(configured, '/') == 0 && configured != '/dev/null')
+		return configured;
+
+	return DEFAULT_LOG;
+};
+
+/* ---------------- collect ---------------- */
+
+let collect = function() {
+	let path = log_path();
+	let data = load_archive();
+	let ctx = { year: local_year(), zone: zone_offset(), now: time() };
+	let size = 0;
+
+	try {
+		size = fs.stat(path).size ?? 0;
+	}
+	catch (e) {
+		size = 0;
+	}
+
+	/* A smaller file than our offset means dnsmasq recreated or truncated it;
+	 * starting over is the only correct reading. */
+	if (size < data.offset)
+		data.offset = 0;
+
+	let fresh = '';
+
+	if (size > data.offset) {
+		try {
+			fresh = fs.readfile(path, size - data.offset, data.offset) ?? '';
+		}
+		catch (e) {
+			fresh = '';
+		}
+	}
+
+	/*
+	 * Consume whole lines only. The offset advances to just past the last
+	 * newline, so a line still being written is read again next time instead of
+	 * being stored truncated.
+	 */
+	let cut = rindex(fresh, '\n');
+	let consumed = 0;
+
+	if (cut < 0)
+		cut = -1;
+	else
+		consumed = cut + 1;
+
+	let text = substr(fresh, 0, consumed);
+	let lines = length(text) ? split(text, '\n') : [];
+	let added = 0;
+
+	/* id -> record, so a forwarded line can backfill the row its query created
+	 * without scanning the archive. */
+	let byId = {};
+
+	for (let record in data.records)
+		if (record.id)
+			byId[record.id] = record;
+
+	for (let line in lines) {
+		let event = parse_line(line, ctx);
+
+		if (event == null)
+			continue;
+
+		let key = event.id + '/' + event.client;
+
+		if (event.kind == 'query') {
+			let record = {
+				t: event.t,
+				time: event.t,
+				domain: event.domain,
+				qtype: event.qtype,
+				kind: 'query',
+				client: event.client,
+				server: null,
+				ms: null,
+				result: null,
+				id: key
+			};
+
+			push(data.records, record);
+			byId[key] = record;
+			data.queries[key] = { t: event.t, server: null };
+			added++;
+			continue;
+		}
+
+		if (event.kind == 'forward') {
+			let record = byId[key];
+			let pending = data.queries[key];
+
+			if (record)
+				record.server = event.server;
+			if (pending)
+				pending.server = event.server;
+
+			continue;
+		}
+
+		/* reply / cached / config closes the lookup. */
+		let pending = data.queries[key];
+		let record = byId[key];
+		let server = pending ? pending.server : null;
+
+		let response = {
+			t: event.t,
+			time: event.t,
+			domain: event.domain,
+			qtype: record ? record.qtype : null,
+			kind: 'response',
+			client: event.client,
+			server: server,
+			/* dnsmasq logs whole seconds, so this is a floor, not a measurement:
+			 * a lookup answered in 6 ms and one answered in 900 ms both read 0. */
+			ms: pending ? (((event.t - pending.t) > 0) ? (event.t - pending.t) * 1000 : 0) : null,
+			result: event.result,
+			id: key
+		};
+
+		push(data.records, response);
+		delete data.queries[key];
+		added++;
+	}
+
+	if (consumed > 0)
+		data.offset += consumed;
+
+	/* Drop lookups that will never be answered. */
+	for (let key in data.queries) {
+		let pending = data.queries[key];
+
+		if ((int(pending.t) ?? 0) < ctx.now - PENDING_TTL)
+			delete data.queries[key];
+	}
+
+	if (length(data.records) > MAX_RECORDS)
+		data.records = slice(data.records, length(data.records) - MAX_RECORDS);
+
+	if (added > 0 || consumed > 0)
+		data.updated = ctx.now;
+
+	if (added > 0 || consumed > 0)
+		return {
+			ok: write_archive(data),
+			path: ARCHIVE,
+			log: path,
+			added: added,
+			records: length(data.records),
+			offset: data.offset
+		};
+
+	return { ok: true, path: ARCHIVE, log: path, added: 0, records: length(data.records), offset: data.offset };
+};
+
+/* ---------------- main ---------------- */
+
+let cmd = length(ARGV) ? ARGV[0] : 'collect';
+let result;
+
+if (cmd == 'collect')
+	result = collect();
+else if (cmd == 'read')
+	result = load_archive();
+else if (cmd == 'status') {
+	let data = load_archive();
+
+	result = {
+		ok: true,
+		path: ARCHIVE,
+		log: log_path(),
+		offset: data.offset,
+		records: length(data.records),
+		pending: (function() {
+			let n = 0;
+
+			for (let key in data.queries)
+				n++;
+
+			return n;
+		})(),
+		updated: data.updated
+	};
+}
+else if (cmd == 'clear')
+	result = fs.writefile(ARCHIVE, sprintf('%J\n', empty_archive())) != null
+		? { ok: true, cleared: true }
+		: { ok: false, error: 'cannot write ' + ARCHIVE };
+else
+	result = { ok: false, error: 'usage: clients-dns [collect|read|status|clear]' };
+
+print(sprintf('%J\n', result));
+exit((result.ok == false) ? 1 : 0);

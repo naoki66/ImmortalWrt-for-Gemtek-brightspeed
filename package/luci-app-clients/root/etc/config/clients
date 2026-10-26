@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config clients 'global'
+	option enabled '1'
+	# Seconds between two samples. 30 keeps the archive cheap (one conntrack
+	# walk plus one assoclist per radio) while still resolving "last seen" to
+	# half a minute.
+	option interval '30'
+	# Days an offline client is kept before the next write drops it. 0 keeps
+	# everything until cleared.
+	option retention '7'
+	# /tmp on purpose: a status page must not wear the flash. Point this at
+	# persistent storage deliberately if the history has to survive a reboot.
+	option history_path '/tmp/clients-history.json'
+
+config clients 'dns'
+	# Turning this off stops the collector but keeps the dnsmasq query log
+	# setting as the package installed it. The DNS tab then shows whatever was
+	# archived and no longer grows.
+	option enabled '1'
+	# Ten seconds: the page is a record of what happened, not a live socket
+	# view, and the collector parses only what was appended since last time.
+	option interval '10'

@@ -1,0 +1,13 @@
+{
+	"admin/status/clients": {
+		"title": "Net Clients",
+		"order": 16,
+		"action": {
+			"type": "view",
+			"path": "status/clients"
+		},
+		"depends": {
+			"acl": [ "luci-app-clients" ]
+		}
+	}
+}
