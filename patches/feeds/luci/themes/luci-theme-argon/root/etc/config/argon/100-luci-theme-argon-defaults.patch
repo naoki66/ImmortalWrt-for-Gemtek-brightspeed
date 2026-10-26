@@ -1,0 +1,32 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] argon: ship firmware default theme configuration
+
+Bake the preferred Argon look into the package's /etc/config/argon so a
+fresh install boots with the centered login page, Bing wallpaper and the
+lighter blur/transparency values instead of the upstream defaults.
+
+---
+diff --git a/themes/luci-theme-argon/root/etc/config/argon b/themes/luci-theme-argon/root/etc/config/argon
+--- a/themes/luci-theme-argon/root/etc/config/argon
++++ b/themes/luci-theme-argon/root/etc/config/argon
+@@ -1,12 +1,12 @@
+ config global
+-	option login_style 'classic'
+ 	option primary '#5e72e4'
+ 	option dark_primary '#483d8b'
+-	option dark_primary_mode 'auto'
+-	option dark_glass_mode 'inherit'
+-	option blur '10'
+-	option blur_dark '10'
+-	option transparency '0.5'
+-	option transparency_dark '0.5'
++	option blur '3'
++	option blur_dark '0'
++	option transparency '0.3'
++	option transparency_dark '0.3'
+ 	option mode 'normal'
+-	option online_wallpaper 'none'
++	option online_wallpaper 'bing'
++	option dark_primary_mode 'auto'
++	option dark_glass_mode 'inherit'
++	option login_style 'centered'

@@ -1,0 +1,33 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] argon: show device model and version in footer without duplicated fields
+
+Drop the trailing DISTRIB_REVISION from the footer/login footer so it no
+longer repeats the build date and commit already contained in VERSION.
+
+---
+diff --git a/themes/luci-theme-argon/ucode/template/themes/argon/footer.ut b/themes/luci-theme-argon/ucode/template/themes/argon/footer.ut
+index 58a5bdc..3b585b6 100644
+--- a/themes/luci-theme-argon/ucode/template/themes/argon/footer.ut
++++ b/themes/luci-theme-argon/ucode/template/themes/argon/footer.ut
+@@ -27,7 +27,7 @@
+ 
+ 				<span class="footer-separator">|</span>
+ 
+-				<a class="luci-link" href="{{ version.disturl }}" target="_blank">{{ version.distname }} {{ version.distversion }}-{{ version.distrevision }}</a>
++				<a class="luci-link" href="{{ version.disturl }}" target="_blank">{{ version.distname }} {{ version.distversion }}</a>
+ 
+ 				<ul class="breadcrumb pull-right" id="modemenu" style="display:none"></ul>
+ 			</div>
+diff --git a/themes/luci-theme-argon/ucode/template/themes/argon/footer_login.ut b/themes/luci-theme-argon/ucode/template/themes/argon/footer_login.ut
+index d2e6142..b347a8c 100644
+--- a/themes/luci-theme-argon/ucode/template/themes/argon/footer_login.ut
++++ b/themes/luci-theme-argon/ucode/template/themes/argon/footer_login.ut
+@@ -19,7 +19,7 @@
+ </div>
+ {%
+ 	const luci_info = 'Powered by ' + version.luciname + ' (' + version.luciversion + ')';
+-	const firmware_info = version.distname + ' ' + version.distversion + '-' + version.distrevision;
++	const firmware_info = version.distname + ' ' + version.distversion;
+ %}
+ <footer>
+ 	<div class="login-footer-links">

@@ -9,14 +9,15 @@
 # 三段的开关分别是 CONFIG_VERSION_FILENAMES / CONFIG_VERSION_CODE_FILENAMES / CONFIG_EXTRA_IMAGE_NAME，
 # 默认只启用 VERSION_NUMBER，保证固件名短且可定位。
 #
-# 设备型号（VERSION_DIST 后缀与默认主机名）识别顺序：
-#   1. 环境变量 VERSION_DIST 整体覆盖；DEVICE_HOSTNAME 单独覆盖主机名；
+# 设备型号（用于发行版名、设备产品与默认主机名）识别顺序：
+#   1. 环境变量 VERSION_DIST / VERSION_PRODUCT / DEVICE_HOSTNAME 可分别覆盖
+#      发行版名、设备产品名与主机名；
 #   2. CONFIG_TARGET_PROFILE（cp 种子 -> make defconfig 后该行仍在）；
 #   3. 唯一的 CONFIG_TARGET_<board>_<subtarget>_DEVICE_<name>=y；
 #      同时启用多个设备（multi-profile）时型号不明确，跳过推导；
 #   4. 沿用 config 里现有 CONFIG_VERSION_DIST 的设备名后缀
 #      （如 "ImmortalWrt naoki66 XG-040G-MD" -> "XG-040G-MD"），
-#      保证种子 config 里手写的设备名不会被覆盖成默认的 "ImmortalWrt"。
+#      保证种子 config 里手写的设备名仍能推导出默认主机名。
 # 归一化：先剥厂牌前缀（gemtek_/nokia_）与 -ubi 后缀，再查已知设备别名表
 # known_device_model；查不到时退化为大写原样输出。新增设备只需在别名表加一行。
 #
@@ -28,8 +29,9 @@
 #   留空表示保持内置默认（ImmortalWrt）。
 #
 # 可用环境变量覆盖：
-#   VERSION_DIST            发行版名（默认 "ImmortalWrt naoki66"，若识别到设备型号
-#                           则追加，如 "ImmortalWrt naoki66 XG2010G"）
+#   VERSION_DIST            发行版名（默认 "ImmortalWrt naoki66 <设备型号>"，用于页脚等
+#                           展示；固件文件名会自动去掉型号后缀，避免重复）
+#   VERSION_PRODUCT         设备产品名（默认取识别到的设备型号，写入 os-release）
 #   DEVICE_HOSTNAME         默认主机名（默认取识别到的设备型号，如 XR1710G）
 #   BUILD_TZ                日期时区（默认 Asia/Shanghai）
 #   BUILD_DATE / BUILD_TIME 构建日期 YYYYMMDD（默认取当前时间）
@@ -103,6 +105,7 @@ device_model="$(detect_device_model || true)"
 # profile 推导不到时，沿用 config 里已有的设备名后缀，防止被覆盖丢失
 [ -n "$device_model" ] || device_model="$(detect_model_from_dist || true)"
 version_dist="${VERSION_DIST:-ImmortalWrt naoki66${device_model:+ $device_model}}"
+version_product="${VERSION_PRODUCT:-$device_model}"
 # 默认主机名沿用简约化设备名；空格/下划线转连字符，剔除非法字符（主机名只允许 ASCII）
 hostname="${DEVICE_HOSTNAME:-$device_model}"
 hostname="$(printf '%s' "$hostname" | tr ' _' '--' | tr -cd 'A-Za-z0-9.-')"
@@ -191,6 +194,8 @@ sed -e '/^CONFIG_IMAGEOPT=/d' \
 	-e '/^# CONFIG_VERSIONOPT is not set$/d' \
 	-e '/^CONFIG_VERSION_DIST=/d' \
 	-e '/^# CONFIG_VERSION_DIST is not set$/d' \
+	-e '/^CONFIG_VERSION_PRODUCT=/d' \
+	-e '/^# CONFIG_VERSION_PRODUCT is not set$/d' \
 	-e '/^CONFIG_VERSION_NUMBER=/d' \
 	-e '/^# CONFIG_VERSION_NUMBER is not set$/d' \
 	-e '/^CONFIG_VERSION_CODE=/d' \
@@ -207,6 +212,7 @@ CONFIG_EXTRA_IMAGE_NAME="$(escape_config_string "$extra_image_name")"
 CONFIG_TARGET_HOSTNAME="$(escape_config_string "$hostname")"
 CONFIG_VERSIONOPT=y
 CONFIG_VERSION_DIST="$(escape_config_string "$version_dist")"
+CONFIG_VERSION_PRODUCT="$(escape_config_string "$version_product")"
 CONFIG_VERSION_NUMBER="$(escape_config_string "$version_number")"
 CONFIG_VERSION_CODE="$(escape_config_string "$version_code")"
 $cfg_version_filenames
@@ -216,7 +222,12 @@ EOF
 mv "$tmp_file" "$config_file"
 trap - EXIT
 
-img_prefix="$(sanitize "$version_dist")"
+# 固件文件名使用去掉设备型号后缀的发行版名，与 include/version.mk 保持一致
+img_prefix_dist="$version_dist"
+if [[ -n "$version_product" ]]; then
+	img_prefix_dist="${img_prefix_dist% $version_product}"
+fi
+img_prefix="$(sanitize "$img_prefix_dist")"
 if is_true "$version_filenames"; then
 	img_prefix="${img_prefix}-$(sanitize "$version_number")"
 fi

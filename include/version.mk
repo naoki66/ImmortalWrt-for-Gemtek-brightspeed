@@ -37,7 +37,11 @@ VERSION_REPO:=$(if $(VERSION_REPO),$(VERSION_REPO),https://downloads.immortalwrt
 
 VERSION_DIST:=$(call qstrip,$(CONFIG_VERSION_DIST))
 VERSION_DIST:=$(if $(VERSION_DIST),$(VERSION_DIST),ImmortalWrt)
-VERSION_DIST_SANITIZED:=$(call sanitize,$(VERSION_DIST))
+# VERSION_DIST carries the device model for display purposes (footer, banner,
+# os-release), while CONFIG_VERSION_PRODUCT holds the same model. Strip that
+# duplicated suffix before deriving the firmware file name prefix.
+VERSION_DIST_SHORT:=$(if $(call qstrip,$(CONFIG_VERSION_PRODUCT)),$(subst $(space)$(call qstrip,$(CONFIG_VERSION_PRODUCT)),,$(VERSION_DIST)),$(VERSION_DIST))
+VERSION_DIST_SANITIZED:=$(call sanitize,$(VERSION_DIST_SHORT))
 
 VERSION_MANUFACTURER:=$(call qstrip,$(CONFIG_VERSION_MANUFACTURER))
 VERSION_MANUFACTURER:=$(if $(VERSION_MANUFACTURER),$(VERSION_MANUFACTURER),ImmortalWrt)
@@ -49,7 +53,7 @@ VERSION_BUG_URL:=$(call qstrip,$(CONFIG_VERSION_BUG_URL))
 VERSION_BUG_URL:=$(if $(VERSION_BUG_URL),$(VERSION_BUG_URL),https://github.com/immortalwrt/immortalwrt/issues)
 
 VERSION_HOME_URL:=$(call qstrip,$(CONFIG_VERSION_HOME_URL))
-VERSION_HOME_URL:=$(if $(VERSION_HOME_URL),$(VERSION_HOME_URL),https://immortalwrt.org/)
+VERSION_HOME_URL:=$(if $(VERSION_HOME_URL),$(VERSION_HOME_URL),https://github.com/naoki66/)
 
 VERSION_SUPPORT_URL:=$(call qstrip,$(CONFIG_VERSION_SUPPORT_URL))
 VERSION_SUPPORT_URL:=$(if $(VERSION_SUPPORT_URL),$(VERSION_SUPPORT_URL),https://github.com/immortalwrt/immortalwrt/discussions)
