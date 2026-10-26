@@ -153,6 +153,7 @@ define Build/Prepare
 endef
 
 define Build/Compile/bl2
+	$(Build/Compile/Trusted-Firmware-A) clean
 	$(Build/Compile/Trusted-Firmware-A) IMAGE_BL21=1 bl2
 	$(Build/Compile/Trusted-Firmware-A) clean
 	$(Build/Compile/Trusted-Firmware-A) IMAGE_BL22=1 bl2
