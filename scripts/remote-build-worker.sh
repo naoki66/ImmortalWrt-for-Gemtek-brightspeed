@@ -68,11 +68,6 @@ run_build() {
 			if [[ -d bin/targets/airoha/an7581 ]]; then
 				find bin/targets/airoha/an7581 -mindepth 1 -delete
 			fi
-			# External kernel modules are not rebuilt when only the kernel
-			# ABI changes. A stale cryptodev.ko then refuses to load with
-			# "this_module section size must match" and takes /dev/crypto
-			# plus the OpenSSL devcrypto engine down with it.
-			make package/kernel/cryptodev-linux/clean
 			make download -j"$jobs"
 			make -j"$jobs" world
 			;;

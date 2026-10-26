@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 
-# 写入固件版本 / 文件名 / 默认主机名相关配置项到 .config
+# 写入固件版本 / 文件名 / 默认主机名相关配置项到 .config，
+# 并在内核相关配置（CONFIG_KERNEL_* 等）变化时清理 build_dir 里陈旧的外部内核模块。
 #
-# 本脚本只修改 .config，不生成也不改写源码树里的其它文件。
+# 除 .config 外，本脚本只会删除 build_dir 下含 .ko 的外部模块包目录，
+# 不生成也不改写源码树里的其它文件，也不清理其它编译产物。
 #
 # 文件名规则（include/image.mk）：
 #   IMG_PREFIX = DIST + [VERSION_NUMBER] + [VERSION_CODE] + [EXTRA_IMAGE_NAME] + BOARD-SUBTARGET
@@ -250,3 +252,97 @@ echo "Configured firmware version: ${version_dist} ${version_number}"
 echo "Configured firmware revision: ${version_code}"
 echo "Configured default hostname: ${hostname:-(unchanged)}"
 echo "Configured image name prefix: ${img_prefix}"
+
+# ---- 清理陈旧的外部内核模块 ----
+#
+# 三种设备除 DTS / 网卡 / WiFi 驱动外已收敛：040 / 1710 / 2010 / 2010-2g 种子的
+# CONFIG_KERNEL_* 完全一致。1710 原先单独打开 PERF_EVENTS / FTRACE / KPROBES /
+# BPF_EVENTS / XDP_SOCKETS 等，这些符号会改变内核 struct module 的布局；切到
+# 040/2010 重建后，残留的 .ko 加载时报
+#   "section size must match the kernel's built struct module size at run time"
+# 并连带功能失效（例如 cryptodev.ko 挂掉会让 /dev/crypto 与 OpenSSL devcrypto
+# 引擎一起不可用）。
+#
+# 指纹兜底：内核配置或内核小版本一旦变化，只删除 build_dir 下“含 .ko 的外部
+# 模块包目录”（树内 linux-x.y.z 目录随内核一起重建，跳过），其它产物一律不动。
+config_dir="$(cd "$(dirname "$config_file")" && pwd)"
+repo_root="$(git -C "$config_dir" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$config_dir")"
+build_dir="$repo_root/build_dir"
+stamp_file="$build_dir/.kernel-config-fingerprint"
+
+kernel_fingerprint() {
+	local board subtarget patchver details
+	board="$(config_get_string CONFIG_TARGET_BOARD)"
+	subtarget="$(config_get_string CONFIG_TARGET_SUBTARGET)"
+	patchver=""
+	if [[ -n "$board" && -f "$repo_root/target/linux/$board/Makefile" ]]; then
+		patchver="$(sed -n 's/^KERNEL_PATCHVER:=\(.*\)$/\1/p' \
+			"$repo_root/target/linux/$board/Makefile" | head -n 1)"
+	fi
+	details="$repo_root/target/linux/generic/kernel-$patchver"
+	{
+		printf 'BOARD=%s\nSUBTARGET=%s\nPATCHVER=%s\n' "$board" "$subtarget" "$patchver"
+		# 内核小版本 / 源码哈希变化同样会让已有 .ko 失效
+		if [[ -n "$patchver" && -f "$details" ]]; then
+			sed -n -e 's/^\(LINUX_VERSION-.*\)$/\1/p' \
+				-e 's/^\(LINUX_KERNEL_HASH-.*\)$/\1/p' "$details"
+		fi
+		sed -n -e 's/^\(CONFIG_KERNEL_[A-Za-z0-9_]*=.*\)$/\1/p' \
+			-e 's/^\(# CONFIG_KERNEL_[A-Za-z0-9_]* is not set\)$/\1/p' \
+			"$config_file"
+	} | LC_ALL=C sort | sha256sum | cut -d' ' -f1
+}
+
+clean_stale_kernel_modules() {
+	[[ -d "$build_dir" ]] || return 0
+
+	local new_fp old_fp removed=0 ko rel target_dir rest kdir rest2 pkg pkg_dir prev_pkg_dir=""
+	new_fp="$(kernel_fingerprint)"
+	old_fp="$(cat "$stamp_file" 2>/dev/null || true)"
+	if [[ "$new_fp" == "$old_fp" ]]; then
+		echo "Kernel config unchanged; keeping external kernel modules."
+		return 0
+	fi
+
+	local -a stale_dirs=()
+	# 只扫包目录，跳过 host 工具与树内内核源码树
+	while IFS= read -r ko; do
+		rel="${ko#"$build_dir"/}"
+		target_dir="${rel%%/*}"
+		rest="${rel#*/}"
+		kdir="${rest%%/*}"
+		# 外部内核模块位于 build_dir/target-*/linux-<board>/<包目录>/
+		[[ "$kdir" == linux-* ]] || continue
+		rest2="${rest#*/}"
+		pkg="${rest2%%/*}"
+		# .ko 必须位于包目录之内
+		[[ -n "$pkg" && "$pkg" != "$rest2" ]] || continue
+		# packages/ 是内核模块的打包输出目录（ipkg/apk/.pkgdir），里面的 .ko
+		# 只是已编译模块的安装拷贝，删掉它只会引发全量重装
+		[[ "$pkg" != packages ]] || continue
+		pkg_dir="$build_dir/$target_dir/$kdir/$pkg"
+		# 同一包目录只会连续出现，去掉重复项
+		[[ "$pkg_dir" != "$prev_pkg_dir" ]] || continue
+		prev_pkg_dir="$pkg_dir"
+		[[ -d "$pkg_dir" ]] || continue
+		stale_dirs+=("$pkg_dir")
+	done < <(find "$build_dir" \
+		\( -path "$build_dir/host" -o -path '*/linux-[0-9]*' \) -prune -o \
+		-type f -name '*.ko' -print 2>/dev/null)
+
+	for pkg_dir in "${stale_dirs[@]}"; do
+		rm -rf -- "$pkg_dir"
+		echo "Removed stale kernel module package: ${pkg_dir#"$build_dir"/}"
+		removed=$((removed + 1))
+	done
+
+	printf '%s\n' "$new_fp" > "$stamp_file"
+	if (( removed > 0 )); then
+		echo "Kernel config changed; removed $removed stale external module package(s)."
+	else
+		echo "Kernel config changed; no stale external kernel modules found."
+	fi
+	return 0
+}
+
+clean_stale_kernel_modules
