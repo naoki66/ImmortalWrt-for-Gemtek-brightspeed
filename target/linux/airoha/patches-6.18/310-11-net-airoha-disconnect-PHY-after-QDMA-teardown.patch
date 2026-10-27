@@ -4,15 +4,18 @@ Subject: [PATCH] net: airoha: disconnect PHY after shared QDMA teardown
 
 The Airoha driver tears down the shared QDMA ring at the end of
 airoha_dev_stop(). Disconnect the PHY after that teardown completes.
+The PON data-path netdev has no phylink instance, so skip the call when
+dev->phylink is NULL instead of dereferencing it.
 Signed-off-by: naoki66 <naoki66@qq.com>
 
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
-@@ -1929,6 +1929,8 @@ static int airoha_dev_stop(struct net_device *netdev)
+@@ -1929,6 +1929,9 @@ static int airoha_dev_stop(struct net_device *netdev)
  	if (netdev->features & NETIF_F_LRO)
  		airoha_dev_lro_disable(dev);
  
-+	phylink_disconnect_phy(dev->phylink);
++	if (dev->phylink)
++		phylink_disconnect_phy(dev->phylink);
 +
  	return 0;
  }
