@@ -31,11 +31,12 @@
 # and the patch would silently stop being applied.
 #
 # The same hook also normalizes the feed provider links under package/feeds/.
-# feeds/packages and feeds/helloworld both ship a source package named
-# xray-core, and ./scripts/feeds install -a keeps whichever feed comes first in
-# feeds.conf.default -- packages -- dropping the helloworld build that carries
-# the AN7581 EIP93 overlay. scripts/select-feed-providers.sh removes the
-# packages link and recreates the helloworld one. It belongs here for the same
+# feeds/packages and feeds/helloworld ship source packages with the same names
+# (xray-core, v2ray-core, mosdns, ...), and ./scripts/feeds install -a keeps
+# whichever feed comes first in feeds.conf.default -- packages -- dropping the
+# helloworld builds that carry the AN7581 EIP93 overlay and the other local
+# changes. scripts/select-feed-providers.sh removes the packages links and
+# recreates the helloworld ones. It belongs here for the same
 # reason as the patches, plus one of its own: `./scripts/feeds install` starts
 # with get_installed(), which runs `make prepare-tmpinfo` to learn what is
 # already installed, so the link has to be correct before that scan or the

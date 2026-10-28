@@ -3,7 +3,8 @@
 # 写入固件版本 / 文件名 / 默认主机名相关配置项到 .config，
 # 并在内核相关配置（CONFIG_KERNEL_* 等）变化时清理 build_dir 里陈旧的外部内核模块。
 #
-# 除 .config 外，本脚本只会删除 build_dir 下含 .ko 的外部模块包目录，
+# 除 .config 外，本脚本只有两处副作用：校正 package/feeds 下的 provider 链接
+# （见 select-feed-providers.sh），以及删除 build_dir 下含 .ko 的外部模块包目录；
 # 不生成也不改写源码树里的其它文件，也不清理其它编译产物。
 #
 # 文件名规则（include/image.mk）：
@@ -346,3 +347,8 @@ clean_stale_kernel_modules() {
 }
 
 clean_stale_kernel_modules
+
+# 校正 package/feeds 下的 provider 链接：与其它 feed 同名的源包由 helloworld
+# 提供，避免 ./scripts/feeds install -a 按 feeds.conf 顺序解析成 packages 版本。
+# 脚本幂等；feed 尚未拉取时只告警（调用方设 FEED_PATCHES_STRICT=1 可改为失败）。
+bash "$repo_root/scripts/select-feed-providers.sh"
