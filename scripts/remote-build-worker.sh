@@ -50,6 +50,7 @@ run_build() {
 		./scripts/feeds install -a
 	fi
 
+	FEED_PATCHES_STRICT=1 bash scripts/select-feed-providers.sh
 	FEED_PATCHES_STRICT=1 bash scripts/apply-feed-patches.sh
 
 	bash scripts/fix-stale-golang-host.sh
