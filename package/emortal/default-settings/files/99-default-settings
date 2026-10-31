@@ -14,8 +14,19 @@ if ! uci -q get system.@imm_init[0].lang > "/dev/null"; then
 	EOF
 fi
 
+# dnsmasq only accepts a single log-facility directive. The init script
+# already emits one from UCI, so appending another to dnsmasq.conf makes
+# dnsmasq abort with "illegal repeated keyword" and never come up.
+# Drop any leftover line from older images and drive it through UCI only.
 sed -i "/log-facility/d" "/etc/dnsmasq.conf"
-echo "log-facility=/dev/null" >> "/etc/dnsmasq.conf"
+
+if uci -q get dhcp.@dnsmasq[0] > "/dev/null"; then
+	uci -q batch <<-EOF
+		set dhcp.@dnsmasq[0].logfacility="/dev/null"
+		set dhcp.@dnsmasq[0].logqueries="0"
+		commit dhcp
+	EOF
+fi
 
 ln -sf "/sbin/ip" "/usr/bin/ip"
 

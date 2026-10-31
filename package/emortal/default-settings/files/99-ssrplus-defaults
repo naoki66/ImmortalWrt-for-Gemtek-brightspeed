@@ -1,0 +1,31 @@
+#!/bin/sh
+
+# ssr-plus ships unusable defaults for this target:
+#  - pdnsd_enable=1 (dns2tcp) depends on a DNS node that is never configured
+#  - mode 6 with an unset chinadns_ng_proto forwards DNS over UDP, but the
+#    nft ruleset only redirects TCP 53 to ssr-redir, so the answer is polluted
+#  - enable_switch=1 restarts the whole stack and starts a probe instance,
+#    which does not fit in 438 MB without swap
+# Pin the working combination here. Nodes and subscriptions are not touched:
+# their tags change on every subscribe and the URL carries credentials.
+
+[ -f /etc/config/shadowsocksr ] || exit 0
+uci -q get shadowsocksr.@global[0] > "/dev/null" || exit 0
+
+# One-shot: /etc survives sysupgrade, so settings changed later stay changed.
+[ "$(uci -q get system.@imm_init[0].ssr_defaults)" = "1" ] && exit 0
+
+uci -q batch <<-EOF
+	set shadowsocksr.@global[0].pdnsd_enable="6"
+	set shadowsocksr.@global[0].chinadns_ng_proto="tcp"
+	set shadowsocksr.@global[0].chinadns_ng_tunnel_forward="8.8.4.4:53"
+	set shadowsocksr.@global[0].enable_switch="0"
+	set shadowsocksr.@global[0].switch_time="300"
+	set shadowsocksr.@global[0].switch_timeout="15"
+	set shadowsocksr.@global[0].switch_try_count="3"
+	set system.@imm_init[0].ssr_defaults="1"
+	commit shadowsocksr
+	commit system
+EOF
+
+exit 0

@@ -1,0 +1,28 @@
+From: ImmortalWrt-for-Pon <dev@localhost>
+Subject: [PATCH] simple-obfs: skip the stale PKG_MIRROR_HASH check
+
+The helloworld feed still carries the PKG_MIRROR_HASH that was recorded years
+ago for simple-obfs-0.0.5.tar.xz. Re-packing the pinned commit 486bebd9 with a
+current GNU tar/xz produces a different (but byte-stable) archive, so the hash
+never matches and the download step aborts the whole build with:
+
+  Hash mismatch for file simple-obfs-0.0.5.tar.xz:
+  expected 7a0154d2de18373e52783d1b64cf5204471049c2d2c64f0b3323d7f430aa4275,
+  got      da5af052265fbfba7a11ee4195257f9bc13f44d054d8fdcbace0639360870035
+
+The source is still pinned to an exact commit of the upstream repository, so
+setting PKG_MIRROR_HASH to "skip" keeps the build working on any host
+toolchain (the generated archive differs between tar/xz versions) instead of
+hard-coding a hash that only matches one build machine.
+
+--- a/simple-obfs/Makefile
++++ b/simple-obfs/Makefile
+@@ -15,7 +15,7 @@
+ PKG_SOURCE_VERSION:=486bebd9208539058e57e23a12f23103016e09b4
+ PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
+ PKG_SOURCE:=$(PKG_SOURCE_SUBDIR).tar.xz
+-PKG_MIRROR_HASH:=7a0154d2de18373e52783d1b64cf5204471049c2d2c64f0b3323d7f430aa4275
++PKG_MIRROR_HASH:=skip
+ 
+ PKG_LICENSE:=GPL-3.0-or-later
+ PKG_LICENSE_FILES:=LICENSE
