@@ -25,7 +25,7 @@ Signed-off-by: naoki66 <naoki66@qq.com>
  
  	if (nft_flow_offload_skip(pkt->skb, nft_pf(pkt)))
  		goto out;
-@@ -110,8 +110,11 @@ static void nft_flow_offload_eval(const
+@@ -129,8 +129,11 @@
  
  	switch (ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.protonum) {
  	case IPPROTO_TCP:
@@ -39,5 +39,6 @@ Signed-off-by: naoki66 <naoki66@qq.com>
  		if (unlikely(!tcph))
  			goto out;
  		if (unlikely(tcph->fin || tcph->rst))
---
+
+-- 
 2.43.0

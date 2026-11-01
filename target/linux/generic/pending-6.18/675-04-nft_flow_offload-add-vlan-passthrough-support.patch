@@ -1,6 +1,6 @@
 From: Ryan Chen <rchen14b@gmail.com>
 Date: Thu, 20 Mar 2026 10:00:00 -0500
-Subject: [PATCH 4/4] netfilter: nft_flow_offload: add VLAN passthrough support
+Subject: [PATCH 4/7] netfilter: nft_flow_offload: add VLAN passthrough support
 
 VLAN passthrough packets can be offloaded when bridge-nf-filter-vlan-tagged
 is enabled. When a packet has a VLAN tag and the bridge does not have VLAN
@@ -19,7 +19,9 @@ Assisted-by: Codex:gpt-5.6-sol
 Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 Signed-off-by: naoki66 <naoki66@qq.com>
 ---
-diff --git a/net/netfilter/nf_flow_table_path.c b/net/netfilter/nf_flow_table_path.c
+ net/netfilter/nf_flow_table_path.c | 27 +++++++++++++++++++++++++--
+ 1 file changed, 25 insertions(+), 2 deletions(-)
+
 --- a/net/netfilter/nf_flow_table_path.c
 +++ b/net/netfilter/nf_flow_table_path.c
 @@ -151,6 +151,30 @@
@@ -50,20 +52,21 @@ diff --git a/net/netfilter/nf_flow_table_path.c b/net/netfilter/nf_flow_table_pa
 +	rcu_read_unlock();
 +}
 +
- static void nft_dev_path_info(const struct net_device_path_stack *stack,
- 			      struct nft_forward_info *info,
- 			      unsigned char *ha, struct nf_flowtable *flowtable)
-@@ -286,8 +310,10 @@
+ static int nft_dev_path_info(const struct net_device_path_stack *stack,
+ 			     struct nft_forward_info *info,
+ 			     unsigned char *ha, struct nf_flowtable *flowtable)
+@@ -286,8 +310,12 @@
  		nft_br_vlan_dev_fill_forward_path(pkt, &ctx);
  	}
  
--	if (nft_dev_fill_forward_path(&ctx, route, dst, ct, dir, ha, &stack) >= 0)
-+	if (nft_dev_fill_forward_path(&ctx, route, dst, ct, dir, ha, &stack) >= 0) {
-+		nft_fill_vlan_passthrough_info(pkt, &info);
- 		nft_dev_path_info(&stack, &info, ha, &ft->data);
-+	}
- 
- 	if (!info.indev || !nft_flowtable_find_dev(info.indev, ft))
+-	if (nft_dev_fill_forward_path(&ctx, route, dst, ct, dir, ha, &stack) < 0 ||
+-	    nft_dev_path_info(&stack, &info, ha, &ft->data) < 0)
++	if (nft_dev_fill_forward_path(&ctx, route, dst, ct, dir, ha, &stack) < 0)
++		return -ENOENT;
++
++	nft_fill_vlan_passthrough_info(pkt, &info);
++
++	if (nft_dev_path_info(&stack, &info, ha, &ft->data) < 0)
  		return -ENOENT;
--- 
-2.43.0
+ 
+ 	if (!nft_flowtable_find_dev(info.indev, ft))

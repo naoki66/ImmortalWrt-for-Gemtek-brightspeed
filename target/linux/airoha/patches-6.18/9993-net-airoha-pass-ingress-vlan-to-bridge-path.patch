@@ -12,7 +12,7 @@ header instead of being exposed through skb VLAN metadata. Populate
 net_device_path_ctx from a logical VLAN device, an skb hardware VLAN tag,
 an inline VLAN header, or the ingress bridge-port PVID when VLAN filtering is
 enabled, using the bridge's configured VLAN protocol. Use
-__dev_fill_forward_path() so the bridge FDB lookup sees that context. In
+dev_fill_forward_path() so the bridge FDB lookup sees that context. In
 particular, do not replace a tagged trunk frame with the trunk port PVID.
 Copy the resulting egress VLAN stack into the fallback flow template so PPE
 performs the same tag push or pop selected by the bridge path.
@@ -45,7 +45,7 @@ Signed-off-by: naoki66 <naoki66@qq.com>
  
  	if (!is_valid_ether_addr(eh->h_source) ||
  	    !is_valid_ether_addr(eh->h_dest))
-@@ -998,18 +1002,45 @@
+@@ -998,18 +1002,46 @@
  	if (!skb->dev)
  		return false;
  
@@ -93,11 +93,12 @@ Signed-off-by: naoki66 <naoki66@qq.com>
 +		ctx.num_vlans = 1;
 +	}
 +
-+	err = __dev_fill_forward_path(&ctx, eh->h_dest, &stack);
++	ether_addr_copy(ctx.daddr, eh->h_dest);
++	err = dev_fill_forward_path(&ctx, &stack);
  	if (err || stack.num_paths < 2 ||
  	    stack.path[0].type != DEV_PATH_BRIDGE) {
  		rcu_read_unlock();
-@@ -1017,6 +1048,12 @@
+@@ -1017,6 +1049,12 @@
  		return false;
  	}
  
