@@ -29,7 +29,8 @@ pulse again if needed. Stop retrying only after netdev carrier is up, and
 restart the sequence if carrier later drops while copper remains up.
 
 This does not read Airoha MMIO or add a retry limit, DTE XS or PCS reset,
-TXPLL reset, or TX FIR default.
+TXPLL reset, or TX FIR default. Boards that opt in also skip the
+independent SDS reset work so it cannot race this sequence.
 
 Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
 Signed-off-by: naoki66 <naoki66@qq.com>
@@ -94,7 +95,18 @@ Assisted-by: Codex:GPT-5.6-sol
  #define RTL8201F_IER				0x13
  
  #define RTL8201F_ISR				0x1e
-@@ -3235,6 +3238,8 @@
+@@ -3206,6 +3209,10 @@
+ static void rtl826x_link_change_notify(struct phy_device *phydev)
+ {
+ 	struct rtl826x_priv *priv = phydev->priv;
+ 
++	/* The board-specific flow_s retry handles carrier without PCS resets. */
++	if (priv->patch_rtk_serdes)
++		return;
++
+ 	if (phydev->state != PHY_RUNNING) {
+ 		if (!READ_ONCE(priv->sds_work_disabled)) {
+@@ -3235,6 +3242,8 @@
  	priv->enable_pma_low_power = device_property_read_bool(dev, "realtek,enable-pma-low-power");
  	priv->patch_rtk_serdes =
  		device_property_read_bool(dev, "realtek,patch-rtk-serdes");
@@ -103,7 +115,7 @@ Assisted-by: Codex:GPT-5.6-sol
  	priv->phydev = phydev;
  	phydev->priv = priv;
  
-@@ -3425,11 +3430,17 @@
+@@ -3425,11 +3434,17 @@
  
  static int rtl826x_config_aneg(struct phy_device *phydev)
  {
@@ -121,7 +133,7 @@ Assisted-by: Codex:GPT-5.6-sol
  	if (phydev->autoneg == AUTONEG_DISABLE)
  		return genphy_c45_pma_setup_forced(phydev);
  
-@@ -3459,8 +3470,33 @@
+@@ -3459,8 +3474,33 @@
  	return genphy_c45_check_and_restart_aneg(phydev, changed);
  }
  
@@ -155,7 +167,7 @@ Assisted-by: Codex:GPT-5.6-sol
  	int status;
  	int ret;
  
-@@ -3491,7 +3527,96 @@
+@@ -3491,7 +3531,96 @@
  			return ret;
  	}
  
