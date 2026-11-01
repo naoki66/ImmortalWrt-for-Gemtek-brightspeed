@@ -1,0 +1,157 @@
+diff --git a/airoha-xpon/src/airoha-xpon-diagnostics.c b/airoha-xpon/src/airoha-xpon-diagnostics.c
+index fc1beb5..d3757d1 100644
+--- a/airoha-xpon/src/airoha-xpon-diagnostics.c
++++ b/airoha-xpon/src/airoha-xpon-diagnostics.c
+@@ -415,6 +415,11 @@ static int pon_line_debug_show(struct seq_file *m, void *unused)
+ 	           "data_path_configured: %d\n"
+ 	           "service_ready: %d\n"
+ 	           "rx_start_count: %u\n"
++	           "rx_mbi_overrun_irqs: %u\n"
++	           "rx_mbi_overrun_storm: %d\n"
++	           "rx_mbi_overrun_storm_count: %u\n"
++	           "rx_stall_armed: %d\n"
++	           "rx_stall_restarts: %u\n"
+ 	           "pcs_profile: %s\n",
+ 	           airoha_xpon_mode_name(xpon->configured_mode),
+ 	           xpon->active_mode_valid ?
+@@ -424,6 +429,11 @@ static int pon_line_debug_show(struct seq_file *m, void *unused)
+ 	           xpon->last_start_error, xpon->optical_signal,
+ 	           xpon->rx_active, xpon->tx_armed, xpon->data_path.configured,
+ 	           xpon->service_ready, xpon->stats.rx_start_count,
++	           xpon->stats.rx_mbi_header_overrun_irq_count +
++	                   xpon->stats.rx_mbi_payload_overrun_irq_count,
++	           xpon->rx_mbi_overrun_storm,
++	           xpon->stats.rx_mbi_overrun_storm_count, xpon->rx_stall_armed,
++	           xpon->rx_stall_restarts,
+ 	           xpon->pcs_profile_valid ?
+ 	                   airoha_xpon_pcs_profile_name(xpon->pcs_profile) :
+ 	                   "none");
+diff --git a/airoha-xpon/src/airoha-xpon-private.h b/airoha-xpon/src/airoha-xpon-private.h
+index fa50060..fb50b19 100644
+--- a/airoha-xpon/src/airoha-xpon-private.h
++++ b/airoha-xpon/src/airoha-xpon-private.h
+@@ -226,6 +226,8 @@ struct airoha_xpon_stats {
+ 	unsigned int mac_error_irq_count;
+ 	unsigned int rx_mbi_header_overrun_irq_count;
+ 	unsigned int rx_mbi_payload_overrun_irq_count;
++	/* Overruns that survived a write-one-to-clear and needed an IRQ mask. */
++	unsigned int rx_mbi_overrun_storm_count;
+ 	unsigned int tx_late_error_count;
+ 	unsigned int tx_resync_count;
+ 	unsigned int tx_resync_failure_count;
+@@ -341,6 +343,15 @@ struct airoha_xpon {
+ 	unsigned int rx_stall_restarts;
+ 	u64 rx_stall_rx_base;
+ 	u64 rx_stall_tx_base;
++	/*
++	 * The MBI overrun IRQ fires thousands of times per second once the FIFO
++	 * overrun is live, because a write-one-to-clear cannot retire a bit that
++	 * the MAC re-asserts immediately.  Mask the source after a short streak
++	 * and restore it after the grace window below.
++	 */
++	bool rx_mbi_overrun_storm;
++	unsigned int rx_mbi_overrun_streak;
++	unsigned long rx_mbi_overrun_masked;
+ 	int mac_irq;
+ 	int phy_irq;
+ 	atomic_t phy_events;
+@@ -415,6 +426,14 @@ struct airoha_xpon {
+ #define AIROHA_XPON_RX_STALL_MS           30000
+ #define AIROHA_XPON_RX_STALL_BACKOFF_MS   600000
+ #define AIROHA_XPON_RX_STALL_MAX_RESTARTS 3
++/*
++ * Consecutive error IRQs that still read the MBI overrun bits back after the
++ * clear identify a live overrun rather than a latched one.  The error IRQ is
++ * then masked for MBI_OVERRUN_MASK_MS so the ISR storm stops while the RX
++ * stall watchdog above decides on the epoch reset.
++ */
++#define AIROHA_XPON_MBI_OVERRUN_STREAK     4
++#define AIROHA_XPON_MBI_OVERRUN_MASK_MS    2000
+ 
+ static inline u32 airoha_xgpon_read(struct airoha_xpon *xpon, u32 reg)
+ {
+diff --git a/airoha-xpon/src/airoha-xpon-xgpon.c b/airoha-xpon/src/airoha-xpon-xgpon.c
+index 3239460..e9c8f4a 100644
+--- a/airoha-xpon/src/airoha-xpon-xgpon.c
++++ b/airoha-xpon/src/airoha-xpon-xgpon.c
+@@ -472,12 +472,47 @@ irqreturn_t airoha_xpon_xgpon_irq(struct airoha_xpon *xpon)
+ 		airoha_xgpon_write(xpon, AIROHA_XGPON_TX_ERR_STS, U32_MAX);
+ 		airoha_xgpon_write(xpon, AIROHA_XGPON_RX_ERR_STS, U32_MAX);
+ 		airoha_xgpon_write(xpon, AIROHA_XGPON_DBG_BWM_CHK_STS, U32_MAX);
++		/* Retire the summary bits after their detail registers, as the clear
++		 * helper does: clearing FIFO_ERR_STS re-asserts INT_FIFO_ERROR while the
++		 * overrun is still live.
++		 */
++		airoha_xgpon_write(xpon, AIROHA_XGPON_INT_STATUS,
++		                   AIROHA_XGPON_INT_ERROR_MASK);
+ 		dev_warn_ratelimited(
+ 			xpon->dev,
+ 			"XG-PON MAC error: int=0x%08x fifo=0x%08x tx=0x%08x rx=0x%08x bwm=0x%08x\n",
+ 			(u32)(events & AIROHA_XGPON_INT_ERROR_MASK), fifo_error,
+ 			tx_error, rx_error, bwm_check);
+ 
++		/*
++		 * A latched event retires with the write-one-to-clear; a live MBI
++		 * overrun does not, because the MAC keeps refilling the FIFOs.  Read the
++		 * detail register back and mask the error IRQ after a short streak so
++		 * the ISR storm stops; the RX stall watchdog armed above owns the
++		 * recovery.
++		 */
++		if ((fifo_error & (AIROHA_XGPON_FIFO_ERR_RX_MBI_HEADER_OVERRUN |
++		                   AIROHA_XGPON_FIFO_ERR_RX_MBI_PAYLOAD_OVERRUN)) &&
++		    (airoha_xgpon_read(xpon, AIROHA_XGPON_FIFO_ERR_STS) &
++		     (AIROHA_XGPON_FIFO_ERR_RX_MBI_HEADER_OVERRUN |
++		      AIROHA_XGPON_FIFO_ERR_RX_MBI_PAYLOAD_OVERRUN))) {
++			xpon->rx_mbi_overrun_streak++;
++			if (xpon->rx_mbi_overrun_streak >=
++			            AIROHA_XPON_MBI_OVERRUN_STREAK &&
++			    !xpon->rx_mbi_overrun_storm) {
++				xpon->rx_mbi_overrun_storm = true;
++				xpon->rx_mbi_overrun_masked = jiffies;
++				xpon->stats.rx_mbi_overrun_storm_count++;
++				airoha_xgpon_update_bits(xpon, AIROHA_XGPON_INT_ENABLE,
++				                         AIROHA_XGPON_INT_FIFO_ERROR, 0);
++				dev_warn(xpon->dev,
++				         "XG-PON MBI RX FIFO overrun survives the W1C clear; masking the error IRQ for %u ms\n",
++				         AIROHA_XPON_MBI_OVERRUN_MASK_MS);
++			}
++		} else {
++			xpon->rx_mbi_overrun_streak = 0;
++		}
++
+ 		if ((events & AIROHA_XGPON_INT_TX_ERROR) &&
+ 		    (tx_error & AIROHA_XGPON_TX_ERR_LATE_START)) {
+ 			xpon->stats.tx_late_error_count++;
+@@ -658,6 +693,9 @@ static int airoha_xpon_xgpon_start_control(struct airoha_xpon *xpon)
+ 	                   AIROHA_XGPON_INT_ACTIVATION_MASK |
+ 	                           AIROHA_XGPON_INT_FIFO_ERROR);
+ 	xpon->xgpon_irq_enabled = true;
++	/* A new epoch re-enables the FIFO error IRQ that a storm masked. */
++	xpon->rx_mbi_overrun_storm = false;
++	xpon->rx_mbi_overrun_streak = 0;
+ 	xpon->mac_initialized = true;
+ 	xpon->lifecycle = AIROHA_XPON_PROTOCOL_ACTIVATING;
+ 
+@@ -870,6 +908,22 @@ bool airoha_xpon_xgpon_rx_stall(struct airoha_xpon *xpon)
+ 
+ 	lockdep_assert_held(&xpon->state_lock);
+ 
++	/*
++	 * The IRQ masks the FIFO error interrupt during an overrun storm.  Restore
++	 * it after the grace window so a later overrun can arm this watchdog again;
++	 * a still live overrun re-masks it after the next streak.
++	 */
++	if (xpon->rx_mbi_overrun_storm &&
++	    time_after(jiffies, xpon->rx_mbi_overrun_masked +
++	                        msecs_to_jiffies(AIROHA_XPON_MBI_OVERRUN_MASK_MS))) {
++		xpon->rx_mbi_overrun_storm = false;
++		xpon->rx_mbi_overrun_streak = 0;
++		if (xpon->xgpon_irq_enabled)
++			airoha_xgpon_update_bits(xpon, AIROHA_XGPON_INT_ENABLE,
++			                         AIROHA_XGPON_INT_FIFO_ERROR,
++			                         AIROHA_XGPON_INT_FIFO_ERROR);
++	}
++
+ 	if (atomic_xchg(&xpon->rx_stall_pending, 0)) {
+ 		xpon->rx_stall_armed = true;
+ 		xpon->rx_stall_sampled = false;

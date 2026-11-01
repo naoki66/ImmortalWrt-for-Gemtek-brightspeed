@@ -1,0 +1,54 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] net: airoha: refill the RX ring when it runs out of host descriptors
+
+RX_NO_CPU_DSCP is enabled in the QDMA interrupt banks, but the handler only
+clears that status and never wakes the NAPI poll.  A ring that a failed
+refill left empty therefore never receives again: no RX_DONE follows, the
+poll that would recycle descriptors and refill the ring never runs, and the
+PON MAC MBI RX FIFO overruns behind the idle ring (fifo=0x180, int=0x8000)
+until the box is rebooted.
+
+Treat the event as a NAPI wakeup, as the vendor QDMA driver does in
+qdma_bmgr/eth_lan: RX_NO_CPU_DSCP is a level condition and the refill
+clears it by itself, so the interrupt stays enabled.
+
+Signed-off-by: naoki66 <naoki66@qq.com>
+---
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -1886,7 +1886,7 @@
+ {
+ 	struct airoha_irq_bank *irq_bank = dev_instance;
+ 	struct airoha_qdma *qdma = irq_bank->qdma;
+-	u32 rx_intr_mask = 0, rx_intr1, rx_intr2;
++	u32 rx_intr_mask = 0, rx_intr1, rx_intr2, rx_starve;
+ 	u32 intr[ARRAY_SIZE(irq_bank->irqmask)];
+ 	int i;
+ 
+@@ -1911,6 +1911,25 @@
+ 		rx_intr_mask |= (rx_intr2 << 16);
+ 	}
+ 
++	/*
++	 * RX_NO_CPU_DSCP reports a ring that ran out of host descriptors.  It is
++	 * a level condition that stays asserted while the ring is empty, so it
++	 * has to wake the NAPI poll exactly like RX_DONE: the poll recycles the
++	 * completed descriptors and refills the ring.  Clearing the status only
++	 * leaves the ring empty, the ring never receives again and the PON MAC
++	 * MBI RX FIFO overruns behind it.  The interrupt stays enabled because
++	 * the refill clears the condition on its own.
++	 */
++	rx_starve = ((intr[1] & RX_NO_CPU_DSCP_LOW_INT_MASK) >>
++		     RX_NO_CPU_DSCP_LOW_OFFSET) |
++		    (intr[2] & RX_NO_CPU_DSCP_HIGH_INT_MASK);
++	if (rx_starve) {
++		dev_warn_ratelimited(qdma->eth->dev,
++				     "QDMA RX ring out of host descriptors (queues=0x%08x), refilling\n",
++				     rx_starve);
++		rx_intr_mask |= rx_starve;
++	}
++
+ 	for (i = 0; rx_intr_mask && i < ARRAY_SIZE(qdma->q_rx); i++) {
+ 		if (!qdma->q_rx[i].ndesc)
+ 			continue;
