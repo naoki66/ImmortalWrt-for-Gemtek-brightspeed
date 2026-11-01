@@ -74,7 +74,7 @@ run_build() {
 			;;
 	esac
 
-	kernel_config="$(find build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581 -path '*/linux-*/.config' -print -quit)"
+	kernel_config="$(find build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581 -maxdepth 2 -name .config -print -quit)"
 	[[ -n "$kernel_config" ]] || {
 		echo "kernel config was not generated" >&2
 		exit 1
