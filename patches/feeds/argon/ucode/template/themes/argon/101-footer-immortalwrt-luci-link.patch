@@ -1,30 +1,53 @@
 From: naoki66 <naoki66@qq.com>
-Subject: [PATCH] argon: link the LuCI footer entries to immortalwrt/luci
+Subject: [PATCH] argon: keep only the firmware version in the footers
 
-Both footers hard-code https://github.com/openwrt/luci. This firmware
-tracks immortalwrt/luci, so point the "Powered by LuCI" link in the
-desktop footer and the LuCI Master entry on the login page there.
+The desktop footer and the login footer both link "Powered by LuCI" to
+github.com/openwrt/luci and "ArgonTheme" to
+github.com/jerrykuku/luci-theme-argon. Drop both entries and their
+separators so the footers only show the firmware version, and point that
+version line at the naoki66 release downloads page instead of
+version.disturl.
 
 ---
+diff --git a/ucode/template/themes/argon/footer.ut b/ucode/template/themes/argon/footer.ut
+index 3b585b6..6fb7e6a 100644
 --- a/ucode/template/themes/argon/footer.ut
 +++ b/ucode/template/themes/argon/footer.ut
-@@ -19,7 +19,7 @@
+@@ -19,15 +19,7 @@
  		</div>
  		<footer class="mobile-hide" style="text-wrap: auto">
  			<div class="footer-content" style="display: flex; flex-wrap: wrap; gap: 0.5em; justify-content: end;">
 -				<a class="luci-link" href="https://github.com/openwrt/luci" target="_blank">Powered by {{ version.luciname }} ({{ version.luciversion }})</a>
-+				<a class="luci-link" href="https://github.com/immortalwrt/luci" target="_blank">Powered by {{ version.luciname }} ({{ version.luciversion }})</a>
+-
+-				<span class="footer-separator">|</span>
+-
+-				<a href="https://github.com/jerrykuku/luci-theme-argon" target="_blank">ArgonTheme {# vPKG_VERSION #}</a>
+-
+-				<span class="footer-separator">|</span>
+-
+-				<a class="luci-link" href="{{ version.disturl }}" target="_blank">{{ version.distname }} {{ version.distversion }}</a>
++				<a class="luci-link" href="https://github.com/naoki66/ImmortalWrt-for-Gemtek-brightspeed/releases" target="_blank">{{ version.distname }} {{ version.distversion }}</a>
  
- 				<span class="footer-separator">|</span>
- 
+ 				<ul class="breadcrumb pull-right" id="modemenu" style="display:none"></ul>
+ 			</div>
+diff --git a/ucode/template/themes/argon/footer_login.ut b/ucode/template/themes/argon/footer_login.ut
+index b347a8c..1689121 100644
 --- a/ucode/template/themes/argon/footer_login.ut
 +++ b/ucode/template/themes/argon/footer_login.ut
-@@ -23,7 +23,7 @@
+@@ -18,15 +18,10 @@
+ 
+ </div>
+ {%
+-	const luci_info = 'Powered by ' + version.luciname + ' (' + version.luciversion + ')';
+ 	const firmware_info = version.distname + ' ' + version.distversion;
  %}
  <footer>
- 	<div class="login-footer-links">
+-	<div class="login-footer-links">
 -		<a href="https://github.com/openwrt/luci" target="_blank" title="{{ entityencode(luci_info, true) }}">{{ split(version.luciname, ' (')[0] }}</a>
-+		<a href="https://github.com/immortalwrt/luci" target="_blank" title="{{ entityencode(luci_info, true) }}">{{ split(version.luciname, ' (')[0] }}</a>
- 		<a href="https://github.com/jerrykuku/luci-theme-argon" target="_blank">ArgonTheme {# vPKG_VERSION #}</a>
- 	</div>
- 	<a href="{{ version.disturl }}" target="_blank" title="{{ entityencode(firmware_info, true) }}">{{ firmware_info }}</a>
+-		<a href="https://github.com/jerrykuku/luci-theme-argon" target="_blank">ArgonTheme {# vPKG_VERSION #}</a>
+-	</div>
+-	<a href="{{ version.disturl }}" target="_blank" title="{{ entityencode(firmware_info, true) }}">{{ firmware_info }}</a>
++	<a href="https://github.com/naoki66/ImmortalWrt-for-Gemtek-brightspeed/releases" target="_blank" title="{{ entityencode(firmware_info, true) }}">{{ firmware_info }}</a>
+ </footer>
+ </div>
+ </div>
