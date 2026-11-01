@@ -47,7 +47,7 @@
 
 | 补丁 | 作用 |
 |---|---|
-| `675-01-net-export-__dev_fill_forward_path-and-br_fdb_find_rcu.patch` | 导出桥 FDB 查询给卸载层用 |
+| `675-01-net-export-br_fdb_find_rcu.patch` | 导出桥 FDB 查询给卸载层用 |
 | `675-02-nft_flow_offload-add-bridging-support.patch` | **桥检测 + L2 转发路径**（`nft_flow_offload_is_bridging`、FDB 选路、MAC 提取） |
 | `675-03-nft_flow_offload-add-DEV_PATH_MTK_WDMA-path.patch` | WLAN（WDMA）出口路径 |
 | `675-04-nft_flow_offload-add-vlan-passthrough-support.patch` | VLAN 透传 |
