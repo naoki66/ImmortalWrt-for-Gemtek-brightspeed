@@ -1,0 +1,145 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# PON link watchdog: recover a wedged XG-PON downstream.
+#
+# A wedged MBI receive path keeps the line in O5 with upstream grants flowing
+# while nothing is delivered to the host any more, so PPPoE never sees a PADO
+# and the WAN stays down with no visible line fault.  Firmware without the
+# driver-side watchdog (airoha-xpon: downstream RX stall) needs a userspace
+# fallback: reload the PON MAC epoch and bring the WAN back up.
+#
+# The script never touches br-lan or the network service; only the PON MAC is
+# reset, so the management LAN stays reachable while it runs.
+
+DEV=pon0
+MOD=airoha-xpon
+WAN=wan
+
+PERSIST=180	# seconds the WAN must stay down before acting
+SAMPLE=10	# seconds between the upstream/downstream samples
+MAX_ATTEMPTS=3	# MAC reloads allowed inside WINDOW
+WINDOW=1800	# attempt budget window, seconds
+
+DOWN_STATE=/tmp/pon-link-watchdog.down
+ATTEMPTS=/tmp/pon-link-watchdog.attempts
+
+log() {
+	logger -t pon-link-watchdog "$*"
+}
+
+# True when the WAN protocol reports itself up; proto handlers are slow, so a
+# missing ubus answer counts as down and the persistence window absorbs it.
+wan_up() {
+	ifstatus "$WAN" 2>/dev/null | grep -q '"up": true'
+}
+
+onu_state() {
+	ponctl --device "$DEV" status 2>/dev/null | sed -n 's/^onu_state: //p'
+}
+
+read_stat() {
+	cat "/sys/class/net/$DEV/statistics/$1" 2>/dev/null || echo 0
+}
+
+attempts_used() {
+	local now cutoff used=0 ts
+
+	now=$(date +%s)
+	cutoff=$((now - WINDOW))
+	[ -f "$ATTEMPTS" ] || { echo 0; return; }
+	while read -r ts; do
+		[ -n "$ts" ] || continue
+		[ "$ts" -ge "$cutoff" ] && used=$((used + 1))
+	done < "$ATTEMPTS"
+	echo "$used"
+}
+
+record_attempt() {
+	echo "$(date +%s)" >> "$ATTEMPTS"
+	# Drop timestamps that fell out of the window to keep the file small.
+	awk -v cutoff="$(( $(date +%s) - WINDOW ))" '$1 >= cutoff' \
+		"$ATTEMPTS" > "$ATTEMPTS.tmp" && mv "$ATTEMPTS.tmp" "$ATTEMPTS"
+}
+
+recover() {
+	local used
+
+	used=$(attempts_used)
+	if [ "$used" -ge "$MAX_ATTEMPTS" ]; then
+		log "wan down and downstream silent, but $used/$MAX_ATTEMPTS reloads already used in ${WINDOW}s; staying put"
+		return 1
+	fi
+
+	log "wan down on $DEV (onu $(onu_state)) with no downstream packets for ${SAMPLE}s; reloading $MOD"
+	record_attempt
+
+	ifdown "$WAN"
+	if ! rmmod "$MOD" 2>/dev/null; then
+		log "rmmod $MOD failed; restoring $WAN"
+		ifup "$WAN"
+		return 1
+	fi
+	sleep 1
+	if ! modprobe "$MOD" 2>/dev/null; then
+		log "modprobe $MOD failed; the PON line stays down until the next reboot"
+		ifup "$WAN"
+		return 1
+	fi
+	# pon re-applies mode and identity; the MAC epoch starts over from O1.
+	sleep 2
+	/etc/init.d/pon restart
+	sleep 1
+	ifup "$WAN"
+	return 0
+}
+
+main() {
+	local state rx1 tx1 rx2 tx2
+
+	[ -e "/sys/class/net/$DEV" ] || exit 0
+
+	if wan_up; then
+		rm -f "$DOWN_STATE"
+		exit 0
+	fi
+
+	# The WAN may legitimately bounce on a PPPoE renegotiation or on a driver
+	# recovery, so wait for the outage to persist before touching anything.
+	if [ ! -f "$DOWN_STATE" ]; then
+		date +%s > "$DOWN_STATE"
+		exit 0
+	fi
+	[ $(( $(date +%s) - $(cat "$DOWN_STATE") )) -ge "$PERSIST" ] || exit 0
+
+	state=$(onu_state)
+	case "$state" in
+	O5) ;;
+	*)
+		# Off O5 the driver owns the recovery; a MAC reload would only
+		# fight the state machine.
+		log "wan down, onu state '${state:-unknown}'; leaving the line to the driver"
+		exit 0
+		;;
+	esac
+
+	rx1=$(read_stat rx_packets)
+	tx1=$(read_stat tx_packets)
+	sleep "$SAMPLE"
+	rx2=$(read_stat rx_packets)
+	tx2=$(read_stat tx_packets)
+
+	if [ "$rx2" -gt "$rx1" ]; then
+		# Downstream is alive, so the outage is not a wedged receive path.
+		log "wan down but $DEV still receives ($((rx2 - rx1)) packets in ${SAMPLE}s); not reloading"
+		exit 0
+	fi
+	if [ "$tx2" -le "$tx1" ]; then
+		log "wan down and $DEV idle in both directions; not reloading"
+		exit 0
+	fi
+
+	recover
+}
+
+main "$@"

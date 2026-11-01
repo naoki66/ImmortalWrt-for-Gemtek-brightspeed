@@ -1,0 +1,20 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Install the PON link watchdog cron entry.  Idempotent, so a flashed image
+# that already carries the entry is left untouched.
+
+CRON_LINE='*/2 * * * * /usr/sbin/pon-link-watchdog'
+
+mkdir -p /etc/crontabs
+touch /etc/crontabs/root
+
+grep -qF 'pon-link-watchdog' /etc/crontabs/root 2>/dev/null || \
+	echo "$CRON_LINE" >> /etc/crontabs/root
+
+if [ -x /etc/init.d/cron ]; then
+	/etc/init.d/cron enable
+	/etc/init.d/cron restart
+fi
+
+exit 0
