@@ -15,8 +15,12 @@
 	chosen {
 		bootargs = "console=ttyS0,115200 earlycon";
 		stdout-path = "serial0:115200n8";
-		linux,usable-memory-range =
-			<0x0 0x80200000 0x0 0x1fe00000>;
+		/*
+		 * U-Boot rewrites the memory node with the DRAM size detected by
+		 * the first-stage bootloader, so a fixed usable range here would
+		 * clip boards with more than 512 MiB. The ATF area is already
+		 * protected by the atf@80000000 reserved-memory node.
+		 */
 	};
 
 	memory@80000000 {
