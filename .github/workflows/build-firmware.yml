@@ -11,7 +11,6 @@ on:
         options:
           - 1710.config
           - 2010.config
-          - 2010-2g.config
       release_type:
         description: 'Release Type'
         required: true
@@ -65,7 +64,6 @@ jobs:
           case '${{ inputs.config_seed }}' in
             1710.config) device_model=XR1710G ;;
             2010.config) device_model=XG2010G ;;
-            2010-2g.config) device_model=XG2010G-2G ;;
             *) echo "Unsupported config seed: ${{ inputs.config_seed }}" >&2; exit 1 ;;
           esac
           echo "device_model=$device_model" >> $GITHUB_OUTPUT

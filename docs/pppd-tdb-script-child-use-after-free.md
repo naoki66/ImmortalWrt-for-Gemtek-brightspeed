@@ -168,7 +168,7 @@ airoha: fix XG2010G network, voice and UBI upgrade handling
 于是 pppd 变成 multilink 构建 → 撞上 ppp 2.5.4 的这处 UAF。
 
 对照：`1710.config` 仍是 `# CONFIG_PACKAGE_ppp-multilink is not set`，
-因此 1710 机型不受影响；`040.config` / `2010-2g.config` 也为 `=y`，同样受影响。
+因此 1710 机型不受影响；`040.config` / `2010.config` 也为 `=y`，同样受影响。
 
 ## 与 PON 驱动改动无关
 

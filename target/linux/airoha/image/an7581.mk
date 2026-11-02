@@ -295,18 +295,13 @@ define Device/gemtek_xg2010g-ubi
   $(call Device/gemtek_xg2010g-common)
   $(call Device/gemtek_xg2010g-ubi-common)
   DEVICE_MODEL := XG2010G
-  SUPPORTED_DEVICES := gemtek,xg2010g-ubi gemtek,xg2010g
+  # One image covers the 1 GiB and 2 GiB boards: U-Boot publishes the DRAM
+  # size detected by BL2, which overrides the fallback in the device tree.
+  # The 2 GiB compatibles are kept so upgrades from the old variant work.
+  SUPPORTED_DEVICES := gemtek,xg2010g-ubi gemtek,xg2010g \
+	gemtek,xg2010g-2g-ubi gemtek,xg2010g-2g
 endef
 TARGET_DEVICES += gemtek_xg2010g-ubi
-
-define Device/gemtek_xg2010g-2g-ubi
-  DEVICE_DTS := an7581-gemtek-xg2010g-2g-ubi
-  $(call Device/gemtek_xg2010g-common)
-  $(call Device/gemtek_xg2010g-ubi-common)
-  DEVICE_MODEL := XG2010G (2 GiB)
-  SUPPORTED_DEVICES := gemtek,xg2010g-2g-ubi gemtek,xg2010g-2g
-endef
-TARGET_DEVICES += gemtek_xg2010g-2g-ubi
 
 define Device/quantum_q1000k-ubi
   DEVICE_VENDOR := Quantum Fiber

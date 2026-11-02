@@ -53,7 +53,6 @@ config_file="${1:-.config}"
 known_device_model() {
 	case "$1" in
 		xg2010g)    printf 'XG2010G' ;;
-		xg2010g-2g) printf 'XG2010G-2G' ;;
 		xr1710g)    printf 'XR1710G' ;;
 		xg-040g-md) printf 'XG-040G-MD' ;;
 		xg-040g-tf) printf 'XG-040G-TF' ;;
@@ -256,7 +255,7 @@ echo "Configured image name prefix: ${img_prefix}"
 
 # ---- 清理陈旧的外部内核模块 ----
 #
-# 三种设备除 DTS / 网卡 / WiFi 驱动外已收敛：040 / 1710 / 2010 / 2010-2g 种子的
+# 三种设备除 DTS / 网卡 / WiFi 驱动外已收敛：040 / 1710 / 2010 种子的
 # CONFIG_KERNEL_* 完全一致。1710 原先单独打开 PERF_EVENTS / FTRACE / KPROBES /
 # BPF_EVENTS / XDP_SOCKETS 等，这些符号会改变内核 struct module 的布局；切到
 # 040/2010 重建后，残留的 .ko 加载时报

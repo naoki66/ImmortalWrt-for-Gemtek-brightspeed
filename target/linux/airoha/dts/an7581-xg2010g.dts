@@ -27,7 +27,10 @@
 
 	memory@80000000 {
 		device_type = "memory";
-		/* The board contains 1 GiB of DRAM. */
+		/*
+		 * Fallback only: U-Boot replaces this with the DRAM size detected
+		 * by BL2, so the same image boots on 1 GiB and 2 GiB boards.
+		 */
 		reg = <0x0 0x80000000 0x0 0x40000000>;
 	};
 
