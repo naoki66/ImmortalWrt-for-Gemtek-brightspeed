@@ -7,7 +7,8 @@
 # while nothing is delivered to the host any more, so PPPoE never sees a PADO
 # and the WAN stays down with no visible line fault.  Firmware without the
 # driver-side watchdog (airoha-xpon: downstream RX stall) needs a userspace
-# fallback: reload the PON MAC epoch and bring the WAN back up.
+# fallback: reload the PON MAC epoch, bring pon0 back up, let airoha-pond
+# reprogram the GEM/T-CONT mapping, and bring the WAN back up.
 #
 # The script never touches br-lan or the network service; only the PON MAC is
 # reset, so the management LAN stays reachable while it runs.
@@ -40,6 +41,30 @@ onu_state() {
 
 read_stat() {
 	cat "/sys/class/net/$DEV/statistics/$1" 2>/dev/null || echo 0
+}
+
+# MBI receive overruns inside the current MAC epoch.  A wedged receive path
+# silences the upstream too, so this is the only evidence that lets an idle
+# line justify a reload.
+mbi_overruns() {
+	sed -n 's/^rx_mbi_overrun_irqs: //p' \
+		"/sys/kernel/debug/airoha-xpon-$DEV/line" 2>/dev/null
+}
+
+service_ready() {
+	ponctl --device "$DEV" status 2>/dev/null | sed -n 's/^service_ready: //p'
+}
+
+wait_for() {
+	local want=$1 field=$2 tries=$3 i=0 value
+
+	while [ "$i" -lt "$tries" ]; do
+		value=$($field)
+		[ "$value" = "$want" ] && return 0
+		sleep 2
+		i=$((i + 1))
+	done
+	return 1
 }
 
 attempts_used() {
@@ -90,12 +115,31 @@ recover() {
 	sleep 2
 	/etc/init.d/pon restart
 	sleep 1
+	# The netdev comes back administratively down, so the line never starts
+	# until it is brought up -- the reload alone leaves it dead in O1.
+	ip link set "$DEV" up
+	if ! wait_for O5 onu_state 45; then
+		log "$DEV did not reach O5 after reloading $MOD; leaving the line to the driver"
+		date +%s > "$DOWN_STATE"
+		return 1
+	fi
+	# GEM/T-CONT mapping lives in the OMCI daemon, which does not reattach to
+	# the reloaded MAC by itself: without it the netdev stays without carrier.
+	/etc/init.d/airoha-pond restart
+	if ! wait_for 1 service_ready 45; then
+		log "$DEV registered but the data path stayed unconfigured after reloading $MOD"
+		date +%s > "$DOWN_STATE"
+		return 1
+	fi
 	ifup "$WAN"
+	# Give the next pass a fresh persistence window, so a slow PPPoE handshake
+	# cannot trip a second reload.
+	date +%s > "$DOWN_STATE"
 	return 0
 }
 
 main() {
-	local state rx1 tx1 rx2 tx2
+	local state rx1 tx1 rx2 tx2 overruns
 
 	[ -e "/sys/class/net/$DEV" ] || exit 0
 
@@ -134,8 +178,12 @@ main() {
 		log "wan down but $DEV still receives ($((rx2 - rx1)) packets in ${SAMPLE}s); not reloading"
 		exit 0
 	fi
-	if [ "$tx2" -le "$tx1" ]; then
-		log "wan down and $DEV idle in both directions; not reloading"
+	# A wedged receive path also silences the upstream, because nothing answers
+	# the host's data, so an idle line only excuses a reload when the MAC never
+	# reported an MBI overrun.
+	overruns=$(mbi_overruns)
+	if [ "$tx2" -le "$tx1" ] && [ "${overruns:-0}" -eq 0 ]; then
+		log "wan down and $DEV idle in both directions without an MBI overrun; not reloading"
 		exit 0
 	fi
 
