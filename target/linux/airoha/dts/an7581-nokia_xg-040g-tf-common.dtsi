@@ -13,18 +13,10 @@
 	/delete-node/ usb-power;
 };
 
-/* The TF internal Gigabit PHY uses phylib polling. */
-&gsw_phy2 {
-	/delete-property/ interrupts;
-};
-
-&gsw_phy3 {
-	/delete-property/ interrupts;
-};
-
-&gsw_phy4 {
-	/delete-property/ interrupts;
-};
+/* A/B test build: keep the MD-style interrupts on gsw_phy2/3/4.
+ * The previously sampled polling setup is restored by re-adding the
+ * three /delete-property/ interrupts blocks here.
+ */
 
 &usb0 {
 	status = "disabled";

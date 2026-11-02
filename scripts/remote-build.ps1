@@ -35,7 +35,7 @@ param(
     [ValidateRange(1, 64)]
     [int]$Jobs = 4,
 
-    [ValidateSet('1710.config', '2010.config', '2010-2g.config', '040.config')]
+    [ValidateSet('1710.config', '2010.config', '2010-2g.config', '040.config', '040-tf.config')]
     [string]$ConfigSeed = '1710.config',
 
     [switch]$RefreshFeeds,
