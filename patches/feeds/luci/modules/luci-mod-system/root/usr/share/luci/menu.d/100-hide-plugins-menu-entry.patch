@@ -1,0 +1,22 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] luci-mod-system: hide the Plugins page from the System menu
+
+The Plugins page only lists LuCI plugin packages and does not expose
+anything useful on this firmware, so keep it out of the left-hand menu.
+
+LuCI only builds menu entries for nodes that carry a title, while the
+dispatcher resolves routes from the entry itself, so dropping the title
+hides the item without taking the page away.
+
+---
+diff --git a/modules/luci-mod-system/root/usr/share/luci/menu.d/luci-mod-system.json b/modules/luci-mod-system/root/usr/share/luci/menu.d/luci-mod-system.json
+--- a/modules/luci-mod-system/root/usr/share/luci/menu.d/luci-mod-system.json
++++ b/modules/luci-mod-system/root/usr/share/luci/menu.d/luci-mod-system.json
+@@ -98,7 +98,6 @@
+ 	},
+ 
+ 	"admin/system/plugins": {
+-		"title": "Plugins",
+ 		"order": 4,
+ 		"action": {
+ 			"type": "view",
