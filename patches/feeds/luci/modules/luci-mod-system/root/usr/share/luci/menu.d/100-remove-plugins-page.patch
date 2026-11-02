@@ -1,0 +1,32 @@
+From: naoki66 <naoki66@qq.com>
+Subject: [PATCH] luci-mod-system: remove the Plugins page from the System menu
+
+The Plugins page only lists LuCI plugin packages and does not expose
+anything useful on this firmware. Drop the menu entry entirely: LuCI
+resolves routes from the menu tree, so removing the node hides the item
+from the left-hand menu and makes /cgi-bin/luci/admin/system/plugins
+return 404.
+
+---
+diff --git a/modules/luci-mod-system/root/usr/share/luci/menu.d/luci-mod-system.json b/modules/luci-mod-system/root/usr/share/luci/menu.d/luci-mod-system.json
+--- a/modules/luci-mod-system/root/usr/share/luci/menu.d/luci-mod-system.json
++++ b/modules/luci-mod-system/root/usr/share/luci/menu.d/luci-mod-system.json
+@@ -97,18 +97,6 @@
+ 		}
+ 	},
+ 
+-	"admin/system/plugins": {
+-		"title": "Plugins",
+-		"order": 4,
+-		"action": {
+-			"type": "view",
+-			"path": "system/plugins"
+-		},
+-		"depends": {
+-			"acl": [ "luci-mod-system-plugins" ]
+-		}
+-	},
+-
+ 	"admin/system/startup": {
+ 		"title": "Startup",
+ 		"order": 45,
