@@ -199,6 +199,9 @@
 	status = "okay";
 
 	label = "lan2";
+
+	nvmem-cell-names = "mac-address";
+	nvmem-cells = <&macaddr_factory_3e (3)>;
 };
 
 &gsw_phy2 {
@@ -221,6 +224,9 @@
 	status = "okay";
 
 	label = "lan3";
+
+	nvmem-cell-names = "mac-address";
+	nvmem-cells = <&macaddr_factory_3e (4)>;
 };
 
 &gsw_phy3 {
@@ -243,6 +249,9 @@
 	status = "okay";
 
 	label = "lan4";
+
+	nvmem-cell-names = "mac-address";
+	nvmem-cells = <&macaddr_factory_3e (5)>;
 };
 
 &gsw_phy4 {
@@ -270,7 +279,7 @@
 	phy-mode = "2500base-x";
 
 	nvmem-cell-names = "mac-address";
-	nvmem-cells = <&macaddr_factory_3e (0)>;
+	nvmem-cells = <&macaddr_factory_3e (1)>;
 };
 
 &usb_phy {

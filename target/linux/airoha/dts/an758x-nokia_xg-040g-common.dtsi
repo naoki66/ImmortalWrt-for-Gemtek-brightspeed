@@ -90,5 +90,5 @@
 	status = "okay";
 
 	nvmem-cell-names = "mac-address";
-	nvmem-cells = <&macaddr_factory_3e 1>;
+	nvmem-cells = <&macaddr_factory_3e 2>;
 };
