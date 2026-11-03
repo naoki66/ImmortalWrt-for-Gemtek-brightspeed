@@ -47,6 +47,7 @@ jobs:
           git fetch --no-tags upstream master
 
           build_date=$(TZ=Asia/Shanghai date +'%Y%m%d')
+          repo_commit_full=$(git rev-parse HEAD)
           repo_commit=$(git rev-parse --short=8 HEAD)
           upstream_base=$(git merge-base HEAD upstream/master)
           upstream_commit=$(git rev-parse --short=8 "$upstream_base")
@@ -58,6 +59,7 @@ jobs:
           echo "date=$build_date" >> $GITHUB_OUTPUT
           echo "build_id=$build_id" >> $GITHUB_OUTPUT
           echo "repo_commit=$repo_commit" >> $GITHUB_OUTPUT
+          echo "repo_commit_full=$repo_commit_full" >> $GITHUB_OUTPUT
           echo "upstream_commit=$upstream_commit" >> $GITHUB_OUTPUT
           echo "version_number=$version_number" >> $GITHUB_OUTPUT
           echo "version_code=$version_code" >> $GITHUB_OUTPUT
@@ -190,11 +192,19 @@ jobs:
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
+      - name: Verify release tag
+        if: github.event.inputs.release_type != 'none'
+        env:
+          RELEASE_TAG: ${{ format('{0}-{1}', steps.version.outputs.date, steps.version.outputs.repo_commit) }}
+          BUILD_COMMIT: ${{ steps.version.outputs.repo_commit_full }}
+        run: bash scripts/check-release-tag.sh "$RELEASE_TAG" "$BUILD_COMMIT"
+
       - name: Create Release
         if: github.event.inputs.release_type != 'none'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ format('{0}-{1}', steps.version.outputs.date, steps.version.outputs.repo_commit) }}
+          target_commitish: ${{ steps.version.outputs.repo_commit_full }}
           name: ${{ format('{0} - Gemtek {1} Build ({2})', steps.version.outputs.date, steps.version.outputs.device_model, steps.version.outputs.repo_commit) }}
           body: ${{ steps.release_body.outputs.body }}
           draft: false
