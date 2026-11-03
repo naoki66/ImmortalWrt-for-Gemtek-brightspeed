@@ -169,6 +169,31 @@ jobs:
           retention-days: 30
         if: always()
 
+      - name: Prepare per-config checksums
+        if: github.event.inputs.release_type != 'none'
+        shell: bash
+        env:
+          CONFIG_SEED: ${{ inputs.config_seed }}
+        run: |
+          cd bin/targets/airoha/an7581
+          shopt -s nullglob
+          images=(*.itb)
+          manifests=(*manifest)
+          (( ${#images[@]} && ${#manifests[@]} )) || {
+            echo "Missing firmware images or package manifests" >&2
+            exit 1
+          }
+          for image in "${images[@]}"; do
+            if [[ "$image" == *-squashfs-sysupgrade.itb ]]; then
+              manifest="${image%-squashfs-sysupgrade.itb}.manifest"
+              [[ -s "$manifest" ]] || {
+                echo "Missing manifest for $image: $manifest" >&2
+                exit 1
+              }
+            fi
+          done
+          sha256sum -- "${images[@]}" "${manifests[@]}" > "sha256sums-${CONFIG_SEED}"
+
       - name: Build release body
         if: github.event.inputs.release_type != 'none'
         id: release_body
@@ -206,5 +231,6 @@ jobs:
             bin/targets/airoha/an7581/feeds.buildinfo
             bin/targets/airoha/an7581/version.buildinfo
             bin/targets/airoha/an7581/sha256sums
+            bin/targets/airoha/an7581/sha256sums-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
