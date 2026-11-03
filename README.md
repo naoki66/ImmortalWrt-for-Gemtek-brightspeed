@@ -225,6 +225,7 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集
 - XR1710G OpenWrt U-Boot UBI 布局固件：`immortalwrt-naoki66-YYYYMMDD-<repo-hash>-airoha-an7581-gemtek_xr1710g-ubi-squashfs-sysupgrade.itb`
 - XG2010G 固件文件：`immortalwrt-naoki66-YYYYMMDD-<repo-hash>-airoha-an7581-gemtek_xg2010g-ubi-squashfs-sysupgrade.itb`
 - 升级方法：LuCI → 系统 → 备份/升级 → 刷写固件
+- 新构建的 Release 同时提供软件包 manifest 与 `sha256sums`，可用于升级前核对镜像预装的软件包及文件完整性。
 
 ### 升级注意事项
 
