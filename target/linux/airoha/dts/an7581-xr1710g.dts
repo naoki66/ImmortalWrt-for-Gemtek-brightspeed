@@ -208,10 +208,18 @@
 			reg = <0x0 0x1e00>;
 		};
 		wan_mac: macaddr@5000 {
+			/*
+			 * WAN uses this base at +0; LAN/Wi-Fi netdevs use lan_mac:
+			 * lan2 = +0, 2.4G = +1, 5G = +2, 6G = +3, cpu = +4,
+			 * lan3 = +5, lan4 = +6, so WAN and lan2 never collide.
+			 * On stock data lan_mac = wan_mac + 1.
+			 */
+			compatible = "mac-base";
 			reg = <0x5000 0x6>;
+			#nvmem-cell-cells = <1>;
 		};
 		lan_mac: macaddr@6000 {
-			/* +0: main LAN2, +1/+2/+3: Wi-Fi bands, +4: CPU. */
+			/* LAN base: LAN/Wi-Fi netdevs derive from here, lan2 = +0. */
 			compatible = "mac-base";
 			reg = <0x6000 0x6>;
 			#nvmem-cell-cells = <1>;
@@ -437,6 +445,8 @@
 &gsw_port1 {
 	status = "okay";
 	label = "lan3";
+	nvmem-cells = <&lan_mac 5>;
+	nvmem-cell-names = "mac-address";
 };
 &gsw_phy2 {
 	status = "okay";
@@ -464,6 +474,8 @@
 &gsw_port2 {
 	status = "okay";
 	label = "lan4";
+	nvmem-cells = <&lan_mac 6>;
+	nvmem-cell-names = "mac-address";
 };
 &uart2 {
 	status = "okay";
