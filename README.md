@@ -95,7 +95,7 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集
 
 - 保留原版 XR1710G 设备树 [an7581-xr1710g.dts](target/linux/airoha/dts/an7581-xr1710g.dts)，继续适配原厂/旧 U-Boot 分区布局。
 - 另增 [an7581-gemtek-xr1710g-ubi.dts](target/linux/airoha/dts/an7581-gemtek-xr1710g-ubi.dts)，适配 [pbs05/uboot-an758x](https://github.com/pbs05/uboot-an758x) 的 XG2010G 式引导方案，并保留 XR1710G 的 PCIe 3.0 x2、MT7996 和 RTL8261BE 硬件定义。这里只复用引导架构，不能把 XG2010G 的 U-Boot 二进制直接刷入 XR1710G。
-- `1710.config` 使用 multi-profile，一次构建两份固件：`gemtek_xr1710g`（原版 U-Boot/分区）和 `gemtek_xr1710g-ubi`（OpenWrt U-Boot UBI 布局）。旧版 `an7581-xr1710g.dts`、原分区 profile 和新 UBI profile 同时保留；两者的 `SUPPORTED_DEVICES` 不同，不能互刷。
+- `1710.config` 使用 multi-profile，一次构建两份固件：`gemtek_xr1710g`（原版 U-Boot/分区）和 `gemtek_xr1710g-ubi`（OpenWrt U-Boot UBI 布局）。两个布局不能互刷；部分旧固件的板型名也带 `-ubi`，升级前请按下文核对实际布局。
 - OpenWrt U-Boot UBI 布局中，`bl2` 为 `0x00000000 + 0x00020000`，`ubi` 从 `0x00020000` 起并以零长度延伸到 NAND 末尾。U-Boot Web Recovery 重建 UBI 时创建空的静态 `factory` 卷；首次启动 Linux 前，必须把原厂 `dsd` 分区去除 OOB 后的完整 2 MiB 主数据恢复到该卷。
 - `factory_storage` 与旧写法 `ubi_factory` 只是设备树 phandle 标签，不是两个卷；运行时都指向唯一的 UBI 卷名 `factory`。XR1710G 的完整 DSD 中，`0x006c/0x0086` 是 17 字节文本 WAN/LAN MAC，MT7996 EEPROM/校准位于 `0x5000`、长度 `0x1e00`。不要恢复旧布局中“EEPROM 放在卷首、原始 MAC 放在 `0x5000/0x6000`”的重排 factory 镜像。
 - `luci-app-airoha-factory` 会按板型选择旧布局 raw MAC 写入或 DSD 布局整卷读改写；UBI `factory` 卷回写需要 `ubiupdatevol`。
@@ -232,6 +232,35 @@ XG2010G 与 XR1710G 同属 Airoha AN7581 平台，但硬件布局和软件包集
 > LuCI 中的“保留配置”不会保留额外安装的软件包。升级前请备份配置并记录已安装的软件包；升级后需要
 > 重新安装 OpenClash、PassWall、AdGuard Home 等非预装组件。请使用与新固件匹配的软件包，不要恢复
 > 旧固件的 `kmod-*` 内核模块。
+
+#### XR1710G 布局与旧版板型名
+
+当前的两个 XR1710G 镜像使用不同的引导、NAND 和 `factory` 数据布局，不能互刷：
+
+| 布局 | 当前镜像 profile | 设备树中的分区特征 |
+|------|------------------|--------------------|
+| 原版 U-Boot / 旧布局 | `gemtek_xr1710g` | `vendor` 从 `0x00000000` 开始、大小 `0x00600000`；`chainloader` 从 `0x00600000` 开始；`ubi` 从 `0x00700000` 开始 |
+| OpenWrt U-Boot / UBI 布局 | `gemtek_xr1710g-ubi` | `bl2` 从 `0x00000000` 开始、大小 `0x00020000`；`ubi` 从 `0x00020000` 开始；`factory` 是完整的 2 MiB DSD 主数据 |
+
+部分较早的旧布局固件报告的板型名是 `gemtek,xr1710g-ubi`，与当前 **新 UBI 布局**的板型名相同。
+因此不能仅凭板型名、镜像文件名中的 `-ubi` 或校验通过就判断布局。可先在路由器上只读查看板型和
+MTD 分区（`offset`、`size` 为十进制字节数）：
+
+```sh
+cat /tmp/sysinfo/board_name
+cat /proc/mtd
+for mtd in /sys/class/mtd/mtd[0-9]*; do
+    [ -r "$mtd/name" ] || continue
+    printf '%s offset=%s size=%s\n' "$(cat "$mtd/name")" \
+        "$(cat "$mtd/offset")" "$(cat "$mtd/size")"
+done
+```
+
+这些信息反映当前内核识别的布局，还需与设备的实际引导方式和已验证备份相互核对；如果结果不明确，
+不要刷写。备份配置及引导、环境和校准数据，并按具体 release 的说明选择对应布局的镜像。
+刷写前用 `sysupgrade -T <镜像文件>` 检查；该检查由**当前运行的固件**执行，不能代替布局核验。
+如果旧布局设备的旧板型名被当前原版分区镜像拒绝，不要用 `-F` 强制升级或改刷新 UBI 布局镜像；
+应等待针对该旧版板型和布局提供的明确迁移方案。
 
 ## 本地构建（可选）
 
