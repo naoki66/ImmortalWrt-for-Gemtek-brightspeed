@@ -238,14 +238,19 @@
 						};
 
 						pon_mac: mac-address@6c {
-							/* DSD wan_mac uses 17-byte colon-delimited text. */
+							/*
+							 * DSD wan_mac uses 17-byte colon-delimited text.
+							 * PON uses this base at +0; LAN netdevs use lan_mac below:
+							 * lan1 = +0, lan2 = +1, lan3 = +2, lan4 = +3, cpu = +4.
+							 * On stock data lan_mac = wan_mac + 1, so PON never equals lan1.
+							 */
 							compatible = "mac-base";
 							reg = <0x0000006c 0x00000011>;
 							#nvmem-cell-cells = <1>;
 						};
 
 						lan_mac: mac-address@86 {
-							/* Four LAN netdevs derive sequential addresses from lan_mac. */
+							/* DSD lan_mac base: LAN netdevs derive from here, lan1 = +0. */
 							compatible = "mac-base";
 							reg = <0x00000086 0x00000011>;
 							#nvmem-cell-cells = <1>;
@@ -323,7 +328,7 @@
 };
 
 &gdm1 {
-	nvmem-cells = <&lan_mac 3>;
+	nvmem-cells = <&lan_mac 4>;
 	nvmem-cell-names = "mac-address";
 	status = "okay";
 };
@@ -452,6 +457,8 @@
 
 &gsw_port4 {
 	label = "lan4";
+	nvmem-cells = <&lan_mac 3>;
+	nvmem-cell-names = "mac-address";
 	status = "okay";
 };
 
