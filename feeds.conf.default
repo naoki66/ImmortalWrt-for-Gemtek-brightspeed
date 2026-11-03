@@ -20,3 +20,4 @@ src-git onu_config https://github.com/naoki66/OpenWrt_ONU_CONFIG.git
 src-git easytier https://github.com/EasyTier/luci-app-easytier.git;main
 src-git helloworld https://github.com/fw876/helloworld.git;dev
 src-git --directory=luci-app-pushbot pushbot https://github.com/naoki66/luci-app-pushbot.git
+src-git --root=deploy/openwrt ac_agent https://github.com/naoki66/OpenWrt_AC-Controller.git
