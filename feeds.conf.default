@@ -1,3 +1,10 @@
+# Runtime distfeeds lists only feeds that publish
+# packages/<arch>/<feed>/packages.adb on the ImmortalWrt/OpenWrt snapshot
+# tree: packages, luci, routing, telephony, and video (see DISTFEEDS_FEEDS
+# in include/feeds.mk). Every other src-git line below is a build-time
+# source. Its packages are still installed into the image, but the feed name
+# is omitted from /etc/apk/repositories.d/distfeeds.list so `apk update`
+# does not request a missing packages.adb.
 src-git packages https://github.com/immortalwrt/packages.git
 src-git luci https://github.com/immortalwrt/luci.git
 #src-git --directory=luci-theme-glass glass https://github.com/rchen14b/luci-theme-glass.git;main

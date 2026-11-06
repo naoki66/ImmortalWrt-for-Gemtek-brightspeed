@@ -953,8 +953,13 @@ sub feed_config() {
 		printf "\t\tdepends on PER_FEED_REPO\n";
 		printf "\t\tdefault y\n" if $installed;
 		printf "\t\thelp\n";
-		printf "\t\t Enable the \\\"%s\\\" feed in opkg distfeeds.conf and apk repositories.\n", $feed->[1];
-		printf "\t\t Say M to add the feed commented out.\n";
+		printf "\t\t Enable the \\\"%s\\\" feed.\n", $feed->[1];
+		printf "\t\t Only feeds published on the snapshot mirror (packages, luci,\n";
+		printf "\t\t routing, telephony, video) are written to opkg distfeeds.conf\n";
+		printf "\t\t and apk distfeeds.list. Other feeds are build-time only and\n";
+		printf "\t\t stay out of those files even when enabled. Say M to add a\n";
+		printf "\t\t published feed commented out. See DISTFEEDS_FEEDS in\n";
+		printf "\t\t include/feeds.mk.\n";
 		printf "\n";
 	}
 
