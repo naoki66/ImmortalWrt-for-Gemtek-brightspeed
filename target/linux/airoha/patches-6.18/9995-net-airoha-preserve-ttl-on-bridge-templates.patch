@@ -1,0 +1,35 @@
+From: fanboy <fanboy@openwrt.org>
+Date: Fri, 25 Sep 2026 18:29:35 -1000
+Subject: [PATCH] net: airoha: preserve TTL on bridge templates
+
+airoha_ppe_foe_entry_prepare() sets AIROHA_FOE_IB1_BIND_TTL on every
+flow entry, including bridge (L2) flows. A bridge must not decrement
+the IPv4 TTL or IPv6 hop limit.
+
+Gate the bit on non-bridge packet types, retaining the existing TTL
+handling for routed flows. Bridge templates also seed learned IPv4/IPv6
+L2 subflows, which must inherit the bridge policy.
+
+Adapt the conditional TTL fix from fanboy's OpenW1700k commit to this
+tree. This change does not alter flow classification or fix bridge
+traffic that has already been classified as a routed flow.
+
+Link: https://github.com/OpenWRT-fanboy/OpenW1700k/commit/e719630cc116e659384c6d7daa7d03d874391987
+Signed-off-by: Dict Xiong <me@dxng.cn>
+Assisted-by: Codex:GPT-6
+---
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -441,8 +441,10 @@
+ 	      FIELD_PREP(AIROHA_FOE_IB1_BIND_UDP, l4proto == IPPROTO_UDP) |
+ 	      FIELD_PREP(AIROHA_FOE_IB1_BIND_VLAN_LAYER, data->vlan.num) |
+ 	      FIELD_PREP(AIROHA_FOE_IB1_BIND_VPM, data->vlan.num) |
+-	      FIELD_PREP(AIROHA_FOE_IB1_BIND_PPPOE, data->pppoe.num) |
+-	      AIROHA_FOE_IB1_BIND_TTL;
++	      FIELD_PREP(AIROHA_FOE_IB1_BIND_PPPOE, data->pppoe.num);
++	/* Bridge templates also seed IPv4/IPv6 L2 subflows. */
++	if (type != PPE_PKT_TYPE_BRIDGE)
++		val |= AIROHA_FOE_IB1_BIND_TTL;
+ 	hwe->ib1 = val;
+ 
+ 	val = FIELD_PREP(AIROHA_FOE_IB2_PORT_AG, 0x1f);
