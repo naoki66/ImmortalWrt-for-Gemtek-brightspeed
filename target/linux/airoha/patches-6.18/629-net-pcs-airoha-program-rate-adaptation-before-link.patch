@@ -1,0 +1,174 @@
+From: naoki66 <naoki66@qq.com>
+Date: Fri, 06 Nov 2026 12:00:00 +0800
+Subject: [PATCH] net: pcs: airoha: program USXGMII rate adaptation before link
+
+The USXGMII rate adapter is programmed from airoha_pcs_link_up(), which
+phylink calls only after pcs_get_state() has already reported the link.
+On a renegotiated link the PCS therefore publishes carrier while the
+rate adapter still runs at the previous speed, so the frames arriving in
+that window are dropped. This is visible as a short burst of packet loss
+right after the copper side finishes auto-negotiation, for example a
+DHCP DISCOVER that never reaches the server at 5G speed.
+
+Move the helper into a shared function and call it from
+airoha_pcs_get_state_usxgmii() as soon as the in-band word reports a new
+speed, before phylink publishes the link. Keep the unconditional
+programming in airoha_pcs_link_up() so a reconfiguration or reset is
+still covered, and cache the programmed speed to avoid rewriting the
+registers on every poll.
+
+Signed-off-by: naoki66 <naoki66@qq.com>
+---
+ .../net/pcs/airoha/pcs-airoha-common.c     | 86 ++++++++++-----------
+ drivers/net/pcs/airoha/pcs-airoha.h        |  3 ++
+ 2 files changed, 49 insertions(+), 40 deletions(-)
+
+--- a/drivers/net/pcs/airoha/pcs-airoha-common.c
++++ b/drivers/net/pcs/airoha/pcs-airoha-common.c
+@@ -632,6 +632,54 @@
+ 	state->duplex = DUPLEX_FULL;
+ }
+ 
++static int airoha_pcs_usxgmii_rate_adapt(struct airoha_pcs_priv *priv, int index,
++					 int speed)
++{
++	struct airoha_pcs_maps *maps = &priv->maps[index];
++	u32 mode, rate_adapt;
++
++	switch (speed) {
++	case SPEED_10000:
++		rate_adapt = AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE_10000;
++		mode = AIROHA_PCS_USXGMII_MODE_10000;
++		break;
++	case SPEED_5000:
++		rate_adapt = AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE_5000;
++		mode = AIROHA_PCS_USXGMII_MODE_5000;
++		break;
++	case SPEED_2500:
++		rate_adapt = AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE_2500;
++		mode = AIROHA_PCS_USXGMII_MODE_2500;
++		break;
++	case SPEED_1000:
++		rate_adapt = AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE_1000;
++		mode = AIROHA_PCS_USXGMII_MODE_1000;
++		break;
++	case SPEED_100:
++		rate_adapt = AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE_100;
++		mode = AIROHA_PCS_USXGMII_MODE_100;
++		break;
++	default:
++		/* Not supported */
++		return -EOPNOTSUPP;
++	}
++
++	/* Force USXGMII to selected speed */
++	regmap_update_bits(maps->usxgmii_pcs, AIROHA_PCS_USXGMII_PCS_AN_CONTROL_7,
++			   AIROHA_PCS_USXGMII_RATE_UPDATE_MODE |
++			   AIROHA_PCS_USXGMII_MODE,
++			   AIROHA_PCS_USXGMII_RATE_UPDATE_MODE | mode);
++
++	regmap_update_bits(maps->hsgmii_rate_adp,
++			   AIROHA_PCS_HSGMII_RATE_ADAPT_CTRL_11,
++			   AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE_EN |
++			   AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE,
++			   AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE_EN |
++			   rate_adapt);
++
++	return 0;
++}
++
+ static void airoha_pcs_get_state_usxgmii(struct airoha_pcs_priv *priv, int index,
+ 					 struct phylink_link_state *state)
+ {
+@@ -660,6 +708,17 @@
+ 	state->an_complete = !!(an_done & AIROHA_PCS_USXGMII_PCS_AN_COMPLETE);
+ 
+ 	phylink_decode_usxgmii_word(state, lpa);
++
++	/* The in-band word only reports the negotiated speed once the MAC PCS
++	 * has locked, but the rate adapter has to run at that speed for RX and
++	 * TX to work. Program it here, before phylink publishes the link, so
++	 * the frames arriving after an AN restart are not dropped by an
++	 * adapter that still runs at the previous speed.
++	 */
++	if (state->link && state->speed != SPEED_UNKNOWN &&
++	    priv->usxgmii_rate_adapt_speed[index] != state->speed &&
++	    !airoha_pcs_usxgmii_rate_adapt(priv, index, state->speed))
++		priv->usxgmii_rate_adapt_speed[index] = state->speed;
+ }
+ 
+ static void airoha_pcs_get_state_10gbaser(struct airoha_pcs_priv *priv, int index,
+@@ -1000,48 +1059,10 @@
+ 
+ 	if (interface == PHY_INTERFACE_MODE_USXGMII ||
+ 	    interface == PHY_INTERFACE_MODE_10GBASER) {
+-		u32 mode;
+-		u32 rate_adapt;
+-
+-		switch (speed) {
+-		case SPEED_10000:
+-			rate_adapt = AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE_10000;
+-			mode = AIROHA_PCS_USXGMII_MODE_10000;
+-			break;
+-		case SPEED_5000:
+-			rate_adapt = AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE_5000;
+-			mode = AIROHA_PCS_USXGMII_MODE_5000;
+-			break;
+-		case SPEED_2500:
+-			rate_adapt = AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE_2500;
+-			mode = AIROHA_PCS_USXGMII_MODE_2500;
+-			break;
+-		case SPEED_1000:
+-			rate_adapt = AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE_1000;
+-			mode = AIROHA_PCS_USXGMII_MODE_1000;
+-			break;
+-		case SPEED_100:
+-			rate_adapt = AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE_100;
+-			mode = AIROHA_PCS_USXGMII_MODE_100;
+-			break;
+-		default:
+-			/* Not supported */
++		if (airoha_pcs_usxgmii_rate_adapt(priv, port->index, speed))
+ 			return;
+-		}
+ 
+-		/* Force USXGMII to selected speed */
+-		regmap_update_bits(maps->usxgmii_pcs,
+-				   AIROHA_PCS_USXGMII_PCS_AN_CONTROL_7,
+-				   AIROHA_PCS_USXGMII_RATE_UPDATE_MODE |
+-				   AIROHA_PCS_USXGMII_MODE,
+-				   AIROHA_PCS_USXGMII_RATE_UPDATE_MODE | mode);
+-
+-		regmap_update_bits(maps->hsgmii_rate_adp,
+-				   AIROHA_PCS_HSGMII_RATE_ADAPT_CTRL_11,
+-				   AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE_EN |
+-				   AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE,
+-				   AIROHA_PCS_HSGMII_RATE_ADPT_FORCE_RATE_ADAPT_MODE_EN |
+-				   rate_adapt);
++		priv->usxgmii_rate_adapt_speed[port->index] = speed;
+ 	}
+ 
+ 	if (neg_mode != PHYLINK_PCS_NEG_INBAND_ENABLED) {
+@@ -1495,6 +1516,10 @@
+ 
+ 	priv->dev = dev;
+ 	priv->data = data;
++
++	for (index = 0; index < ARRAY_SIZE(priv->usxgmii_rate_adapt_speed); index++)
++		priv->usxgmii_rate_adapt_speed[index] = SPEED_UNKNOWN;
++
+ 	if (data->init) {
+ 		ret = data->init(priv);
+ 		if (ret)
+--- a/drivers/net/pcs/airoha/pcs-airoha.h
++++ b/drivers/net/pcs/airoha/pcs-airoha.h
+@@ -1664,6 +1664,9 @@
+ 	struct regmap *pcs_ana;
+ 	struct regmap_field **pcs_ana_fields[2];
+ 
++	/* USXGMII rate adaptation currently programmed, per PCS instance. */
++	int usxgmii_rate_adapt_speed[2];
++
+ 	struct reset_control *xfi_rst;
+ 	struct reset_control_bulk_data rsts[AIROHA_PCS_MAX_NUM_RSTS];
+ 

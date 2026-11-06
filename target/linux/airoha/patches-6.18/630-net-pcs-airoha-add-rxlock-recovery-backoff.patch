@@ -1,0 +1,113 @@
+From: naoki66 <naoki66@qq.com>
+Date: Fri, 06 Nov 2026 12:00:00 +0800
+Subject: [PATCH] net: pcs: airoha: back off the SigDet/CDR recovery
+
+an7581_pcs_rxlock_workaround() runs from every USXGMII pcs_get_state(),
+which phylink calls once per second. Whenever the PCS reports link down
+while the RX SigDet module still sees a signal, it resets the CDR and
+reports link down for that poll.
+
+That is also the state a freshly renegotiated link goes through: the
+partner restarts in-band AN, and the PCS needs more than one poll round
+to regain block lock. Resetting the CDR on every poll restarts the lock
+acquisition the AN depends on, which stretches a short renegotiation
+window into a repeating reset loop.
+
+Only consider the recovery once the CDR had time to lock, and back off
+exponentially between retries. A PCS that is down while in-band AN has
+not completed is expected to be transient, so keep a small grace of poll
+rounds before resetting it; a PCS that stays stuck since bringup is
+still recovered after that grace.
+
+Signed-off-by: naoki66 <naoki66@qq.com>
+---
+ drivers/net/pcs/airoha/pcs-an7581.c | 40 +++++++++++++++++++++++++++++-------
+ drivers/net/pcs/airoha/pcs-airoha.h |  5 +++++
+ 2 files changed, 39 insertions(+), 6 deletions(-)
+
+--- a/drivers/net/pcs/airoha/pcs-an7581.c
++++ b/drivers/net/pcs/airoha/pcs-an7581.c
+@@ -3,6 +3,7 @@
+  * Copyright (c) 2024 AIROHA Inc
+  * Author: Christian Marangi <ansuelsmth@gmail.com>
+  */
++#include <linux/jiffies.h>
+ #include <linux/math.h>
+ #include <linux/phy/phy.h>
+ #include <linux/pcs/pcs-airoha.h>
+@@ -3579,25 +3580,59 @@
+ 	return count >= AIROHA_PCS_MAX_RX_SIGDET_PRESENCE_CNT;
+ }
+ 
++/* In-band AN poll rounds a PCS that is stuck since bringup may stay down
++ * before the CDR recovery is still allowed to kick in.
++ */
++#define AIROHA_PCS_RXLOCK_AN_GRACE	3
++
+ int an7581_pcs_rxlock_workaround(struct airoha_pcs_priv *priv, int index)
+ {
+ 	struct airoha_pcs_maps *maps = &priv->maps[index];
+-	u32 val = 0;
++	u32 an_done = 0, val = 0;
+ 
+ 	/* Check if PCS is UP or Down */
+ 	regmap_read(maps->usxgmii_pcs, AIROHA_PCS_USXGMII_PCS_STUS_1, &val);
+-	if (val & AIROHA_PCS_USXGMII_PCS_RX_LINK_STATUS_UP)
++	if (val & AIROHA_PCS_USXGMII_PCS_RX_LINK_STATUS_UP) {
++		priv->rxlock_an_polls[index] = 0;
++		priv->rxlock_backoff[index] = 0;
+ 		return 0;
++	}
+ 
+ 	/* Validate if this is consistent with RX SigDet module */
+ 	if (!an7581_pcs_have_rx_signal(priv, index))
+ 		return 0;
+ 
++	/* A PCS that reports link down while in-band AN is still running is
++	 * expected: the partner restarts AN after every copper renegotiation,
++	 * and resetting the CDR here would abort the lock acquisition the AN
++	 * depends on. Keep the recovery for a PCS that stays stuck, so a
++	 * bringup failure is still handled.
++	 */
++	regmap_read(maps->usxgmii_pcs, AIROHA_PCS_USXGMII_PCS_AN_STATS_2,
++		    &an_done);
++	if (!(an_done & AIROHA_PCS_USXGMII_PCS_AN_COMPLETE) &&
++	    priv->rxlock_an_polls[index]++ < AIROHA_PCS_RXLOCK_AN_GRACE)
++		return 0;
++	priv->rxlock_an_polls[index] = 0;
++
++	/* Give the CDR time to lock after a reset before resetting it again. */
++	if (time_before(jiffies, priv->rxlock_next[index]))
++		return 0;
++
+ 	/* If PCS is down but RX SigDet module detected signal,
+ 	 * trigger CDR reset.
+ 	 */
+ 	an7581_pcs_cdr_reset(priv, index, PHY_INTERFACE_MODE_NA, false);
+ 
++	/* Back off exponentially (1, 2, 4, then 8 seconds) so a PCS that
++	 * needs longer to regain block lock is not reset on every poll.
++	 */
++	priv->rxlock_next[index] = jiffies +
++		HZ * (1UL << (priv->rxlock_backoff[index] > 3 ?
++			      3 : priv->rxlock_backoff[index]));
++	if (priv->rxlock_backoff[index] < 3)
++		priv->rxlock_backoff[index]++;
++
+ 	/* Report there is an error with Link Detection and we
+ 	 * should test again later.
+ 	 */
+--- a/drivers/net/pcs/airoha/pcs-airoha.h
++++ b/drivers/net/pcs/airoha/pcs-airoha.h
+@@ -1674,6 +1677,11 @@
+ 	u8 pon_tx_term_sel;
+ 	u8 pon_rx_term_sel;
+ 
++	/* SigDet/CDR recovery bookkeeping, one slot per PCS instance. */
++	unsigned long rxlock_next[2];
++	u8 rxlock_an_polls[2];
++	u8 rxlock_backoff[2];
++
+ 	/* pcs-an7581.c updates the PON PMA stage and calibration state. */
+ 	u32 pon_stage;
+ 	s32 pon_last_error;
