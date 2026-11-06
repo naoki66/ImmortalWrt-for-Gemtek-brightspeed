@@ -198,7 +198,13 @@
 	};
 };
 &i2c0 {
-	compatible = "airoha,airoha-i2c";
+	/*
+	 * Keep the base "mediatek,mt7621-i2c" compatible from an7581.dtsi.
+	 * Overriding it with "airoha,airoha-i2c" keeps the i2c-mt7621 driver
+	 * from binding (it only matches the mediatek/ralink strings), so no
+	 * adapter is registered, nct7802 never probes and both the board
+	 * temperature and the fan PWM controls disappear.
+	 */
 	clock-frequency = <400000>;
 	status = "okay";
 	hwmon@2e {
