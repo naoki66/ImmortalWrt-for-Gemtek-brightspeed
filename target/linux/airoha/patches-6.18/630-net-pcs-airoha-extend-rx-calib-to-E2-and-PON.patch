@@ -1,0 +1,90 @@
+From: naoki66 <naoki66@qq.com>
+Date: Thu, 6 Nov 2026 13:30:00 +0800
+Subject: [PATCH] net: pcs: airoha: extend RX calibration to E2 silicon and PON PCS
+
+The AN7581 PCS driver skips manual RX calibration for SoC revisions >= E2,
+on the assumption that E2+ silicon autocalibrates correctly. In practice
+E2 silicon (PRODUCT_ID = 2) on Gemtek W1700K HW.1.1 boards leaves RX
+permanently stuck on ~80% of cold boots, while HW.1.0 (PRODUCT_ID = 1) is
+reliable. The manual path retries up to AIROHA_PCS_MAX_CALIBRATION_TRY
+times when FreqDet fails to lock; the autocalibration path has no
+equivalent retry.
+
+The calibration gate also only matches "airoha,an7581-pcs-eth". XR1710G
+routes its 10G WAN (GDM2) through the PON PCS instance
+("airoha,an7581-pcs-pon") with a USXGMII copper link, so affected units
+complete copper autonegotiation and then stay at NO-CARRIER with no
+"Link is Up" and no DHCP, while healthy units only work because their
+default SerDes tuning happens to lock. The SDK applies the same RX
+calibration and CDR recovery sequence to either external SerDes, but the
+Linux driver enabled both mechanisms for the ETH PCS only.
+
+Extend manual RX calibration to both external SerDes PCS instances and
+raise the PRODUCT_ID threshold to include E2 silicon for both. Enable the
+existing signal-detect/CDR recovery callback for the PON PCS as well.
+Optical PON line-mode calibration is untouched.
+
+Verified on a Gemtek W1700K HW.1.1 (E2) with stable cold boots, and on an
+affected XR1710G unit where carrier recovered and the link came up at
+10Gbps/Full with DHCP completing after hot reboot and cold boot. Healthy
+XR1710G units are unaffected because their default tuning already locks.
+
+Link: https://github.com/naoki66/ImmortalWrt-for-Gemtek-brightspeed/issues/44
+Link: https://github.com/naoki66/ImmortalWrt-for-Gemtek-brightspeed/pull/62
+Co-authored-by: Gilly <gilroyscott1970@gmail.com>
+Co-authored-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
+---
+ drivers/net/pcs/airoha/pcs-airoha-common.c | 13 +++++++----
+ drivers/net/pcs/airoha/pcs-an7581.c        |  4 ++--
+ 2 files changed, 10 insertions(+), 7 deletions(-)
+
+--- a/drivers/net/pcs/airoha/pcs-airoha-common.c
++++ b/drivers/net/pcs/airoha/pcs-airoha-common.c
+@@ -1578,18 +1578,20 @@
+ 	if (IS_ERR(priv->xfi_rst))
+ 		return dev_err_probe(dev, PTR_ERR(priv->xfi_rst), "failed to get xfi reset lines\n");
+ 
+-	/* For Ethernet PCS, read the AN7581 SoC revision to check if
+-	 * manual rx calibration is needed. This is only limited to
+-	 * any SoC revision before E2.
++	/* For the external SerDes PCS instances, read the AN7581 SoC
++	 * revision to check if manual RX calibration is needed. This
++	 * covers the Ethernet and PON PCS used by the 10G ports, through
++	 * E2 silicon.
+ 	 */
+-	if (device_is_compatible(dev, "airoha,an7581-pcs-eth")) {
++	if (device_is_compatible(dev, "airoha,an7581-pcs-eth") ||
++	    device_is_compatible(dev, "airoha,an7581-pcs-pon")) {
+ 		u32 val;
+ 
+ 		ret = regmap_read(priv->scu, AIROHA_SCU_PDIDR, &val);
+ 		if (ret)
+ 			return ret;
+ 
+-		if (FIELD_GET(AIROHA_SCU_PRODUCT_ID, val) < 0x2)
++		if (FIELD_GET(AIROHA_SCU_PRODUCT_ID, val) < 0x3)
+ 			priv->manual_rx_calib = true;
+ 	}
+ 
+@@ -1650,6 +1652,7 @@
+ 	.alloc_regmap_fields = an7581_pcs_alloc_regmap_fields,
+ 	.bringup = an7581_pcs_bringup,
+ 	.link_up = an7581_pcs_phya_link_up,
++	.rxlock_workaround = an7581_pcs_rxlock_workaround,
+ 	.pon_start_rx = an7581_pcs_pon_start_rx,
+ 	.pon_retrain_rx = an7581_pcs_pon_retrain_rx,
+ 	.pon_stop_rx = an7581_pcs_pon_stop_rx,
+--- a/drivers/net/pcs/airoha/pcs-an7581.c
++++ b/drivers/net/pcs/airoha/pcs-an7581.c
+@@ -3269,8 +3269,8 @@
+ 
+ 	an7581_pcs_cdr_reset(priv, index, interface, false);
+ 
+-	/* Manual RX calibration is required only for SoC before E2
+-	 * revision. E2+ SoC autocalibrate RX and only CDR reset is needed.
++	/* Manual RX calibration is required for SoC revisions through E2.
++	 * E3+ SoCs autocalibrate RX and only CDR reset is needed.
+ 	 */
+ 	if (!priv->manual_rx_calib)
+ 		return 0;
