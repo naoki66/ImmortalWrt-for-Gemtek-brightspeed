@@ -97,26 +97,48 @@ jobs:
           bash scripts/check-gemtek-profile-isolation.sh --config .config
           grep -E 'CONFIG_(IMAGEOPT|EXTRA_IMAGE_NAME|VERSIONOPT|VERSION_DIST|VERSION_NUMBER|VERSION_CODE|VERSION_FILENAMES|VERSION_CODE_FILENAMES)[= ]' .config
 
+      - name: Verify libffi build dependency
+        run: |
+          test -f package/libs/libffi/Makefile
+          awk '
+            /^Source-Makefile:/ { in_libffi = ($2 == "package/libs/libffi/Makefile") }
+            in_libffi && /^Package: libffi$/ { have_package = 1 }
+            in_libffi && /^Build-Types:/ {
+              for (i = 2; i <= NF; i++) if ($i == "host") have_host = 1
+            }
+            END {
+              if (!have_package || !have_host) {
+                print "libffi package with host build support is missing from package metadata" > "/dev/stderr"
+                exit 1
+              }
+            }
+          ' tmp/.packageinfo
+
       - name: Download sources
-        run: make download -j$(nproc)
+        shell: bash
+        run: |
+          make download -j$(nproc) BUILD_LOG=1 2>&1 | tee download.log
 
       - name: Build Firmware
         shell: bash
         run: |
-          make -j2 world 2>&1 | tee build.log
+          make -j2 world BUILD_LOG=1 2>&1 | tee build.log
 
       - name: Verbose retry on build failure
         if: failure()
         shell: bash
         run: |
+          bash scripts/summarize-build-errors.sh build.log || true
           failed_pkg=$(grep 'ERROR:.*failed to build' build.log | head -1 | sed 's/.*ERROR: \(.*\) failed to build.*/\1/' || true)
           if [ -n "$failed_pkg" ]; then
             echo "=== Rebuilding $failed_pkg with V=s ==="
-            make "package/$failed_pkg/compile" V=s -j1 2>&1 | tee build-verbose.log || true
+            retry_status=0
+            make "${failed_pkg}/compile" BUILD_LOG=1 V=s -j1 2>&1 | tee build-verbose.log || retry_status=$?
             echo "=== First errors in build-verbose.log ==="
             grep -nE "error:|Error [0-9]|FAILED|Patch failed|No rule to make target" build-verbose.log | head -40 || true
             echo "=== tail of build-verbose.log ==="
             tail -80 build-verbose.log || true
+            exit "$retry_status"
           else
             echo "No failing package found in build.log" >&2
             tail -150 build.log || true
@@ -158,8 +180,10 @@ jobs:
         with:
           name: gemtek-${{ inputs.config_seed }}-firmware
           path: |
+            download.log
             build.log
             build-verbose.log
+            logs/
             bin/targets/airoha/an7581/*.itb
             bin/targets/airoha/an7581/*manifest
             bin/targets/airoha/an7581/config.buildinfo
