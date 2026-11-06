@@ -1,0 +1,17 @@
+From: XiaoShao <xiaoshao9704@users.noreply.github.com>
+Subject: [PATCH] firewall4: propagate ruleset load failures before includes
+
+pipefail sets the pipeline status, but a successful includes command used to
+overwrite it. Do not report a successful reload when nft rejected the ruleset.
+
+--- a/root/sbin/fw4
++++ b/root/sbin/fw4
+@@ -33,7 +33,7 @@ start() {
+ 		esac
+ 
+ 		ACTION=start \
+-			utpl -S $MAIN | nft $VERBOSE -f $STDIN
++			utpl -S $MAIN | nft $VERBOSE -f $STDIN || return 1
+ 
+ 		ACTION=includes \
+ 			utpl -S $MAIN
