@@ -1,0 +1,76 @@
+diff --git a/airoha-xpon/Makefile b/airoha-xpon/Makefile
+index 04058a1..3b84201 100644
+--- a/airoha-xpon/Makefile
++++ b/airoha-xpon/Makefile
+@@ -6,7 +6,7 @@ include $(TOPDIR)/rules.mk
+ include $(INCLUDE_DIR)/kernel.mk
+ 
+ PKG_NAME:=airoha-xpon
+-PKG_RELEASE:=68
++PKG_RELEASE:=69
+ PKG_LICENSE:=GPL-2.0-only
+ 
+ include $(INCLUDE_DIR)/package.mk
+diff --git a/airoha-xpon/src/airoha-xpon-private.h b/airoha-xpon/src/airoha-xpon-private.h
+index 9942e35..365291d 100644
+--- a/airoha-xpon/src/airoha-xpon-private.h
++++ b/airoha-xpon/src/airoha-xpon-private.h
+@@ -420,8 +420,8 @@ struct airoha_xpon {
+ #define AIROHA_XPON_FULL_REINIT_PERIOD 5
+ /*
+  * A wedged MBI receive path reports FIFO overruns and then never delivers a
+- * frame again.  Require RX_STALL_MS of host-side silence with upstream traffic
+- * in flight before resetting the MAC epoch, and cap the epoch resets to
++ * frame again.  Require RX_STALL_MS of host-side silence after an overrun
++ * before resetting the MAC epoch, and cap the epoch resets to
+  * MAX_RESTARTS inside BACKOFF_MS so a line that stays broken does not
+  * re-register forever.
+  */
+diff --git a/airoha-xpon/src/airoha-xpon-xgpon.c b/airoha-xpon/src/airoha-xpon-xgpon.c
+index e8c8c44..35d8b95 100644
+--- a/airoha-xpon/src/airoha-xpon-xgpon.c
++++ b/airoha-xpon/src/airoha-xpon-xgpon.c
+@@ -896,10 +896,10 @@ void airoha_xpon_xgpon_stop_rx(struct airoha_xpon *xpon)
+  * granting upstream bursts and stays in O5, but nothing is delivered to the
+  * network device any more.  The driver had no recovery for that state, so the
+  * line stayed silent until the next reboot.  Watch host receive progress after
+- * an overrun and reset the MAC epoch once the host has been transmitting while
+- * receiving nothing for RX_STALL_MS; re-registration rebuilds the downstream
+- * XGEM/MBI mapping.  An idle line never trips the watchdog because a window
+- * without upstream traffic restarts the measurement.
++ * an overrun and reset the MAC epoch after RX_STALL_MS without receive progress;
++ * re-registration rebuilds the downstream XGEM/MBI mapping.  The overrun is the
++ * evidence of a fault even if upstream traffic also stops.  An idle line without
++ * an overrun never arms the watchdog.
+  */
+ bool airoha_xpon_xgpon_rx_stall(struct airoha_xpon *xpon)
+ {
+@@ -925,10 +925,16 @@ bool airoha_xpon_xgpon_rx_stall(struct airoha_xpon *xpon)
+ 	}
+ 
+ 	if (atomic_xchg(&xpon->rx_stall_pending, 0)) {
+-		xpon->rx_stall_armed = true;
+-		xpon->rx_stall_sampled = false;
++		/*
++		 * A live FIFO overrun can interrupt continuously.  Consume every
++		 * notification, but keep the first sample and deadline while armed;
++		 * restarting them here lets an IRQ storm postpone recovery forever.
++		 */
++		if (!xpon->rx_stall_armed) {
++			xpon->rx_stall_armed = true;
++			xpon->rx_stall_sampled = false;
++		}
+ 		xpon->rx_stall_overrun = true;
+-		xpon->rx_stall_since = jiffies;
+ 	}
+ 
+ 	if (!xpon->rx_stall_armed)
+@@ -949,6 +955,8 @@ bool airoha_xpon_xgpon_rx_stall(struct airoha_xpon *xpon)
+ 		xpon->rx_stall_sampled = true;
+ 		xpon->rx_stall_rx_base = stats.rx_packets_delivered;
+ 		xpon->rx_stall_tx_base = stats.tx_packets_submitted;
++		/* Start the window only once a valid host sample is available. */
++		xpon->rx_stall_since = jiffies;
+ 		return false;
+ 	}
+ 

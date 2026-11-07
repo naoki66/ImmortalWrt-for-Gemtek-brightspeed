@@ -15,7 +15,7 @@
 
 DEV=pon0
 MOD=airoha-xpon
-WAN=wan
+WAN=pppoe
 
 PERSIST=180	# seconds the WAN must stay down before acting
 SAMPLE=10	# seconds between the upstream/downstream samples
@@ -24,15 +24,34 @@ WINDOW=1800	# attempt budget window, seconds
 
 DOWN_STATE=/tmp/pon-link-watchdog.down
 ATTEMPTS=/tmp/pon-link-watchdog.attempts
+LOCK_DIR=/var/run/pon-link-watchdog.lock
 
 log() {
 	logger -t pon-link-watchdog "$*"
 }
 
+# Prefer the interface used by existing PON images.  The ONU Internet page
+# creates its local PPPoE session as network.wan instead; accept only that
+# page's managed interface as a fallback, never an unrelated Ethernet WAN.
+select_wan() {
+	[ "$(uci -q get "network.$WAN.proto")" = pppoe ] && return 0
+	if [ "$(uci -q get network.wan.proto)" = pppoe ] &&
+	   [ "$(uci -q get network.wan.luci_wanup)" = 1 ]; then
+		WAN=wan
+	fi
+	return 0
+}
+
+# A bridge has no local PPPoE session to monitor.  A missing interface must not
+# count as an outage or trigger a PON reload on behalf of a downstream router.
+wan_configured() {
+	[ "$(uci -q get "network.$WAN.proto")" = pppoe ]
+}
+
 # True when the WAN protocol reports itself up; proto handlers are slow, so a
 # missing ubus answer counts as down and the persistence window absorbs it.
 wan_up() {
-	ifstatus "$WAN" 2>/dev/null | grep -q '"up": true'
+	[ "$(ifstatus "$WAN" 2>/dev/null | jsonfilter -e '@.up')" = true ]
 }
 
 onu_state() {
@@ -120,6 +139,7 @@ recover() {
 	ip link set "$DEV" up
 	if ! wait_for O5 onu_state 45; then
 		log "$DEV did not reach O5 after reloading $MOD; leaving the line to the driver"
+		ifup "$WAN"
 		date +%s > "$DOWN_STATE"
 		return 1
 	fi
@@ -128,6 +148,7 @@ recover() {
 	/etc/init.d/airoha-pond restart
 	if ! wait_for 1 service_ready 45; then
 		log "$DEV registered but the data path stayed unconfigured after reloading $MOD"
+		ifup "$WAN"
 		date +%s > "$DOWN_STATE"
 		return 1
 	fi
@@ -142,6 +163,18 @@ main() {
 	local state rx1 tx1 rx2 tx2 overruns
 
 	[ -e "/sys/class/net/$DEV" ] || exit 0
+
+	# Recovery can outlast the two-minute cron interval.  Only one instance may
+	# sample or reset the MAC, and only that instance may remove its lock.
+	mkdir "$LOCK_DIR" 2>/dev/null || exit 0
+	trap 'rmdir "$LOCK_DIR" 2>/dev/null' 0
+	trap 'exit 1' 1 2 15
+
+	select_wan
+	if ! wan_configured; then
+		rm -f "$DOWN_STATE"
+		exit 0
+	fi
 
 	if wan_up; then
 		rm -f "$DOWN_STATE"
@@ -184,6 +217,12 @@ main() {
 	overruns=$(mbi_overruns)
 	if [ "$tx2" -le "$tx1" ] && [ "${overruns:-0}" -eq 0 ]; then
 		log "wan down and $DEV idle in both directions without an MBI overrun; not reloading"
+		exit 0
+	fi
+
+	# PPPoE may have recovered (or been replaced by bridging) during the sample.
+	if ! wan_configured || wan_up; then
+		rm -f "$DOWN_STATE"
 		exit 0
 	fi
 
