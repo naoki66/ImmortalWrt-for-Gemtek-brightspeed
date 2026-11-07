@@ -11,7 +11,7 @@ include $(INCLUDE_DIR)/package.mk
 
 define Package/cpufreq
   TITLE:=CPU Frequency Scaling adjustment tool
-  DEPENDS:=@(arm||aarch64)
+  DEPENDS:=@(arm||aarch64) @!TARGET_airoha_an7581
   PKGARCH:=all
 endef
 

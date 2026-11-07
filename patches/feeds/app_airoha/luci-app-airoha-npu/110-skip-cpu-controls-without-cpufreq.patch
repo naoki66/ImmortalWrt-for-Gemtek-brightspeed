@@ -1,0 +1,29 @@
+diff --git a/luci-app-airoha-npu/root/etc/init.d/airoha-npu b/luci-app-airoha-npu/root/etc/init.d/airoha-npu
+--- a/luci-app-airoha-npu/root/etc/init.d/airoha-npu
++++ b/luci-app-airoha-npu/root/etc/init.d/airoha-npu
+@@ -141,6 +141,13 @@
+ start() {
+ 	ensure_rpcd_backend
+ 
++	# The cpufreq core creates this directory before userspace starts.
++	# A kernel built without CPU_FREQ must not wait or apply saved DVFS.
++	[ -d "$CPUFREQ_ROOT" ] || {
++		log "CPU frequency scaling unavailable; keeping firmware CPU clock"
++		return 0
++	}
++
+ 	# Wait (bounded, ~15s) for cpufreq to appear before applying persisted settings.
+ 	local i=0
+ 	while ! find_cpufreq_policy >/dev/null && [ $i -lt "$CPUFREQ_WAIT_SECS" ]; do
+diff --git a/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js b/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js
+--- a/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js
++++ b/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js
+@@ -924,6 +924,8 @@
+ 	cpuSettingsDirty = false;
+ 
+ 	var reason = cpufreqReason(st);
++	if (reason)
++		return E('p', { 'class': 'ai-hint' }, reason);
+ 
+ 	var saveBtn = E('button', {
+ 		'id': 'cpu-settings-save',
