@@ -132,12 +132,14 @@ Signed-off-by: naoki66 <naoki66@qq.com>
  }
  
  struct nft_forward_info {
-@@ -156,8 +197,13 @@
+@@ -197,9 +197,12 @@
  				info->num_encaps++;
  				break;
  			case DEV_PATH_BR_VLAN_UNTAG:
--				if (WARN_ON_ONCE(info->num_encaps-- == 0))
+-				if (info->num_encaps == 0)
 -					return -1;
+-
+-				info->num_encaps--;
 +				/*
 +				 * A bridged flow can untag a VLAN this direction
 +				 * never pushed, which used to underflow the
@@ -145,7 +147,6 @@ Signed-off-by: naoki66 <naoki66@qq.com>
 +				 */
 +				if (info->num_encaps > 0)
 +					info->num_encaps--;
- 
  				break;
  			case DEV_PATH_BR_VLAN_KEEP:
 @@ -198,18 +244,61 @@
