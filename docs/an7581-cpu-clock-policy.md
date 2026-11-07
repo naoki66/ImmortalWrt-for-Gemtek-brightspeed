@@ -14,8 +14,10 @@ PLL 属性、MMIO 映射、1.25–1.4GHz 扩展 OPP、governor 启动参数和
 调频 UCI defaults 一并移除。1710、2010、040、040-tf 配置不再选择
 cpufreq 包，该包也不允许在 AN7581 子目标选用。
 
-NPU LuCI feed 的本地补丁让启动脚本在无 cpufreq core 时立即返回，
-页面只说明调频不可用。原有 RPC 在没有 policy 时拒绝调频请求。
+NPU LuCI feed 上游已移除页面调频控件，不再携带依赖旧页面结构的
+`110-skip-cpu-controls-without-cpufreq.patch`。旧版 feed 启动脚本可能
+仍等待约 15 秒后退出，但没有 policy 时不会应用调频设置，RPC 也会
+拒绝调频请求。启动脚本和后端的进一步清理由 feed 源码负责。
 跨平台通用包源码以及供其他 Airoha 子目标使用的原生驱动修复保留。
 AN7583 的原生调频配置不变。
 
