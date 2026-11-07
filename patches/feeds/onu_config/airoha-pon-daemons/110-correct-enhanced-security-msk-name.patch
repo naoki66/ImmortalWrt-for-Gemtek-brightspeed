@@ -1,0 +1,55 @@
+diff --git a/airoha-pon-daemons/Makefile b/airoha-pon-daemons/Makefile
+index 0b84ba7..05275ed 100644
+--- a/airoha-pon-daemons/Makefile
++++ b/airoha-pon-daemons/Makefile
+@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
+ 
+ PKG_NAME:=airoha-pon-daemons
+ PKG_VERSION:=0.3.0
+-PKG_RELEASE:=3
++PKG_RELEASE:=4
+ PKG_URL:=https://github.com/pbs05/openwrt-pon-userspace/tree/main/airoha-pon-daemons
+ 
+ PKG_LICENSE:=GPL-2.0-only
+diff --git a/airoha-pon-daemons/src/src/omci/security.rs b/airoha-pon-daemons/src/src/omci/security.rs
+index 2927694..3cc9cbc 100644
+--- a/airoha-pon-daemons/src/src/omci/security.rs
++++ b/airoha-pon-daemons/src/src/omci/security.rs
+@@ -77,7 +77,8 @@ pub fn master_session_key_name(
+     olt_challenges: &[[u8; 16]],
+     onu_challenges: &[[u8; 16]],
+ ) -> Option<[u8; 16]> {
+-    session_value(olt_challenges, onu_challenges, &MSK_NAME_IDENTITY)
++    // Unlike the MSK, its name places the ONU challenge before the OLT challenge.
++    session_value(onu_challenges, olt_challenges, &MSK_NAME_IDENTITY)
+ }
+ 
+ fn session_value(
+@@ -127,4 +128,27 @@ mod tests {
+     fn challenge_addition_wraps_per_byte() {
+         assert_eq!(onu_random_challenge(&[0xff; 16], &[2; 16]), [1; 16]);
+     }
++
++    #[test]
++    fn session_key_and_name_use_their_specified_challenge_order() {
++        let olt = [std::array::from_fn(|index| index as u8)];
++        let onu = [std::array::from_fn(|index| (index + 16) as u8)];
++
++        // G.988 Class 332: MSK hashes OLT|ONU; MSKname hashes ONU|OLT|identity.
++        // Expected values were independently calculated with OpenSSL AES-CMAC.
++        assert_eq!(
++            master_session_key(&olt, &onu),
++            Some([
++                0xc1, 0xdc, 0x09, 0xff, 0x87, 0xf6, 0x75, 0x1f, 0x7c, 0xe8, 0xe7, 0x8d, 0x26, 0x77,
++                0xd0, 0x95,
++            ])
++        );
++        assert_eq!(
++            master_session_key_name(&olt, &onu),
++            Some([
++                0x63, 0xc4, 0xec, 0xff, 0x3b, 0x3f, 0x74, 0x9e, 0x52, 0x71, 0xd7, 0x50, 0x53, 0x38,
++                0x29, 0x75,
++            ])
++        );
++    }
+ }
