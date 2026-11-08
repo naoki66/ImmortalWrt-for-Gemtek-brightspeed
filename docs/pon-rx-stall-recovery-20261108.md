@@ -36,16 +36,12 @@
 
 ## 源码与构建接入
 
-驱动源码修复位于相邻的 `openwrt-pon-drivers` 仓库，
-`airoha-xpon` 包版本从 r68 升至 r69。
-本固件仓库的对应补丁为：
+修复直接维护在两个 feed 源码仓库，均已推送到各自的 `main`：
 
-`patches/feeds/pon_drivers/airoha-xpon/100-keep-rx-stall-deadline-during-overrun.patch`
-
-用户态修复位于相邻的 `OpenWrt_ONU_CONFIG` 仓库，daemon 包从 r2
-升至 r3，并通过以下补丁接入固件：
-
-`patches/feeds/onu_config/airoha-pon-daemons/100-reconcile-services-after-pon-recovery.patch`
+- `openwrt-pon-drivers` 的 `0c2bd08` 保留 RX stall 截止时间，
+  `airoha-xpon` 包版本从 r68 升至 r69。
+- `OpenWrt_ONU_CONFIG` 的 `93a36b1` 修复 OMCI/OAM 恢复，daemon 包从
+  r2 升至 r3；后续 `ff442f9` 修正 MSK name 的 ONU/OLT challenge 顺序，升至 r4。
 
 OMCI agent 原本只有在等待 Alloc-ID 时才轮询映射，成功后会阻塞收包。
 内核 MAC reset 清空映射且 OLT 没有发来新配置时，保留的 MIB 无法主动回写。
@@ -64,9 +60,17 @@ EPON 驱动的注销流程已经清除 service_ready 并拉低 OAM carrier，注
 重建 LLID 数据通道并恢复 carrier，因此无需把 XG-PON 的 GEM 恢复逻辑套用
 到 EPON。此日志来自 XG-PON，OAM 问题来自代码审查，仍需 EPON 真机验收。
 
-现有 `scripts/apply-feed-patches.sh` 会在构建时应用两份补丁；feed 已含相同改动时
-通过反向检查跳过。无需修改 feed URL。上游后续改变这些上下文时，仍需
-按现有 feed 补丁流程更新或移除此补丁。
+本固件仓库已移除上述修复的三份重复 feed 补丁。daemon 的两个补丁先后修改
+同一处 `PKG_RELEASE`（r2→r3→r4），当 feed 已包含后续提交时，第一个补丁的
+正向应用和反向检查都会失败，导致 `scripts/apply-feed-patches.sh` 阻断构建。
+
+`git pull` 只更新固件主仓库；`feeds/onu_config` 和 `feeds/pon_drivers` 是独立
+checkout，不会随之更新。旧构建树应先确认这两个 feed 没有未保存的源码改动，
+再通过 `./scripts/feeds update onu_config pon_drivers` 更新，并运行
+`./scripts/feeds install -a -p onu_config` 和
+`./scripts/feeds install -a -p pon_drivers`。无需修改 feed URL。
+实际编译使用 `feeds/` 中的源码，相邻同名仓库不会因当前 `src-git` 配置自动接入。
+固件专用的 `files/usr/sbin/pon-link-watchdog`、检查脚本和本文继续留在固件仓库。
 
 ## 验证
 
