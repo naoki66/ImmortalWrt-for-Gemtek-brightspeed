@@ -1321,6 +1321,14 @@ endif
 # Miscellaneous network configuration
 #
 
+config KERNEL_NET_AIROHA_NPU
+	bool "Airoha AN7581 NPU offload"
+	depends on TARGET_airoha_an7581
+	default y
+	help
+	  Enable the Airoha NPU driver used by Ethernet PPE offload.
+	  Wireless offload also requires the MT7996 NPU driver option.
+
 config KERNEL_NET_L3_MASTER_DEV
 	bool "L3 Master device support"
 	default y if !SMALL_FLASH

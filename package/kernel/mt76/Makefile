@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=mt76
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
 PKG_LICENSE:=BSD-3-Clause-Clear
 PKG_LICENSE_FILES:=
@@ -17,6 +17,7 @@ PKG_USE_NINJA:=0
 PKG_BUILD_PARALLEL:=1
 
 PKG_CONFIG_DEPENDS += \
+	CONFIG_PACKAGE_MT7996_NPU \
 	CONFIG_PACKAGE_kmod-mt76-usb \
 	CONFIG_PACKAGE_kmod-mt76x02-common \
 	CONFIG_PACKAGE_kmod-mt76x0-common \
@@ -326,6 +327,22 @@ define KernelPackage/mt7996e
   	   +@KERNEL_RELAY +@DRIVER_11BE_SUPPORT
   FILES:= $(PKG_BUILD_DIR)/mt7996/mt7996e.ko
   AUTOLOAD:=$(call AutoProbe,mt7996e)
+  MENU:=1
+endef
+
+define KernelPackage/mt7996e/config
+  if PACKAGE_kmod-mt7996e
+
+	config PACKAGE_MT7996_NPU
+		bool "Enable Airoha NPU offload"
+		depends on TARGET_airoha_an7581
+		depends on KERNEL_NET_AIROHA_NPU
+		default y
+		help
+		  Build MT76 and MT7996 with Airoha NPU support for hardware
+		  acceleration of traffic between wireless and Ethernet ports.
+
+  endif
 endef
 
 define KernelPackage/mt7990-firmware
@@ -504,7 +521,7 @@ ifdef CONFIG_PACKAGE_kmod-mt7921e
 endif
 ifdef CONFIG_PACKAGE_kmod-mt7996e
   PKG_MAKE_FLAGS += CONFIG_MT7996E=m
-  ifdef CONFIG_TARGET_airoha_an7581
+  ifeq ($(CONFIG_PACKAGE_MT7996_NPU),y)
     PKG_MAKE_FLAGS += CONFIG_MT76_NPU=y
     PKG_MAKE_FLAGS += CONFIG_MT7996_NPU=y
     NOSTDINC_FLAGS += -DCONFIG_MT76_NPU
