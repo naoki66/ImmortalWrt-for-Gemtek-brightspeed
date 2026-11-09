@@ -1,0 +1,10 @@
+--- a/net/smartdns/Makefile
++++ b/net/smartdns/Makefile
+@@ -96,6 +96,7 @@
+ 
+ ifneq ($(CONFIG_PACKAGE_smartdns-ui),)
+ 	( \
++		set -e ; \
+ 		pushd $(PKG_BUILD_DIR) ; \
+ 		pushd smartdns-webui ; \
+ 		npm install ; \
