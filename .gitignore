@@ -45,3 +45,7 @@ git-src
 *.config.version.*
 # 本地损坏/备份的 .git 目录（体积大，禁止推送）
 /.git_broken/
+# 本地诊断产物：采样/测速日志、bugreport、导出压缩包，不入库
+/diagnostics/
+/bugreport-xr1710g-cpu1-bit63/
+*.zip
