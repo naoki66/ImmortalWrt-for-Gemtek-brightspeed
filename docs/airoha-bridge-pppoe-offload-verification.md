@@ -2,7 +2,7 @@
 
 > 核实基线：本仓库 `build_dir/replay/linux-6.18.55` 内核树（已应用 `target/linux/generic/pending-6.18/`
 > 与 `target/linux/airoha/patches-6.18/`）、`package/network/config/firewall4/`、
-> `D:/GitData/OpenWrt_ONU_CONFIG/luci-app-onu`。
+> `feeds/onu_config/luci-app-onu`。
 > 全部结论来自实读源码，非上游文档转述。
 
 ---

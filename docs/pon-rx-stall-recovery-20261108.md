@@ -36,12 +36,12 @@
 
 ## 源码与构建接入
 
-修复直接维护在两个 feed 源码仓库，均已推送到各自的 `main`：
+修复直接维护在两个私有 feed 源码仓库，均已推送到各自的 `main`：
 
-- `openwrt-pon-drivers` 的 `0c2bd08` 保留 RX stall 截止时间，
+- `pon_drivers` feed 的更新保留 RX stall 截止时间，
   `airoha-xpon` 包版本从 r68 升至 r69。
-- `OpenWrt_ONU_CONFIG` 的 `93a36b1` 修复 OMCI/OAM 恢复，daemon 包从
-  r2 升至 r3；后续 `ff442f9` 修正 MSK name 的 ONU/OLT challenge 顺序，升至 r4。
+- `onu_config` feed 的更新修复 OMCI/OAM 恢复，daemon 包从
+  r2 升至 r3；后续更新修正 MSK name 的 ONU/OLT challenge 顺序，升至 r4。
 
 OMCI agent 原本只有在等待 Alloc-ID 时才轮询映射，成功后会阻塞收包。
 内核 MAC reset 清空映射且 OLT 没有发来新配置时，保留的 MIB 无法主动回写。
@@ -78,8 +78,8 @@ checkout，不会随之更新。旧构建树应先确认这两个 feed 没有未
 
 ```sh
 sh /mnt/d/GitData/ImmortalWrt-for-Pon/scripts/check-pon-link-watchdog.sh
-sh /mnt/d/GitData/openwrt-pon-drivers/tests/check-rx-stall.sh
-cargo test --locked --manifest-path /mnt/d/GitData/OpenWrt_ONU_CONFIG/airoha-pon-daemons/src/Cargo.toml
+sh feeds/pon_drivers/tests/check-rx-stall.sh
+cargo test --locked --manifest-path feeds/onu_config/airoha-pon-daemons/src/Cargo.toml
 ```
 
 驱动测试提取生产函数并用主机 C 编译器编译，模拟统计与中断，覆盖持续
