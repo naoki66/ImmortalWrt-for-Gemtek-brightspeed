@@ -13,16 +13,20 @@
 
 > 基于 [ImmortalWrt](https://github.com/immortalwrt/immortalwrt) 的 Airoha AN7581 固件项目，为两款硬件相互隔离的 Brightspeed/Gemtek 设备维护独立的构建配置与镜像：XR1710G（10G Wi-Fi 7 路由器）和 XG2010G（XG(S)-PON/XE-PON 网关）。
 
-**文档基线**：`master` @ `62056707`（2026-11-10 核对）。设备 profile、软件包与 feed 状态以根目录 `*.config`、[`target/linux/airoha/image/an7581.mk`](target/linux/airoha/image/an7581.mk) 和 [`feeds.conf.default`](feeds.conf.default) 为准；重要功能与稳定性变更见 [更新日志](CHANGELOG.md)。当前内核基线为 `6.18.60`（[`target/linux/generic/kernel-6.18`](target/linux/generic/kernel-6.18)），上游由定时任务定期合并，请勿依赖固定 commit 徽章判断新旧。
+**文档基线**：
+>`master` @ `62056707`（2026-11-10 核对）。
+>重要功能与稳定性变更见 [更新日志](CHANGELOG.md)。
+>当前内核基线为 `6.18.60`（[`target/linux/generic/kernel-6.18`](target/linux/generic/kernel-6.18)），
+>上游由定时任务定期合并，请勿依赖固定 commit 徽章判断新旧。
 
 ## 速览
 
-| 设备 | 定位 | 种子配置 | 当前启用的 profile | 引导方式 / 状态 | 默认管理地址 |
-|------|------|----------|--------------------|------------------|--------------|
-| XR1710G（原厂 U-Boot 分区 + chainloader） | 10G Wi-Fi 7 路由器 | [`1710.config`](1710.config) | `gemtek_xr1710g` | [naoki66/Gemtek-brightspeed-chainloader](https://github.com/naoki66/Gemtek-brightspeed-chainloader) | `http://192.168.50.1` |
-| XR1710G（OpenWrt U-Boot UBI 布局） | 整盘 UBI 引导方案 | [`1710.config`](1710.config) | profile 已定义，种子配置未启用 | **暂未完成：缺少 trueKey** | `http://192.168.50.1` |
-| XG2010G（1 GiB / 2 GiB 自适应） | XG(S)-PON 网关 | [`2010.config`](2010.config) | `gemtek_xg2010g-ubi` | [naoki66/uboot-an758x](https://github.com/naoki66/uboot-an758x) | `http://192.168.1.1` |
-| Nokia XG-040G-MD / XG-040G-TF（UBI，512 MiB / 1 GiB 自适应） | 附加设备配置 | [`040.config`](040.config) / [`040-tf.config`](040-tf.config) | 各自独立配置，CI 不提供 | [naoki66/uboot-an758x](https://github.com/naoki66/uboot-an758x) | `http://192.168.1.1` |
+| 设备 | 定位 | 种子配置 | 当前启用的 profile | 引导方式 / 状态   |
+|------|------|----------|--------------------|------------------ |
+| XR1710G（原厂 U-Boot 分区 + chainloader） | 10G Wi-Fi 7 路由器 | [`1710.config`](1710.config) | `gemtek_xr1710g` | [naoki66/Gemtek-brightspeed-chainloader](https://github.com/naoki66/Gemtek-brightspeed-chainloader)   |
+| XR1710G（OpenWrt U-Boot UBI 布局） | 整盘 UBI 引导方案 | [`1710.config`](1710.config) | profile 已定义，种子配置未启用 | **暂未完成：缺少 trueKey**   |
+| XG2010G（1 GiB / 2 GiB 自适应） | XG(S)-PON 网关 | [`2010.config`](2010.config) | `gemtek_xg2010g-ubi` | [naoki66/uboot-an758x](https://github.com/naoki66/uboot-an758x)   |
+| Nokia XG-040G-MD / XG-040G-TF（UBI，512 MiB / 1 GiB 自适应） | 附加设备配置 | [`040.config`](040.config) / [`040-tf.config`](040-tf.config) | 各自独立配置，CI 不提供 | [naoki66/uboot-an758x](https://github.com/naoki66/uboot-an758x)   |
 
 > [!WARNING]
 > XR1710G 与 XG2010G 虽然同属 Airoha AN7581 平台，但分区布局、设备树和软件包集合完全不同，**不能互刷固件**；同一设备的原厂分区与 UBI 布局镜像也因 `SUPPORTED_DEVICES` 不同而不能互刷。
