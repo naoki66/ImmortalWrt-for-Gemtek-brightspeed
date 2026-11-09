@@ -58,6 +58,7 @@ run_build() {
 	cp "$config_seed" .config
 	bash scripts/set-build-version.sh .config
 	make defconfig
+	bash scripts/check-distfeeds.sh
 	bash scripts/check-gemtek-profile-isolation.sh --config .config
 
 	case "$mode" in

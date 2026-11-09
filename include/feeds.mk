@@ -31,6 +31,24 @@ $(strip $(if $(CONFIG_PER_FEED_REPO), \
   $(PACKAGE_DIR)))
 endef
 
+# Feed names that exist as packages/<arch>/<feed>/packages.adb on the public
+# OpenWrt/ImmortalWrt snapshot trees (and mirrors of those trees, including
+# mirrors.vsean.net). "base", the target index, and buildbot kmods are
+# emitted separately and are not part of this list.
+#
+# feeds.conf.default also pulls third-party git feeds (app_airoha, easytier,
+# glass, helloworld, luci_app_bandix, onu_config, openwrt_bandix, pon_drivers,
+# pon_userspace, pushbot, and any later addition). Those sources are compiled
+# into the image. They are not published next to the official feeds, so a
+# device that lists them fetches HTML 404 instead of packages.adb and
+# `apk update` fails (wget exit 8 / unexpected EOF). Keep them out of
+# distfeeds. A private index belongs in /etc/apk/repositories.d/customfeeds.list.
+DISTFEEDS_FEEDS := packages luci routing telephony video
+
+# Subset of FEEDS_AVAILABLE that is safe to write into distfeeds. Recursive
+# so FEEDS_AVAILABLE's feeds.conf scan still runs on first use.
+FEEDS_DISTFEED = $(filter $(DISTFEEDS_FEEDS),$(FEEDS_AVAILABLE))
+
 # 1: destination file
 define FeedSourcesAppendOPKG
 ( \
@@ -39,7 +57,7 @@ define FeedSourcesAppendOPKG
 	echo 'src/gz %d_base %U/packages/%A/base'; \
 	$(if $(CONFIG_BUILDBOT), \
 		echo 'src/gz %d_kmods %U/targets/%S/kmods/$(LINUX_VERSION)-$(LINUX_RELEASE)-$(LINUX_VERMAGIC)';) \
-	$(foreach feed,$(FEEDS_AVAILABLE), \
+	$(foreach feed,$(FEEDS_DISTFEED), \
 		$(if $(CONFIG_FEED_$(feed)), \
 			echo '$(if $(filter m,$(CONFIG_FEED_$(feed))),# )src/gz %d_$(feed) %U/packages/%A/$(feed)';)))) \
 ) >> $(1)
@@ -55,7 +73,7 @@ define FeedSourcesAppendAPK
 	echo '%U/packages/%A/base/packages.adb'; \
 	$(if $(CONFIG_BUILDBOT), \
 		echo '%U/targets/%S/kmods/$(LINUX_VERSION)-$(LINUX_RELEASE)-$(LINUX_VERMAGIC)/packages.adb';) \
-	$(foreach feed,$(FEEDS_AVAILABLE), \
+	$(foreach feed,$(FEEDS_DISTFEED), \
 		$(if $(CONFIG_FEED_$(feed)), \
 			echo '$(if $(filter m,$(CONFIG_FEED_$(feed))),# )%U/packages/%A/$(feed)/packages.adb';)))) \
 ) >> $(1)

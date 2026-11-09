@@ -97,6 +97,7 @@ jobs:
           UPSTREAM_COMMIT='${{ steps.version.outputs.upstream_commit }}' \
           VERSION_CODE='${{ steps.version.outputs.version_code }}' \
           bash scripts/set-build-version.sh .config
+          bash scripts/check-distfeeds.sh
           bash scripts/check-gemtek-profile-isolation.sh --config .config
           grep -q '^CONFIG_VERSION_DIST="ImmortalWrt naoki66 ' .config
           grep -q "^CONFIG_VERSION_PRODUCT=\"${{ steps.version.outputs.device_model }}\"" .config
