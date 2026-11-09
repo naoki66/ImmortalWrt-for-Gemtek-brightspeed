@@ -5,12 +5,16 @@ RTL8261BE and RTL8261N use a PCS reset to latch the MAC-side USXGMII
 in-band configuration. Advertise the mode to phylink and perform that
 reset when phylink enables it.
 
+Re-apply the board's tuned host-SerDes flow_s values right after that
+reset, so the re-latched PCS does not have to wait for the next copper
+AN cycle to get its working configuration back.
+
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 Signed-off-by: naoki66 <naoki66@qq.com>
 
 --- a/drivers/net/phy/realtek/realtek_main.c
 +++ b/drivers/net/phy/realtek/realtek_main.c
-@@ -3334,6 +3334,28 @@ static int rtl826x_config_init(struct phy_device *phydev)
+@@ -3334,6 +3334,37 @@ static int rtl826x_config_init(struct phy_device *phydev)
  	return rtl826x_config_serdes_polarity(phydev);
  }
  
@@ -26,14 +30,23 @@ Signed-off-by: naoki66 <naoki66@qq.com>
 +static int rtl826x_config_inband(struct phy_device *phydev,
 +				  unsigned int modes)
 +{
++	int ret;
++
 +	if (modes != LINK_INBAND_ENABLE)
 +		return -EOPNOTSUPP;
 +
 +	/* The RTL8261 host PCS latches USXGMII in-band mode when a 10G PCS
 +	 * reset follows the MAC-side AN setup.
 +	 */
-+	return phy_write_mmd(phydev, MDIO_MMD_PCS, MDIO_CTRL1,
-+			     MDIO_CTRL1_RESET | MDIO_CTRL1_SPEED10G);
++	ret = phy_write_mmd(phydev, MDIO_MMD_PCS, MDIO_CTRL1,
++			    MDIO_CTRL1_RESET | MDIO_CTRL1_SPEED10G);
++	if (ret < 0)
++		return ret;
++
++	/* Restore the board's tuned host-SerDes values right after the reset
++	 * that re-latches the PCS instead of waiting for the next copper AN.
++	 */
++	return rtl826x_phy_patch_rtk_serdes(phydev);
 +}
 +
  static int rtl826x_suspend(struct phy_device *phydev)

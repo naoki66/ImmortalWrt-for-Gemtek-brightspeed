@@ -28,6 +28,12 @@ carrier is down for a grace window of complete PCS polling rounds, then
 pulse again if needed. Stop retrying only after netdev carrier is up, and
 restart the sequence if carrier later drops while copper remains up.
 
+phylink re-enters config_aneg() on every netdev open, after the in-band
+PCS has been latched again. Re-apply the tuned flow_s values there as
+well, so an open that follows a torn-down probe-time instance (one whose
+copper AN had already completed) starts from the board's final SerDes
+setup instead of the state left behind by the previous instance.
+
 This does not read Airoha MMIO or add a retry limit, DTE XS or PCS reset,
 TXPLL reset, or TX FIR default. Boards that opt in also skip the
 independent SDS reset work so it cannot race this sequence.
@@ -115,7 +121,7 @@ Assisted-by: Codex:GPT-5.6-sol
  	priv->phydev = phydev;
  	phydev->priv = priv;
  
-@@ -3425,11 +3434,17 @@
+@@ -3425,11 +3434,26 @@
  
  static int rtl826x_config_aneg(struct phy_device *phydev)
  {
@@ -129,11 +135,20 @@ Assisted-by: Codex:GPT-5.6-sol
 +		priv->rtk_serdes_state = RTL826X_RTK_SERDES_PULSE;
 +		priv->rtk_serdes_pulse_count = 0;
 +		priv->rtk_serdes_carrier_polls = 0;
++		/* phylink re-enters this callback on every netdev open, after
++		 * the in-band PCS has been latched again. Re-apply the tuned
++		 * flow_s values here as well so that path does not depend on
++		 * whatever the previous phylink instance left behind.
++		 */
++		ret = rtl826x_phy_patch_rtk_serdes(phydev);
++		if (ret < 0)
++			return ret;
++		phydev_info(phydev, "re-applied RTK SerDes flow_s on open\n");
 +	}
  	if (phydev->autoneg == AUTONEG_DISABLE)
  		return genphy_c45_pma_setup_forced(phydev);
  
-@@ -3459,8 +3474,33 @@
+@@ -3459,8 +3483,33 @@
  	return genphy_c45_check_and_restart_aneg(phydev, changed);
  }
  
@@ -167,7 +182,7 @@ Assisted-by: Codex:GPT-5.6-sol
  	int status;
  	int ret;
  
-@@ -3491,7 +3531,96 @@
+@@ -3491,7 +3540,96 @@
  			return ret;
  	}
  
