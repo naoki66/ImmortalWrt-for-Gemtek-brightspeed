@@ -69,8 +69,7 @@ Release 同时提供软件包 manifest，可用来确认镜像预装内容；不
 | **风扇 / 供电** | NCT7802 PWM 风扇；12 V 5 A | — | — | — |
 | **设备树** | [`an7581-xr1710g.dts`](target/linux/airoha/dts/an7581-xr1710g.dts)（另有未完成的 UBI 布局 DTS） | [`an7581-gemtek-xg2010g-ubi.dts`](target/linux/airoha/dts/an7581-gemtek-xg2010g-ubi.dts) | [`an7581-nokia_xg-040g-md-ubi.dts`](target/linux/airoha/dts/an7581-nokia_xg-040g-md-ubi.dts) | [`an7581-nokia_xg-040g-tf-ubi.dts`](target/linux/airoha/dts/an7581-nokia_xg-040g-tf-ubi.dts) |
 | **种子配置** | [`1710.config`](1710.config) | [`2010.config`](2010.config) | [`040.config`](040.config) | [`040-tf.config`](040-tf.config) |
-| **引导 / 状态** | 原厂 U-Boot + chainloader；UBI 布局暂未完成（缺少 trueKey） | naoki66/uboot-an758x，CI 构建 | naoki66/uboot-an758x，仓库附配置、CI 不构建 | 同 MD |
-| **默认管理地址** | `http://192.168.50.1` | `http://192.168.1.1` | `http://192.168.1.1` | `http://192.168.1.1` |
+| **引导 / 状态** | 原厂 U-Boot + chainloader；UBI 布局暂未完成（缺少 trueKey） | naoki66/uboot-an758x | naoki66/uboot-an758x | 同 MD |
 
 > 表中参数取自各设备 DTS、[`an7581.mk`](target/linux/airoha/image/an7581.mk) 与根目录 `*.config`；「—」表示仓库未给出该项。XR1710G 三频芯片为 MT7976GN / MT7977BN / MT7977AN，峰值为 802.11be 理论 PHY 速率，合计约 18.66 Gbps（BE19000 级别）；精确 MCS 记法为 1375 / 5765 / 11530 Mbps，差异仅来自取整。来源：[D-Link DPN-BE19000GR](https://www.dlink.com.sg/products/be19000-tri-band-10g-wi-fi-7-router)、[WikiDevi Brightspeed XR1710G](https://wikidevi.wi-cat.ru/Brightspeed_XR1710G)、[MediaTek Filogic 880](https://www.mediatek.com/zh-tw/products/broadband-wifi/mediatek-filogic-880)。
 
@@ -92,8 +91,8 @@ Release 同时提供软件包 manifest，可用来确认镜像预装内容；不
 
 ## 首次启动默认设置
 
-| 项目 | XR1710G | XG2010G |
-|------|---------|---------|
+| 项目 | XR1710G | XG2010G / Nokia XG-040G-MD / Nokia XG-040G-TF |
+|------|---------|-------------|
 | 管理地址 | `http://192.168.50.1` 或 `http://immortalwrt.lan` | `http://192.168.1.1` 或 `http://immortalwrt.lan` |
 | 用户名 / 密码 | `root` / 无密码 | `root` / 无密码 |
 | 无线 SSID | `ImmortalWrt-2G`、`ImmortalWrt-5G`、`ImmortalWrt-6G` | 不适用 |
