@@ -1,0 +1,114 @@
+[
+  {
+    "name": "ac_agent",
+    "checkout": "ac_agent_root",
+    "actual_git_head": "336a5346743df1b06bcad50897cbbfc818426dff",
+    "actual_head_tree": "b97ab075b8d702f189752e5269ca33020ebfa2f1",
+    "build_tree": "b97ab075b8d702f189752e5269ca33020ebfa2f1",
+    "local_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "repository": "naoki66/OpenWrt_AC-Controller"
+  },
+  {
+    "name": "app_airoha",
+    "checkout": "app_airoha",
+    "actual_git_head": "9263b4a64c5a76e51e9cafc88b5df432feec5ed4",
+    "actual_head_tree": "a4c1583848b5a10d03d84b911875b7fbfe156483",
+    "build_tree": "a4c1583848b5a10d03d84b911875b7fbfe156483",
+    "local_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "repository": "naoki66/luci-app-airoha"
+  },
+  {
+    "name": "argon",
+    "checkout": "luci-theme-argon",
+    "actual_git_head": "c6d63bd68aa9272e40c35cee5e615f45cc1e4eb0",
+    "actual_head_tree": "69862ea3e8285dd13a0f09122e6eeb49448d0f8f",
+    "build_tree": "025eef958411b84458c37d11c5404635a626370f",
+    "local_patch_sha256": "507cd9fbe17b513b8d772a3a60242abcd9fa0b01d22178f2499f8c189ad208d8",
+    "repository": "jerrykuku/luci-theme-argon",
+    "overlay_file": "argon-local.patch"
+  },
+  {
+    "name": "easytier",
+    "checkout": "easytier",
+    "actual_git_head": "9c51d3f8d2bfcefd039f2ff2354c6a7674293a06",
+    "actual_head_tree": "ed284bc58b1676efaeafbd59e8a58d03f4cbb694",
+    "build_tree": "ed284bc58b1676efaeafbd59e8a58d03f4cbb694",
+    "local_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "repository": "EasyTier/luci-app-easytier"
+  },
+  {
+    "name": "helloworld",
+    "checkout": "helloworld",
+    "actual_git_head": "425d4805ef6fa4d78759f0f0c96e1b31e8dde069",
+    "actual_head_tree": "635a8033dba7bbfe9b5335f3de8c11a70cda0f02",
+    "build_tree": "ca7f9c9b2be49a2d30e970cacd38165e5fc983c3",
+    "local_patch_sha256": "74658a8780e8bcbe1d1dfadce2acb0f94680daecef3d033ad5cb0be1fe7a16d7",
+    "repository": "fw876/helloworld",
+    "overlay_file": "helloworld-local.patch"
+  },
+  {
+    "name": "luci",
+    "checkout": "luci",
+    "actual_git_head": "319f7c96e3530246cf91cfdd9bacb3fa44dc3a4e",
+    "actual_head_tree": "3fa0f871451fa4487a79a882cda43bbfbebdb509",
+    "build_tree": "2d71f32da138cbf4695d31e7f32147a4a6437fc8",
+    "local_patch_sha256": "8bd748d799d2086c66c09d218d188c5507f241b7fe892b10a62b1a0ae6235b99",
+    "repository": "immortalwrt/luci",
+    "overlay_file": "luci-local.patch"
+  },
+  {
+    "name": "onu_config",
+    "checkout": "onu_config",
+    "actual_git_head": "3cb13560459f1d51136dac662baa1f399028b2b4",
+    "actual_head_tree": "596bfc21d827b3a2437ce89dad72441974b9fa82",
+    "build_tree": "596bfc21d827b3a2437ce89dad72441974b9fa82",
+    "local_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "repository": "naoki66/openwrt-pon-config-enhanced"
+  },
+  {
+    "name": "packages",
+    "checkout": "packages",
+    "actual_git_head": "1f3fd9d1ec3bdaa4b26f95ea49f4ce010aea539b",
+    "actual_head_tree": "21d4999cca52345a559f4be363f20cecb18486e0",
+    "build_tree": "baf2451dedf1a56901e5281a75df6af051627e6d",
+    "local_patch_sha256": "892906a7446da614cf9d9c42f2792f0575576dbbe769be822192f2b4d3199054",
+    "repository": "immortalwrt/packages",
+    "overlay_file": "packages-local.patch"
+  },
+  {
+    "name": "pon_drivers",
+    "checkout": "pon_drivers",
+    "actual_git_head": "e19bde08ac3f3218a783f22165d9a5ded06046d2",
+    "actual_head_tree": "75ae5d8c02d814e93c1d19059d5d7da798c48c80",
+    "build_tree": "75ae5d8c02d814e93c1d19059d5d7da798c48c80",
+    "local_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "repository": "naoki66/openwrt-pon-drivers-enhanced"
+  },
+  {
+    "name": "pushbot",
+    "checkout": "luci-app-pushbot",
+    "actual_git_head": "d9f3f2b16584b5f040658ebb9d6c3e656fbec9b5",
+    "actual_head_tree": "f6e3e8a5b08bbe5f962f85066b0f147ffd05c7b4",
+    "build_tree": "f6e3e8a5b08bbe5f962f85066b0f147ffd05c7b4",
+    "local_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "repository": "naoki66/luci-app-pushbot"
+  },
+  {
+    "name": "routing",
+    "checkout": "routing",
+    "actual_git_head": "39c42d389e2871504bacd0a6e178977e8727643e",
+    "actual_head_tree": "6dd1ce4096931667c14edb85312d772829a020b4",
+    "build_tree": "6dd1ce4096931667c14edb85312d772829a020b4",
+    "local_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "repository": "openwrt/routing"
+  },
+  {
+    "name": "telephony",
+    "checkout": "telephony",
+    "actual_git_head": "9bcb6d71db03377ff49ccb099be763add9a5b059",
+    "actual_head_tree": "21e4c3bee0d4e4d3e22b0720cc844e6a77c04bd3",
+    "build_tree": "21e4c3bee0d4e4d3e22b0720cc844e6a77c04bd3",
+    "local_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "repository": "openwrt/telephony"
+  }
+]

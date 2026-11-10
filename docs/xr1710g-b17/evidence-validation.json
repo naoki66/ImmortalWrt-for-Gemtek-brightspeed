@@ -1,0 +1,23 @@
+{
+  "time": "2026-11-11T07:19:18.742039+08:00",
+  "upstream_commit": "a6dce40a91ca3f0ebeca9e8f51c8318f4d453eb3",
+  "tested_source_commit": "e553ff6189cccdada2b572d451f02c251dd6ffb7",
+  "redacted_log_files": 37,
+  "source_bytes": 13988726,
+  "public_archive_bytes": 1466644,
+  "public_archive_sha256": "8f6f12a062e81f23e380a1c8ac6e591d0c02eba17f0131dfcb7d8e1b0ac6318a",
+  "redaction_counts": {
+    "IPv4": 2807,
+    "HOSTNAME": 1823,
+    "MAC": 8495,
+    "IPv6": 210,
+    "PC_HOST": 44,
+    "BOOT_ID": 3184,
+    "SSID": 1589,
+    "sensitive_line": 1,
+    "known_private_string": 39
+  },
+  "sensitive_identifier_map_published": false,
+  "source_originals_unchanged": true,
+  "public_archive_name": "\u539f\u59cb\u65e5\u5fd7_\u8131\u654f\u526f\u672c.tar.gz"
+}
