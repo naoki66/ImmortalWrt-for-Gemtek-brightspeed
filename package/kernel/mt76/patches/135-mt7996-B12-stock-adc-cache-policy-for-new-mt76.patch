@@ -1,0 +1,648 @@
+From: XR1710G local merge
+Subject: [PATCH] mt7996: port B12 stock ADC thermal policy and coherent cache to mt76 0936617d
+
+Consolidates former local patches 135-138 on the new driver. Preserve
+upstream beacon/SCS/MSCS capabilities and command/response validation.
+
+--- a/mt7996/init.c
++++ b/mt7996/init.c
+@@ -105,6 +105,128 @@
+ 	},
+ };
+ 
++static bool mt7996_thermal_query_blocked(struct mt7996_phy *phy)
++{
++	struct mt7996_dev *dev = phy->dev;
++
++	return !test_bit(MT76_STATE_MCU_RUNNING, &dev->mphy.state) ||
++	       test_bit(MT76_MCU_RESET, &dev->mphy.state) ||
++	       test_bit(MT76_RESTART, &dev->mphy.state) ||
++	       test_bit(MT76_RESET, &phy->mt76->state) ||
++	       dev->recovery.hw_full_reset ||
++	       dev->recovery.restart;
++}
++
++void mt7996_thermal_cache_reset(struct mt7996_dev *dev)
++{
++	struct mt7996_phy *phy;
++	unsigned long flags;
++
++	/* Thermal locks are initialized before hw_init_done is published. */
++	if (!dev->recovery.hw_init_done)
++		return;
++
++	mt7996_for_each_phy(dev, phy) {
++		spin_lock_irqsave(&phy->thermal_lock, flags);
++		phy->thermal_cache.valid = false;
++		phy->thermal_cache.generation++;
++		phy->thermal_cache.invalidations++;
++		spin_unlock_irqrestore(&phy->thermal_lock, flags);
++	}
++}
++
++static bool mt7996_thermal_cached(struct mt7996_phy *phy, int *temperature)
++{
++	struct mt7996_thermal_cache *cache = &phy->thermal_cache;
++
++	if (mt7996_thermal_query_blocked(phy)) {
++		if (cache->valid) {
++			cache->valid = false;
++			cache->generation++;
++			cache->invalidations++;
++		}
++		cache->busy_state++;
++		cache->last_read = MT7996_THERMAL_READ_STATE_BUSY;
++		*temperature = -EBUSY;
++		return true;
++	}
++	if (!cache->valid || !time_before(jiffies, cache->expiry))
++		return false;
++
++	*temperature = cache->result;
++	if (*temperature < 0) {
++		cache->backoff_hits++;
++		cache->last_read = MT7996_THERMAL_READ_BACKOFF;
++	} else {
++		cache->cache_hits++;
++		cache->last_read = MT7996_THERMAL_READ_CACHE;
++	}
++	return true;
++}
++
++static int mt7996_thermal_get_temperature(struct mt7996_phy *phy)
++{
++	struct mt7996_thermal_cache *cache = &phy->thermal_cache;
++	struct mt7996_dev *dev = phy->dev;
++	unsigned long flags;
++	u32 generation;
++	int temperature;
++	bool done;
++
++	spin_lock_irqsave(&phy->thermal_lock, flags);
++	cache->reads++;
++	done = mt7996_thermal_cached(phy, &temperature);
++	spin_unlock_irqrestore(&phy->thermal_lock, flags);
++	if (done)
++		return temperature;
++
++	if (!mutex_trylock(&dev->mt76.mutex)) {
++		/* A concurrent reader may have filled the cache since our first check. */
++		spin_lock_irqsave(&phy->thermal_lock, flags);
++		if (!mt7996_thermal_cached(phy, &temperature)) {
++			cache->busy_lock++;
++			cache->last_read = MT7996_THERMAL_READ_LOCK_BUSY;
++			temperature = -EBUSY;
++		}
++		spin_unlock_irqrestore(&phy->thermal_lock, flags);
++		return temperature;
++	}
++
++	spin_lock_irqsave(&phy->thermal_lock, flags);
++	done = mt7996_thermal_cached(phy, &temperature);
++	generation = cache->generation;
++	if (!done)
++		cache->queries++;
++	spin_unlock_irqrestore(&phy->thermal_lock, flags);
++	if (done)
++		goto out;
++
++	temperature = mt7996_mcu_get_temperature(phy);
++	spin_lock_irqsave(&phy->thermal_lock, flags);
++	if (generation != cache->generation || mt7996_thermal_query_blocked(phy)) {
++		/* Never publish an in-flight response across a recovery boundary. */
++		cache->valid = false;
++		cache->query_discarded++;
++		cache->busy_state++;
++		cache->last_read = MT7996_THERMAL_READ_STATE_BUSY;
++		temperature = -EBUSY;
++	} else {
++		cache->result = temperature;
++		cache->updated = jiffies;
++		cache->expiry = jiffies + (temperature < 0 ? 30 * HZ : 5 * HZ);
++		cache->valid = true;
++		cache->last_read = MT7996_THERMAL_READ_QUERY;
++		if (temperature < 0)
++			cache->query_errors++;
++		else
++			cache->query_success++;
++	}
++	spin_unlock_irqrestore(&phy->thermal_lock, flags);
++out:
++	mutex_unlock(&dev->mt76.mutex);
++	return temperature;
++}
++
+ static ssize_t mt7996_thermal_temp_show(struct device *dev,
+ 					struct device_attribute *attr,
+ 					char *buf)
+@@ -115,7 +237,7 @@
+ 
+ 	switch (i) {
+ 	case 0:
+-		temperature = mt7996_mcu_get_temperature(phy);
++		temperature = mt7996_thermal_get_temperature(phy);
+ 		if (temperature < 0)
+ 			return temperature;
+ 		/* display in millidegree celcius */
+@@ -126,6 +248,8 @@
+ 			       phy->throttle_temp[i - 1] * 1000);
+ 	case 3:
+ 		return sprintf(buf, "%hhu\n", phy->throttle_state);
++	case 4:
++		return sprintf(buf, "wifi_adc_band%u\n", phy->mt76->band_idx);
+ 	default:
+ 		return -EINVAL;
+ 	}
+@@ -168,12 +292,14 @@
+ }
+ 
+ static SENSOR_DEVICE_ATTR_RO(temp1_input, mt7996_thermal_temp, 0);
++static SENSOR_DEVICE_ATTR_RO(temp1_label, mt7996_thermal_temp, 4);
+ static SENSOR_DEVICE_ATTR_RW(temp1_crit, mt7996_thermal_temp, 1);
+ static SENSOR_DEVICE_ATTR_RW(temp1_max, mt7996_thermal_temp, 2);
+ static SENSOR_DEVICE_ATTR_RO(throttle1, mt7996_thermal_temp, 3);
+ 
+ static struct attribute *mt7996_hwmon_attrs[] = {
+ 	&sensor_dev_attr_temp1_input.dev_attr.attr,
++	&sensor_dev_attr_temp1_label.dev_attr.attr,
+ 	&sensor_dev_attr_temp1_crit.dev_attr.attr,
+ 	&sensor_dev_attr_temp1_max.dev_attr.attr,
+ 	&sensor_dev_attr_throttle1.dev_attr.attr,
+@@ -256,6 +382,8 @@
+ 	struct thermal_cooling_device *cdev;
+ 	struct device *hwmon;
+ 	const char *name;
++
++	spin_lock_init(&phy->thermal_lock);
+ 
+ 	name = devm_kasprintf(&wiphy->dev, GFP_KERNEL, "mt7996_%s.%d",
+ 			      wiphy_name(wiphy), phy->mt76->band_idx);
+--- a/mt7996/mcu.c
++++ b/mt7996/mcu.c
+@@ -226,6 +226,17 @@
+ 	int ret = 0;
+ 
+ 	if (!skb) {
++		/* An optional hwmon read must not reset all APs on its own.
++		 * Keep the error visible; control-command timeouts and the MCU
++		 * watchdog still use the normal recovery path below.
++		 */
++		if (cmd & MT7996_MCU_CMD_THERMAL_QUERY) {
++			dev_warn_ratelimited(mdev->dev,
++				"Temperature query (seq %d) timeout; hwmon read failed\n",
++				seq);
++			return -ETIMEDOUT;
++		}
++
+ 		dev_err(mdev->dev, "Message %08x (seq %d) timeout\n",
+ 			cmd, seq);
+ 
+@@ -275,6 +286,13 @@
+ mt7996_mcu_set_timeout(struct mt76_dev *mdev, int cmd)
+ {
+ 	mdev->mcu.timeout = 5 * HZ;
++
++	/* Read-only telemetry uses the stock THERMAL wait. */
++	if (cmd & MT7996_MCU_CMD_THERMAL_QUERY) {
++		/* XR1710G stock's THERMAL bridge overrides its wait to 3s. */
++		mdev->mcu.timeout = 3 * HZ;
++		return;
++	}
+ 
+ 	if (!(cmd & __MCU_CMD_FIELD_UNI))
+ 		return;
+@@ -5162,51 +5180,105 @@
+ 
+ int mt7996_mcu_get_temperature(struct mt7996_phy *phy)
+ {
+-#define TEMPERATURE_QUERY 0
+-#define GET_TEMPERATURE 0
++	struct mt7996_thermal_adc_result result;
++	int ret;
++
++	/* Stock CurrentTemperature uses action 0's temperature field, not
++	 * the ADC code and not the action 1 LVTS records.
++	 */
++	ret = mt7996_mcu_get_thermal_adc(phy, 0, &result);
++	if (ret)
++		return ret;
++	/* hwmon has one input per hardware band. Do not invent a die mapping
++	 * if firmware returns more than the single record verified on XR1710G.
++	 */
++	if (result.count != 1)
++		return -EPROTO;
++	if (!result.record[0].temperature && !result.record[0].adc)
++		return -ENODATA;
++	/* Bound the later degrees-to-millidegrees multiplication. */
++	if (result.record[0].temperature > INT_MAX / 1000)
++		return -ERANGE;
++
++	return result.record[0].temperature;
++}
++
++static int
++mt7996_mcu_parse_thermal_adc(const u8 *data, size_t size,
++			   struct mt7996_thermal_adc_result *result)
++{
++	u16 len;
++	unsigned int count, i;
++
++	memset(result, 0, sizeof(*result));
++	if (size < 8)
++		return -EPROTO;
++	if (get_unaligned_le16(data + 4) != 5)
++		return -EOPNOTSUPP;
++
++	len = get_unaligned_le16(data + 6);
++	if (len < 4 || len > size - 4 || (len - 4) % 12)
++		return -EPROTO;
++	count = (len - 4) / 12;
++	if (!count)
++		return -ENODATA;
++	if (count > MT7996_THERMAL_ADC_MAX_RECORDS)
++		return -EOVERFLOW;
++
++	for (i = 0; i < count; i++) {
++		const u8 *entry = data + 8 + i * 12;
++
++		result->record[i].info = get_unaligned_le32(entry);
++		result->record[i].temperature = get_unaligned_le32(entry + 4);
++		result->record[i].adc = get_unaligned_le32(entry + 8);
++	}
++	result->count = count;
++
++	return 0;
++}
++
++int mt7996_mcu_get_thermal_adc(struct mt7996_phy *phy, u8 action,
++			     struct mt7996_thermal_adc_result *result)
++{
+ 	struct {
+-		u8 _rsv[4];
+-
++		u8 rsv[4];
+ 		__le16 tag;
+ 		__le16 len;
+-
+ 		u8 rsv1;
+ 		u8 action;
+ 		u8 band_idx;
+-		u8 rsv2;
+-	} req = {
+-		.tag = cpu_to_le16(TEMPERATURE_QUERY),
+-		.len = cpu_to_le16(sizeof(req) - 4),
+-		.action = GET_TEMPERATURE,
++		u8 rsv2[2];
++	} __packed req = {
++		.tag = cpu_to_le16(0x0d),
++		.len = cpu_to_le16(9),
++		.action = action,
+ 		.band_idx = phy->mt76->band_idx,
+ 	};
+-	struct mt7996_mcu_thermal {
+-		u8 _rsv[4];
+-
+-		__le16 tag;
+-		__le16 len;
+-
+-		__le32 rsv;
+-		__le32 temperature;
+-	} __packed * res;
+ 	struct sk_buff *skb;
+ 	int ret;
+-	u32 temp;
+-
+-	ret = mt76_mcu_send_and_get_msg(&phy->dev->mt76, MCU_WM_UNI_CMD(THERMAL),
++
++	lockdep_assert_held(&phy->dev->mt76.mutex);
++	memset(result, 0, sizeof(*result));
++	if (action > 1)
++		return -EINVAL;
++
++	/* Shared by hwmon action 0 and explicit raw diagnostics. */
++	ret = mt76_mcu_send_and_get_msg(&phy->dev->mt76,
++					MCU_WM_UNI_CMD(THERMAL) |
++					MT7996_MCU_CMD_THERMAL_QUERY,
+ 					&req, sizeof(req), true, &skb);
+-	if (ret)
++	if (ret) {
++		if (ret > 0) {
++			result->fw_status = ret;
++			return -EREMOTEIO;
++		}
+ 		return ret;
+-	if (skb->len < sizeof(*res)) {
+-		dev_kfree_skb(skb);
+-		return -EINVAL;
+-	}
+-
+-	res = (void *)skb->data;
+-	temp = le32_to_cpu(res->temperature);
++	}
++
++	ret = mt7996_mcu_parse_thermal_adc(skb->data, skb->len, result);
+ 	dev_kfree_skb(skb);
+ 
+-	return temp;
++	return ret;
+ }
+ 
+ int mt7996_mcu_set_thermal_throttling(struct mt7996_phy *phy, u8 state)
+--- a/mt7996/mcu.h
++++ b/mt7996/mcu.h
+@@ -5,6 +5,9 @@
+ 
+ #ifndef __MT7996_MCU_H
+ #define __MT7996_MCU_H
++
++/* Host-only policy bit, never sent in on-wire MCU fields. */
++#define MT7996_MCU_CMD_THERMAL_QUERY BIT(30)
+ 
+ #include "../mt76_connac_mcu.h"
+ 
+--- a/mt7996/mt7996.h
++++ b/mt7996/mt7996.h
+@@ -434,6 +434,35 @@
+ 	} ring[MT7996_MAX_RRO_RRS_RING];
+ };
+ 
++enum mt7996_thermal_read_reason {
++	MT7996_THERMAL_READ_NONE,
++	MT7996_THERMAL_READ_CACHE,
++	MT7996_THERMAL_READ_BACKOFF,
++	MT7996_THERMAL_READ_QUERY,
++	MT7996_THERMAL_READ_LOCK_BUSY,
++	MT7996_THERMAL_READ_STATE_BUSY,
++};
++
++/* Protected by thermal_lock; never hold it across an MCU command. */
++struct mt7996_thermal_cache {
++	unsigned long updated;
++	unsigned long expiry;
++	int result;
++	u32 generation;
++	bool valid;
++	u8 last_read;
++	u64 reads;
++	u64 cache_hits;
++	u64 backoff_hits;
++	u64 busy_lock;
++	u64 busy_state;
++	u64 queries;
++	u64 query_success;
++	u64 query_errors;
++	u64 query_discarded;
++	u64 invalidations;
++};
++
+ struct mt7996_phy {
+ 	struct mt76_phy *mt76;
+ 	struct mt7996_dev *dev;
+@@ -445,6 +474,9 @@
+ 	u8 throttle_state;
+ 	u32 throttle_temp[2]; /* 0: critical high, 1: maximum */
+ 
++	spinlock_t thermal_lock;
++	struct mt7996_thermal_cache thermal_cache;
++
+ 	u32 rxfilter;
+ 	u64 omac_mask;
+ 
+@@ -471,7 +503,31 @@
+ 	bool offchan_bcn_stopped;
+ };
+ 
++/* Vendor thermal/ADC records: action 0 also supplies hwmon temperature. */
++#define MT7996_THERMAL_ADC_MAX_RECORDS 16
++
++struct mt7996_thermal_adc_result {
++	u32 fw_status;
++	u8 count;
++	struct {
++		u32 info;
++		u32 temperature;
++		u32 adc;
++	} record[MT7996_THERMAL_ADC_MAX_RECORDS];
++};
++
++struct mt7996_thermal_adc_debug {
++	struct mt7996_thermal_adc_result result;
++	unsigned long queried_at;
++	unsigned long next_query;
++	int status;
++	u8 band;
++	u8 action;
++	bool queried;
++};
++
+ struct mt7996_dev {
++	struct mt7996_thermal_adc_debug thermal_adc_debug;
+ 	union { /* must be first */
+ 		struct mt76_dev mt76;
+ 		struct mt76_phy mphy;
+@@ -884,6 +940,9 @@
+ int mt7996_mcu_set_bssid_mapping_addr(struct mt76_dev *dev, u8 band_idx);
+ int mt7996_mcu_get_chan_mib_info(struct mt7996_phy *phy, bool chan_switch);
+ int mt7996_mcu_get_temperature(struct mt7996_phy *phy);
++void mt7996_thermal_cache_reset(struct mt7996_dev *dev);
++int mt7996_mcu_get_thermal_adc(struct mt7996_phy *phy, u8 action,
++			     struct mt7996_thermal_adc_result *result);
+ int mt7996_mcu_set_thermal_throttling(struct mt7996_phy *phy, u8 state);
+ int mt7996_mcu_set_thermal_protect(struct mt7996_phy *phy, bool enable);
+ int mt7996_mcu_set_txpower_sku(struct mt7996_phy *phy);
+--- a/mt7996/debugfs.c
++++ b/mt7996/debugfs.c
+@@ -12,6 +12,114 @@
+ #define FW_BIN_LOG_MAGIC	0x44d9c99a
+ 
+ /** global debugfs **/
++
++static ssize_t
++mt7996_thermal_adc_query_write(struct file *file, const char __user *user_buf,
++			       size_t count, loff_t *ppos)
++{
++	struct mt7996_dev *dev = file->private_data;
++	struct mt7996_thermal_adc_debug *diag = &dev->thermal_adc_debug;
++	struct mt7996_phy *phy;
++	unsigned int band, action;
++	char buf[32], *arg, *value;
++	int ret;
++
++	if (!count || count >= sizeof(buf))
++		return -EINVAL;
++	if (copy_from_user(buf, user_buf, count))
++		return -EFAULT;
++	if (memchr(buf, '\0', count))
++		return -EINVAL;
++	buf[count] = '\0';
++	arg = strim(buf);
++	value = strpbrk(arg, " \t");
++	if (!value)
++		return -EINVAL;
++	*value++ = '\0';
++	value = skip_spaces(value);
++	if (kstrtouint(arg, 10, &band) || kstrtouint(value, 10, &action) ||
++	    band >= __MT_MAX_BAND || action > 1)
++		return -EINVAL;
++	if (!mutex_trylock(&dev->mt76.mutex))
++		return -EBUSY;
++
++	phy = __mt7996_phy(dev, band);
++	if (!phy) {
++		ret = -ENODEV;
++		goto out;
++	}
++	if (!test_bit(MT76_STATE_MCU_RUNNING, &dev->mphy.state) ||
++	    test_bit(MT76_MCU_RESET, &dev->mphy.state) ||
++	    test_bit(MT76_RESTART, &dev->mphy.state) ||
++	    test_bit(MT76_RESET, &phy->mt76->state) ||
++	    dev->recovery.hw_full_reset || dev->recovery.restart) {
++		ret = -EBUSY;
++		goto out;
++	}
++	if (diag->queried && time_before(jiffies, diag->next_query)) {
++		ret = -EAGAIN;
++		goto out;
++	}
++
++	memset(diag, 0, sizeof(*diag));
++	diag->band = band;
++	diag->action = action;
++	diag->queried = true;
++	ret = mt7996_mcu_get_thermal_adc(phy, action, &diag->result);
++	diag->status = ret;
++	diag->queried_at = jiffies;
++	diag->next_query = jiffies + (ret ? 30 * HZ : 5 * HZ);
++	if (ret)
++		dev_warn_ratelimited(dev->mt76.dev,
++			"Vendor thermal ADC query band %u action %u failed: %d, firmware status %u\n",
++			band, action, ret, diag->result.fw_status);
++out:
++	mutex_unlock(&dev->mt76.mutex);
++
++	if (ret)
++		return ret;
++	return count;
++}
++
++static const struct file_operations mt7996_thermal_adc_query_fops = {
++	.owner = THIS_MODULE,
++	.open = simple_open,
++	.write = mt7996_thermal_adc_query_write,
++};
++
++static int mt7996_thermal_adc_show(struct seq_file *s, void *data)
++{
++	struct mt7996_dev *dev = s->private;
++	struct mt7996_thermal_adc_debug diag;
++	unsigned int i;
++
++	if (!mutex_trylock(&dev->mt76.mutex))
++		return -EBUSY;
++	diag = dev->thermal_adc_debug;
++	mutex_unlock(&dev->mt76.mutex);
++
++	if (!diag.queried) {
++		seq_puts(s, "not queried; explicit band/action write required\n");
++		return 0;
++	}
++	seq_printf(s, "band=%u action=%u status=%d firmware_status=%u sampled_jiffies=%lu\n",
++		   diag.band, diag.action, diag.status, diag.result.fw_status,
++		   diag.queried_at);
++	if (diag.status)
++		return 0;
++	seq_printf(s, "records=%u; raw fields, scaling and sensor IDs unverified\n",
++		   diag.result.count);
++	for (i = 0; i < diag.result.count; i++)
++		seq_printf(s, "record[%u] info=0x%08x temperature_raw=0x%08x adc_raw=0x%08x\n",
++			   i, diag.result.record[i].info,
++			   diag.result.record[i].temperature,
++			   diag.result.record[i].adc);
++
++	return 0;
++}
++
++DEFINE_SHOW_ATTRIBUTE(mt7996_thermal_adc);
++
+ 
+ static int
+ mt7996_implicit_txbf_set(void *data, u64 val)
+@@ -990,6 +1098,45 @@
+ DEFINE_DEBUGFS_ATTRIBUTE(fops_vow_atf, mt7996_vow_atf_get, mt7996_vow_atf_set,
+ 			 "%lld\n");
+ 
++static int mt7996_thermal_hwmon_status_show(struct seq_file *s, void *data)
++{
++	static const char * const reasons[] = {
++		"none", "cache", "error_backoff", "query", "lock_busy", "state_busy",
++	};
++	struct mt7996_dev *dev = s->private;
++	struct mt7996_phy *phy;
++
++	seq_puts(s, "source=vendor_adc_action0 success_ttl_ms=5000 error_backoff_ms=30000\n");
++	mt7996_for_each_phy(dev, phy) {
++		struct mt7996_thermal_cache cache;
++		unsigned long flags, now;
++		const char *state;
++		bool fresh;
++
++		spin_lock_irqsave(&phy->thermal_lock, flags);
++		cache = phy->thermal_cache;
++		now = jiffies;
++		spin_unlock_irqrestore(&phy->thermal_lock, flags);
++		fresh = cache.valid && time_before(now, cache.expiry);
++		state = !cache.valid ? "empty" : !fresh ? "expired" :
++			cache.result < 0 ? "error_backoff" : "valid";
++		seq_printf(s, "band=%u cache_state=%s cache_age_ms=%u cache_remaining_ms=%u last_result=%d generation=%u last_read=%s\n",
++			   phy->mt76->band_idx, state,
++			   cache.valid ? jiffies_to_msecs(now - cache.updated) : 0,
++			   fresh ? jiffies_to_msecs(cache.expiry - now) : 0,
++			   cache.result, cache.generation,
++			   cache.last_read < ARRAY_SIZE(reasons) ? reasons[cache.last_read] : "unknown");
++		seq_printf(s, "reads=%llu cache_hits=%llu backoff_hits=%llu busy_lock=%llu busy_state=%llu queries=%llu query_success=%llu query_errors=%llu query_discarded=%llu invalidations=%llu\n",
++			   cache.reads, cache.cache_hits, cache.backoff_hits,
++			   cache.busy_lock, cache.busy_state, cache.queries,
++			   cache.query_success, cache.query_errors,
++			   cache.query_discarded, cache.invalidations);
++	}
++	return 0;
++}
++
++DEFINE_SHOW_ATTRIBUTE(mt7996_thermal_hwmon_status);
++
+ int mt7996_init_debugfs(struct mt7996_dev *dev)
+ {
+ 	struct dentry *dir;
+@@ -1022,6 +1169,13 @@
+ 	debugfs_create_devm_seqfile(dev->mt76.dev, "rdd_monitor", dir,
+ 				    mt7996_rdd_monitor);
+ 
++	debugfs_create_file("thermal_adc_query", 0200, dir, dev,
++			    &mt7996_thermal_adc_query_fops);
++	debugfs_create_file("thermal_adc", 0400, dir, dev,
++			    &mt7996_thermal_adc_fops);
++	debugfs_create_file("thermal_hwmon_status", 0400, dir, dev,
++			    &mt7996_thermal_hwmon_status_fops);
++
+ 	dev->debugfs_dir = dir;
+ 
+ 	return 0;
+--- a/mt7996/mac.c
++++ b/mt7996/mac.c
+@@ -2601,6 +2601,7 @@
+ 
+ 	/* chip full reset */
+ 	if (dev->recovery.restart) {
++		mt7996_thermal_cache_reset(dev);
+ 		/* disable WA/WM WDT */
+ 		mt76_clear(dev, MT_WFDMA0_MCU_HOST_INT_ENA,
+ 			   MT_MCU_CMD_WDT_MASK);
+@@ -2626,6 +2627,8 @@
+ 
+ 	if (!(READ_ONCE(dev->recovery.state) & MT_MCU_CMD_STOP_DMA))
+ 		return;
++
++	mt7996_thermal_cache_reset(dev);
+ 
+ 	dev_info(dev->mt76.dev,"\n%s L1 SER recovery start.",
+ 		 wiphy_name(hw->wiphy));

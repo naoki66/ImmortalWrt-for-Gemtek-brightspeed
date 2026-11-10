@@ -64,3 +64,6 @@ passing runs and faults; no single patch is established as the solution.
 See TESTING.md. Public evidence is restricted to kernel errors and aggregate
 test information. No credentials, subscriptions, proxy configuration or raw
 private router backup are included. Original patch authors/origins are retained.
+
+The fifth commit also refreshes the existing beacon-protection patch context
+after the ADC insertion; it preserves the upstream advertised capability.
