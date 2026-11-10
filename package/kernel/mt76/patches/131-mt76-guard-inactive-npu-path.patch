@@ -1,0 +1,30 @@
+Subject: [PATCH] mt76: guard uninitialized Airoha NPU queues
+Upstream-Status: Inappropriate [local fault isolation candidate]
+
+Keep the official NPU attachment path enabled by default. Retain cleanup
+and allocation guards for failed initialization or load-time opt-out.
+
+--- a/npu.c
++++ b/npu.c
+@@ -54,6 +54,9 @@
+ 
+ void mt76_npu_queue_cleanup(struct mt76_dev *dev, struct mt76_queue *q)
+ {
++	if (!q->ndesc)
++		return;
++
+ 	spin_lock_bh(&q->lock);
+ 	while (q->queued > 0) {
+ 		struct mt76_queue_entry *e = &q->entry[q->tail];
+--- a/mt7996/npu.c
++++ b/mt7996/npu.c
+@@ -561,6 +561,9 @@
+ {
+ 	int i, err;
+ 
++	if (!mt76_npu_device_active(&dev->mt76))
++		return 0;
++
+ 	BUILD_BUG_ON(ARRAY_SIZE(dev->npu_txd_addr) % 3);
+ 
+ 	for (i = 0; i < ARRAY_SIZE(dev->npu_txd_addr); i += 3) {
