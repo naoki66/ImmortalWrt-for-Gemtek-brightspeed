@@ -1,0 +1,20 @@
+--- a/lang/python/python3/Makefile
++++ b/lang/python/python3/Makefile
+@@ -181,7 +181,7 @@
+ 	PYTHONSTRICTEXTENSIONBUILD=1
+ 
+ CONFIGURE_ARGS += \
+-	--enable-optimizations \
++	--disable-optimizations \
+ 	--enable-shared \
+ 	--disable-test-modules \
+ 	--with-build-python \
+@@ -323,7 +323,7 @@
+ 
+ HOST_CONFIGURE_ARGS += \
+ 	--with-readline=no \
+-	--enable-optimizations \
++	--disable-optimizations \
+ 	--disable-test-modules \
+ 	--with-ensurepip=upgrade \
+ 	--with-ssl-default-suites=openssl \

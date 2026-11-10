@@ -1,0 +1,65 @@
+From: XR1710G local build <xr1710g-build@localhost>
+Subject: [PATCH] net: airoha: define flow stats helper before first use
+
+The upstream 9999-15 patch calls the new helper before its definition,
+which fails with implicit-declaration and conflicting-type errors. Move
+the unchanged helper before both callers. Cast the CPU-port field to u32
+to match the existing %u format. Preserve the latest NPU/PPE behavior.
+
+--- a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
+@@ -8,6 +8,23 @@
+ 
+ #include "airoha_regs.h"
+ #include "airoha_eth.h"
++
++/* The per-entry counters live in a DMA region the NPU fills while it
++ * forwards a flow. Without a mapped stats window nothing ever updates
++ * them, so every read returns zero: report that instead of a fake 0.
++ */
++static bool airoha_ppe_flow_stats_available(struct airoha_ppe *ppe)
++{
++	struct airoha_npu *npu;
++	bool available;
++
++	rcu_read_lock();
++	npu = rcu_dereference(ppe->eth->npu);
++	available = npu && npu->stats;
++	rcu_read_unlock();
++
++	return available;
++}
+ 
+ static void airoha_debugfs_ppe_print_tuple(struct seq_file *m,
+ 					   void *src_addr, void *dest_addr,
+@@ -220,29 +237,12 @@
+ 		seq_printf(m, "ppe%u_table_cfg: %08x\n", i,
+ 			   airoha_fe_rr(eth, REG_PPE_TB_CFG(i)));
+ 		seq_printf(m, "ppe%u_gdm2_default_cpu_port: %u\n", i,
+-			   FIELD_GET(DFT_CPORT_MASK(AIROHA_GDM2_IDX), cport));
++			   (u32)FIELD_GET(DFT_CPORT_MASK(AIROHA_GDM2_IDX), cport));
+ 	}
+ 
+ 	return 0;
+ }
+ DEFINE_SHOW_ATTRIBUTE(airoha_ppe_debugfs_config);
+-
+-/* The per-entry counters live in a DMA region the NPU fills while it
+- * forwards a flow. Without a mapped stats window nothing ever updates
+- * them, so every read returns zero: report that instead of a fake 0.
+- */
+-static bool airoha_ppe_flow_stats_available(struct airoha_ppe *ppe)
+-{
+-	struct airoha_npu *npu;
+-	bool available;
+-
+-	rcu_read_lock();
+-	npu = rcu_dereference(ppe->eth->npu);
+-	available = npu && npu->stats;
+-	rcu_read_unlock();
+-
+-	return available;
+-}
+ 
+ static int airoha_ppe_debugfs_summary_show(struct seq_file *m, void *private)
+ {

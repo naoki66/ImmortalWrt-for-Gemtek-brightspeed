@@ -1,0 +1,15 @@
+--- a/Documentation/devicetree/bindings/phy/airoha,an7581-usb-phy.yaml
++++ b/Documentation/devicetree/bindings/phy/airoha,an7581-usb-phy.yaml
+@@ -42,6 +42,12 @@
+     description: Phandle to the SCU node for USB 3.0 Serdes mode validation.
+     $ref: /schemas/types.yaml#/definitions/phandle
+ 
++  airoha,pcie-analog-init:
++    description: Apply the board-required CDR, bandgap and crystal analog
++      settings when the shared SerDes is used by PCIe2, independently of
++      USB3 SSC and USB controller reset settings.
++    type: boolean
++
+   '#phy-cells':
+     const: 1
+ 

@@ -32,9 +32,10 @@ $(eval $(call BuildPackage,airoha-en7581-npu-firmware))
 Package/airoha-en7581-mt7996-npu-firmware = $(call Package/firmware-default,Airoha EN7581+MT7996 NPU firmware,,LICENSE.airoha)
 define Package/airoha-en7581-mt7996-npu-firmware/install
 	$(INSTALL_DIR) $(1)/lib/firmware/airoha
+	# AN7581+MT7996 candidate: verified Airoha developer NPU v0.8 blobs.
 	$(CP) \
-		$(PKG_BUILD_DIR)/airoha/en7581_MT7996_npu_data.bin \
-		$(PKG_BUILD_DIR)/airoha/en7581_MT7996_npu_rv32.bin \
+		$(TOPDIR)/target/linux/airoha/an7581/firmware/airoha/en7581_MT7996_npu_data.bin \
+		$(TOPDIR)/target/linux/airoha/an7581/firmware/airoha/en7581_MT7996_npu_rv32.bin \
 		$(1)/lib/firmware/airoha
 endef
 
