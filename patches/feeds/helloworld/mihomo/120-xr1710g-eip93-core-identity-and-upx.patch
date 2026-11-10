@@ -1,0 +1,20 @@
+--- a/mihomo/Makefile
++++ b/mihomo/Makefile
+@@ -18,7 +18,7 @@
+ PKG_BUILD_PARALLEL:=1
+ PKG_BUILD_FLAGS:=no-mips16
+ 
+-PKG_BUILD_VERSION:=v$(PKG_VERSION)
++PKG_BUILD_VERSION:=v$(PKG_VERSION)-an7581-eip93
+ PKG_BUILD_TIME:=$(shell date -u -Iseconds)
+ 
+ GO_PKG:=github.com/metacubex/mihomo
+@@ -44,7 +44,7 @@
+ define Build/Install
+ 	$(INSTALL_DIR) $(PKG_BUILD_DIR)/.upx
+ 	$(INSTALL_BIN) $(GO_PKG_BUILD_BIN_DIR)/mihomo $(PKG_BUILD_DIR)/.upx/mihomo
+-	$(STAGING_DIR_HOST)/bin/upx --lzma --best $(PKG_BUILD_DIR)/.upx/mihomo
++	$(STAGING_DIR_HOSTPKG)/bin/upx --lzma --best $(PKG_BUILD_DIR)/.upx/mihomo
+ endef
+ 
+ # Go's -s -w flags strip the binary before UPX; do not strip it again.
