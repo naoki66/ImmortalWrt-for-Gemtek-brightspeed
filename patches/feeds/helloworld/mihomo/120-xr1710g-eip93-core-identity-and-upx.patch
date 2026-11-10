@@ -1,0 +1,22 @@
+diff --git a/mihomo/Makefile b/mihomo/Makefile
+index 07ceb4e834bbc8c7e270aec0d205e74506173b86..d4e3d5dc7470e83bfd14c02e5351365234a8a02e 100644
+--- a/mihomo/Makefile
++++ b/mihomo/Makefile
+@@ -18,7 +18,7 @@ PKG_BUILD_DEPENDS:=golang/host upx/host
+ PKG_BUILD_PARALLEL:=1
+ PKG_BUILD_FLAGS:=no-mips16
+ 
+-PKG_BUILD_VERSION:=v$(PKG_VERSION)
++PKG_BUILD_VERSION:=v$(PKG_VERSION)-xrB15-eip93
+ PKG_BUILD_TIME:=$(shell date -u -Iseconds)
+ 
+ GO_PKG:=github.com/metacubex/mihomo
+@@ -44,7 +44,7 @@ endif
+ define Build/Install
+ 	$(INSTALL_DIR) $(PKG_BUILD_DIR)/.upx
+ 	$(INSTALL_BIN) $(GO_PKG_BUILD_BIN_DIR)/mihomo $(PKG_BUILD_DIR)/.upx/mihomo
+-	$(STAGING_DIR_HOST)/bin/upx --lzma --best $(PKG_BUILD_DIR)/.upx/mihomo
++	$(STAGING_DIR_HOSTPKG)/bin/upx --lzma --best $(PKG_BUILD_DIR)/.upx/mihomo
+ endef
+ 
+ # Go's -s -w flags strip the binary before UPX; do not strip it again.
