@@ -1,0 +1,10 @@
+#!/bin/sh
+# Run once, after the individual themes register their defaults. This also
+# selects Material when an upgrade restores the old Argon LuCI configuration.
+uci -q get luci.main >/dev/null || exit 1
+uci -q batch <<'EOF' || exit 1
+set luci.themes.Material='/luci-static/material'
+set luci.main.mediaurlbase='/luci-static/material'
+commit luci
+EOF
+exit 0
