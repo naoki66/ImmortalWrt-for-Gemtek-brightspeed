@@ -263,7 +263,7 @@
 		      "sec-perstout";
 
 	num-lanes = <2>;
-	max-link-speed = <2>;
+	max-link-speed = <3>;
 
 	airoha,scu = <&scuclk>;
 
