@@ -1,0 +1,16 @@
+--- a/applications/luci-app-openclash/root/usr/share/openclash/openclash_core.sh
++++ b/applications/luci-app-openclash/root/usr/share/openclash/openclash_core.sh
+@@ -14,6 +14,13 @@
+    flock -u 872 2>/dev/null
+    rm -rf "/tmp/lock/openclash_core.lock" 2>/dev/null
+ }
++
++# Keep the package-private EIP93 core unless stock replacement is requested.
++# Subscription/rule updates do not use this core-download guard.
++if [ -f /usr/share/xr1710g-proxy-accel/env.sh ] && [ "$(uci -q get xr1710g_crypto.main.protect_bundled_core)" != "0" ]; then
++   LOG_WARN "Bundled EIP93 core retained. Upgrade it with the firmware/package; set xr1710g_crypto.main.protect_bundled_core=0 to allow a stock core (without the overlay)."
++   exit 0
++fi
+ 
+ set_lock
+ inc_job_counter
