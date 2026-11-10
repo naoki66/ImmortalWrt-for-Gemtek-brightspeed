@@ -1,0 +1,88 @@
+From 3edfc0cbf7dc666a0b051b54f51634d6ff2a3be6 Mon Sep 17 00:00:00 2001
+From: Shayne Chen <shayne.chen@mediatek.com>
+Subject: [PATCH] wifi: mt76: mt7996: use irqsave on reg_lock to prevent AP panic
+
+AP panic (Asynchronous SError) can occur when the MT7996 register remap
+window (protected by dev->reg_lock) is accessed from hardirq context:
+spin_lock_bh does not disable hardirqs, so an interrupt can reenter the
+remap window mid-access. Use spin_lock_irqsave/irqrestore instead.
+
+Rebased onto OpenWrt mt76 pin be5ce791 (2026-09-01): upstream 69f26dbae7 changed the
+addr test to INVALID_REG_ADDR. Previously rebased onto b2704cf5 (2026-08-01); original MTK context
+was cut against an older base. Original: gerrit 12465539 (mtk-openwrt-feeds).
+
+Signed-off-by: Shayne Chen <shayne.chen@mediatek.com>
+---
+--- a/mt7996/mmio.c
++++ b/mt7996/mmio.c
+@@ -365,29 +365,31 @@
+ 			  size_t len)
+ {
+ 	u32 addr = __mt7996_reg_addr(dev, offset);
++	unsigned long flags;
+ 
+ 	if (addr != INVALID_REG_ADDR) {
+ 		memcpy_fromio(buf, dev->mt76.mmio.regs + addr, len);
+ 		return;
+ 	}
+ 
+-	spin_lock_bh(&dev->reg_lock);
++	spin_lock_irqsave(&dev->reg_lock, flags);
+ 	memcpy_fromio(buf, dev->mt76.mmio.regs +
+ 			   __mt7996_reg_remap_addr(dev, offset), len);
+-	spin_unlock_bh(&dev->reg_lock);
++	spin_unlock_irqrestore(&dev->reg_lock, flags);
+ }
+ 
+ static u32 mt7996_rr(struct mt76_dev *mdev, u32 offset)
+ {
+ 	struct mt7996_dev *dev = container_of(mdev, struct mt7996_dev, mt76);
+ 	u32 addr = __mt7996_reg_addr(dev, offset), val;
++	unsigned long flags;
+ 
+ 	if (addr != INVALID_REG_ADDR)
+ 		return dev->bus_ops->rr(mdev, addr);
+ 
+-	spin_lock_bh(&dev->reg_lock);
++	spin_lock_irqsave(&dev->reg_lock, flags);
+ 	val = dev->bus_ops->rr(mdev, __mt7996_reg_remap_addr(dev, offset));
+-	spin_unlock_bh(&dev->reg_lock);
++	spin_unlock_irqrestore(&dev->reg_lock, flags);
+ 
+ 	return val;
+ }
+@@ -396,28 +398,30 @@
+ {
+ 	struct mt7996_dev *dev = container_of(mdev, struct mt7996_dev, mt76);
+ 	u32 addr = __mt7996_reg_addr(dev, offset);
++	unsigned long flags;
+ 
+ 	if (addr != INVALID_REG_ADDR) {
+ 		dev->bus_ops->wr(mdev, addr, val);
+ 		return;
+ 	}
+ 
+-	spin_lock_bh(&dev->reg_lock);
++	spin_lock_irqsave(&dev->reg_lock, flags);
+ 	dev->bus_ops->wr(mdev, __mt7996_reg_remap_addr(dev, offset), val);
+-	spin_unlock_bh(&dev->reg_lock);
++	spin_unlock_irqrestore(&dev->reg_lock, flags);
+ }
+ 
+ static u32 mt7996_rmw(struct mt76_dev *mdev, u32 offset, u32 mask, u32 val)
+ {
+ 	struct mt7996_dev *dev = container_of(mdev, struct mt7996_dev, mt76);
+ 	u32 addr = __mt7996_reg_addr(dev, offset);
++	unsigned long flags;
+ 
+ 	if (addr != INVALID_REG_ADDR)
+ 		return dev->bus_ops->rmw(mdev, addr, mask, val);
+ 
+-	spin_lock_bh(&dev->reg_lock);
++	spin_lock_irqsave(&dev->reg_lock, flags);
+ 	val = dev->bus_ops->rmw(mdev, __mt7996_reg_remap_addr(dev, offset), mask, val);
+-	spin_unlock_bh(&dev->reg_lock);
++	spin_unlock_irqrestore(&dev->reg_lock, flags);
+ 
+ 	return val;
+ }

@@ -1,0 +1,14 @@
+[
+  {
+    "path": "lib/firmware/airoha/en7581_MT7996_npu_data.bin",
+    "size": 3092,
+    "sha256": "6fd9506e399ebb309801ac2ecc74d3e10fa66731afc828c76fde8a67b2153f49",
+    "source": "https://github.com/zhengping-zhang/airoha-npu/blob/1df6a36f849ea52cadfc326ec5b583d658be630e/en7581_MT7996_npu_data.bin"
+  },
+  {
+    "path": "lib/firmware/airoha/en7581_MT7996_npu_rv32.bin",
+    "size": 125832,
+    "sha256": "7068a987bb95e89129a69de10d598f234a4400023eb23aacc8eb377e5f0fe0ea",
+    "source": "https://github.com/zhengping-zhang/airoha-npu/blob/1df6a36f849ea52cadfc326ec5b583d658be630e/en7581_MT7996_npu_rv32.bin"
+  }
+]

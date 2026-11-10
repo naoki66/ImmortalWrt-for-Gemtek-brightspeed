@@ -1,0 +1,12 @@
+diff --git a/applications/luci-app-passwall/root/usr/share/passwall/app.sh b/applications/luci-app-passwall/root/usr/share/passwall/app.sh
+index 0056cbe1053754746734258d5c0e8d63d83b8fa7..82c45c3d36ec81c865ae80dd73d006a0557de1dc 100755
+--- a/applications/luci-app-passwall/root/usr/share/passwall/app.sh
++++ b/applications/luci-app-passwall/root/usr/share/passwall/app.sh
+@@ -8,6 +8,7 @@
+ . /usr/share/libubox/jshn.sh
+ 
+ . /usr/share/passwall/utils.sh
++[ ! -r /usr/share/xr1710g-proxy-accel/env.sh ] || . /usr/share/xr1710g-proxy-accel/env.sh
+ GLOBAL_ACL_PATH=${TMP_ACL_PATH}/default
+ LUA_UTIL_PATH=/usr/lib/lua/luci/passwall
+ UTIL_SINGBOX=$LUA_UTIL_PATH/util_sing-box.lua

@@ -234,6 +234,11 @@
 		reg = <0x2e>;
 	};
 };
+/* XR1710G stock PCIe2 analog setup, independent of USB3 reset. */
+&usb1_phy {
+	airoha,pcie-analog-init;
+};
+
 &pcie0 {
 	status = "okay";
 

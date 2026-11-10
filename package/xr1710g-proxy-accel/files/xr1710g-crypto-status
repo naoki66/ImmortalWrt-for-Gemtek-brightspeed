@@ -1,0 +1,22 @@
+#!/bin/sh
+echo 'XR1710G EIP93 proxy acceleration'
+printf 'Policy: '
+uci -q get xr1710g_crypto.main.mode || echo auto
+printf 'OpenClash core: '
+readlink -f /etc/openclash/core/clash_meta
+printf 'Bundled Mihomo: '
+/usr/libexec/mihomo -v 2>/dev/null | head -n 1
+printf 'Bundled Xray: '
+/usr/bin/xray version 2>/dev/null | head -n 1
+echo 'Device compatibility:'
+tr '\000' '\n' < /sys/firmware/devicetree/base/compatible
+echo 'CPU features:'
+sed -n '/^Features/{p;q;}' /proc/cpuinfo
+echo 'EIP93 interrupt counters (compare before and after AES-GCM traffic):'
+grep -i -E 'eip93|1fb70000' /proc/interrupts
+echo 'Relevant registered kernel algorithms:'
+awk 'BEGIN {RS=""} /aes-eip93|gcm_base/ {print $0 "\n"}' /proc/crypto
+echo 'Recent backend activation notices:'
+logread | grep -E 'Mihomo EIP93:|Xray EIP93:' | tail -n 6
+[ ! -r /tmp/openclash.log ] || grep -F 'Mihomo EIP93:' /tmp/openclash.log | tail -n 3
+echo 'An activation notice is not proof of faster throughput. Compare IRQ growth and an off-mode control.'

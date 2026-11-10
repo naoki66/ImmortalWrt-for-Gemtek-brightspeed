@@ -1,0 +1,76 @@
+[
+  {
+    "image": "engineering",
+    "path": "lib/modules/5.4.55/mt_wifi.ko",
+    "size": 14947792,
+    "sha256": "a1f72fb0763ac1dd46b284dd7ebd6842f9f3f911425d48f29210a6d1e357a77c"
+  },
+  {
+    "image": "engineering",
+    "path": "lib/modules/5.4.55/mtk_hwifi.ko",
+    "size": 161776,
+    "sha256": "2d043e6a8c600ed6a0b08b14565b460d2e1572d5ae947d8562512c810cbf9acf"
+  },
+  {
+    "image": "engineering",
+    "path": "etc/config/fan",
+    "sha256": "cac485e914bf0beb3707bf1fcac2ce75078171e67909cf1da606d446913564a7"
+  },
+  {
+    "image": "engineering",
+    "path": "etc/fan/fan_sunon_XR1710G",
+    "sha256": "96acf68ec005aa23073cbe24141ed35f7cd5f9a593e9e4f5d38e534ec0948c61"
+  },
+  {
+    "image": "engineering",
+    "path": "usr/bin/fan_monitor.sh",
+    "sha256": "30c6414d42e326977e45eb9585b42d8d8ddb4f4ef79ecd6c5a976d9dd1cb3e6e"
+  },
+  {
+    "image": "engineering",
+    "path": "etc/init.d/fan_manager",
+    "sha256": "0e3e0f34dbb6699167d8a1321e81c19b84a6fafa5c4340a3bd817a40a91f3423"
+  },
+  {
+    "image": "engineering",
+    "path": "usr/bin/gcontrol.sh",
+    "sha256": "4af85889c54e5dea44d0dd51841bb85615a6f808bc692068aba40babae411128"
+  },
+  {
+    "image": "public-stock-5.1.1.12",
+    "path": "lib/modules/5.4.55/mt_wifi.ko",
+    "size": 14867232,
+    "sha256": "04c2b073664d471b6d557bfde46cc191f53303aeb3a0b29cacbe4a08d2e4ddf0"
+  },
+  {
+    "image": "public-stock-5.1.1.12",
+    "path": "lib/modules/5.4.55/mtk_hwifi.ko",
+    "size": 201552,
+    "sha256": "6d82ba02d96d638da9e80592a63e31c09d2f8603620066b604c1702d1171c8f7"
+  },
+  {
+    "image": "public-stock-5.1.1.12",
+    "path": "etc/config/fan",
+    "sha256": "66df49abd016f70eec0ba0ebfcd9c47e36c4a1832daef57d37edd6627a3be8a2"
+  },
+  {
+    "image": "public-stock-5.1.1.12",
+    "path": "etc/fan/fan_sunon_XR1710G",
+    "sha256": "96acf68ec005aa23073cbe24141ed35f7cd5f9a593e9e4f5d38e534ec0948c61"
+  },
+  {
+    "image": "public-stock-5.1.1.12",
+    "path": "usr/bin/fan_monitor.sh",
+    "sha256": "30c6414d42e326977e45eb9585b42d8d8ddb4f4ef79ecd6c5a976d9dd1cb3e6e"
+  },
+  {
+    "image": "public-stock-5.1.1.12",
+    "path": "etc/init.d/fan_manager",
+    "sha256": "0e3e0f34dbb6699167d8a1321e81c19b84a6fafa5c4340a3bd817a40a91f3423"
+  },
+  {
+    "image": "public-stock-5.1.1.12",
+    "path": "usr/bin/gcontrol.sh",
+    "sha256": "b627ee5ae793498101c34349c286393180e86202a8e33e58538b070766df4b51"
+  }
+]

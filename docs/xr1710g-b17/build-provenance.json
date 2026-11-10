@@ -1,0 +1,17 @@
+{
+  "upstream_commit": "a6dce40a91ca3f0ebeca9e8f51c8318f4d453eb3",
+  "tested_source_commit": "e553ff6189cccdada2b572d451f02c251dd6ffb7",
+  "tested_source_tree": "eeaaacf1d1e31a85f81dfd1783c39d67432fc829",
+  "firmware_version": "20261110-a6dce40a-wifi17",
+  "firmware_sha256": "c80d2f4cbc58cfe2b7e281aadc58a007ea4144639393d783fafbf07558c108df",
+  "built_with": "make -j2 BUILD_LOG=1 world; incremental cached full world target",
+  "actual_build_config_sha256": "49811086b03ce1dc370f09b2195f5410f05e2cf0e74c084298a948ae98031a16",
+  "original_router_archive_sha256": "ea55a40671b4ee1c8e93e20609e309488dc7bbf8ade17d2111e96c8cc65d4e93",
+  "tested_image": "gemtek,xr1710g original partition layout",
+  "runtime_primary_pcie": "Gen3 x2",
+  "runtime_secondary_pcie": "Gen2 x1",
+  "wired_forwarding_tested": false,
+  "other_bands_stress_tested": false,
+  "isolated_wifi_PR90_composition_tested": false,
+  "full_B17_composition_tested": true
+}

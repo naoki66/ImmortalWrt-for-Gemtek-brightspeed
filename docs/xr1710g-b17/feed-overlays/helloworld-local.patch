@@ -1,0 +1,48 @@
+diff --git a/mihomo/Makefile b/mihomo/Makefile
+index 07ceb4e834bbc8c7e270aec0d205e74506173b86..d4e3d5dc7470e83bfd14c02e5351365234a8a02e 100644
+--- a/mihomo/Makefile
++++ b/mihomo/Makefile
+@@ -18,7 +18,7 @@ PKG_BUILD_DEPENDS:=golang/host upx/host
+ PKG_BUILD_PARALLEL:=1
+ PKG_BUILD_FLAGS:=no-mips16
+ 
+-PKG_BUILD_VERSION:=v$(PKG_VERSION)
++PKG_BUILD_VERSION:=v$(PKG_VERSION)-xrB15-eip93
+ PKG_BUILD_TIME:=$(shell date -u -Iseconds)
+ 
+ GO_PKG:=github.com/metacubex/mihomo
+@@ -44,7 +44,7 @@ endif
+ define Build/Install
+ 	$(INSTALL_DIR) $(PKG_BUILD_DIR)/.upx
+ 	$(INSTALL_BIN) $(GO_PKG_BUILD_BIN_DIR)/mihomo $(PKG_BUILD_DIR)/.upx/mihomo
+-	$(STAGING_DIR_HOST)/bin/upx --lzma --best $(PKG_BUILD_DIR)/.upx/mihomo
++	$(STAGING_DIR_HOSTPKG)/bin/upx --lzma --best $(PKG_BUILD_DIR)/.upx/mihomo
+ endef
+ 
+ # Go's -s -w flags strip the binary before UPX; do not strip it again.
+diff --git a/simple-obfs/Makefile b/simple-obfs/Makefile
+index d22b4b093454ff4a71153bfce72f56ccfa3b8caa..4347c42db2570213f0dfdba046c82732670c3d0f 100644
+--- a/simple-obfs/Makefile
++++ b/simple-obfs/Makefile
+@@ -15,7 +15,7 @@ PKG_SOURCE_DATE:=2019-08-17
+ PKG_SOURCE_VERSION:=486bebd9208539058e57e23a12f23103016e09b4
+ PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
+ PKG_SOURCE:=$(PKG_SOURCE_SUBDIR).tar.xz
+-PKG_MIRROR_HASH:=7a0154d2de18373e52783d1b64cf5204471049c2d2c64f0b3323d7f430aa4275
++PKG_MIRROR_HASH:=skip
+ 
+ PKG_LICENSE:=GPL-3.0-or-later
+ PKG_LICENSE_FILES:=LICENSE
+diff --git a/xray-core/Makefile b/xray-core/Makefile
+index 3cbb24d70da9cca14c12ab2bac414c002d59fb0b..0649ce90dec019c1d7ee1c805c3c7a3a22146a66 100644
+--- a/xray-core/Makefile
++++ b/xray-core/Makefile
+@@ -73,7 +73,7 @@ endif
+ define Build/Install
+ 	$(INSTALL_DIR) $(PKG_BUILD_DIR)/.upx
+ 	$(INSTALL_BIN) $(GO_PKG_BUILD_BIN_DIR)/main $(PKG_BUILD_DIR)/.upx/xray
+-	$(STAGING_DIR_HOST)/bin/upx --lzma --best $(PKG_BUILD_DIR)/.upx/xray
++	$(STAGING_DIR_HOSTPKG)/bin/upx --lzma --best $(PKG_BUILD_DIR)/.upx/xray
+ endef
+ 
+ # Go's -s -w flags strip the binary before UPX; do not strip it again.
