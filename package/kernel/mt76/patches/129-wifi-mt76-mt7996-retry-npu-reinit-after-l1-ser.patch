@@ -1,0 +1,78 @@
+diff --git a/package/kernel/mt76/patches/129-w1700k-wifi-mt76-mt7996-retry-npu-reinit-after-l1-ser.patch b/package/kernel/mt76/patches/129-w1700k-wifi-mt76-mt7996-retry-npu-reinit-after-l1-ser.patch
+new file mode 100644
+index 00000000000..9831af82a0e
+--- /dev/null
++++ b/package/kernel/mt76/patches/129-w1700k-wifi-mt76-mt7996-retry-npu-reinit-after-l1-ser.patch
+@@ -0,0 +1,72 @@
++From: Gilly <gilroyscott1970@gmail.com>
++Date: Sun, 25 Oct 2026 00:00:00 +0000
++Subject: [PATCH] wifi: mt76: mt7996: retry NPU re-init after L1 SER recovery
++
++The L1 SER path stops the NPU, resets and restarts WFDMA, then hands the
++NPU the rings again via __mt7996_npu_hw_init(), but ignores the result.
++On an AN7581 W1700K the very first mailbox message after the DMA restart
++(GET_WAIT_NPU_VERSION) has been seen to time out twice, roughly 0.25 s
++after a successful npu_hw_stop. None of the NPU programming then runs (PCIe
++port type, txrx offload rings, rxd/txd, rx_event, tx_done), while
++mt76_npu_device_active() stays true, so NAPI keeps skipping the NPU-owned
++queues and host TX waits for NPU tx-free that never arrives. The driver
++reports "L1 SER recovery completed" with the data path dead; stations are
++dropped for inactivity five minutes later. In the second occurrence an MCU
++timeout followed ~290 s later and escalated into a full chip reset that does
++not recover on this board either.
++
++Retry the NPU re-init up to five times, 200 ms apart, which gives the NPU
++firmware time to settle after the stop/restart. Steps before the failing
++one are plain mailbox writes, so restarting from the version query is
++safe. If it still fails, log an error rather than claiming success. The
++error code is also added to the version-query warning so a mailbox timeout
++(-ETIMEDOUT) can be told apart from an NPU status error (-EINVAL).
++
++Signed-off-by: Gilly <gilroyscott1970@gmail.com>
++---
++diff --git a/mt7996/mac.c b/mt7996/mac.c
++index 0cadeb2..e34c64d 100644
++--- a/mt7996/mac.c
+++++ b/mt7996/mac.c
++@@ -2568,7 +2568,7 @@ void mt7996_mac_reset_work(struct work_struct *work)
++ 	struct ieee80211_hw *hw;
++ 	struct mt7996_dev *dev;
++ 	struct mt7996_phy *phy;
++-	int i;
+++	int i, ret;
++ 
++ 	dev = container_of(work, struct mt7996_dev, reset_work);
++ 	hw = mt76_hw(dev);
++@@ -2682,7 +2682,17 @@ void mt7996_mac_reset_work(struct work_struct *work)
++ 				     MT_INT_TX_RX_DONE_EXT);
++ 	}
++ 
++-	__mt7996_npu_hw_init(dev);
+++	for (i = 0; i < 5; i++) {
+++		if (i)
+++			msleep(200);
+++
+++		ret = __mt7996_npu_hw_init(dev);
+++		if (!ret)
+++			break;
+++	}
+++	if (ret)
+++		dev_err(dev->mt76.dev,
+++			"NPU re-init failed after L1 SER: %d\n", ret);
++ 
++ 	clear_bit(MT76_MCU_RESET, &dev->mphy.state);
++ 	mt7996_for_each_phy(dev, phy)
++diff --git a/mt7996/npu.c b/mt7996/npu.c
++index 3a105f8..19b29e7 100644
++--- a/mt7996/npu.c
+++++ b/mt7996/npu.c
++@@ -234,7 +234,8 @@ static int mt7996_npu_offload_init(struct mt7996_dev *dev,
++ 	err = mt76_npu_get_msg(npu, 0, WLAN_FUNC_GET_WAIT_NPU_VERSION,
++ 			       &val, GFP_KERNEL);
++ 	if (err) {
++-		dev_warn(dev->mt76.dev, "failed getting NPU fw version\n");
+++		dev_warn(dev->mt76.dev, "failed getting NPU fw version: %d\n",
+++			 err);
++ 		return err;
++ 	}
++ 
