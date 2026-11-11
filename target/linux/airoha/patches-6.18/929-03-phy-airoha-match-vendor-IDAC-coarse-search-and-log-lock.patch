@@ -1,0 +1,76 @@
+diff --git a/target/linux/airoha/patches-6.18/929-03-phy-airoha-match-vendor-IDAC-coarse-search-and-log-lock.patch b/target/linux/airoha/patches-6.18/929-03-phy-airoha-match-vendor-IDAC-coarse-search-and-log-lock.patch
+new file mode 100644
+index 00000000000..e868cd44c95
+--- /dev/null
++++ b/target/linux/airoha/patches-6.18/929-03-phy-airoha-match-vendor-IDAC-coarse-search-and-log-lock.patch
+@@ -0,0 +1,70 @@
++--- a/drivers/phy/airoha/phy-airoha-pcie.c
+++++ b/drivers/phy/airoha/phy-airoha-pcie.c
++@@ -162,7 +162,7 @@
++ 				 REG_PCIE_PMA_FORCE_DA_PXP_CDR_PR_PIEYE_PWDB,
++ 				 PCIE_FORCE_DA_PXP_CDR_PR_PWDB);
++ 
++-	for (i = 0; i < LEQ_LEN_CTRL_MAX_VAL; i++) {
+++	for (i = 1; i <= LEQ_LEN_CTRL_MAX_VAL; i++) {
++ 		airoha_phy_pma0_update_field(pcie_phy,
++ 				REG_PCIE_PMA_FORCE_DA_PXP_CDR_PR_IDAC,
++ 				PCIE_FORCE_DA_PXP_CDR_PR_IDAC, i << 8);
++@@ -211,8 +211,6 @@
++ 				     cdr_pr_idac_tmp);
++ 
++ 	for (i = 0; i < FREQ_LOCK_MAX_ATTEMPT; i++) {
++-		u32 val;
++-
++ 		airoha_phy_pma0_clear_bits(pcie_phy,
++ 					   REG_PCIE_PMA_SS_RX_FREQ_DET4,
++ 					   PCIE_FREQLOCK_DET_EN);
++@@ -226,6 +224,15 @@
++ 		if (val & PCIE_RO_FBCK_LOCK)
++ 			break;
++ 	}
+++
+++	dev_info(pcie_phy->dev,
+++		 "lane0 Gen%u calibration: IDAC=%#x FL_OUT=%u lock=%u attempts=%u\n",
+++		 gen, cdr_pr_idac_tmp, (u32)FIELD_GET(PCIE_RO_FL_OUT, val),
+++		 !!(val & PCIE_RO_FBCK_LOCK),
+++		 min(i + 1, FREQ_LOCK_MAX_ATTEMPT));
+++	if (i == FREQ_LOCK_MAX_ATTEMPT)
+++		dev_warn(pcie_phy->dev,
+++			 "lane0 Gen%u calibration did not lock\n", gen);
++ 
++ 	/* turn off force mode and update band values */
++ 	airoha_phy_csr_2l_clear_bits(pcie_phy, REG_CSR_2L_CDR0_PR_INJ_MODE,
++@@ -322,7 +329,7 @@
++ 				 REG_PCIE_PMA_FORCE_DA_PXP_CDR_PR_PIEYE_PWDB,
++ 				 PCIE_FORCE_DA_PXP_CDR_PR_PWDB);
++ 
++-	for (i = 0; i < LEQ_LEN_CTRL_MAX_VAL; i++) {
+++	for (i = 1; i <= LEQ_LEN_CTRL_MAX_VAL; i++) {
++ 		airoha_phy_pma1_update_field(pcie_phy,
++ 				REG_PCIE_PMA_FORCE_DA_PXP_CDR_PR_IDAC,
++ 				PCIE_FORCE_DA_PXP_CDR_PR_IDAC, i << 8);
++@@ -371,8 +378,6 @@
++ 				     cdr_pr_idac_tmp);
++ 
++ 	for (i = 0; i < FREQ_LOCK_MAX_ATTEMPT; i++) {
++-		u32 val;
++-
++ 		airoha_phy_pma1_clear_bits(pcie_phy,
++ 					   REG_PCIE_PMA_SS_RX_FREQ_DET4,
++ 					   PCIE_FREQLOCK_DET_EN);
++@@ -386,6 +391,15 @@
++ 		if (val & PCIE_RO_FBCK_LOCK)
++ 			break;
++ 	}
+++
+++	dev_info(pcie_phy->dev,
+++		 "lane1 Gen%u calibration: IDAC=%#x FL_OUT=%u lock=%u attempts=%u\n",
+++		 gen, cdr_pr_idac_tmp, (u32)FIELD_GET(PCIE_RO_FL_OUT, val),
+++		 !!(val & PCIE_RO_FBCK_LOCK),
+++		 min(i + 1, FREQ_LOCK_MAX_ATTEMPT));
+++	if (i == FREQ_LOCK_MAX_ATTEMPT)
+++		dev_warn(pcie_phy->dev,
+++			 "lane1 Gen%u calibration did not lock\n", gen);
++ 
++ 	/* turn off force mode and update band values */
++ 	airoha_phy_csr_2l_clear_bits(pcie_phy, REG_CSR_2L_CDR1_PR_INJ_MODE,
