@@ -1,0 +1,29 @@
+diff --git a/package/kernel/mt76/patches/134-mt7996-use-five-second-channel-MIB-query-deadline.patch b/package/kernel/mt76/patches/134-mt7996-use-five-second-channel-MIB-query-deadline.patch
+new file mode 100644
+index 00000000000..7bb93dadc48
+--- /dev/null
++++ b/package/kernel/mt76/patches/134-mt7996-use-five-second-channel-MIB-query-deadline.patch
+@@ -0,0 +1,23 @@
++From: XR1710G local firmware work
++Subject: [PATCH] mt7996-use-five-second-channel-MIB-query-deadline
++Origin: local hypothesis from fault command 00130022 and mt76 issues 690/776; no proven MT7996 fix
++
++Experimental candidate; runtime validation pending.
++
++--- a/mt7996/mcu.c
+++++ b/mt7996/mcu.c
++@@ -282,10 +282,13 @@
++ 	switch (FIELD_GET(__MCU_CMD_FIELD_ID, cmd)) {
++ 	case MCU_UNI_CMD_THERMAL:
++ 	case MCU_UNI_CMD_TWT:
++-	case MCU_UNI_CMD_GET_MIB_INFO:
++ 	case MCU_UNI_CMD_STA_REC_UPDATE:
++ 	case MCU_UNI_CMD_BSS_INFO_UPDATE:
++ 		mdev->mcu.timeout = 2 * HZ;
+++		return;
+++	case MCU_UNI_CMD_GET_MIB_INFO:
+++		/* Match the normal deadline before escalating survey timeouts. */
+++		mdev->mcu.timeout = 5 * HZ;
++ 		return;
++ 	case MCU_UNI_CMD_EFUSE_CTRL:
++ 	case MCU_UNI_CMD_EXT_EEPROM_CTRL:
