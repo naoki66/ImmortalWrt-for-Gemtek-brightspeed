@@ -1,0 +1,25 @@
+diff --git a/package/kernel/mt76/patches/132-mt7996-guard-MCU-reset-before-registration.patch b/package/kernel/mt76/patches/132-mt7996-guard-MCU-reset-before-registration.patch
+new file mode 100644
+index 00000000000..a52027eb47c
+--- /dev/null
++++ b/package/kernel/mt76/patches/132-mt7996-guard-MCU-reset-before-registration.patch
+@@ -0,0 +1,19 @@
++From: XR1710G local firmware work
++Subject: [PATCH] mt7996-guard-MCU-reset-before-registration
++Origin: https://github.com/plcharriere/gl-mt3600be-openwrt/pull/1 (patch 128); adapted to local source
++
++Experimental candidate; runtime validation pending.
++
++--- a/mt7996/mcu.c
+++++ b/mt7996/mcu.c
++@@ -229,7 +229,9 @@
++ 		dev_err(mdev->dev, "Message %08x (seq %d) timeout\n",
++ 			cmd, seq);
++ 
++-		if (!test_and_set_bit(MT76_MCU_RESET, &dev->mphy.state)) {
+++		/* A failed probe must not restart an unregistered mac80211 device. */
+++		if (dev->recovery.hw_init_done &&
+++		    !test_and_set_bit(MT76_MCU_RESET, &dev->mphy.state)) {
++ 			dev->recovery.restart = true;
++ 			wake_up(&dev->mt76.mcu.wait);
++ 			queue_work(dev->mt76.wq, &dev->reset_work);
