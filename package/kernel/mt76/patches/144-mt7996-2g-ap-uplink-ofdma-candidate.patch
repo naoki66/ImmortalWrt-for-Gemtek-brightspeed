@@ -1,0 +1,61 @@
+From: XR1710G local maintenance
+Subject: [PATCH] mt7996: add reversible 2.4 GHz AP uplink OFDMA candidate
+
+Adapt the per-station UL OFDMA field from MediaTek vendor patch 0042.
+Restrict to MT7996 AP HE stations on 2.4 GHz. Preserve UL MU-MIMO policy.
+No fixed trigger schedule, firmware swap or TCP receive-window workaround.
+This candidate needs hardware A/B validation.
+
+--- a/mt7996/mcu.c
++++ b/mt7996/mcu.c
+@@ -109,6 +109,12 @@
+ module_param(sr_scene_detect, bool, 0644);
+ MODULE_PARM_DESC(sr_scene_detect, "Enable firmware scene detection algorithm");
+ 
++/* Applies when a station record is (re)configured, not to live stations. */
++static bool ul_ofdma_2g = true;
++module_param(ul_ofdma_2g, bool, 0644);
++MODULE_PARM_DESC(ul_ofdma_2g,
++		 "Enable 2.4 GHz AP uplink OFDMA on HE station (re)configuration");
++
+ #define MT7996_SKU_PATH_CCK_LEN		5
+ #define MT7996_SKU_PATH_OFDM_LEN	5
+ #define MT7996_SKU_PATH_OFDM_BF_LEN	4
+@@ -2130,8 +2136,10 @@
+ static void
+ mt7996_mcu_sta_muru_tlv(struct mt7996_dev *dev, struct sk_buff *skb,
+ 			struct ieee80211_bss_conf *link_conf,
+-			struct ieee80211_link_sta *link_sta)
+-{
++			struct ieee80211_link_sta *link_sta,
++			struct mt7996_vif_link *link)
++{
++	struct mt7996_phy *phy = mt7996_vif_link_phy(link);
+ 	struct ieee80211_he_cap_elem *elem = &link_sta->he_cap.he_cap_elem;
+ 	struct sta_rec_muru *muru;
+ 	struct tlv *tlv;
+@@ -2155,6 +2163,15 @@
+ 
+ 	if (!link_sta->he_cap.has_he)
+ 		return;
++
++	/* Keep the vendor STA_REC_MURU layout and existing HE capabilities.
++	 * Limit this candidate to 2.4 GHz APs; do not enable UL MU-MIMO.
++	 */
++	muru->cfg.ofdma_ul_en = READ_ONCE(ul_ofdma_2g) &&
++		is_mt7996(&dev->mt76) &&
++		link_conf->vif->type == NL80211_IFTYPE_AP &&
++		phy && phy->mt76->chandef.chan &&
++		phy->mt76->chandef.chan->band == NL80211_BAND_2GHZ;
+ 
+ 	muru->mimo_dl.partial_bw_dl_mimo =
+ 		HE_PHY(CAP6_PARTIAL_BANDWIDTH_DL_MUMIMO, elem->phy_cap_info[6]);
+@@ -3567,7 +3584,7 @@
+ 		/* starec eht */
+ 		mt7996_mcu_sta_eht_tlv(skb, link_sta);
+ 		/* starec muru */
+-		mt7996_mcu_sta_muru_tlv(dev, skb, link_conf, link_sta);
++		mt7996_mcu_sta_muru_tlv(dev, skb, link_conf, link_sta, link);
+ 
+ 		if (sta->mlo) {
+ 			mt7996_mcu_sta_mld_setup_tlv(dev, skb, link_conf->vif,
