@@ -1,0 +1,43 @@
+--- /dev/null
++++ b/net/dawn/patches/114-ignore-unsuccessful-beacon-measurements.patch
+@@ -0,0 +1,40 @@
++From: XR1710G local fixes
++Subject: [PATCH] ubus: ignore unsuccessful beacon measurements before parsing body
++
++Reference: hostapd src/ap/ubus.c hostapd_ubus_notify_beacon_report(),
++which emits rep-mode even when rep is NULL. Keep malformed successful
++reports visible and preserve upstream missing-field validation.
++
++--- a/src/utils/ubus.c
+++++ b/src/utils/ubus.c
++@@ -129,6 +129,7 @@
++ };
++ 
++ enum {
+++    BEACON_REP_MODE,
++     BEACON_REP_ADDR,
++     BEACON_REP_OP_CLASS,
++     BEACON_REP_CHANNEL,
++@@ -145,6 +146,7 @@
++ };
++ 
++ static const struct blobmsg_policy beacon_rep_policy[__BEACON_REP_MAX] = {
+++        [BEACON_REP_MODE] = {.name = "rep-mode", .type = BLOBMSG_TYPE_INT16},
++         [BEACON_REP_ADDR] = {.name = "address", .type = BLOBMSG_TYPE_STRING},
++         [BEACON_REP_OP_CLASS] = {.name = "op-class", .type = BLOBMSG_TYPE_INT16},
++         [BEACON_REP_CHANNEL] = {.name = "channel", .type = BLOBMSG_TYPE_INT16},
++@@ -340,6 +342,14 @@
++ 
++     blobmsg_parse(beacon_rep_policy, __BEACON_REP_MAX, tb, blob_data(msg), blob_len(msg));
++ 
+++    /* IEEE 802.11 Measurement Report Mode: late, incapable, refused.
+++     * hostapd may omit the measurement body for these legal responses.
+++     * They are not observations and must not enter the hearing map.
+++     */
+++    if (tb[BEACON_REP_MODE] &&
+++        (blobmsg_get_u16(tb[BEACON_REP_MODE]) & 0x07))
+++        return NULL;
+++
++     if (!tb[BEACON_REP_BSSID] ||
++         !tb[BEACON_REP_ADDR] ||
++         /* Refused/incapable measurements may have no measurement body.

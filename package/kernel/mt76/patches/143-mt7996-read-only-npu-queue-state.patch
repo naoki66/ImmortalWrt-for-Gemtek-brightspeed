@@ -1,0 +1,62 @@
+From: XR1710G local integration
+Subject: [PATCH] mt7996: expose read-only NPU queue and token snapshots
+
+Inspired by YYH patch 0001 by Ryan Chen; adapt to the current shared PHY
+model and debugfs private data. This is diagnostics, not a throughput fix.
+
+--- a/mt7996/debugfs.c
++++ b/mt7996/debugfs.c
+@@ -1098,6 +1098,44 @@
+ DEFINE_DEBUGFS_ATTRIBUTE(fops_vow_atf, mt7996_vow_atf_get, mt7996_vow_atf_set,
+ 			 "%lld\n");
+ 
++static int mt7996_npu_queue_state_show(struct seq_file *s, void *data)
++{
++	struct mt7996_dev *dev = s->private;
++	struct mt76_dev *mdev = &dev->mt76;
++	struct mt7996_phy *phy;
++	u32 tokens, token_size, token_start;
++	int i;
++
++	spin_lock_bh(&mdev->token_lock);
++	tokens = mdev->token_count;
++	token_size = mdev->token_size;
++	token_start = mdev->token_start;
++	spin_unlock_bh(&mdev->token_lock);
++	seq_printf(s, "npu_active=%u tokens=%u token_size=%u token_start=%u\n",
++		   mt76_npu_device_active(mdev), tokens, token_size, token_start);
++	seq_puts(s, "queue snapshots are approximate; no MCU query is issued\n");
++	for (i = MT_RXQ_NPU0; i <= MT_RXQ_NPU1; i++) {
++		struct mt76_queue *q = &mdev->q_rx[i];
++
++		if (!q->ndesc)
++			continue;
++		seq_printf(s, "rxq=%d ndesc=%d queued=%d head=%d tail=%d\n",
++			   i, q->ndesc, READ_ONCE(q->queued),
++			   READ_ONCE(q->head), READ_ONCE(q->tail));
++	}
++	mt7996_for_each_phy(dev, phy) {
++		struct mt76_queue *q = phy->mt76->q_tx[MT_TXQ_BE];
++
++		if (!q)
++			continue;
++		seq_printf(s, "band=%u tx_npu=%u ndesc=%d queued=%d head=%d tail=%d\n",
++			   phy->mt76->band_idx, mt76_queue_is_npu_tx(q), q->ndesc,
++			   READ_ONCE(q->queued), READ_ONCE(q->head), READ_ONCE(q->tail));
++	}
++	return 0;
++}
++DEFINE_SHOW_ATTRIBUTE(mt7996_npu_queue_state);
++
+ static int mt7996_thermal_hwmon_status_show(struct seq_file *s, void *data)
+ {
+ 	static const char * const reasons[] = {
+@@ -1173,6 +1211,8 @@
+ 			    &mt7996_thermal_adc_query_fops);
+ 	debugfs_create_file("thermal_adc", 0400, dir, dev,
+ 			    &mt7996_thermal_adc_fops);
++	debugfs_create_file("npu_queue_state", 0400, dir, dev,
++			    &mt7996_npu_queue_state_fops);
+ 	debugfs_create_file("thermal_hwmon_status", 0400, dir, dev,
+ 			    &mt7996_thermal_hwmon_status_fops);
+ 
