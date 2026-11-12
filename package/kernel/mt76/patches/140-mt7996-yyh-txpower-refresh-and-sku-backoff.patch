@@ -10,8 +10,8 @@ Preserve the current thermal/ADC header additions. Keep strict rejection
 of unsupported TXPOWER controls; unwind radio enable on new run failure.
 Balance node references in the new power-path lookup helpers and assert
 417-byte rate / 494-byte backoff ABI layouts at compile time.
-The current board has no OF power-limits table: preserve conditional
-backoff enable instead of enabling an empty table. No EEPROM writes.
+Enable backoff only when valid OF path limits exist. XR1710G supplies
+its retail board table separately in the device tree. No EEPROM writes.
 Hardware and bidirectional throughput validation remain pending.
 
 --- a/eeprom.c

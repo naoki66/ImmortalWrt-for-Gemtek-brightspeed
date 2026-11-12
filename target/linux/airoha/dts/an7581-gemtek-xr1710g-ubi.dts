@@ -284,6 +284,7 @@
 			#size-cells = <0>;
 			nvmem-cells = <&eeprom>;
 			nvmem-cell-names = "eeprom";
+			#include "an7581-xr1710g-stock-power.dtsi"
 			airoha,npu = <&npu>;
 			airoha,eth = <&eth>;
 			band@0 {
