@@ -1,0 +1,21 @@
+From: XR1710G local integration
+Subject: [PATCH] mt76: release channel node before connac3 rate-limit return
+
+The YYH separate connac3 backoff path returns early from generic rate
+lookup. Release its owned channel node, matching all other return paths.
+A populated XR1710G table exposes this leak on repeated power updates.
+
+--- a/eeprom.c
++++ b/eeprom.c
+@@ -522,8 +522,10 @@
+ 				     ARRAY_SIZE(dest->eht), val, len, target_power,
+ 				     txs_delta, &max_power, n_chains, MT76_SKU_RATE);
+ 
+-	if (is_mt799x(dev))
++	if (is_mt799x(dev)) {
++		of_node_put(np);
+ 		return max_power == -127 ? target_power : max_power;
++	}
+ 
+ 	val = mt76_get_of_array_s8(np, "paths-cck", &len, ARRAY_SIZE(dest->path.cck));
+ 	mt76_apply_array_limit(dev, dest->path.cck, ARRAY_SIZE(dest->path.cck), val,
