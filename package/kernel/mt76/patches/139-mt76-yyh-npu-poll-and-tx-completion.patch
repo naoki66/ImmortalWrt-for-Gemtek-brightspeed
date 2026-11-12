@@ -1,0 +1,234 @@
+From: XR1710G local integration
+Subject: [PATCH] mt76: backport YYH NPU poll and TX completion fixes
+
+Reference: https://github.com/YYH2913/openwrt
+Branch: xr1710g-6.18-integration
+Commit: 9e44788d769164dc9f691670add71dc466d99a4c
+Adapted patches: 0199, 0201, 0206, 0208, 0209, 0159, 0216.
+Original author: Yanghan Ye <yyh94306@gmail.com>
+
+Adapt TXFREE v7 hunk around current MLD handling; omit the declaration
+context for an RX teardown helper absent from this mt76 version.
+Preserve existing B21 reset, ADC and translated-MSDU guards.
+These changes are a candidate for the HE20 bidirectional imbalance,
+not a confirmed throughput fix. Hardware validation remains required.
+
+--- a/dma.c
++++ b/dma.c
+@@ -685,6 +685,9 @@
+ 	if (test_bit(MT76_RESET, &phy->state))
+ 		goto free_skb;
+ 
++	if (mt76_queue_is_npu_tx(q) && !mt76_npu_tx_queue_available(q))
++		goto free_skb;
++
+ 	/* TODO: Take into account unlinear skbs */
+ 	if (mt76_npu_device_active(dev) && skb_linearize(skb))
+ 		goto free_skb;
+--- a/mt76.h
++++ b/mt76.h
+@@ -1701,6 +1701,7 @@
+ int mt76_npu_dma_add_buf(struct mt76_phy *phy, struct mt76_queue *q,
+ 			 struct sk_buff *skb, struct mt76_queue_buf *buf,
+ 			 void *txwi_ptr);
++bool mt76_npu_tx_queue_available(struct mt76_queue *q);
+ int mt76_npu_rx_queue_init(struct mt76_dev *dev, struct mt76_queue *q);
+ int mt76_npu_fill_rx_queue(struct mt76_dev *dev, struct mt76_queue *q);
+ void mt76_npu_queue_cleanup(struct mt76_dev *dev, struct mt76_queue *q);
+@@ -1729,6 +1730,11 @@
+ 				       void *txwi_ptr)
+ {
+ 	return -EOPNOTSUPP;
++}
++
++static inline bool mt76_npu_tx_queue_available(struct mt76_queue *q)
++{
++	return false;
+ }
+ 
+ static inline int mt76_npu_fill_rx_queue(struct mt76_dev *dev,
+--- a/npu.c
++++ b/npu.c
+@@ -17,6 +17,7 @@
+ 
+ #define MT76_NPU_RX_BUF_SIZE	(1800 + \
+ 				 SKB_DATA_ALIGN(sizeof(struct skb_shared_info)))
++#define MT76_NPU_TX_RESERVED_DESC	5
+ 
+ int mt76_npu_fill_rx_queue(struct mt76_dev *dev, struct mt76_queue *q)
+ {
+@@ -184,8 +185,12 @@
+ {
+ 	struct mt76_dev *dev = mt76_priv(napi->dev);
+ 	enum mt76_rxq_id qid = napi - dev->napi;
++	struct mt76_queue *q = &dev->q_rx[qid];
+ 	struct airoha_npu *npu;
+ 	int done = 0;
++
++	if (!budget)
++		return 0;
+ 
+ 	rcu_read_lock();
+ 
+@@ -195,18 +200,29 @@
+ 
+ 	while (done < budget) {
+ 		struct sk_buff *skb;
++		int queued = q->queued;
+ 		u32 info = 0;
+ 
+-		skb = mt76_npu_dequeue(dev, &dev->q_rx[qid], &info);
+-		if (!skb)
+-			break;
++		skb = mt76_npu_dequeue(dev, q, &info);
++		if (!skb) {
++			if (q->queued == queued)
++				break;
++
++			/* A dropped packet consumed descriptors. Keep polling the
++			 * completed packets behind it, but account for the work.
++			 */
++			done++;
++			continue;
++		}
+ 
+ 		dev->drv->rx_skb(dev, qid, skb, &info);
++		done++;
++	}
++
++	if (done)
+ 		mt76_rx_poll_complete(dev, qid, napi);
+-		done++;
+-	}
+-
+-	mt76_npu_fill_rx_queue(dev, &dev->q_rx[qid]);
++
++	mt76_npu_fill_rx_queue(dev, q);
+ out:
+ 	if (done < budget && napi_complete(napi))
+ 		dev->drv->rx_poll_complete(dev, qid);
+@@ -242,20 +258,37 @@
+ 	return IRQ_HANDLED;
+ }
+ 
++bool mt76_npu_tx_queue_available(struct mt76_queue *q)
++{
++	struct airoha_npu_tx_dma_desc *desc = (void *)q->desc;
++
++	if (q->ndesc <= MT76_NPU_TX_RESERVED_DESC ||
++	    q->queued >= q->ndesc - MT76_NPU_TX_RESERVED_DESC)
++		return false;
++
++	return !(READ_ONCE(desc[q->head].ctrl) & NPU_TX_DMA_DESC_DONE_MASK);
++}
++
+ int mt76_npu_dma_add_buf(struct mt76_phy *phy, struct mt76_queue *q,
+ 			 struct sk_buff *skb, struct mt76_queue_buf *buf,
+ 			 void *txwi_ptr)
+ {
+ 	u16 txwi_len = min_t(u16, phy->dev->drv->txwi_size, NPU_TXWI_LEN);
+ 	struct airoha_npu_tx_dma_desc *desc = (void *)q->desc;
++	u32 ctrl;
+ 	int ret;
++
++	ctrl = FIELD_PREP(NPU_TX_DMA_DESC_VEND_LEN_MASK, txwi_len) |
++	       FIELD_PREP(NPU_TX_DMA_DESC_LEN_MASK, skb->len) |
++	       NPU_TX_DMA_DESC_DONE_MASK;
+ 
+ 	/* TODO: Take into account unlinear skbs */
+ 	memcpy(desc[q->head].txwi, txwi_ptr, txwi_len);
+ 	desc[q->head].addr = buf->addr;
+-	desc[q->head].ctrl = FIELD_PREP(NPU_TX_DMA_DESC_VEND_LEN_MASK, txwi_len) |
+-			     FIELD_PREP(NPU_TX_DMA_DESC_LEN_MASK, skb->len) |
+-			     NPU_TX_DMA_DESC_DONE_MASK;
++
++	/* The NPU polls DONE independently of the producer index. */
++	dma_wmb();
++	WRITE_ONCE(desc[q->head].ctrl, ctrl);
+ 
+ 	ret = q->head;
+ 	q->entry[q->head].skip_buf0 = true;
+--- a/mt7996/mac.c
++++ b/mt7996/mac.c
+@@ -1383,10 +1383,15 @@
+ 	struct mt76_wcid *wcid = NULL;
+ 	LIST_HEAD(free_list);
+ 	struct sk_buff *skb, *tmp;
+-	void *end = data + len;
++	void *end;
+ 	bool wake = false;
+ 	u16 total, count = 0;
+ 	u8 ver;
++
++	if (len < 2 * (int)sizeof(*tx_free))
++		return;
++
++	end = data + len;
+ 
+ 	/* clean DMA queues and unmap buffers first */
+ 	mt76_queue_tx_cleanup(dev, dev->mphy.q_tx[MT_TXQ_PSD], false);
+@@ -1409,8 +1414,8 @@
+ 		u32 msdu, info;
+ 		u8 i;
+ 
+-		if (WARN_ON_ONCE((void *)cur_info >= end))
+-			return;
++		if (WARN_ON_ONCE(end - (void *)cur_info < sizeof(*cur_info)))
++			break;
+ 		/* 1'b1: new wcid pair.
+ 		 * 1'b0: msdu_id with the same 'wcid pair' as above.
+ 		 */
+@@ -1451,7 +1456,8 @@
+ 			}
+ next:
+ 			/* ver 7 has a new DW with pair = 1, skip it */
+-			if (ver == 7 && ((void *)(cur_info + 1) < end) &&
++			if (ver == 7 &&
++			    end - (void *)(cur_info + 1) >= sizeof(*cur_info) &&
+ 			    (le32_to_cpu(*(cur_info + 1)) & MT_TXFREE_INFO_PAIR))
+ 				cur_info++;
+ 			continue;
+@@ -1687,9 +1693,13 @@
+ {
+ 	struct mt7996_dev *dev = container_of(mdev, struct mt7996_dev, mt76);
+ 	__le32 *rxd = (__le32 *)data;
+-	__le32 *end = (__le32 *)&rxd[len / 4];
++	__le32 *end;
+ 	enum rx_pkt_type type;
+ 
++	if (len < 4)
++		return false;
++
++	end = rxd + len / 4;
+ 	type = le32_get_bits(rxd[0], MT_RXD0_PKT_TYPE);
+ 	if (type != PKT_TYPE_NORMAL) {
+ 		u32 sw_type = le32_get_bits(rxd[0], MT_RXD0_SW_PKT_TYPE_MASK);
+@@ -1719,10 +1729,16 @@
+ 			 struct sk_buff *skb, u32 *info)
+ {
+ 	struct mt7996_dev *dev = container_of(mdev, struct mt7996_dev, mt76);
+-	__le32 *rxd = (__le32 *)skb->data;
+-	__le32 *end = (__le32 *)&skb->data[skb->len];
++	__le32 *rxd, *end;
+ 	enum rx_pkt_type type;
+ 
++	if (!pskb_may_pull(skb, sizeof(*rxd))) {
++		dev_kfree_skb(skb);
++		return;
++	}
++
++	rxd = (__le32 *)skb->data;
++	end = (__le32 *)&skb->data[skb->len];
+ 	type = le32_get_bits(rxd[0], MT_RXD0_PKT_TYPE);
+ 	if (type != PKT_TYPE_NORMAL) {
+ 		u32 sw_type = le32_get_bits(rxd[0], MT_RXD0_SW_PKT_TYPE_MASK);
+@@ -1740,7 +1756,8 @@
+ 			break;
+ 		}
+ 
+-		mt7996_mac_tx_free(dev, skb->data, skb->len);
++		if (pskb_may_pull(skb, skb->len))
++			mt7996_mac_tx_free(dev, skb->data, skb->len);
+ 		napi_consume_skb(skb, 1);
+ 		break;
+ 	case PKT_TYPE_RX_EVENT:
