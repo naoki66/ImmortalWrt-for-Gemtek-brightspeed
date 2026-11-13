@@ -1,0 +1,250 @@
+From: XR1710G B27 development <local@xr1710g.invalid>
+Subject: [PATCH] mt7996: reconstruct retail DRR defaults and MAC weight levels
+
+Use the retail quantum table and AC indices together. Keep WATF separate
+from ATF and disabled by default. Optional load-time MAC lists implement
+four retail levels without a partially applied runtime table transition.
+Explicit numeric mac80211 weights use a documented nearest-quantum
+compatibility extension; they are not claimed to be a retail algorithm.
+---
+--- a/mt7996/Makefile
++++ b/mt7996/Makefile
+@@ -4,7 +4,7 @@
+ obj-$(CONFIG_MT7996E) += mt7996e.o
+ 
+ mt7996e-y := pci.o init.o dma.o eeprom.o main.o mcu.o mac.o \
+-	     debugfs.o mmio.o stock_policy.o stock_ba.o
++	     debugfs.o mmio.o stock_policy.o stock_ba.o stock_vow.o
+ 
+ mt7996e-$(CONFIG_MT7996_NPU) += npu.o
+ mt7996e-$(CONFIG_DEV_COREDUMP) += coredump.o
+--- a/mt7996/mcu.c
++++ b/mt7996/mcu.c
+@@ -8,6 +8,7 @@
+ #include <linux/of.h>
+ #include "mt7996.h"
+ #include "mcu.h"
++#include "stock_vow.h"
+ #include "mac.h"
+ #include "eeprom.h"
+ 
+@@ -3103,6 +3104,14 @@
+ 	return HW_BSSID_MAX + omac_idx - EXT_BSSID_START;
+ }
+ 
++static u8 mt7996_vow_quantum(struct mt7996_dev *dev, struct mt76_wcid *wcid,
++			     u16 weight, u8 ac)
++{
++	if (dev->stock_policy && is_mt7996(&dev->mt76))
++		return mt7996_stock_vow_quantum(dev, wcid, weight, ac);
++	return mt76_connac_vow_dwrr_quantum(weight, ac);
++}
++
+ int mt7996_mcu_set_vow_drr_ctrl(struct mt7996_dev *dev, u8 band_idx,
+ 				struct mt76_wcid *wcid, struct mt76_vif_link *mvif,
+ 				enum vow_drr_ctrl_id id, u16 weight)
+@@ -3138,13 +3147,13 @@
+ 		val |= FIELD_PREP(VOW_DRR_STA_BSS_GRP_MASK,
+ 				  mt7996_vow_sta_bss_grp(mvif));
+ 		val |= FIELD_PREP(VOW_DRR_STA_AC0_QNTM_MASK,
+-				  mt76_connac_vow_dwrr_quantum(weight, IEEE80211_AC_BK));
++				  mt7996_vow_quantum(dev, wcid, weight, IEEE80211_AC_BK));
+ 		val |= FIELD_PREP(VOW_DRR_STA_AC1_QNTM_MASK,
+-				  mt76_connac_vow_dwrr_quantum(weight, IEEE80211_AC_BE));
++				  mt7996_vow_quantum(dev, wcid, weight, IEEE80211_AC_BE));
+ 		val |= FIELD_PREP(VOW_DRR_STA_AC2_QNTM_MASK,
+-				  mt76_connac_vow_dwrr_quantum(weight, IEEE80211_AC_VI));
++				  mt7996_vow_quantum(dev, wcid, weight, IEEE80211_AC_VI));
+ 		val |= FIELD_PREP(VOW_DRR_STA_AC3_QNTM_MASK,
+-				  mt76_connac_vow_dwrr_quantum(weight, IEEE80211_AC_VO));
++				  mt7996_vow_quantum(dev, wcid, weight, IEEE80211_AC_VO));
+ 		req.val = cpu_to_le32(val);
+ 		break;
+ 	case VOW_DRR_CTRL_AIRTIME_DEFICIT_BOUND:
+@@ -3154,7 +3163,10 @@
+ 	case VOW_DRR_CTRL_AIRTIME_QUANTUM_ALL: {
+ 		static const u8 quantum[VOW_DRR_QUANTUM_NUM] = VOW_DRR_QUANTUM_TABLE;
+ 
+-		memcpy(req.drr_quantum, quantum, sizeof(quantum));
++		if (dev->stock_policy && is_mt7996(&dev->mt76))
++			mt7996_stock_vow_table(dev, req.drr_quantum);
++		else
++			memcpy(req.drr_quantum, quantum, sizeof(quantum));
+ 		break;
+ 	}
+ 	case VOW_DRR_CTRL_STA_PAUSE:
+@@ -3235,8 +3247,12 @@
+ 	       FIELD_PREP(VOW_FEATURE_BAND1_SEARCH_RULE, VOW_SEARCH_WMM_FIRST) |
+ 	       FIELD_PREP(VOW_FEATURE_BAND0_SEARCH_RULE, VOW_SEARCH_WMM_FIRST) |
+ 	       VOW_FEATURE_GRP_NO_CHANGE_IN_TXOP | VOW_FEATURE_BWC_TOKEN_REFILL_EN;
+-	if (atf_en)
+-		ctrl |= VOW_FEATURE_WATF_EN | VOW_FEATURE_ATF_EN;
++	if (atf_en) {
++		ctrl |= VOW_FEATURE_ATF_EN;
++		if (!phy->dev->stock_policy || !is_mt7996(&phy->dev->mt76) ||
++		    mt7996_stock_vow_watf(phy->dev))
++			ctrl |= VOW_FEATURE_WATF_EN;
++	}
+ 
+ 	atf_ctrl = VOW_ATF_APPLY_KEEP_QUANTUM | VOW_ATF_KEEP_QUANTUM |
+ 		   VOW_ATF_APPLY_VOW_CTRL | VOW_ATF_VOW_CTRL_VAL |
+--- /dev/null
++++ b/mt7996/stock_vow.c
+@@ -0,0 +1,144 @@
++// SPDX-License-Identifier: BSD-3-Clause-Clear
++/* Independently reconstructed retail DRR defaults and four MAC weight levels. */
++#include <linux/moduleparam.h>
++#include "mt7996.h"
++#include "stock_vow.h"
++
++#define STOCK_WATF_MACS 16
++
++struct mt7996_stock_watf_level {
++	u8 mac[STOCK_WATF_MACS][ETH_ALEN];
++	u8 count;
++};
++
++static bool stock_watf;
++module_param(stock_watf, bool, 0444);
++MODULE_PARM_DESC(stock_watf, "XR1710G retail WATF; load-time only (default off)");
++
++static struct mt7996_stock_watf_level stock_watf_levels[4];
++
++static int mt7996_stock_watf_set(const char *val, const struct kernel_param *kp)
++{
++	struct mt7996_stock_watf_level parsed = {};
++	char *copy, *cursor, *token;
++	int ret = 0;
++
++	if (strlen(val) > STOCK_WATF_MACS * 18)
++		return -E2BIG;
++	copy = kstrdup(val, GFP_KERNEL);
++	if (!copy)
++		return -ENOMEM;
++	cursor = strim(copy);
++	if (!*cursor)
++		goto done;
++	while ((token = strsep(&cursor, ","))) {
++		if (parsed.count == STOCK_WATF_MACS) {
++			ret = -E2BIG;
++			break;
++		}
++		if (strlen(token) != 17 ||
++		    !mac_pton(token, parsed.mac[parsed.count]) ||
++		    !is_valid_ether_addr(parsed.mac[parsed.count])) {
++			ret = -EINVAL;
++			break;
++		}
++		parsed.count++;
++	}
++done:
++	if (!ret)
++		*(struct mt7996_stock_watf_level *)kp->arg = parsed;
++	kfree(copy);
++	return ret;
++}
++
++static int mt7996_stock_watf_get(char *buf, const struct kernel_param *kp)
++{
++	struct mt7996_stock_watf_level *level = kp->arg;
++	int i, len = 0;
++
++	for (i = 0; i < level->count; i++)
++		len += scnprintf(buf + len, PAGE_SIZE - len, "%s%pM",
++				 i ? "," : "", level->mac[i]);
++	return len + scnprintf(buf + len, PAGE_SIZE - len, "\n");
++}
++
++static const struct kernel_param_ops stock_watf_ops = {
++	.set = mt7996_stock_watf_set,
++	.get = mt7996_stock_watf_get,
++};
++module_param_cb(stock_watf_lv0, &stock_watf_ops, &stock_watf_levels[0], 0444);
++module_param_cb(stock_watf_lv1, &stock_watf_ops, &stock_watf_levels[1], 0444);
++module_param_cb(stock_watf_lv2, &stock_watf_ops, &stock_watf_levels[2], 0444);
++module_param_cb(stock_watf_lv3, &stock_watf_ops, &stock_watf_levels[3], 0444);
++MODULE_PARM_DESC(stock_watf_lv0, "Comma-separated unicast MACs at retail WATF level 0");
++MODULE_PARM_DESC(stock_watf_lv1, "Comma-separated unicast MACs at retail WATF level 1");
++MODULE_PARM_DESC(stock_watf_lv2, "Comma-separated unicast MACs at retail WATF level 2");
++MODULE_PARM_DESC(stock_watf_lv3, "Comma-separated unicast MACs at retail WATF level 3");
++
++bool mt7996_stock_vow_watf(struct mt7996_dev *dev)
++{
++	return dev->stock_policy && is_mt7996(&dev->mt76) && stock_watf;
++}
++
++void mt7996_stock_vow_table(struct mt7996_dev *dev, u8 *table)
++{
++	static const u8 normal[8] = { 6, 12, 16, 20, 24, 28, 32, 36 };
++	static const u8 weighted[4] = { 4, 8, 12, 16 };
++
++	memcpy(table, normal, sizeof(normal));
++	if (mt7996_stock_vow_watf(dev))
++		memcpy(table, weighted, sizeof(weighted));
++}
++
++u8 mt7996_stock_vow_quantum(struct mt7996_dev *dev, struct mt76_wcid *wcid,
++			    u16 weight, u8 ac)
++{
++	struct mt7996_sta_link *sl;
++	struct ieee80211_sta *sta;
++	u8 table[8], base, best;
++	u32 target, distance;
++	int i, j, matched = -1;
++
++	if (mt7996_stock_vow_watf(dev) && wcid && wcid->sta) {
++		sl = container_of(wcid, struct mt7996_sta_link, wcid);
++		sta = container_of((void *)sl->sta, struct ieee80211_sta, drv_priv);
++		for (i = 0; i < ARRAY_SIZE(stock_watf_levels); i++)
++			for (j = 0; j < stock_watf_levels[i].count; j++)
++				if (ether_addr_equal(sta->addr, stock_watf_levels[i].mac[j]))
++					matched = i;
++		/* Retail list order makes the highest matching level win. */
++		if (matched >= 0)
++			return matched;
++	}
++	switch (ac) {
++	case IEEE80211_AC_VO:
++		base = 0;
++		break;
++	case IEEE80211_AC_VI:
++		base = 1;
++		break;
++	default:
++		base = 2;
++		break;
++	}
++	if (!weight || weight == IEEE80211_DEFAULT_AIRTIME_WEIGHT)
++		return base;
++
++	/* Compatibility extension: retail has MAC levels, not numeric weights.
++	 * Preserve explicit mac80211 weights by nearest available airtime.
++	 */
++	mt7996_stock_vow_table(dev, table);
++	target = (u32)table[base] * weight;
++	best = 0;
++	distance = U32_MAX;
++	for (i = 0; i < ARRAY_SIZE(table); i++) {
++		u32 quantum = table[i] * IEEE80211_DEFAULT_AIRTIME_WEIGHT;
++		u32 delta = target > quantum ? target - quantum : quantum - target;
++
++		if (delta < distance) {
++			best = i;
++			distance = delta;
++		}
++	}
++	return best;
++}
+--- /dev/null
++++ b/mt7996/stock_vow.h
+@@ -0,0 +1,10 @@
++/* SPDX-License-Identifier: BSD-3-Clause-Clear */
++#ifndef __MT7996_STOCK_VOW_H
++#define __MT7996_STOCK_VOW_H
++
++bool mt7996_stock_vow_watf(struct mt7996_dev *dev);
++u8 mt7996_stock_vow_quantum(struct mt7996_dev *dev, struct mt76_wcid *wcid,
++			    u16 weight, u8 ac);
++void mt7996_stock_vow_table(struct mt7996_dev *dev, u8 *table);
++
++#endif

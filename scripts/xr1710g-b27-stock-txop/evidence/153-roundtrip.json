@@ -1,0 +1,5 @@
+{
+  "fuzz": 0,
+  "forward_matches_actual_sources": true,
+  "reverse_byte_exact": true
+}

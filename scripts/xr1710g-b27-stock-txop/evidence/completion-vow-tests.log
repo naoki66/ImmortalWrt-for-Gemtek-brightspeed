@@ -1,0 +1,1 @@
+PASS: actual retail VOW table, default AC indices, all 65535 numeric weights per AC, four MAC levels, list validation/atomic parse, WM wire layout, separate ATF/WATF, other-board compatibility and MCU errors
