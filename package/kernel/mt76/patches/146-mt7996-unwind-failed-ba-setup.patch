@@ -1,0 +1,84 @@
+From: XR1710G local maintenance
+Subject: [PATCH] wifi: mt76: mt7996: unwind failed BA setup
+
+Do not configure RX BA after software reorder allocation has failed.
+Unwind software RX state after a failed firmware setup and request TX
+BA teardown if TX_OPERATIONAL fails: mac80211 ignores that return value.
+Log negative BA action results and RX rollback failures with rate limiting.
+
+Source references: mt76 0936617d mt7996/main.c and agg-rx.c;
+mac80211 backports-7.2 net/mac80211/agg-tx.c and agg-rx.c.
+Successful BA setup and all radio/TCP policy remain unchanged.
+This repairs failure-path consistency; it is NOT a verified fix for the
+reported 2.4 GHz bidirectional throughput imbalance.
+
+--- a/mt7996/main.c
++++ b/mt7996/main.c
+@@ -2288,6 +2288,7 @@
+ 	u16 ssn = params->ssn;
+ 	struct mt76_txq *mtxq;
+ 	unsigned long links;
++	bool stop_tx_ba = false;
+ 	int ret = 0;
+ 
+ 	if (!txq)
+@@ -2305,9 +2306,23 @@
+ 		 * multiple links, store the AMPDU state for reordering in the
+ 		 * primary link
+ 		 */
+-		mt76_rx_aggr_start(&dev->mt76, &msta->deflink.wcid, tid,
+-				   ssn, params->buf_size);
++		ret = mt76_rx_aggr_start(&dev->mt76, &msta->deflink.wcid, tid,
++					 ssn, params->buf_size);
++		if (ret)
++			break;
++
+ 		ret = mt7996_mcu_add_rx_ba(dev, params, vif, links, true);
++		if (ret) {
++			/* A multi-link update may have configured earlier links. */
++			int err;
++
++			err = mt7996_mcu_add_rx_ba(dev, params, vif, links, false);
++			if (err)
++				dev_warn_ratelimited(dev->mt76.dev,
++					"RX BA rollback failed for %pM tid %u: %d\n",
++					sta->addr, tid, err);
++			mt76_rx_aggr_stop(&dev->mt76, &msta->deflink.wcid, tid);
++		}
+ 		mt7996_sta_ba_update(&msta->ba_rx_mask, msta->ba_rx, params,
+ 				     !ret);
+ 		break;
+@@ -2318,11 +2333,15 @@
+ 		ret = mt7996_mcu_add_rx_ba(dev, params, vif, links, false);
+ 		break;
+ 	case IEEE80211_AMPDU_TX_OPERATIONAL:
+-		mtxq->aggr = true;
++		ret = mt7996_mcu_add_tx_ba(dev, params, vif, links, true);
++		mtxq->aggr = !ret;
+ 		mtxq->send_bar = false;
+-		ret = mt7996_mcu_add_tx_ba(dev, params, vif, links, true);
+ 		mt7996_sta_ba_update(&msta->ba_tx_mask, msta->ba_tx, params,
+ 				     !ret);
++		/* mac80211 ignores this callback's return value for OPERATIONAL.
++		 * Request asynchronous teardown instead of keeping a phantom BA.
++		 */
++		stop_tx_ba = !!ret;
+ 		break;
+ 	case IEEE80211_AMPDU_TX_STOP_FLUSH:
+ 	case IEEE80211_AMPDU_TX_STOP_FLUSH_CONT:
+@@ -2346,7 +2365,15 @@
+ 		break;
+ 	}
+ 
++	if (ret < 0)
++		dev_warn_ratelimited(dev->mt76.dev,
++			"BA action %u failed for %pM tid %u: %d\n",
++			params->action, sta->addr, tid, ret);
++
+ 	mutex_unlock(&dev->mt76.mutex);
++
++	if (stop_tx_ba)
++		ieee80211_stop_tx_ba_session(sta, tid);
+ 
+ 	return ret;
+ }
