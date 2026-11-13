@@ -1,0 +1,33 @@
+Subject: mt7996: expose stock policy controls with backports debugfs
+
+OpenWrt backports uses CPTCFG_MAC80211_DEBUGFS. Include the new VIF
+callback and its implementation when either native or backports debugfs
+is enabled, without silently enabling unrelated station callbacks.
+
+diff --git a/mt7996/main.c b/mt7996/main.c
+--- a/mt7996/main.c
++++ b/mt7996/main.c
+@@ -3551,8 +3551,10 @@
+ 	.sta_set_airtime_weight = mt7996_sta_set_airtime_weight,
+ 	.add_twt_setup = mt7996_mac_add_twt_setup,
+ 	.twt_teardown_request = mt7996_twt_teardown_request,
++#if defined(CONFIG_MAC80211_DEBUGFS) || defined(CPTCFG_MAC80211_DEBUGFS)
++	.vif_add_debugfs = mt7996_vif_add_debugfs,
++#endif
+ #ifdef CONFIG_MAC80211_DEBUGFS
+-	.vif_add_debugfs = mt7996_vif_add_debugfs,
+ 	.sta_add_debugfs = mt7996_sta_add_debugfs,
+ 	.link_sta_add_debugfs = mt7996_link_sta_add_debugfs,
+ #endif
+diff --git a/mt7996/debugfs.c b/mt7996/debugfs.c
+--- a/mt7996/debugfs.c
++++ b/mt7996/debugfs.c
+@@ -1392,7 +1392,7 @@
+ 
+ #endif
+ 
+-#ifdef CONFIG_MAC80211_DEBUGFS
++#if defined(CONFIG_MAC80211_DEBUGFS) || defined(CPTCFG_MAC80211_DEBUGFS)
+ /* Per-VIF emergency rollback to the unmodified hostapd EDCA baseline. */
+ static ssize_t mt7996_stock_policy_read(struct file *file,
+ 				       char __user *user_buf,

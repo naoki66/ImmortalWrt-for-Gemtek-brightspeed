@@ -1,0 +1,190 @@
+Subject: mt7996: align AP selection and 5 GHz near/far TXOP with retail
+
+Reconstruct the host near/far rule independently from XR1710G retail
+5.1.1.12 MacTableMaintenance and vow_variable_reset. Select current BSS
+by last WCID and spot AP by first WCID, independently of iterator order.
+Main traffic statistics retain first-WCID tie breaking. Unknown PHY rate
+is not classified as a slow station. This is not a full WM/WA port.
+
+diff --git a/mt7996/stock_policy.c b/mt7996/stock_policy.c
+--- a/mt7996/stock_policy.c
++++ b/mt7996/stock_policy.c
+@@ -12,8 +12,10 @@
+ #define STOCK_MPDU BIT(2)
+ 
+ struct mt7996_stock_band {
+-	struct ieee80211_vif *ap, *sta, *main;
+-	u8 ap_link, sta_link, main_link;
++	struct ieee80211_vif *ap, *sta, *main, *selected;
++	u8 ap_link, sta_link, main_link, current_link;
++	u16 ap_wcid, sta_wcid, main_wcid, current_wcid;
++	bool near_fast, near_slow;
+ 	bool mlo, main_valid;
+ 	u64 ap_tx, ap_rx, sta_rx, main_bytes, main_tx;
+ 	u32 ap_packets, sta_packets, main_mpdu;
+@@ -99,12 +101,23 @@
+ 			continue;
+ 		b = &scene->band[phy->mt76->band_idx];
+ 		b->mlo |= sta->mlo;
+-		if (vif->type == NL80211_IFTYPE_AP && !b->ap) {
++		/* Retail cur_wdev is the last WCID, independent of main_entry. */
++		if (vif->type == NL80211_IFTYPE_AP &&
++		    (!b->selected || sl->wcid.idx > b->current_wcid)) {
++			b->selected = vif;
++			b->current_link = i;
++			b->current_wcid = sl->wcid.idx;
++		}
++		if (vif->type == NL80211_IFTYPE_AP &&
++		    (!b->ap || sl->wcid.idx < b->ap_wcid)) {
+ 			b->ap = vif;
+ 			b->ap_link = i;
+-		} else if (vif->type == NL80211_IFTYPE_STATION && !b->sta) {
++			b->ap_wcid = sl->wcid.idx;
++		} else if (vif->type == NL80211_IFTYPE_STATION &&
++			   (!b->sta || sl->wcid.idx < b->sta_wcid)) {
+ 			b->sta = vif;
+ 			b->sta_link = i;
++			b->sta_wcid = sl->wcid.idx;
+ 		}
+ 
+ 		spin_lock_bh(&dev->stock_stats_lock);
+@@ -146,9 +159,12 @@
+ 		a->tx_msdu = mt7996_stock_ewma(a->tx_msdu, s.tx_msdu);
+ 		a->rx_msdu = mt7996_stock_ewma(a->rx_msdu, s.rx_msdu);
+ 		a->tx_mpdu = mt7996_stock_ewma(a->tx_mpdu, s.tx_mpdu);
+-		if (a->tx_bytes + a->rx_bytes > b->main_bytes || !b->main) {
++		if (a->tx_bytes + a->rx_bytes > b->main_bytes || !b->main ||
++		    (a->tx_bytes + a->rx_bytes == b->main_bytes &&
++		     sl->wcid.idx < b->main_wcid)) {
+ 			b->main = vif;
+ 			b->main_link = i;
++			b->main_wcid = sl->wcid.idx;
+ 			b->main_bytes = a->tx_bytes + a->rx_bytes;
+ 			b->main_tx = a->tx_bytes;
+ 			b->main_mpdu = a->tx_mpdu;
+@@ -171,6 +187,41 @@
+ 	}
+ }
+ 
++/* A second pass uses the completed WCID selection and per-link averages. */
++static void mt7996_stock_near_far(void *data, struct ieee80211_sta *sta)
++{
++	struct mt7996_stock_scene *scene = data;
++	struct mt7996_dev *dev = scene->dev;
++	struct mt7996_sta *msta = (struct mt7996_sta *)sta->drv_priv;
++	struct ieee80211_vif *vif;
++	int i;
++
++	vif = container_of((void *)msta->vif, struct ieee80211_vif, drv_priv);
++	if (vif->type != NL80211_IFTYPE_AP)
++		return;
++	for (i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++) {
++		struct mt7996_sta_link *sl = rcu_dereference(msta->link[i]);
++		struct mt7996_vif_link *vl = mt7996_vif_link(dev, vif, i);
++		struct mt7996_stock_band *b;
++		struct mt7996_phy *phy;
++		u32 rate;
++
++		if (!sl || !sl->connected || !vl)
++			continue;
++		phy = mt7996_vif_link_phy(vl);
++		if (!phy || phy->mt76->band_idx >= MT7996_MAX_RADIOS ||
++		    !phy->mt76->chandef.chan ||
++		    phy->mt76->chandef.chan->band != NL80211_BAND_5GHZ)
++			continue;
++		b = &scene->band[phy->mt76->band_idx];
++		if (b->selected != vif || b->current_link != i)
++			continue;
++		rate = cfg80211_calculate_bitrate(&sl->wcid.rate);
++		b->near_fast |= mt7996_stock_near_far_fast(sl->stock_avg.tx_msdu, rate);
++		b->near_slow |= mt7996_stock_near_far_slow(sl->stock_avg.tx_msdu, rate);
++	}
++}
++
+ static void mt7996_stock_apply(void *data, u8 *mac, struct ieee80211_vif *vif)
+ {
+ 	struct mt7996_stock_scene *scene = data;
+@@ -209,8 +260,10 @@
+ 				      MT7996_STOCK_BURST, true);
+ 		s->epoch = READ_ONCE(dev->stock_epoch);
+ 		s->ul = false;
++		s->near_far = b->selected == vif && b->current_link == i &&
++			b->near_fast && b->near_slow;
+ 		if (b->mlo) {
+-			if (b->main == vif && b->main_link == i && b->main_valid) {
++			if (b->selected == vif && b->current_link == i && b->main_valid) {
+ 				mt7996_stock_vote_set(&votes, MT7996_STOCK_DEFAULT,
+ 					mt7996_stock_mlo_txop(b->main_tx, b->main_mpdu, mu),
+ 					true);
+@@ -228,6 +281,7 @@
+ 				b->sta_rx / b->sta_packets : 0;
+ 		}
+ 		mt7996_stock_vote_set(&votes, MT7996_STOCK_UL, 0, s->ul);
++		mt7996_stock_vote_set(&votes, MT7996_STOCK_NEAR_FAR, 0, s->near_far);
+ 		s->active = s->enabled;
+ 		s->txop = mt7996_stock_winner(&votes);
+ 		if (s->active == old.active && s->txop == old.txop &&
+@@ -266,6 +320,8 @@
+ 	    running) {
+ 		ieee80211_iterate_stations_atomic(mt76_hw(dev),
+ 						 mt7996_stock_collect, &scene);
++		ieee80211_iterate_stations_atomic(mt76_hw(dev),
++						 mt7996_stock_near_far, &scene);
+ 		ieee80211_iterate_active_interfaces_mtx(mt76_hw(dev), 0,
+ 						       mt7996_stock_apply, &scene);
+ 		/* Read-clear station statistics once per device, not per radio. */
+diff --git a/mt7996/stock_policy.h b/mt7996/stock_policy.h
+--- a/mt7996/stock_policy.h
++++ b/mt7996/stock_policy.h
+@@ -8,7 +8,8 @@
+ #define MT7996_STOCK_BURST 187
+ #define MT7996_STOCK_DEFAULT 0
+ #define MT7996_STOCK_UL 1
+-#define MT7996_STOCK_PRIORITIES 2
++#define MT7996_STOCK_NEAR_FAR 2
++#define MT7996_STOCK_PRIORITIES 3
+ 
+ struct mt7996_stock_vote {
+ 	u16 level[MT7996_STOCK_PRIORITIES];
+@@ -66,4 +67,15 @@
+ 	return ((avg_tx + avg_rx) >> 17) >= 500;
+ }
+ 
++/* rate is in 100 kbit/s units, as returned by cfg80211_calculate_bitrate. */
++static inline bool mt7996_stock_near_far_fast(u32 packets, u32 rate)
++{
++	return packets > 10 && rate >= 5200;
++}
++
++static inline bool mt7996_stock_near_far_slow(u32 packets, u32 rate)
++{
++	return packets > 10 && rate && rate <= 540;
++}
++
+ #endif
+diff --git a/mt7996/mt7996.h b/mt7996/mt7996.h
+--- a/mt7996/mt7996.h
++++ b/mt7996/mt7996.h
+@@ -305,6 +305,7 @@
+ 	bool enabled;
+ 	bool active;
+ 	bool ul;
++	bool near_far;
+ 	u16 txop;
+ 	u16 average_tx_len;
+ 	u32 average_rx_len;
+diff --git a/mt7996/debugfs.c b/mt7996/debugfs.c
+--- a/mt7996/debugfs.c
++++ b/mt7996/debugfs.c
+@@ -1416,9 +1416,9 @@
+ 		if (!link_conf_dereference_protected(vif, i))
+ 			continue;
+ 		len += scnprintf(buf + len, sizeof(buf) - len,
+-			"link=%d enabled=%u active=%u txop=%u ul=%u "
++			"link=%d enabled=%u active=%u txop=%u ul=%u near_far=%u "
+ 			"avg_tx_len=%u avg_rx_len=%u updates=%llu failures=%llu error=%d\n",
+-			i, s->enabled, s->active, s->txop, s->ul,
++			i, s->enabled, s->active, s->txop, s->ul, s->near_far,
+ 			s->average_tx_len, s->average_rx_len,
+ 			s->updates, s->failures, s->error);
+ 	}

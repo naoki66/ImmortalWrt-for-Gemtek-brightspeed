@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=mt76
-PKG_RELEASE:=13
+PKG_RELEASE:=14
 
 PKG_LICENSE:=BSD-3-Clause-Clear
 PKG_LICENSE_FILES:=

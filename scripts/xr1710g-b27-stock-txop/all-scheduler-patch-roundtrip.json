@@ -1,0 +1,16 @@
+[
+  {
+    "patch": "148-mt7996-backports-stock-policy-debugfs.patch",
+    "forward_fuzz0": true,
+    "matches_build_tree": true,
+    "reverse_byte_exact": true,
+    "sha256": "c38ca0171eaf92a0e57521bc690647b447cd9b08592e99e10af4312e862d203e"
+  },
+  {
+    "patch": "149-mt7996-retail-near-far-selection.patch",
+    "forward_fuzz0": true,
+    "matches_build_tree": true,
+    "reverse_byte_exact": true,
+    "sha256": "16ff864104f5f8db1683639eef3c8317074cd6de023235a4385e2e86fee7a4c1"
+  }
+]
