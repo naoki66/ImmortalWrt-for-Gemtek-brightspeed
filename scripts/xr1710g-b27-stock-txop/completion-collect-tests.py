@@ -48,11 +48,12 @@ struct channel {int band;};
 struct mt76_phy {u8 band_idx;struct {struct channel *chan;} chandef;};
 struct mt7996_phy {struct mt76_phy *mt76;};
 struct mt7996_vif_link {struct mt7996_phy *phy;};
-struct mt7996_vif {struct mt7996_vif_link links[16];};
+struct mt7996_vif {struct mt7996_vif_link links[16];struct {struct {bool enabled;} stock;} link_info[16];};
 struct ieee80211_vif {int type;_Alignas(16) unsigned char drv_priv[sizeof(struct mt7996_vif)];};
 struct mt7996_sta {struct mt7996_vif *vif;struct mt7996_sta_link *link[16];};
 struct ieee80211_sta {bool mlo;_Alignas(16) unsigned char drv_priv[sizeof(struct mt7996_sta)];};
 struct mt7996_dev {int stock_stats_lock;u32 stock_epoch;u64 stock_missing;};
+static void mt7996_stock_ba_update(struct mt7996_dev *d,struct mt7996_sta *m,struct mt7996_sta_link *s,bool enable,bool sample){(void)d;(void)m;(void)s;(void)enable;(void)sample;}
 static struct mt7996_vif_link *mt7996_vif_link(struct mt7996_dev *d,struct ieee80211_vif *v,int i){(void)d;return &((struct mt7996_vif*)v->drv_priv)->links[i];}
 static struct mt7996_phy *mt7996_vif_link_phy(struct mt7996_vif_link *v){return v->phy;}
 '''

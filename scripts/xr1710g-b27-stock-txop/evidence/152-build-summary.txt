@@ -1,0 +1,2 @@
+make -j6 package/kernel/mt76/compile V=s: exit 0
+Build log SHA256: 5142f648e91e08db060903b1f48c607da0dd355d20aef55116bffe2eadca2e65
