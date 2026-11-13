@@ -12,6 +12,8 @@ Successful BA setup and all radio/TCP policy remain unchanged.
 This repairs failure-path consistency; it is NOT a verified fix for the
 reported 2.4 GHz bidirectional throughput imbalance.
 
+---
+diff --git a/mt7996/main.c b/mt7996/main.c
 --- a/mt7996/main.c
 +++ b/mt7996/main.c
 @@ -2288,6 +2288,7 @@

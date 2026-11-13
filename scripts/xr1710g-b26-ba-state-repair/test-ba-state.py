@@ -1,6 +1,17 @@
 from pathlib import Path
-import subprocess,json
-T=Path('/mnt/f/openwrt/wifi-fix26/ba-state-repair')
+import subprocess,json,argparse,tempfile
+parser=argparse.ArgumentParser(description='Inject BA setup failures into the real driver callback')
+parser.add_argument('--source',type=Path,help='Patched mt7996/main.c')
+parser.add_argument('--patch',type=Path,help='Patch used to reconstruct the original source')
+parser.add_argument('--output',type=Path,default=Path('/mnt/f/openwrt/wifi-fix26/ba-state-repair'))
+args=parser.parse_args();T=args.output;T.mkdir(parents=True,exist_ok=True)
+if args.source:
+ assert args.patch, '--patch is required with --source'
+ after=args.source.read_bytes();(T/'main-after.c').write_bytes(after)
+ with tempfile.TemporaryDirectory() as d:
+  q=Path(d);(q/'mt7996').mkdir();f=q/'mt7996/main.c';f.write_bytes(after)
+  subprocess.run(['patch','--batch','--fuzz=0','-R','-p1','-i',str(args.patch.resolve())],cwd=q,check=True)
+  (T/'main-before.c').write_bytes(f.read_bytes())
 prefix=r'''
 #include <stdio.h>
 #include <stdbool.h>
