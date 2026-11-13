@@ -1,0 +1,25 @@
+{
+  "pin": "dd22be9a0ef80fde64e65e57d25f988a1ea1460f",
+  "files": [
+    {
+      "path": "include/opcode/riscv-opc.h",
+      "sha256": "8aca9c38d5d302b0076cbe17640dbcee759b3282bf59ef1e366e4f041fed2f9f",
+      "url": "https://github.com/andestech/binutils/blob/dd22be9a0ef80fde64e65e57d25f988a1ea1460f/include/opcode/riscv-opc.h"
+    },
+    {
+      "path": "include/opcode/riscv.h",
+      "sha256": "2f1943acc1dbfa60542d9de77b4aa669a9c49179cc6cdd7476c7c5479981f93e",
+      "url": "https://github.com/andestech/binutils/blob/dd22be9a0ef80fde64e65e57d25f988a1ea1460f/include/opcode/riscv.h"
+    },
+    {
+      "path": "opcodes/riscv-dis.c",
+      "sha256": "c8ebb460f7955998497f4c1474070ca47c7dc5c5ea995a8600e843b0125dbd46",
+      "url": "https://github.com/andestech/binutils/blob/dd22be9a0ef80fde64e65e57d25f988a1ea1460f/opcodes/riscv-dis.c"
+    },
+    {
+      "path": "opcodes/riscv-opc.c",
+      "sha256": "50419a17e0d3ebc6a75ca7f85d19cce230475ac4cb79f59316416ba543d23707",
+      "url": "https://github.com/andestech/binutils/blob/dd22be9a0ef80fde64e65e57d25f988a1ea1460f/opcodes/riscv-opc.c"
+    }
+  ]
+}

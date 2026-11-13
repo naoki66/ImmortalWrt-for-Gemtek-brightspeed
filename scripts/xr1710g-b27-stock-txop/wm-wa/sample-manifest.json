@@ -1,0 +1,254 @@
+[
+  {
+    "name": "stock_WM",
+    "path": "/home/builder/stock-xr1710g-5.1.1.12/rootfs/lib/firmware/WIFI_RAM_CODE_MT7990_1_1.bin",
+    "sha256": "1cb73cea57bebda2a2a8425028cb019f5026cc841ee6046925ead5035215d7ee",
+    "build": "20240306143154",
+    "regions": [
+      {
+        "index": 0,
+        "address": "0x916c00",
+        "feature": "0x21",
+        "payload_bytes": 135424,
+        "payload_sha256": "722e1fc6b4c140bdb70831c947b874396f3158e2f6c7767e3d5544e96c432dff",
+        "footer_hex": "000000000000000000000000171db6ca",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 1,
+        "address": "0x407200",
+        "feature": "0x1",
+        "payload_bytes": 32704,
+        "payload_sha256": "f7ecdc69597f4d2192a9f7f0b1b50e92825db986a9d1ca6a32471e4e9ceef9d1",
+        "footer_hex": "000000000000000000000000ab428d49",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 2,
+        "address": "0xe0097800",
+        "feature": "0x1",
+        "payload_bytes": 701376,
+        "payload_sha256": "a5ec760bc847c7ff4f17ae20f63ba60b99b7970f6e08864e3fd4582ace93d781",
+        "footer_hex": "00000000000000000000000068772aba",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 3,
+        "address": "0xe0142c00",
+        "feature": "0x1",
+        "payload_bytes": 771008,
+        "payload_sha256": "e4a5a07d277dfefb0cc51162faf5796a4b5d6c87be4d90351a0b540d15c4b533",
+        "footer_hex": "000000000000000000000000b5e3bbbf",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 4,
+        "address": "0xe01ff000",
+        "feature": "0x1",
+        "payload_bytes": 511936,
+        "payload_sha256": "ba1db5db6f4907c80a38579f60ab245c6bac80c143d894efe9e99559e47d51b5",
+        "footer_hex": "00000000000000000000000063c5236f",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 5,
+        "address": "0x220e800",
+        "feature": "0x1",
+        "payload_bytes": 115648,
+        "payload_sha256": "729528d0c1c4446be3db8fff801e5ce0b87cc1bd8ad5aa183d3bbbd303287ae2",
+        "footer_hex": "0000000000000000000000009c2418d0",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 6,
+        "address": "0x404000",
+        "feature": "0x1",
+        "payload_bytes": 12736,
+        "payload_sha256": "7e2ec2e0e800992acd7d994c3cade88369776928c58df775e066a9c1e85dae32",
+        "footer_hex": "00000000000000000000000026c672e3",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 7,
+        "address": "0xe005b400",
+        "feature": "0x1",
+        "payload_bytes": 144320,
+        "payload_sha256": "c314820dfd25b1b7ec2a126dd782168cff8b735e410f09fabcc34c197fe5bcde",
+        "footer_hex": "00000000000000000000000077478c16",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 8,
+        "address": "0xe0031800",
+        "feature": "0x1",
+        "payload_bytes": 170240,
+        "payload_sha256": "4e02e402bbd994db9b324a2df858036ce5af63f6435f709a4d62ae18802625ed",
+        "footer_hex": "00000000000000000000000092859208",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      }
+    ],
+    "build_tlv_hex": "23232323232323232323232323232323700000004b000101742d6e657074756e652d6d61696e2d373939302d323332382d332e302d4d54373939305f4d54373938385f484f53544150445f4c4f47414e5f4d50332d3230323430333036313432323234001b000103434d445f5645523a303030312e303030302e303030302e303030300023232323232323232323232323232323"
+  },
+  {
+    "name": "stock_WA",
+    "path": "/home/builder/stock-xr1710g-5.1.1.12/rootfs/lib/firmware/WIFI_MT7990_WACPU_RAM_CODE_1_1.bin",
+    "sha256": "b9fac549f36368c175a31e7e5638de2ceac33f93f79667ccef966d2299633629",
+    "build": "20240207161506",
+    "regions": [
+      {
+        "index": 0,
+        "address": "0x10000000",
+        "feature": "0x1",
+        "payload_bytes": 113024,
+        "payload_sha256": "3a75da2ecf2fa45e82b05db96b50f0b227cca8142428e7120e06d08c6a5f47cd",
+        "footer_hex": "000000000000000000000000c1b819c7",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 1,
+        "address": "0x10200000",
+        "feature": "0x1",
+        "payload_bytes": 385984,
+        "payload_sha256": "948ab36d25b39638c5d5b7302a84ae44d8495775dfeb01d7f16de91b90f488b9",
+        "footer_hex": "0000000000000000000000009e7c530d",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 2,
+        "address": "0xe0000000",
+        "feature": "0x1",
+        "payload_bytes": 16256,
+        "payload_sha256": "74142e007d999db8b706db53aa4d4634b3d0cabbd17911d298e763945c595603",
+        "footer_hex": "0000000000000000000000008315eb0c",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      }
+    ],
+    "build_tlv_hex": "232323232323232323232323232323230000000023232323232323232323232323232323"
+  },
+  {
+    "name": "current_WM",
+    "path": "/home/builder/immortalwrt-B13/staging_dir/target-aarch64_cortex-a53_musl/root-airoha/lib/firmware/mediatek/mt7996/mt7996_wm.bin",
+    "sha256": "99020e57ff91fdee09b833f9d35f97ff70722d0ef32fa8b02f70c8d3c6f95592",
+    "build": "20260721003035",
+    "regions": [
+      {
+        "index": 0,
+        "address": "0x916400",
+        "feature": "0x21",
+        "payload_bytes": 137472,
+        "payload_sha256": "7315db901744b762622a2a3c825699cafb5527aedd9d9d8f5871428a65e9d33a",
+        "footer_hex": "00000000000000000000000090cd2216",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 1,
+        "address": "0x407200",
+        "feature": "0x1",
+        "payload_bytes": 32704,
+        "payload_sha256": "f7ecdc69597f4d2192a9f7f0b1b50e92825db986a9d1ca6a32471e4e9ceef9d1",
+        "footer_hex": "000000000000000000000000ab428d49",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 2,
+        "address": "0xe0088000",
+        "feature": "0x1",
+        "payload_bytes": 736192,
+        "payload_sha256": "1c46d907ec566d7799947bb6b5807535b61eff17bac625a43f40f7de8a6d1de4",
+        "footer_hex": "000000000000000000000000d5c5df86",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 3,
+        "address": "0xe013bc00",
+        "feature": "0x1",
+        "payload_bytes": 798656,
+        "payload_sha256": "d0220f97f2e2d7d64e9320dc6b3d42aa46b7dd74c860a8d87c2ce30dbea10016",
+        "footer_hex": "000000000000000000000000bab3dbc7",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 4,
+        "address": "0xe01fec00",
+        "feature": "0x1",
+        "payload_bytes": 511936,
+        "payload_sha256": "2900d7301e329ac4052b574ad52a306a5542f62c162f3897dfc0b6907c6bb917",
+        "footer_hex": "000000000000000000000000ca825ef3",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 5,
+        "address": "0x220e800",
+        "feature": "0x1",
+        "payload_bytes": 115648,
+        "payload_sha256": "cfafa9fedab0d25d7d3e182f5fcd999e6be57fcaa238838f26d48f7f9786ffa6",
+        "footer_hex": "000000000000000000000000fb8aff98",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 6,
+        "address": "0x404000",
+        "feature": "0x1",
+        "payload_bytes": 12736,
+        "payload_sha256": "7e2ec2e0e800992acd7d994c3cade88369776928c58df775e066a9c1e85dae32",
+        "footer_hex": "00000000000000000000000026c672e3",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 7,
+        "address": "0xe005c400",
+        "feature": "0x1",
+        "payload_bytes": 146368,
+        "payload_sha256": "8c1eece68d6dfbefc3e1e52c2c1db623914f2ddeeabbde2a18dceb1b90c94c04",
+        "footer_hex": "0000000000000000000000000efe7a11",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 8,
+        "address": "0xe0031800",
+        "feature": "0x1",
+        "payload_bytes": 173760,
+        "payload_sha256": "c254a151164d8e39528614abc97a43fab62c01223ee1e5d313eff37e91bce8a3",
+        "footer_hex": "000000000000000000000000add40e57",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      }
+    ],
+    "build_tlv_hex": "232323232323232323232323232323237800000052000201742d6e657074756e652d6d61696e2d373939302d373939322d373939332d323434332d4d54373939305f4d5437393838445f424531333530305f4d50355f32414449452d323032363037323130303236313200001b000103434d445f5645523a303030312e303030302e303030302e303030300023232323232323232323232323232323"
+  },
+  {
+    "name": "current_WA",
+    "path": "/home/builder/immortalwrt-B13/staging_dir/target-aarch64_cortex-a53_musl/root-airoha/lib/firmware/mediatek/mt7996/mt7996_wa.bin",
+    "sha256": "06106c918866c7ae3da47b27223da17030212a1a4adcb5c23871325291d06448",
+    "build": "20260721002917",
+    "regions": [
+      {
+        "index": 0,
+        "address": "0x10000000",
+        "feature": "0x1",
+        "payload_bytes": 106688,
+        "payload_sha256": "f32d0e510c2ce62fa2b52d49b5bf2776dc46e633b55a0bebc4d40978c0659dbd",
+        "footer_hex": "0000000000000000000000004b6f8249",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 1,
+        "address": "0x10200000",
+        "feature": "0x1",
+        "payload_bytes": 385152,
+        "payload_sha256": "881c6c3a39e8cdd839f4b245af565ad1d2d3edcaf62fa41b7927c66c29dc7cae",
+        "footer_hex": "000000000000000000000000c7a421c9",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      },
+      {
+        "index": 2,
+        "address": "0xe0000000",
+        "feature": "0x1",
+        "payload_bytes": 17984,
+        "payload_sha256": "d8fe1ade6ecacb4f5fb2aa735a80bcd28669e092951839632c2e09cf8bc9a982",
+        "footer_hex": "000000000000000000000000a1735048",
+        "integrity": "footer final word semantics not established; no checksum/signature validation claimed"
+      }
+    ],
+    "build_tlv_hex": "232323232323232323232323232323230000000023232323232323232323232323232323"
+  }
+]

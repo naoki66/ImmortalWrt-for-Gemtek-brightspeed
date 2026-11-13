@@ -1,0 +1,791 @@
+{
+  "cases": 112,
+  "passed": true,
+  "scope": "Integer percent conversion and setter argument buffers; external log and hardware setters stubbed.",
+  "results": [
+    {
+      "sample": "stock_WA",
+      "scale": 0,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 0,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 0,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 0,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 0,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 0,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 0,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 0,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 0,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 0,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 0,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 0,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 0,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 0,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 0,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 0,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 1,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 1,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 1,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 1,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 1,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 1,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 1,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 1,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 1,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 1,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 1,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 1,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 1,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 1,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 1,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 1,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 64,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 64,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 64,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 64,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 64,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 64,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 64,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 64,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 64,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 64,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 64,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 64,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 64,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 64,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 64,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 64,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 512,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 512,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 512,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 512,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 512,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 512,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 512,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 512,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 512,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 512,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 512,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 512,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 512,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 512,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 512,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 512,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 4096,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 4096,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 4096,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 4096,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 4096,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 4096,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 4096,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 4096,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 4096,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 4096,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 4096,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 4096,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 4096,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 4096,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 4096,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 4096,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 16384,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 16384,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 16384,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 16384,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 16384,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 16384,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 16384,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 16384,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 16384,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 16384,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 16384,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 16384,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 16384,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 16384,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 16384,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 16384,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 65535,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 65535,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 65535,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 65535,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 65535,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 65535,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 65535,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 65535,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 65535,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 65535,
+      "source": 0,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 65535,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 65535,
+      "source": 1,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 65535,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 65535,
+      "source": 2,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "stock_WA",
+      "scale": 65535,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    },
+    {
+      "sample": "current_WA",
+      "scale": 65535,
+      "source": 3,
+      "passed": true,
+      "steps": 185
+    }
+  ]
+}

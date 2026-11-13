@@ -1,0 +1,1519 @@
+{
+  "scope": "Decoded instruction interpreter of acm_cmd_config body; logging, hardware setters, table-programming helpers and STA helper calls stubbed. Not whole-firmware emulation.",
+  "cases": 168,
+  "passed": true,
+  "results": [
+    {
+      "sample": "stock_WA",
+      "op": 0,
+      "initial_flags": 0,
+      "steps": 22,
+      "passed": true,
+      "state_sha256": "e4795b5a406b7d769f33f88af9049fd91bef6d5538e1574a5fea7d448ee56e0b",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 0,
+      "initial_flags": 0,
+      "steps": 22,
+      "passed": true,
+      "state_sha256": "e4795b5a406b7d769f33f88af9049fd91bef6d5538e1574a5fea7d448ee56e0b",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 0,
+      "initial_flags": 1,
+      "steps": 315,
+      "passed": true,
+      "state_sha256": "03fe9d1fd50408fbbab2a20a3b1d3a6c1b7034669bdaf737d20e1891cdbdf897",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 0,
+      "initial_flags": 1,
+      "steps": 315,
+      "passed": true,
+      "state_sha256": "03fe9d1fd50408fbbab2a20a3b1d3a6c1b7034669bdaf737d20e1891cdbdf897",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 0,
+      "initial_flags": 2,
+      "steps": 56,
+      "passed": true,
+      "state_sha256": "ca88a6c675f52dbd2d7993f6b23880f40aaf7b8d2a5db94d20d5726def092f29",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 0,
+      "initial_flags": 2,
+      "steps": 56,
+      "passed": true,
+      "state_sha256": "ca88a6c675f52dbd2d7993f6b23880f40aaf7b8d2a5db94d20d5726def092f29",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 0,
+      "initial_flags": 4,
+      "steps": 212,
+      "passed": true,
+      "state_sha256": "712b5fbf17980a283efc8cf95f754d87bdd59aebe1e14c739b9ee07ee7e9745a",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 0,
+      "initial_flags": 4,
+      "steps": 212,
+      "passed": true,
+      "state_sha256": "712b5fbf17980a283efc8cf95f754d87bdd59aebe1e14c739b9ee07ee7e9745a",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 0,
+      "initial_flags": 8,
+      "steps": 32,
+      "passed": true,
+      "state_sha256": "2499d657002ddb6eb88ae059ac4a1b1715389cfc57ab286883bc49104d943e32",
+      "calls_stubbed": 2
+    },
+    {
+      "sample": "current_WA",
+      "op": 0,
+      "initial_flags": 8,
+      "steps": 32,
+      "passed": true,
+      "state_sha256": "2499d657002ddb6eb88ae059ac4a1b1715389cfc57ab286883bc49104d943e32",
+      "calls_stubbed": 2
+    },
+    {
+      "sample": "stock_WA",
+      "op": 0,
+      "initial_flags": 16,
+      "steps": 24,
+      "passed": true,
+      "state_sha256": "0c2a70e84ccf2a405e7d869be85ad3a66ce349a58966b2f98c72dac6f3705082",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "current_WA",
+      "op": 0,
+      "initial_flags": 16,
+      "steps": 24,
+      "passed": true,
+      "state_sha256": "0c2a70e84ccf2a405e7d869be85ad3a66ce349a58966b2f98c72dac6f3705082",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "stock_WA",
+      "op": 0,
+      "initial_flags": 31,
+      "steps": 543,
+      "passed": true,
+      "state_sha256": "ff074163c8a5bb4f16431ff35ae9a35e336cae514814908817f31b7b9b55b770",
+      "calls_stubbed": 7
+    },
+    {
+      "sample": "current_WA",
+      "op": 0,
+      "initial_flags": 31,
+      "steps": 543,
+      "passed": true,
+      "state_sha256": "ff074163c8a5bb4f16431ff35ae9a35e336cae514814908817f31b7b9b55b770",
+      "calls_stubbed": 7
+    },
+    {
+      "sample": "stock_WA",
+      "op": 1,
+      "initial_flags": 0,
+      "steps": 563,
+      "passed": true,
+      "state_sha256": "3682889e3c0b9734949814ea005531ec5e6e1072920a6e92c0d5fd935eaa351c",
+      "calls_stubbed": 6
+    },
+    {
+      "sample": "current_WA",
+      "op": 1,
+      "initial_flags": 0,
+      "steps": 563,
+      "passed": true,
+      "state_sha256": "3682889e3c0b9734949814ea005531ec5e6e1072920a6e92c0d5fd935eaa351c",
+      "calls_stubbed": 6
+    },
+    {
+      "sample": "stock_WA",
+      "op": 1,
+      "initial_flags": 1,
+      "steps": 571,
+      "passed": true,
+      "state_sha256": "c08ad9f2200eedd4b7054bc54765ab1c5bff589b4e42c1a0d0ad6cb449530732",
+      "calls_stubbed": 10
+    },
+    {
+      "sample": "current_WA",
+      "op": 1,
+      "initial_flags": 1,
+      "steps": 571,
+      "passed": true,
+      "state_sha256": "c08ad9f2200eedd4b7054bc54765ab1c5bff589b4e42c1a0d0ad6cb449530732",
+      "calls_stubbed": 10
+    },
+    {
+      "sample": "stock_WA",
+      "op": 1,
+      "initial_flags": 2,
+      "steps": 571,
+      "passed": true,
+      "state_sha256": "30ab5b065f25255373e6e0c774484da56f0be4240280c9dfceaacf551b4f3da2",
+      "calls_stubbed": 10
+    },
+    {
+      "sample": "current_WA",
+      "op": 1,
+      "initial_flags": 2,
+      "steps": 571,
+      "passed": true,
+      "state_sha256": "30ab5b065f25255373e6e0c774484da56f0be4240280c9dfceaacf551b4f3da2",
+      "calls_stubbed": 10
+    },
+    {
+      "sample": "stock_WA",
+      "op": 1,
+      "initial_flags": 4,
+      "steps": 563,
+      "passed": true,
+      "state_sha256": "08e9e10552c1b2bc0a98348d2a6becf8980c3aa8cca2de454c3374a85040d8b1",
+      "calls_stubbed": 6
+    },
+    {
+      "sample": "current_WA",
+      "op": 1,
+      "initial_flags": 4,
+      "steps": 563,
+      "passed": true,
+      "state_sha256": "08e9e10552c1b2bc0a98348d2a6becf8980c3aa8cca2de454c3374a85040d8b1",
+      "calls_stubbed": 6
+    },
+    {
+      "sample": "stock_WA",
+      "op": 1,
+      "initial_flags": 8,
+      "steps": 571,
+      "passed": true,
+      "state_sha256": "72e975c9bd959527b93ed535f738de8dc6fd4f7cd763fd3f386fe9b3632eada5",
+      "calls_stubbed": 10
+    },
+    {
+      "sample": "current_WA",
+      "op": 1,
+      "initial_flags": 8,
+      "steps": 571,
+      "passed": true,
+      "state_sha256": "72e975c9bd959527b93ed535f738de8dc6fd4f7cd763fd3f386fe9b3632eada5",
+      "calls_stubbed": 10
+    },
+    {
+      "sample": "stock_WA",
+      "op": 1,
+      "initial_flags": 16,
+      "steps": 565,
+      "passed": true,
+      "state_sha256": "5a693921fc58c88dc0434e026f2eaac9fd0b6661ae96789282493969888a4dfc",
+      "calls_stubbed": 7
+    },
+    {
+      "sample": "current_WA",
+      "op": 1,
+      "initial_flags": 16,
+      "steps": 565,
+      "passed": true,
+      "state_sha256": "5a693921fc58c88dc0434e026f2eaac9fd0b6661ae96789282493969888a4dfc",
+      "calls_stubbed": 7
+    },
+    {
+      "sample": "stock_WA",
+      "op": 1,
+      "initial_flags": 31,
+      "steps": 565,
+      "passed": true,
+      "state_sha256": "e09698b0c79a058feb0a072e57b0687751bfc94f28561156b081b3b30286b585",
+      "calls_stubbed": 7
+    },
+    {
+      "sample": "current_WA",
+      "op": 1,
+      "initial_flags": 31,
+      "steps": 565,
+      "passed": true,
+      "state_sha256": "e09698b0c79a058feb0a072e57b0687751bfc94f28561156b081b3b30286b585",
+      "calls_stubbed": 7
+    },
+    {
+      "sample": "stock_WA",
+      "op": 2,
+      "initial_flags": 0,
+      "steps": 70,
+      "passed": true,
+      "state_sha256": "6be0beb1f1c12d7e037393e67deafc029588c3f89c6b3ffee61bf6d3294ee39a",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 2,
+      "initial_flags": 0,
+      "steps": 70,
+      "passed": true,
+      "state_sha256": "6be0beb1f1c12d7e037393e67deafc029588c3f89c6b3ffee61bf6d3294ee39a",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 2,
+      "initial_flags": 1,
+      "steps": 363,
+      "passed": true,
+      "state_sha256": "1d164b6a2dc162255055d8d82543dd015b1cbc2be15cad04987745db7a469c4c",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 2,
+      "initial_flags": 1,
+      "steps": 363,
+      "passed": true,
+      "state_sha256": "1d164b6a2dc162255055d8d82543dd015b1cbc2be15cad04987745db7a469c4c",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 2,
+      "initial_flags": 2,
+      "steps": 70,
+      "passed": true,
+      "state_sha256": "874076c0c2a2b108b80fc8228240d3b30229529fa007cdf7cde920f44e4880a0",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 2,
+      "initial_flags": 2,
+      "steps": 70,
+      "passed": true,
+      "state_sha256": "874076c0c2a2b108b80fc8228240d3b30229529fa007cdf7cde920f44e4880a0",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 2,
+      "initial_flags": 4,
+      "steps": 252,
+      "passed": true,
+      "state_sha256": "ce90cc6ce91420f6e415dbfa0fa7493eda61b2e86193e731eda956448f3249fc",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 2,
+      "initial_flags": 4,
+      "steps": 252,
+      "passed": true,
+      "state_sha256": "ce90cc6ce91420f6e415dbfa0fa7493eda61b2e86193e731eda956448f3249fc",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 2,
+      "initial_flags": 8,
+      "steps": 80,
+      "passed": true,
+      "state_sha256": "b946a7a2be27c68ba863f08aa16c31b7b9709c638c1aef0b9e4fe7a3e86fddfa",
+      "calls_stubbed": 2
+    },
+    {
+      "sample": "current_WA",
+      "op": 2,
+      "initial_flags": 8,
+      "steps": 80,
+      "passed": true,
+      "state_sha256": "b946a7a2be27c68ba863f08aa16c31b7b9709c638c1aef0b9e4fe7a3e86fddfa",
+      "calls_stubbed": 2
+    },
+    {
+      "sample": "stock_WA",
+      "op": 2,
+      "initial_flags": 16,
+      "steps": 72,
+      "passed": true,
+      "state_sha256": "19d5f18a4a078e2ea28d9ceb823b9b1bda6da28ca6e3e8f73cbf89b36b4d6b27",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "current_WA",
+      "op": 2,
+      "initial_flags": 16,
+      "steps": 72,
+      "passed": true,
+      "state_sha256": "19d5f18a4a078e2ea28d9ceb823b9b1bda6da28ca6e3e8f73cbf89b36b4d6b27",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "stock_WA",
+      "op": 2,
+      "initial_flags": 31,
+      "steps": 565,
+      "passed": true,
+      "state_sha256": "06407fd899cf795d85d643810ef33d600b12293c0d090a7ba86afe66e445e756",
+      "calls_stubbed": 11
+    },
+    {
+      "sample": "current_WA",
+      "op": 2,
+      "initial_flags": 31,
+      "steps": 565,
+      "passed": true,
+      "state_sha256": "06407fd899cf795d85d643810ef33d600b12293c0d090a7ba86afe66e445e756",
+      "calls_stubbed": 11
+    },
+    {
+      "sample": "stock_WA",
+      "op": 3,
+      "initial_flags": 0,
+      "steps": 329,
+      "passed": true,
+      "state_sha256": "994b6147f13c916e8be6c3bc9f7d85c8ba4650cd5391ca99cd8ecc64bd1bbd28",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 3,
+      "initial_flags": 0,
+      "steps": 329,
+      "passed": true,
+      "state_sha256": "994b6147f13c916e8be6c3bc9f7d85c8ba4650cd5391ca99cd8ecc64bd1bbd28",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 3,
+      "initial_flags": 1,
+      "steps": 329,
+      "passed": true,
+      "state_sha256": "249fdae9f1f8969c435bba5a3bd76055cb33f7507375c379a8e1cf37ae02205a",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 3,
+      "initial_flags": 1,
+      "steps": 329,
+      "passed": true,
+      "state_sha256": "249fdae9f1f8969c435bba5a3bd76055cb33f7507375c379a8e1cf37ae02205a",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 3,
+      "initial_flags": 2,
+      "steps": 371,
+      "passed": true,
+      "state_sha256": "fa0ff58e39fa6e0d01563c665be2bb709aa8eaab0915e9c2e94c3bcd14c6d209",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 3,
+      "initial_flags": 2,
+      "steps": 371,
+      "passed": true,
+      "state_sha256": "fa0ff58e39fa6e0d01563c665be2bb709aa8eaab0915e9c2e94c3bcd14c6d209",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 3,
+      "initial_flags": 4,
+      "steps": 511,
+      "passed": true,
+      "state_sha256": "ccb54a96c1a4fdeb9fd400994245ea85d68dba98c60bb0ae2f50335fe245c1f7",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 3,
+      "initial_flags": 4,
+      "steps": 511,
+      "passed": true,
+      "state_sha256": "ccb54a96c1a4fdeb9fd400994245ea85d68dba98c60bb0ae2f50335fe245c1f7",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 3,
+      "initial_flags": 8,
+      "steps": 339,
+      "passed": true,
+      "state_sha256": "d28562f482836a032d848cfb832ffca21bcbf659fde1bf990f55dee9f1926ba3",
+      "calls_stubbed": 6
+    },
+    {
+      "sample": "current_WA",
+      "op": 3,
+      "initial_flags": 8,
+      "steps": 339,
+      "passed": true,
+      "state_sha256": "d28562f482836a032d848cfb832ffca21bcbf659fde1bf990f55dee9f1926ba3",
+      "calls_stubbed": 6
+    },
+    {
+      "sample": "stock_WA",
+      "op": 3,
+      "initial_flags": 16,
+      "steps": 331,
+      "passed": true,
+      "state_sha256": "02758c0641fbc231bedac3a09dd59e111c56c0bd88c4ac2da6e1368f1ba2b39a",
+      "calls_stubbed": 5
+    },
+    {
+      "sample": "current_WA",
+      "op": 3,
+      "initial_flags": 16,
+      "steps": 331,
+      "passed": true,
+      "state_sha256": "02758c0641fbc231bedac3a09dd59e111c56c0bd88c4ac2da6e1368f1ba2b39a",
+      "calls_stubbed": 5
+    },
+    {
+      "sample": "stock_WA",
+      "op": 3,
+      "initial_flags": 31,
+      "steps": 565,
+      "passed": true,
+      "state_sha256": "d27fb57190463c49089890026a3bf77f5e991973080d2701e598ceaf8048a148",
+      "calls_stubbed": 7
+    },
+    {
+      "sample": "current_WA",
+      "op": 3,
+      "initial_flags": 31,
+      "steps": 565,
+      "passed": true,
+      "state_sha256": "d27fb57190463c49089890026a3bf77f5e991973080d2701e598ceaf8048a148",
+      "calls_stubbed": 7
+    },
+    {
+      "sample": "stock_WA",
+      "op": 4,
+      "initial_flags": 0,
+      "steps": 226,
+      "passed": true,
+      "state_sha256": "0ad623b02df2a0965460980df31257e885995a6dfe19f16da297bb6ac4d47a3d",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 4,
+      "initial_flags": 0,
+      "steps": 226,
+      "passed": true,
+      "state_sha256": "0ad623b02df2a0965460980df31257e885995a6dfe19f16da297bb6ac4d47a3d",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 4,
+      "initial_flags": 1,
+      "steps": 511,
+      "passed": true,
+      "state_sha256": "d59a212c0421efb9fc44116ae633224c930549643373388196105aef56f53bd2",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 4,
+      "initial_flags": 1,
+      "steps": 511,
+      "passed": true,
+      "state_sha256": "d59a212c0421efb9fc44116ae633224c930549643373388196105aef56f53bd2",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 4,
+      "initial_flags": 2,
+      "steps": 252,
+      "passed": true,
+      "state_sha256": "f6b764d3c7b57d55aa6fb78cf33d0445845e9fe8d03a8ac767636c7df63aea79",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 4,
+      "initial_flags": 2,
+      "steps": 252,
+      "passed": true,
+      "state_sha256": "f6b764d3c7b57d55aa6fb78cf33d0445845e9fe8d03a8ac767636c7df63aea79",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 4,
+      "initial_flags": 4,
+      "steps": 218,
+      "passed": true,
+      "state_sha256": "fd1a2adfbb0fad839eb897deddc9bc6c925eb8a35da39f865bb381b4a2af93fc",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 4,
+      "initial_flags": 4,
+      "steps": 218,
+      "passed": true,
+      "state_sha256": "fd1a2adfbb0fad839eb897deddc9bc6c925eb8a35da39f865bb381b4a2af93fc",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 4,
+      "initial_flags": 8,
+      "steps": 236,
+      "passed": true,
+      "state_sha256": "ee5d81f78bc3f9ed11a1849b1955d25e4ff8181b9f16a9b0bbb340f3a70202a8",
+      "calls_stubbed": 6
+    },
+    {
+      "sample": "current_WA",
+      "op": 4,
+      "initial_flags": 8,
+      "steps": 236,
+      "passed": true,
+      "state_sha256": "ee5d81f78bc3f9ed11a1849b1955d25e4ff8181b9f16a9b0bbb340f3a70202a8",
+      "calls_stubbed": 6
+    },
+    {
+      "sample": "stock_WA",
+      "op": 4,
+      "initial_flags": 16,
+      "steps": 228,
+      "passed": true,
+      "state_sha256": "c571ab160da4b8f89e2efae2b57a84cec4ffdf67a6c3dae060e87d543cfbc524",
+      "calls_stubbed": 5
+    },
+    {
+      "sample": "current_WA",
+      "op": 4,
+      "initial_flags": 16,
+      "steps": 228,
+      "passed": true,
+      "state_sha256": "c571ab160da4b8f89e2efae2b57a84cec4ffdf67a6c3dae060e87d543cfbc524",
+      "calls_stubbed": 5
+    },
+    {
+      "sample": "stock_WA",
+      "op": 4,
+      "initial_flags": 31,
+      "steps": 557,
+      "passed": true,
+      "state_sha256": "140acfa672de088a4f8c9020784772d94c1c6cfe194c60df60d9af69cef8a64a",
+      "calls_stubbed": 7
+    },
+    {
+      "sample": "current_WA",
+      "op": 4,
+      "initial_flags": 31,
+      "steps": 557,
+      "passed": true,
+      "state_sha256": "140acfa672de088a4f8c9020784772d94c1c6cfe194c60df60d9af69cef8a64a",
+      "calls_stubbed": 7
+    },
+    {
+      "sample": "stock_WA",
+      "op": 5,
+      "initial_flags": 0,
+      "steps": 38,
+      "passed": true,
+      "state_sha256": "9d59ea8d1bbd2d14306ef6e0e5cee2569fd41a9152a25cef3734d3cc0be35009",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "current_WA",
+      "op": 5,
+      "initial_flags": 0,
+      "steps": 38,
+      "passed": true,
+      "state_sha256": "9d59ea8d1bbd2d14306ef6e0e5cee2569fd41a9152a25cef3734d3cc0be35009",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "stock_WA",
+      "op": 5,
+      "initial_flags": 1,
+      "steps": 331,
+      "passed": true,
+      "state_sha256": "4001e75fa2192f5a517ae692439c0e350dac08117ceb0bbea3393cf84bf1a651",
+      "calls_stubbed": 5
+    },
+    {
+      "sample": "current_WA",
+      "op": 5,
+      "initial_flags": 1,
+      "steps": 331,
+      "passed": true,
+      "state_sha256": "4001e75fa2192f5a517ae692439c0e350dac08117ceb0bbea3393cf84bf1a651",
+      "calls_stubbed": 5
+    },
+    {
+      "sample": "stock_WA",
+      "op": 5,
+      "initial_flags": 2,
+      "steps": 80,
+      "passed": true,
+      "state_sha256": "29100dc3f2fb7a296fe6c5483faa09c03e00dc683d70819d5e20a42eba417e96",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "current_WA",
+      "op": 5,
+      "initial_flags": 2,
+      "steps": 80,
+      "passed": true,
+      "state_sha256": "29100dc3f2fb7a296fe6c5483faa09c03e00dc683d70819d5e20a42eba417e96",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "stock_WA",
+      "op": 5,
+      "initial_flags": 4,
+      "steps": 228,
+      "passed": true,
+      "state_sha256": "0c94fa226c2092c3906b20fd1c53b22d8a5246271bb421d951e5e43ddafe305b",
+      "calls_stubbed": 5
+    },
+    {
+      "sample": "current_WA",
+      "op": 5,
+      "initial_flags": 4,
+      "steps": 228,
+      "passed": true,
+      "state_sha256": "0c94fa226c2092c3906b20fd1c53b22d8a5246271bb421d951e5e43ddafe305b",
+      "calls_stubbed": 5
+    },
+    {
+      "sample": "stock_WA",
+      "op": 5,
+      "initial_flags": 8,
+      "steps": 48,
+      "passed": true,
+      "state_sha256": "f9d2c7ddaca3f3ec31fa681a22a18cb88a6d7c2b8dc919915626f1514bec0524",
+      "calls_stubbed": 3
+    },
+    {
+      "sample": "current_WA",
+      "op": 5,
+      "initial_flags": 8,
+      "steps": 48,
+      "passed": true,
+      "state_sha256": "f9d2c7ddaca3f3ec31fa681a22a18cb88a6d7c2b8dc919915626f1514bec0524",
+      "calls_stubbed": 3
+    },
+    {
+      "sample": "stock_WA",
+      "op": 5,
+      "initial_flags": 16,
+      "steps": 38,
+      "passed": true,
+      "state_sha256": "fdf898e08a82377ae8aad876ea49bb517c46556b57f5b8df6e07438b9773d4c4",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "current_WA",
+      "op": 5,
+      "initial_flags": 16,
+      "steps": 38,
+      "passed": true,
+      "state_sha256": "fdf898e08a82377ae8aad876ea49bb517c46556b57f5b8df6e07438b9773d4c4",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "stock_WA",
+      "op": 5,
+      "initial_flags": 31,
+      "steps": 565,
+      "passed": true,
+      "state_sha256": "411c57f037d38e71c5bb0f0e58851d8f5bb94366efdc5a9ca242885e0fed2db5",
+      "calls_stubbed": 7
+    },
+    {
+      "sample": "current_WA",
+      "op": 5,
+      "initial_flags": 31,
+      "steps": 565,
+      "passed": true,
+      "state_sha256": "411c57f037d38e71c5bb0f0e58851d8f5bb94366efdc5a9ca242885e0fed2db5",
+      "calls_stubbed": 7
+    },
+    {
+      "sample": "stock_WA",
+      "op": 6,
+      "initial_flags": 0,
+      "steps": 33,
+      "passed": true,
+      "state_sha256": "7565b217747b27db27bf4bfc8ccf5d2f148c9bdb28708f298c229dc108e5cf49",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 6,
+      "initial_flags": 0,
+      "steps": 33,
+      "passed": true,
+      "state_sha256": "7565b217747b27db27bf4bfc8ccf5d2f148c9bdb28708f298c229dc108e5cf49",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 6,
+      "initial_flags": 1,
+      "steps": 326,
+      "passed": true,
+      "state_sha256": "4f1f6d578b3143927d43a69edbb5694a3abd496c064071db3e3611ec10c7ade4",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 6,
+      "initial_flags": 1,
+      "steps": 326,
+      "passed": true,
+      "state_sha256": "4f1f6d578b3143927d43a69edbb5694a3abd496c064071db3e3611ec10c7ade4",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 6,
+      "initial_flags": 2,
+      "steps": 67,
+      "passed": true,
+      "state_sha256": "1e0b5351abe6a11d6a15eac5f71412fcd821a50c8b02f716ed8dfca5536ff1b3",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 6,
+      "initial_flags": 2,
+      "steps": 67,
+      "passed": true,
+      "state_sha256": "1e0b5351abe6a11d6a15eac5f71412fcd821a50c8b02f716ed8dfca5536ff1b3",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 6,
+      "initial_flags": 4,
+      "steps": 215,
+      "passed": true,
+      "state_sha256": "5df952446ceab8c81cf8a86b2771c82c4d034150eb4fbe2cbe26cf923ae1411f",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 6,
+      "initial_flags": 4,
+      "steps": 215,
+      "passed": true,
+      "state_sha256": "5df952446ceab8c81cf8a86b2771c82c4d034150eb4fbe2cbe26cf923ae1411f",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 6,
+      "initial_flags": 8,
+      "steps": 43,
+      "passed": true,
+      "state_sha256": "f06d0e64c28d1c5562ae149a46fa5788b39bfbba54d1384556750940e1ef3f32",
+      "calls_stubbed": 2
+    },
+    {
+      "sample": "current_WA",
+      "op": 6,
+      "initial_flags": 8,
+      "steps": 43,
+      "passed": true,
+      "state_sha256": "f06d0e64c28d1c5562ae149a46fa5788b39bfbba54d1384556750940e1ef3f32",
+      "calls_stubbed": 2
+    },
+    {
+      "sample": "stock_WA",
+      "op": 6,
+      "initial_flags": 16,
+      "steps": 35,
+      "passed": true,
+      "state_sha256": "90b135e19f1bc0720f8ac598cc15ccca6dfcec99f982ed868274023ef56e5af6",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "current_WA",
+      "op": 6,
+      "initial_flags": 16,
+      "steps": 35,
+      "passed": true,
+      "state_sha256": "90b135e19f1bc0720f8ac598cc15ccca6dfcec99f982ed868274023ef56e5af6",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "stock_WA",
+      "op": 6,
+      "initial_flags": 31,
+      "steps": 562,
+      "passed": true,
+      "state_sha256": "97e153661c0d601cabc75e948af2c7167d200b6e1c03b98bea7985c566e2001c",
+      "calls_stubbed": 11
+    },
+    {
+      "sample": "current_WA",
+      "op": 6,
+      "initial_flags": 31,
+      "steps": 562,
+      "passed": true,
+      "state_sha256": "97e153661c0d601cabc75e948af2c7167d200b6e1c03b98bea7985c566e2001c",
+      "calls_stubbed": 11
+    },
+    {
+      "sample": "stock_WA",
+      "op": 7,
+      "initial_flags": 0,
+      "steps": 33,
+      "passed": true,
+      "state_sha256": "d5f9431f30fff722d8fd9d31739fc9572b07a258edc31a636f1261af261ef22b",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 7,
+      "initial_flags": 0,
+      "steps": 33,
+      "passed": true,
+      "state_sha256": "d5f9431f30fff722d8fd9d31739fc9572b07a258edc31a636f1261af261ef22b",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 7,
+      "initial_flags": 1,
+      "steps": 326,
+      "passed": true,
+      "state_sha256": "fa575b9b9bf80e340715d19a415eb52b5675e047479c21990fe472d6ed904646",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 7,
+      "initial_flags": 1,
+      "steps": 326,
+      "passed": true,
+      "state_sha256": "fa575b9b9bf80e340715d19a415eb52b5675e047479c21990fe472d6ed904646",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 7,
+      "initial_flags": 2,
+      "steps": 75,
+      "passed": true,
+      "state_sha256": "3ceb4c38339c80de00d16a776747f95ab5245f229ecf1b1fdaa9cd7d0d195495",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 7,
+      "initial_flags": 2,
+      "steps": 75,
+      "passed": true,
+      "state_sha256": "3ceb4c38339c80de00d16a776747f95ab5245f229ecf1b1fdaa9cd7d0d195495",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 7,
+      "initial_flags": 4,
+      "steps": 223,
+      "passed": true,
+      "state_sha256": "449ddf5ca5795b17634731132cc369b044b739da21364677af0c9cd6ace5f179",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 7,
+      "initial_flags": 4,
+      "steps": 223,
+      "passed": true,
+      "state_sha256": "449ddf5ca5795b17634731132cc369b044b739da21364677af0c9cd6ace5f179",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 7,
+      "initial_flags": 8,
+      "steps": 43,
+      "passed": true,
+      "state_sha256": "edc37fcecf9bc06b97ceea6f7e13e1765c8836d4a1f2d33c7ba6338baab4e115",
+      "calls_stubbed": 2
+    },
+    {
+      "sample": "current_WA",
+      "op": 7,
+      "initial_flags": 8,
+      "steps": 43,
+      "passed": true,
+      "state_sha256": "edc37fcecf9bc06b97ceea6f7e13e1765c8836d4a1f2d33c7ba6338baab4e115",
+      "calls_stubbed": 2
+    },
+    {
+      "sample": "stock_WA",
+      "op": 7,
+      "initial_flags": 16,
+      "steps": 35,
+      "passed": true,
+      "state_sha256": "d7844dc7d344b442255dec2b20f50d3f02f0cc2d4c634502386eaf934fbde5e7",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "current_WA",
+      "op": 7,
+      "initial_flags": 16,
+      "steps": 35,
+      "passed": true,
+      "state_sha256": "d7844dc7d344b442255dec2b20f50d3f02f0cc2d4c634502386eaf934fbde5e7",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "stock_WA",
+      "op": 7,
+      "initial_flags": 31,
+      "steps": 570,
+      "passed": true,
+      "state_sha256": "cb55b59f6ae79e1622e93be3696b34cefe96e18321e08d548a27e8432a3f13b5",
+      "calls_stubbed": 11
+    },
+    {
+      "sample": "current_WA",
+      "op": 7,
+      "initial_flags": 31,
+      "steps": 570,
+      "passed": true,
+      "state_sha256": "cb55b59f6ae79e1622e93be3696b34cefe96e18321e08d548a27e8432a3f13b5",
+      "calls_stubbed": 11
+    },
+    {
+      "sample": "stock_WA",
+      "op": 8,
+      "initial_flags": 0,
+      "steps": 33,
+      "passed": true,
+      "state_sha256": "faba8ae3d0a923e96b346bea42e288af6a1058e84d6a39d50d29552f9c589cd7",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 8,
+      "initial_flags": 0,
+      "steps": 33,
+      "passed": true,
+      "state_sha256": "faba8ae3d0a923e96b346bea42e288af6a1058e84d6a39d50d29552f9c589cd7",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 8,
+      "initial_flags": 1,
+      "steps": 326,
+      "passed": true,
+      "state_sha256": "27839cf5b598e31e31406aef9bf72bd9a6f5f226323ddcee5bf5940f19c179f0",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 8,
+      "initial_flags": 1,
+      "steps": 326,
+      "passed": true,
+      "state_sha256": "27839cf5b598e31e31406aef9bf72bd9a6f5f226323ddcee5bf5940f19c179f0",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 8,
+      "initial_flags": 2,
+      "steps": 67,
+      "passed": true,
+      "state_sha256": "81a6d521c898b7475cb209e15fd843d1c9288f5546e791231517e52a953b6826",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 8,
+      "initial_flags": 2,
+      "steps": 67,
+      "passed": true,
+      "state_sha256": "81a6d521c898b7475cb209e15fd843d1c9288f5546e791231517e52a953b6826",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 8,
+      "initial_flags": 4,
+      "steps": 223,
+      "passed": true,
+      "state_sha256": "62b39dfea99ff6d6f3b9468435aa51c432f12b71a3562771f29c3d2d3fd81d36",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 8,
+      "initial_flags": 4,
+      "steps": 223,
+      "passed": true,
+      "state_sha256": "62b39dfea99ff6d6f3b9468435aa51c432f12b71a3562771f29c3d2d3fd81d36",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 8,
+      "initial_flags": 8,
+      "steps": 43,
+      "passed": true,
+      "state_sha256": "8ee19186075511415e28bc666b6b7eeb8a161c3a36078a7d5872f8c9ddd26868",
+      "calls_stubbed": 2
+    },
+    {
+      "sample": "current_WA",
+      "op": 8,
+      "initial_flags": 8,
+      "steps": 43,
+      "passed": true,
+      "state_sha256": "8ee19186075511415e28bc666b6b7eeb8a161c3a36078a7d5872f8c9ddd26868",
+      "calls_stubbed": 2
+    },
+    {
+      "sample": "stock_WA",
+      "op": 8,
+      "initial_flags": 16,
+      "steps": 35,
+      "passed": true,
+      "state_sha256": "2615e056b054dc7334deba5525cc39ce1f260969ddaeb30716c3819c80785a55",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "current_WA",
+      "op": 8,
+      "initial_flags": 16,
+      "steps": 35,
+      "passed": true,
+      "state_sha256": "2615e056b054dc7334deba5525cc39ce1f260969ddaeb30716c3819c80785a55",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "stock_WA",
+      "op": 8,
+      "initial_flags": 31,
+      "steps": 562,
+      "passed": true,
+      "state_sha256": "395800fc13c6c500e5678fedda5f3f7feb3662e6651c8fd58f0d68612867c7aa",
+      "calls_stubbed": 11
+    },
+    {
+      "sample": "current_WA",
+      "op": 8,
+      "initial_flags": 31,
+      "steps": 562,
+      "passed": true,
+      "state_sha256": "395800fc13c6c500e5678fedda5f3f7feb3662e6651c8fd58f0d68612867c7aa",
+      "calls_stubbed": 11
+    },
+    {
+      "sample": "stock_WA",
+      "op": 9,
+      "initial_flags": 0,
+      "steps": 37,
+      "passed": true,
+      "state_sha256": "2cb919d9b04bb8154b66067503122993d3a9282d7b3a69614dc1dbe3c34cd103",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 9,
+      "initial_flags": 0,
+      "steps": 37,
+      "passed": true,
+      "state_sha256": "2cb919d9b04bb8154b66067503122993d3a9282d7b3a69614dc1dbe3c34cd103",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 9,
+      "initial_flags": 1,
+      "steps": 37,
+      "passed": true,
+      "state_sha256": "9f471f8ac3966baf76ad9e77710166f52af96e2a7f935eff2cf6258c45bc81d2",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 9,
+      "initial_flags": 1,
+      "steps": 37,
+      "passed": true,
+      "state_sha256": "9f471f8ac3966baf76ad9e77710166f52af96e2a7f935eff2cf6258c45bc81d2",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 9,
+      "initial_flags": 2,
+      "steps": 37,
+      "passed": true,
+      "state_sha256": "34f20c73f71ef4b5a9bcc087eb2e2a7b0c9fd2de01fd5587e2d184903afe11a4",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 9,
+      "initial_flags": 2,
+      "steps": 37,
+      "passed": true,
+      "state_sha256": "34f20c73f71ef4b5a9bcc087eb2e2a7b0c9fd2de01fd5587e2d184903afe11a4",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 9,
+      "initial_flags": 4,
+      "steps": 37,
+      "passed": true,
+      "state_sha256": "50b633ed6575aff8eac9c6f5e06fd1b9ccbfdb771e71c9e99d3cce7f7fca0f8c",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 9,
+      "initial_flags": 4,
+      "steps": 37,
+      "passed": true,
+      "state_sha256": "50b633ed6575aff8eac9c6f5e06fd1b9ccbfdb771e71c9e99d3cce7f7fca0f8c",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 9,
+      "initial_flags": 8,
+      "steps": 37,
+      "passed": true,
+      "state_sha256": "d82aabfb502423c2465a51dc987ebaa4de113b02efd18a832a90324b916598d7",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 9,
+      "initial_flags": 8,
+      "steps": 37,
+      "passed": true,
+      "state_sha256": "d82aabfb502423c2465a51dc987ebaa4de113b02efd18a832a90324b916598d7",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 9,
+      "initial_flags": 16,
+      "steps": 37,
+      "passed": true,
+      "state_sha256": "274e9bad2a0a29d62e08d3aeaef437201581b224e7c45cef790a34280aa92754",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 9,
+      "initial_flags": 16,
+      "steps": 37,
+      "passed": true,
+      "state_sha256": "274e9bad2a0a29d62e08d3aeaef437201581b224e7c45cef790a34280aa92754",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 9,
+      "initial_flags": 31,
+      "steps": 37,
+      "passed": true,
+      "state_sha256": "4f9047d16f054b85208e034bfe46918ba2d4a4da53ec90c4734a9c588227ac53",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 9,
+      "initial_flags": 31,
+      "steps": 37,
+      "passed": true,
+      "state_sha256": "4f9047d16f054b85208e034bfe46918ba2d4a4da53ec90c4734a9c588227ac53",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 10,
+      "initial_flags": 0,
+      "steps": 22,
+      "passed": true,
+      "state_sha256": "712ff58ce128710e31a36e4626a966a56b66d07bf17f28466d55d721ecdd03c3",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 10,
+      "initial_flags": 0,
+      "steps": 22,
+      "passed": true,
+      "state_sha256": "712ff58ce128710e31a36e4626a966a56b66d07bf17f28466d55d721ecdd03c3",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 10,
+      "initial_flags": 1,
+      "steps": 315,
+      "passed": true,
+      "state_sha256": "1219d3076f943447b0f86ba73d3473c5de725f6ea5b33a76f3963e6e36972981",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 10,
+      "initial_flags": 1,
+      "steps": 315,
+      "passed": true,
+      "state_sha256": "1219d3076f943447b0f86ba73d3473c5de725f6ea5b33a76f3963e6e36972981",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 10,
+      "initial_flags": 2,
+      "steps": 56,
+      "passed": true,
+      "state_sha256": "0eba8ed2616b2770dffb76b18e86abfe1e0656159162eabd2c09877d4f65ef1c",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 10,
+      "initial_flags": 2,
+      "steps": 56,
+      "passed": true,
+      "state_sha256": "0eba8ed2616b2770dffb76b18e86abfe1e0656159162eabd2c09877d4f65ef1c",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 10,
+      "initial_flags": 4,
+      "steps": 212,
+      "passed": true,
+      "state_sha256": "58025e7a0879bbe6bdff14337c658163d67d4b419607790e3215dc94590f156e",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 10,
+      "initial_flags": 4,
+      "steps": 212,
+      "passed": true,
+      "state_sha256": "58025e7a0879bbe6bdff14337c658163d67d4b419607790e3215dc94590f156e",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 10,
+      "initial_flags": 8,
+      "steps": 32,
+      "passed": true,
+      "state_sha256": "c47cd51a95f7b86f9e8ad43f75bd4202853622a8c9287a8abb044d132fb4645a",
+      "calls_stubbed": 2
+    },
+    {
+      "sample": "current_WA",
+      "op": 10,
+      "initial_flags": 8,
+      "steps": 32,
+      "passed": true,
+      "state_sha256": "c47cd51a95f7b86f9e8ad43f75bd4202853622a8c9287a8abb044d132fb4645a",
+      "calls_stubbed": 2
+    },
+    {
+      "sample": "stock_WA",
+      "op": 10,
+      "initial_flags": 16,
+      "steps": 24,
+      "passed": true,
+      "state_sha256": "17a2a0a82a2dac735ae0d29e8049654fada038427aa821891ac13bc4fdb2540e",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "current_WA",
+      "op": 10,
+      "initial_flags": 16,
+      "steps": 24,
+      "passed": true,
+      "state_sha256": "17a2a0a82a2dac735ae0d29e8049654fada038427aa821891ac13bc4fdb2540e",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "stock_WA",
+      "op": 10,
+      "initial_flags": 31,
+      "steps": 551,
+      "passed": true,
+      "state_sha256": "408e271f7a06d35116b9a9e51edf42e381575c880fe1022abb96f932f5189494",
+      "calls_stubbed": 11
+    },
+    {
+      "sample": "current_WA",
+      "op": 10,
+      "initial_flags": 31,
+      "steps": 551,
+      "passed": true,
+      "state_sha256": "408e271f7a06d35116b9a9e51edf42e381575c880fe1022abb96f932f5189494",
+      "calls_stubbed": 11
+    },
+    {
+      "sample": "stock_WA",
+      "op": 255,
+      "initial_flags": 0,
+      "steps": 22,
+      "passed": true,
+      "state_sha256": "e24fc9297bc7cc43d3f98664e6d6d65c53551879eac1ae4670f4d463f287995d",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 255,
+      "initial_flags": 0,
+      "steps": 22,
+      "passed": true,
+      "state_sha256": "e24fc9297bc7cc43d3f98664e6d6d65c53551879eac1ae4670f4d463f287995d",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 255,
+      "initial_flags": 1,
+      "steps": 315,
+      "passed": true,
+      "state_sha256": "1a018e6e24bb6861a12516922dbfc1a19293f217f47e82b038444cb78337eecd",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 255,
+      "initial_flags": 1,
+      "steps": 315,
+      "passed": true,
+      "state_sha256": "1a018e6e24bb6861a12516922dbfc1a19293f217f47e82b038444cb78337eecd",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 255,
+      "initial_flags": 2,
+      "steps": 64,
+      "passed": true,
+      "state_sha256": "0029ebfb543fb6b8b8ee858abfd578d3ca2a7986139af51cb7c6f8c53694e5ef",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "current_WA",
+      "op": 255,
+      "initial_flags": 2,
+      "steps": 64,
+      "passed": true,
+      "state_sha256": "0029ebfb543fb6b8b8ee858abfd578d3ca2a7986139af51cb7c6f8c53694e5ef",
+      "calls_stubbed": 0
+    },
+    {
+      "sample": "stock_WA",
+      "op": 255,
+      "initial_flags": 4,
+      "steps": 212,
+      "passed": true,
+      "state_sha256": "4df17e17d1927ec15f5f15873972498187af2b3a8acd121fef252195b91febbd",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "current_WA",
+      "op": 255,
+      "initial_flags": 4,
+      "steps": 212,
+      "passed": true,
+      "state_sha256": "4df17e17d1927ec15f5f15873972498187af2b3a8acd121fef252195b91febbd",
+      "calls_stubbed": 4
+    },
+    {
+      "sample": "stock_WA",
+      "op": 255,
+      "initial_flags": 8,
+      "steps": 32,
+      "passed": true,
+      "state_sha256": "8a589f9e0406213cc2a0d5091276b33533fa852c99acd16faa3d0af3ee7807bf",
+      "calls_stubbed": 2
+    },
+    {
+      "sample": "current_WA",
+      "op": 255,
+      "initial_flags": 8,
+      "steps": 32,
+      "passed": true,
+      "state_sha256": "8a589f9e0406213cc2a0d5091276b33533fa852c99acd16faa3d0af3ee7807bf",
+      "calls_stubbed": 2
+    },
+    {
+      "sample": "stock_WA",
+      "op": 255,
+      "initial_flags": 16,
+      "steps": 24,
+      "passed": true,
+      "state_sha256": "d736d325c11e0b08329cf98db3b552b7cf71fddbfb2c81eac536c7896ee3c76c",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "current_WA",
+      "op": 255,
+      "initial_flags": 16,
+      "steps": 24,
+      "passed": true,
+      "state_sha256": "d736d325c11e0b08329cf98db3b552b7cf71fddbfb2c81eac536c7896ee3c76c",
+      "calls_stubbed": 1
+    },
+    {
+      "sample": "stock_WA",
+      "op": 255,
+      "initial_flags": 31,
+      "steps": 551,
+      "passed": true,
+      "state_sha256": "09520d229a343a193872bd27913239b833ea717cf9c5d5f78fb1cb5214af160f",
+      "calls_stubbed": 7
+    },
+    {
+      "sample": "current_WA",
+      "op": 255,
+      "initial_flags": 31,
+      "steps": 551,
+      "passed": true,
+      "state_sha256": "09520d229a343a193872bd27913239b833ea717cf9c5d5f78fb1cb5214af160f",
+      "calls_stubbed": 7
+    }
+  ]
+}
