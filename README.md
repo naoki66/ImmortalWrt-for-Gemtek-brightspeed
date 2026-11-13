@@ -153,10 +153,10 @@ XR1710G UBI 布局**暂未完成（缺少 trueKey）**，即使启用 `gemtek_xr
 ## 刷写与升级注意事项
 
 > [!WARNING]
-> **XR1710G 引导**：原厂 U-Boot 分区固件必须配合 [naoki66/Gemtek-brightspeed-chainloader](https://github.com/naoki66/Gemtek-brightspeed-chainloader) 引导（保留原厂前 6 MiB，chainloader 写入 NAND `0x600000`）。OpenWrt U-Boot UBI 布局暂未完成（缺少 trueKey），请勿刷写 `gemtek_xr1710g-ubi` 镜像；XG2010G 与 Nokia 设备应使用 [naoki66/uboot-an758x](https://github.com/naoki66/uboot-an758x)，不要混用两套引导布局。
+> **XR1710G 引导**：原厂 U-Boot 分区固件必须配合 [naoki66/Gemtek-brightspeed-chainloader](https://github.com/naoki66/Gemtek-brightspeed-chainloader) 引导（保留原厂前 6 MiB，chainloader 写入 NAND `0x600000`）。OpenWrt U-Boot UBI 布局暂未完成（缺少 trueKey），请勿刷写 `gemtek_xr1710g-ubi` 镜像，它还在测试中。
 
 > [!WARNING]
-> **XG2010G 首次刷写**：必须通过串口确认当前启动状态，并完成原厂 NAND/关键分区的只读备份和校验。只允许针对匹配的 `ubi` 分区升级；必须保留 `bootloader`、`uenv`、`dsd` 和 `reserved_bmt`。不要把 XR1710G 的镜像或分区表用于 XG2010G，也不要从旧的 `0x00600000` 布局强制升级。
+> **XG2010G 首次刷写**：必须通过串口确认当前启动状态，并完成原厂 NAND/关键分区的只读备份和校验。只允许针对匹配的 `ubi` 分区升级；必须保留 `bootloader`、`uenv`、`dsd` 分区。XG2010G 与 Nokia 设备应使用 [naoki66/uboot-an758x](https://github.com/naoki66/uboot-an758x) 引导，不要和XR1710G混用两套引导布局。
 
 > [!WARNING]
 > **跨版本升级**：LuCI 的「保留配置」不会保留额外安装的软件包。升级前备份配置并记录已安装的软件包（`apk list --installed` 或 LuCI 已安装软件包列表），升级后需要重新安装未预装组件（例如 `luci-app-adguardhome`）。请使用与新固件匹配的软件包，不要恢复旧固件的 `kmod-*` 内核模块。
