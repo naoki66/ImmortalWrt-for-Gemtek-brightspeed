@@ -54,3 +54,7 @@ ACM涉及实际token资源池，原厂16384回退值不能无条件套用当前W
 | 可以标记“全部原厂调度合并完成” | 否 | 存在以上实质缺项 |
 
 本次保存的是核实结果，不是新调度补丁。B27已有147～149实现保持原状。未把未核实逻辑、旧原厂WM/WA或原厂专有源码合入驱动。源码基线和逐条证据见 `evidence/MERGE-PRECHECK.json`；此前完整证据见 `RETAIL-SCHEDULER-CONFIRMATION.zh-CN.md`。
+
+## 后续代码进展
+
+本文件保留核实时的历史状态。后续150/151已补齐PER输入及默认MCLI TXOP，详见 `HOST-SCHEDULER-COMPLETION.zh-CN.md`；其余未确认项没有自动解除。
