@@ -1,0 +1,17 @@
+[
+  {
+    "path": "etc/wireless/l1profile.dat",
+    "line": 3,
+    "setting": "INDEX0_profile_path=/etc/wireless/mediatek/mt7990.1.dat"
+  },
+  {
+    "path": "etc/wireless/l1profile.dat",
+    "line": 8,
+    "setting": "INDEX0_EEPROM_name=MT7990_EEPROM.bin"
+  },
+  {
+    "path": "etc/wireless/l1profile.dat",
+    "line": 10,
+    "setting": "INDEX0_main_ifname=ra0;rai0;rax0"
+  }
+]
