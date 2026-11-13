@@ -1,0 +1,323 @@
+
+/home/builder/stock-xr1710g-5.1.1.12/rootfs/lib/modules/5.4.55/mt_wifi.ko:     file format elf64-littleaarch64
+
+
+Disassembly of section .text:
+
+0000000000297c10 <peak_adjust_txop>:
+  297c10:	d101c3ff 	sub	sp, sp, #0x70
+  297c14:	a9017bfd 	stp	x29, x30, [sp, #16]
+  297c18:	910043fd 	add	x29, sp, #0x10
+  297c1c:	a90253f3 	stp	x19, x20, [sp, #32]
+  297c20:	aa0003f3 	mov	x19, x0
+  297c24:	a9035bf5 	stp	x21, x22, [sp, #48]
+  297c28:	94000000 	bl	347b60 <hc_get_hw_band_idx>
+			297c28: R_AARCH64_CALL26	hc_get_hw_band_idx
+  297c2c:	d2868001 	mov	x1, #0x3400                	// #13312
+  297c30:	f2a02101 	movk	x1, #0x108, lsl #16
+  297c34:	8b010261 	add	x1, x19, x1
+  297c38:	12001c14 	and	w20, w0, #0xff
+  297c3c:	38504020 	ldurb	w0, [x1, #-252]
+  297c40:	7100001f 	cmp	w0, #0x0
+  297c44:	1a9f17f5 	cset	w21, eq	// eq = none
+  297c48:	71000a9f 	cmp	w20, #0x2
+  297c4c:	1a9f97e0 	cset	w0, hi	// hi = pmore
+  297c50:	2a0002b5 	orr	w21, w21, w0
+  297c54:	340000d5 	cbz	w21, 297c6c <peak_adjust_txop+0x5c>
+  297c58:	a9417bfd 	ldp	x29, x30, [sp, #16]
+  297c5c:	a94253f3 	ldp	x19, x20, [sp, #32]
+  297c60:	a9435bf5 	ldp	x21, x22, [sp, #48]
+  297c64:	9101c3ff 	add	sp, sp, #0x70
+  297c68:	d65f03c0 	ret
+  297c6c:	d284b600 	mov	x0, #0x25b0                	// #9648
+  297c70:	f2a02620 	movk	x0, #0x131, lsl #16
+  297c74:	ab00027f 	cmn	x19, x0
+  297c78:	54ffff00 	b.eq	297c58 <peak_adjust_txop+0x48>  // b.none
+  297c7c:	8b000276 	add	x22, x19, x0
+  297c80:	39406ac0 	ldrb	w0, [x22, #26]
+  297c84:	7100041f 	cmp	w0, #0x1
+  297c88:	540005c0 	b.eq	297d40 <peak_adjust_txop+0x130>  // b.none
+  297c8c:	f94012c1 	ldr	x1, [x22, #32]
+  297c90:	b40001a1 	cbz	x1, 297cc4 <peak_adjust_txop+0xb4>
+  297c94:	f94026c0 	ldr	x0, [x22, #72]
+  297c98:	b50003a0 	cbnz	x0, 297d0c <peak_adjust_txop+0xfc>
+  297c9c:	a9430ac0 	ldp	x0, x2, [x22, #48]
+  297ca0:	8b000800 	add	x0, x0, x0, lsl #2
+  297ca4:	eb00045f 	cmp	x2, x0, lsl #1
+  297ca8:	54000488 	b.hi	297d38 <peak_adjust_txop+0x128>  // b.pmore
+  297cac:	52800005 	mov	w5, #0x0                   	// #0
+  297cb0:	aa1303e0 	mov	x0, x19
+  297cb4:	52800004 	mov	w4, #0x0                   	// #0
+  297cb8:	528000c3 	mov	w3, #0x6                   	// #6
+  297cbc:	52800042 	mov	w2, #0x2                   	// #2
+  297cc0:	94000000 	bl	372240 <HW_SET_TX_BURST>
+			297cc0: R_AARCH64_CALL26	HW_SET_TX_BURST
+  297cc4:	d284b600 	mov	x0, #0x25b0                	// #9648
+  297cc8:	f2a02620 	movk	x0, #0x131, lsl #16
+  297ccc:	8b000260 	add	x0, x19, x0
+  297cd0:	f9401401 	ldr	x1, [x0, #40]
+  297cd4:	b4fffc21 	cbz	x1, 297c58 <peak_adjust_txop+0x48>
+  297cd8:	f9403402 	ldr	x2, [x0, #104]
+  297cdc:	b4000b22 	cbz	x2, 297e40 <peak_adjust_txop+0x230>
+  297ce0:	f9402c00 	ldr	x0, [x0, #88]
+  297ce4:	9ac20802 	udiv	x2, x0, x2
+  297ce8:	aa1303e0 	mov	x0, x19
+  297cec:	710fa05f 	cmp	w2, #0x3e8
+  297cf0:	54000aa9 	b.ls	297e44 <peak_adjust_txop+0x234>  // b.plast
+  297cf4:	52800025 	mov	w5, #0x1                   	// #1
+  297cf8:	52800004 	mov	w4, #0x0                   	// #0
+  297cfc:	528000c3 	mov	w3, #0x6                   	// #6
+  297d00:	52800042 	mov	w2, #0x2                   	// #2
+  297d04:	94000000 	bl	372240 <HW_SET_TX_BURST>
+			297d04: R_AARCH64_CALL26	HW_SET_TX_BURST
+  297d08:	17ffffd4 	b	297c58 <peak_adjust_txop+0x48>
+  297d0c:	aa0103e0 	mov	x0, x1
+  297d10:	94000000 	bl	3ffbe0 <wlan_config_get_he_mu_edca>
+			297d10: R_AARCH64_CALL26	wlan_config_get_he_mu_edca
+  297d14:	f9401ec1 	ldr	x1, [x22, #56]
+  297d18:	f94026c2 	ldr	x2, [x22, #72]
+  297d1c:	9ac20822 	udiv	x2, x1, x2
+  297d20:	b4fff9c0 	cbz	x0, 297c58 <peak_adjust_txop+0x48>
+  297d24:	f94012c1 	ldr	x1, [x22, #32]
+  297d28:	710fa05f 	cmp	w2, #0x3e8
+  297d2c:	54fffc09 	b.ls	297cac <peak_adjust_txop+0x9c>  // b.plast
+  297d30:	39401000 	ldrb	w0, [x0, #4]
+  297d34:	35fffbc0 	cbnz	w0, 297cac <peak_adjust_txop+0x9c>
+  297d38:	52800025 	mov	w5, #0x1                   	// #1
+  297d3c:	17ffffdd 	b	297cb0 <peak_adjust_txop+0xa0>
+  297d40:	f9400ad6 	ldr	x22, [x22, #16]
+  297d44:	b4fff8b6 	cbz	x22, 297c58 <peak_adjust_txop+0x48>
+  297d48:	d2a02620 	mov	x0, #0x1310000             	// #19988480
+  297d4c:	8b000260 	add	x0, x19, x0
+  297d50:	a90463f7 	stp	x23, x24, [sp, #64]
+  297d54:	f952c417 	ldr	x23, [x0, #9608]
+  297d58:	b40009d7 	cbz	x23, 297e90 <peak_adjust_txop+0x280>
+  297d5c:	d103f022 	sub	x2, x1, #0xfc
+  297d60:	a9056bf9 	stp	x25, x26, [sp, #80]
+  297d64:	aa1603e1 	mov	x1, x22
+  297d68:	a90673fb 	stp	x27, x28, [sp, #96]
+  297d6c:	aa1303e0 	mov	x0, x19
+  297d70:	b9400858 	ldr	w24, [x2, #8]
+  297d74:	94000000 	bl	3477d4 <HcGetWmmIdx>
+			297d74: R_AARCH64_CALL26	HcGetWmmIdx
+  297d78:	8b340a61 	add	x1, x19, w20, uxtb #2
+  297d7c:	d2a02102 	mov	x2, #0x1080000             	// #17301504
+  297d80:	8b020021 	add	x1, x1, x2
+  297d84:	2a0003fa 	mov	w26, w0
+  297d88:	b973303b 	ldr	w27, [x1, #13104]
+  297d8c:	b973203c 	ldr	w28, [x1, #13088]
+  297d90:	3500071b 	cbnz	w27, 297e70 <peak_adjust_txop+0x260>
+  297d94:	f9581ee0 	ldr	x0, [x23, #12344]
+  297d98:	2a0003f9 	mov	w25, w0
+  297d9c:	35000680 	cbnz	w0, 297e6c <peak_adjust_txop+0x25c>
+  297da0:	b941cac1 	ldr	w1, [x22, #456]
+  297da4:	7100043f 	cmp	w1, #0x1
+  297da8:	54000780 	b.eq	297e98 <peak_adjust_txop+0x288>  // b.none
+  297dac:	d2868001 	mov	x1, #0x3400                	// #13312
+  297db0:	f2a02101 	movk	x1, #0x108, lsl #16
+  297db4:	8b010261 	add	x1, x19, x1
+  297db8:	78506020 	ldurh	w0, [x1, #-250]
+  297dbc:	34000620 	cbz	w0, 297e80 <peak_adjust_txop+0x270>
+  297dc0:	38504020 	ldurb	w0, [x1, #-252]
+  297dc4:	360005e0 	tbz	w0, #0, 297e80 <peak_adjust_txop+0x270>
+  297dc8:	90000009 	adrp	x9, 26c828 <SecEncryModeNewToOld+0x18>
+			297dc8: R_AARCH64_ADR_PREL_PG_HI21	DebugCategory
+  297dcc:	b9400120 	ldr	w0, [x9]
+			297dcc: R_AARCH64_LDST32_ABS_LO12_NC	DebugCategory
+  297dd0:	36680720 	tbz	w0, #13, 297eb4 <peak_adjust_txop+0x2a4>
+  297dd4:	90000008 	adrp	x8, 26c830 <SecEncryModeNewToOld+0x20>
+			297dd4: R_AARCH64_ADR_PREL_PG_HI21	DebugSubCategory
+  297dd8:	91000108 	add	x8, x8, #0x0
+			297dd8: R_AARCH64_ADD_ABS_LO12_NC	DebugSubCategory
+  297ddc:	b9423500 	ldr	w0, [x8, #564]
+  297de0:	371007e0 	tbnz	w0, #2, 297edc <peak_adjust_txop+0x2cc>
+  297de4:	6b18033f 	cmp	w25, w24
+  297de8:	520002b5 	eor	w21, w21, #0x1
+  297dec:	1a9f87e0 	cset	w0, ls	// ls = plast
+  297df0:	0a150015 	and	w21, w0, w21
+  297df4:	35000e35 	cbnz	w21, 297fb8 <peak_adjust_txop+0x3a8>
+  297df8:	d2866095 	mov	x21, #0x3304                	// #13060
+  297dfc:	b9400120 	ldr	w0, [x9]
+			297dfc: R_AARCH64_LDST32_ABS_LO12_NC	DebugCategory
+  297e00:	f2a02115 	movk	x21, #0x108, lsl #16
+  297e04:	8b150275 	add	x21, x19, x21
+  297e08:	794006a4 	ldrh	w4, [x21, #2]
+  297e0c:	36680060 	tbz	w0, #13, 297e18 <peak_adjust_txop+0x208>
+  297e10:	b9423500 	ldr	w0, [x8, #564]
+  297e14:	37100dc0 	tbnz	w0, #2, 297fcc <peak_adjust_txop+0x3bc>
+  297e18:	aa1603e1 	mov	x1, x22
+  297e1c:	aa1303e0 	mov	x0, x19
+  297e20:	52800025 	mov	w5, #0x1                   	// #1
+  297e24:	52800003 	mov	w3, #0x0                   	// #0
+  297e28:	52800042 	mov	w2, #0x2                   	// #2
+  297e2c:	94000000 	bl	372240 <HW_SET_TX_BURST>
+			297e2c: R_AARCH64_CALL26	HW_SET_TX_BURST
+  297e30:	a94463f7 	ldp	x23, x24, [sp, #64]
+  297e34:	a9456bf9 	ldp	x25, x26, [sp, #80]
+  297e38:	a94673fb 	ldp	x27, x28, [sp, #96]
+  297e3c:	17ffff87 	b	297c58 <peak_adjust_txop+0x48>
+  297e40:	aa1303e0 	mov	x0, x19
+  297e44:	52800005 	mov	w5, #0x0                   	// #0
+  297e48:	52800004 	mov	w4, #0x0                   	// #0
+  297e4c:	528000c3 	mov	w3, #0x6                   	// #6
+  297e50:	52800042 	mov	w2, #0x2                   	// #2
+  297e54:	94000000 	bl	372240 <HW_SET_TX_BURST>
+			297e54: R_AARCH64_CALL26	HW_SET_TX_BURST
+  297e58:	a9417bfd 	ldp	x29, x30, [sp, #16]
+  297e5c:	a94253f3 	ldp	x19, x20, [sp, #32]
+  297e60:	a9435bf5 	ldp	x21, x22, [sp, #48]
+  297e64:	9101c3ff 	add	sp, sp, #0x70
+  297e68:	d65f03c0 	ret
+  297e6c:	2a0003fb 	mov	w27, w0
+  297e70:	f9580ef9 	ldr	x25, [x23, #12312]
+  297e74:	2a1b03e0 	mov	w0, w27
+  297e78:	9ac00b39 	udiv	x25, x25, x0
+  297e7c:	17ffffc9 	b	297da0 <peak_adjust_txop+0x190>
+  297e80:	a94463f7 	ldp	x23, x24, [sp, #64]
+  297e84:	a9456bf9 	ldp	x25, x26, [sp, #80]
+  297e88:	a94673fb 	ldp	x27, x28, [sp, #96]
+  297e8c:	17ffff73 	b	297c58 <peak_adjust_txop+0x48>
+  297e90:	a94463f7 	ldp	x23, x24, [sp, #64]
+  297e94:	17ffff71 	b	297c58 <peak_adjust_txop+0x48>
+  297e98:	aa1603e0 	mov	x0, x22
+  297e9c:	94000000 	bl	3ffbe0 <wlan_config_get_he_mu_edca>
+			297e9c: R_AARCH64_CALL26	wlan_config_get_he_mu_edca
+  297ea0:	b4ffff00 	cbz	x0, 297e80 <peak_adjust_txop+0x270>
+  297ea4:	39401000 	ldrb	w0, [x0, #4]
+  297ea8:	7100001f 	cmp	w0, #0x0
+  297eac:	1a9f07f5 	cset	w21, ne	// ne = any
+  297eb0:	17ffffbf 	b	297dac <peak_adjust_txop+0x19c>
+  297eb4:	6b18033f 	cmp	w25, w24
+  297eb8:	520002b5 	eor	w21, w21, #0x1
+  297ebc:	1a9f87e0 	cset	w0, ls	// ls = plast
+  297ec0:	6a15001f 	tst	w0, w21
+  297ec4:	540007a1 	b.ne	297fb8 <peak_adjust_txop+0x3a8>  // b.any
+  297ec8:	d2866080 	mov	x0, #0x3304                	// #13060
+  297ecc:	f2a02100 	movk	x0, #0x108, lsl #16
+  297ed0:	8b000260 	add	x0, x19, x0
+  297ed4:	79400404 	ldrh	w4, [x0, #2]
+  297ed8:	17ffffd0 	b	297e18 <peak_adjust_txop+0x208>
+  297edc:	b90003f8 	str	w24, [sp]
+  297ee0:	d2800000 	mov	x0, #0x0                   	// #0
+  297ee4:	2a1c03e7 	mov	w7, w28
+  297ee8:	2a1403e6 	mov	w6, w20
+  297eec:	90000003 	adrp	x3, 0 <AutoChBssSearchWithSSID-0x27e4>
+			297eec: R_AARCH64_ADR_PREL_PG_HI21	.rodata+0x22650
+        ; DATA 'peak_adjust_txop'
+  297ef0:	90000005 	adrp	x5, 0 <AutoChBssSearchWithSSID-0x27e4>
+			297ef0: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.8+0x89910
+        ; DATA '[band%d] tx_count_th = %d, avg_tx_pkt_len_th = %d\n'
+  297ef4:	91000063 	add	x3, x3, #0x0
+			297ef4: R_AARCH64_ADD_ABS_LO12_NC	.rodata+0x22650
+        ; DATA 'peak_adjust_txop'
+  297ef8:	910000a5 	add	x5, x5, #0x0
+			297ef8: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.8+0x89910
+        ; DATA '[band%d] tx_count_th = %d, avg_tx_pkt_len_th = %d\n'
+  297efc:	528011c4 	mov	w4, #0x8e                  	// #142
+  297f00:	52800082 	mov	w2, #0x4                   	// #4
+  297f04:	528001a1 	mov	w1, #0xd                   	// #13
+  297f08:	94000000 	bl	1e37a0 <mtwf_dbg_prt>
+			297f08: R_AARCH64_CALL26	mtwf_dbg_prt
+  297f0c:	90000009 	adrp	x9, 26c828 <SecEncryModeNewToOld+0x18>
+			297f0c: R_AARCH64_ADR_PREL_PG_HI21	DebugCategory
+  297f10:	b9400120 	ldr	w0, [x9]
+			297f10: R_AARCH64_LDST32_ABS_LO12_NC	DebugCategory
+  297f14:	366ffd00 	tbz	w0, #13, 297eb4 <peak_adjust_txop+0x2a4>
+  297f18:	90000000 	adrp	x0, 26c830 <SecEncryModeNewToOld+0x20>
+			297f18: R_AARCH64_ADR_PREL_PG_HI21	DebugSubCategory
+  297f1c:	91000008 	add	x8, x0, #0x0
+			297f1c: R_AARCH64_ADD_ABS_LO12_NC	DebugSubCategory
+  297f20:	6b18033f 	cmp	w25, w24
+  297f24:	520002b5 	eor	w21, w21, #0x1
+  297f28:	1a9f87e0 	cset	w0, ls	// ls = plast
+  297f2c:	b9423501 	ldr	w1, [x8, #564]
+  297f30:	0a150015 	and	w21, w0, w21
+  297f34:	3617f601 	tbz	w1, #2, 297df4 <peak_adjust_txop+0x1e4>
+  297f38:	7943fee7 	ldrh	w7, [x23, #510]
+  297f3c:	90000000 	adrp	x0, 0 <AutoChBssSearchWithSSID-0x27e4>
+			297f3c: R_AARCH64_ADR_PREL_PG_HI21	.rodata+0x22650
+        ; DATA 'peak_adjust_txop'
+  297f40:	b90003fb 	str	w27, [sp]
+  297f44:	91000003 	add	x3, x0, #0x0
+			297f44: R_AARCH64_ADD_ABS_LO12_NC	.rodata+0x22650
+        ; DATA 'peak_adjust_txop'
+  297f48:	b9000bf9 	str	w25, [sp, #8]
+  297f4c:	d2800000 	mov	x0, #0x0                   	// #0
+  297f50:	2a1403e6 	mov	w6, w20
+  297f54:	90000005 	adrp	x5, 0 <AutoChBssSearchWithSSID-0x27e4>
+			297f54: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.8+0x89948
+        ; DATA '[band%d] wcid[%d]: avg_tx_mpdu_pkts = %d, entry_tx_mpdu_pkt_len = %d\n'
+  297f58:	52801264 	mov	w4, #0x93                  	// #147
+  297f5c:	910000a5 	add	x5, x5, #0x0
+			297f5c: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.8+0x89948
+        ; DATA '[band%d] wcid[%d]: avg_tx_mpdu_pkts = %d, entry_tx_mpdu_pkt_len = %d\n'
+  297f60:	52800082 	mov	w2, #0x4                   	// #4
+  297f64:	528001a1 	mov	w1, #0xd                   	// #13
+  297f68:	94000000 	bl	1e37a0 <mtwf_dbg_prt>
+			297f68: R_AARCH64_CALL26	mtwf_dbg_prt
+  297f6c:	90000000 	adrp	x0, 26c830 <SecEncryModeNewToOld+0x20>
+			297f6c: R_AARCH64_ADR_PREL_PG_HI21	DebugSubCategory
+  297f70:	90000009 	adrp	x9, 26c828 <SecEncryModeNewToOld+0x18>
+			297f70: R_AARCH64_ADR_PREL_PG_HI21	DebugCategory
+  297f74:	91000008 	add	x8, x0, #0x0
+			297f74: R_AARCH64_ADD_ABS_LO12_NC	DebugSubCategory
+  297f78:	34fff415 	cbz	w21, 297df8 <peak_adjust_txop+0x1e8>
+  297f7c:	b9400120 	ldr	w0, [x9]
+			297f7c: R_AARCH64_LDST32_ABS_LO12_NC	DebugCategory
+  297f80:	366801c0 	tbz	w0, #13, 297fb8 <peak_adjust_txop+0x3a8>
+  297f84:	b9423500 	ldr	w0, [x8, #564]
+  297f88:	36100180 	tbz	w0, #2, 297fb8 <peak_adjust_txop+0x3a8>
+  297f8c:	90000000 	adrp	x0, 0 <AutoChBssSearchWithSSID-0x27e4>
+			297f8c: R_AARCH64_ADR_PREL_PG_HI21	.rodata+0x22650
+        ; DATA 'peak_adjust_txop'
+  297f90:	90000005 	adrp	x5, 0 <AutoChBssSearchWithSSID-0x27e4>
+			297f90: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.8+0x89990
+        ; DATA 'band%d - Set wmm[%d]: TXOP = 0\n'
+  297f94:	91000003 	add	x3, x0, #0x0
+			297f94: R_AARCH64_ADD_ABS_LO12_NC	.rodata+0x22650
+        ; DATA 'peak_adjust_txop'
+  297f98:	12001f47 	and	w7, w26, #0xff
+  297f9c:	2a1403e6 	mov	w6, w20
+  297fa0:	910000a5 	add	x5, x5, #0x0
+			297fa0: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.8+0x89990
+        ; DATA 'band%d - Set wmm[%d]: TXOP = 0\n'
+  297fa4:	52801364 	mov	w4, #0x9b                  	// #155
+  297fa8:	52800082 	mov	w2, #0x4                   	// #4
+  297fac:	528001a1 	mov	w1, #0xd                   	// #13
+  297fb0:	d2800000 	mov	x0, #0x0                   	// #0
+  297fb4:	94000000 	bl	1e37a0 <mtwf_dbg_prt>
+			297fb4: R_AARCH64_CALL26	mtwf_dbg_prt
+  297fb8:	aa1603e1 	mov	x1, x22
+  297fbc:	aa1303e0 	mov	x0, x19
+  297fc0:	52800025 	mov	w5, #0x1                   	// #1
+  297fc4:	52800004 	mov	w4, #0x0                   	// #0
+  297fc8:	17ffff97 	b	297e24 <peak_adjust_txop+0x214>
+  297fcc:	b90003e4 	str	w4, [sp]
+  297fd0:	12001f47 	and	w7, w26, #0xff
+  297fd4:	52801404 	mov	w4, #0xa0                  	// #160
+  297fd8:	2a1403e6 	mov	w6, w20
+  297fdc:	90000005 	adrp	x5, 0 <AutoChBssSearchWithSSID-0x27e4>
+			297fdc: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.8+0x899b0
+        ; DATA 'band%d - Set wmm[%d]: TXOP = 0x%x\n'
+  297fe0:	90000003 	adrp	x3, 0 <AutoChBssSearchWithSSID-0x27e4>
+			297fe0: R_AARCH64_ADR_PREL_PG_HI21	.rodata+0x22650
+        ; DATA 'peak_adjust_txop'
+  297fe4:	910000a5 	add	x5, x5, #0x0
+			297fe4: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.8+0x899b0
+        ; DATA 'band%d - Set wmm[%d]: TXOP = 0x%x\n'
+  297fe8:	91000063 	add	x3, x3, #0x0
+			297fe8: R_AARCH64_ADD_ABS_LO12_NC	.rodata+0x22650
+        ; DATA 'peak_adjust_txop'
+  297fec:	52800082 	mov	w2, #0x4                   	// #4
+  297ff0:	528001a1 	mov	w1, #0xd                   	// #13
+  297ff4:	d2800000 	mov	x0, #0x0                   	// #0
+  297ff8:	94000000 	bl	1e37a0 <mtwf_dbg_prt>
+			297ff8: R_AARCH64_CALL26	mtwf_dbg_prt
+  297ffc:	794006a4 	ldrh	w4, [x21, #2]
+  298000:	17ffff86 	b	297e18 <peak_adjust_txop+0x208>
+
+Disassembly of section .text.unlikely:
+
+Disassembly of section .init.text:
+
+Disassembly of section .exit.text:

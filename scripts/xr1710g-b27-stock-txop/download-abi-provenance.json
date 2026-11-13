@@ -1,0 +1,42 @@
+[
+  {
+    "path": "include/hw_ctrl/cmm_fw_uni_event.h",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/include/hw_ctrl/cmm_fw_uni_event.h",
+    "sha256": "5ad1e98995cfdf7d46f4d6bbf33bf054e90585818a709ee77724caac68b40bb4",
+    "bytes": 119856
+  },
+  {
+    "path": "include/tr.h",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/include/tr.h",
+    "sha256": "4ba377add0ff780e5a49b1591f72aafa6eb9e7e8138203a84caec8c936e65019",
+    "bytes": 15235
+  },
+  {
+    "path": "hw_ctrl/hw_ctrl.c",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/hw_ctrl/hw_ctrl.c",
+    "sha256": "8ed7690ef6824c2e218d4861d390bd6e407c49e7ded18917503d535f90f4b9f8",
+    "bytes": 74237
+  },
+  {
+    "path": "hw_ctrl/hw_ctrl_cmd.c",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/hw_ctrl/hw_ctrl_cmd.c",
+    "sha256": "5ccff1c96cc782fd0359f8218005e185ecf53a147bd3c3da883b00da47285dc2",
+    "bytes": 42291
+  },
+  {
+    "path": "include/hw_ctrl.h",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/include/hw_ctrl.h",
+    "sha256": "4c33fcf965f08094db84c6545c55c40c3ce5fde23a01fae8e09b5a41764d2370",
+    "bytes": 30673
+  },
+  {
+    "path": "include/hw_ctrl/physical_device.h",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/include/hw_ctrl/physical_device.h",
+    "sha256": "4aa19139daabd14cef924ab0df497e98c9c38e0e6214efc499c38473e07d56b5",
+    "bytes": 2444
+  },
+  {
+    "path": "include/hw_ctrl/hdev_ctrl.h",
+    "error": "HTTP Error 404: Not Found"
+  }
+]

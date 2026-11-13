@@ -1,0 +1,38 @@
+[
+  {
+    "path": "chip/mcu/cmm_fw_uni_event.c",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/chip/mcu/cmm_fw_uni_event.c",
+    "sha256": "713788fbef7c39bfca1031b109ba911803d12c93e78082f822c3b31df66f7bd9",
+    "bytes": 301781
+  },
+  {
+    "path": "include/ap/ap.h",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/include/ap/ap.h",
+    "sha256": "3afd818ed4307600cb80aab4430354789d9cd7737f29c67a4816c97af4dff8fc",
+    "bytes": 17449
+  },
+  {
+    "path": "include/ap/ap_vow.h",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/include/ap/ap_vow.h",
+    "sha256": "9a626b190802d9fb9465f55b616a0cbe0454b4b016eedee31cbcfb21d2509025",
+    "bytes": 22448
+  },
+  {
+    "path": "profiles/ap_profile.c",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/profiles/ap_profile.c",
+    "sha256": "af28d75752433c4ea1df41d0d13aa884e2202a4e5715632e48850fcc98f70ad3",
+    "bytes": 75804
+  },
+  {
+    "path": "feature/vow/ap_vow.c",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/feature/vow/ap_vow.c",
+    "sha256": "82effddee6241e54b7effe03fd231928548c719ca11d8f5975162d24ec5e0cbf",
+    "bytes": 190578
+  },
+  {
+    "path": "include/common/mgmt/mgmt_entrytb.h",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/include/common/mgmt/mgmt_entrytb.h",
+    "sha256": "a3ded0fbfecf21805c7958f915feaf8bae409e28cb2be76a9cfe4837b6b24aa7",
+    "bytes": 31136
+  }
+]

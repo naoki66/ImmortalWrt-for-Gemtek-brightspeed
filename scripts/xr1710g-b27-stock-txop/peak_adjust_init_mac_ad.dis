@@ -1,0 +1,60 @@
+
+/home/builder/stock-xr1710g-5.1.1.12/rootfs/lib/modules/5.4.55/mt_wifi.ko:     file format elf64-littleaarch64
+
+
+Disassembly of section .text:
+
+0000000000297b54 <peak_adjust_init_mac_ad>:
+  297b54:	a9be7bfd 	stp	x29, x30, [sp, #-32]!
+  297b58:	d2866082 	mov	x2, #0x3304                	// #13060
+  297b5c:	f2a02102 	movk	x2, #0x108, lsl #16
+  297b60:	910003fd 	mov	x29, sp
+  297b64:	a90153f3 	stp	x19, x20, [sp, #16]
+  297b68:	aa0003f3 	mov	x19, x0
+  297b6c:	d2800781 	mov	x1, #0x3c                  	// #60
+  297b70:	8b020000 	add	x0, x0, x2
+  297b74:	f940de74 	ldr	x20, [x19, #440]
+  297b78:	94000000 	bl	3942b4 <os_zero_mem>
+			297b78: R_AARCH64_CALL26	os_zero_mem
+  297b7c:	d2840001 	mov	x1, #0x2000                	// #8192
+  297b80:	d2860000 	mov	x0, #0x3000                	// #12288
+  297b84:	f2a02101 	movk	x1, #0x108, lsl #16
+  297b88:	8b010261 	add	x1, x19, x1
+  297b8c:	f2a02100 	movk	x0, #0x108, lsl #16
+  297b90:	8b000260 	add	x0, x19, x0
+  297b94:	5280b023 	mov	w3, #0x581                 	// #1409
+  297b98:	52800002 	mov	w2, #0x0                   	// #0
+  297b9c:	79260823 	strh	w3, [x1, #4868]
+  297ba0:	394c0800 	ldrb	w0, [x0, #770]
+  297ba4:	34000040 	cbz	w0, 297bac <peak_adjust_init_mac_ad+0x58>
+  297ba8:	79456682 	ldrh	w2, [x20, #690]
+  297bac:	d2866081 	mov	x1, #0x3304                	// #13060
+  297bb0:	d2a02100 	mov	x0, #0x1080000             	// #17301504
+  297bb4:	f2a02101 	movk	x1, #0x108, lsl #16
+  297bb8:	8b010261 	add	x1, x19, x1
+  297bbc:	8b000273 	add	x19, x19, x0
+  297bc0:	d280b543 	mov	x3, #0x5aa                 	// #1450
+  297bc4:	d2807d00 	mov	x0, #0x3e8                 	// #1000
+  297bc8:	f2c00283 	movk	x3, #0x14, lsl #32
+  297bcc:	79000422 	strh	w2, [x1, #2]
+  297bd0:	d290d402 	mov	x2, #0x86a0                	// #34464
+  297bd4:	f2c05780 	movk	x0, #0x2bc, lsl #32
+  297bd8:	f2a00022 	movk	x2, #0x1, lsl #16
+  297bdc:	f9198660 	str	x0, [x19, #13064]
+  297be0:	f2d0d402 	movk	x2, #0x86a0, lsl #32
+  297be4:	f9198a63 	str	x3, [x19, #13072]
+  297be8:	f2e00022 	movk	x2, #0x1, lsl #48
+  297bec:	b900143f 	str	wzr, [x1, #20]
+  297bf0:	5290d400 	mov	w0, #0x86a0                	// #34464
+  297bf4:	f9199262 	str	x2, [x19, #13088]
+  297bf8:	72a00020 	movk	w0, #0x1, lsl #16
+  297bfc:	b9002420 	str	w0, [x1, #36]
+  297c00:	a94153f3 	ldp	x19, x20, [sp, #16]
+  297c04:	a8c27bfd 	ldp	x29, x30, [sp], #32
+  297c08:	d65f03c0 	ret
+
+Disassembly of section .text.unlikely:
+
+Disassembly of section .init.text:
+
+Disassembly of section .exit.text:

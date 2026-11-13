@@ -1,0 +1,9 @@
+{
+  "rootfs": "/mnt/f/openwrt/research/stock-programmer-20261112/0x965884-rootfs.squashfs",
+  "rootfs_sha256": "1d762a823a89b0e0d1ece973edd0e7c35f68eb61f937ff13f2f4d194051df852",
+  "module": "/home/builder/stock-xr1710g-5.1.1.12/rootfs/lib/modules/5.4.55/mt_wifi.ko",
+  "module_sha256": "04c2b073664d471b6d557bfde46cc191f53303aeb3a0b29cacbe4a08d2e4ddf0",
+  "module_exact_match": true,
+  "c_syntax_check_exit": 0,
+  "note": "Syntax check only, not functional/firmware validation; no physical router access."
+}

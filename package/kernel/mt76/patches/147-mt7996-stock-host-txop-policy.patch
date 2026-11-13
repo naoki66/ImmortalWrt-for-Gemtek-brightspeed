@@ -1,0 +1,761 @@
+Subject: mt7996: add reconstructed XR1710G default host TXOP policy
+
+Implement automatic default/UL priority votes with independent firmware
+statistics, AP/STA/MLO selection, rollback and lifecycle handling.
+This is a validation candidate, not a complete port of vendor scheduling
+or a verified throughput fix. See scripts/xr1710g-b27-stock-txop/README.md.
+
+--- a/mt7996/Makefile
++++ b/mt7996/Makefile
+@@ -4,7 +4,7 @@
+ obj-$(CONFIG_MT7996E) += mt7996e.o
+
+ mt7996e-y := pci.o init.o dma.o eeprom.o main.o mcu.o mac.o \
+-	     debugfs.o mmio.o
++	     debugfs.o mmio.o stock_policy.o
+
+ mt7996e-$(CONFIG_MT7996_NPU) += npu.o
+ mt7996e-$(CONFIG_DEV_COREDUMP) += coredump.o
+--- a/mt7996/debugfs.c
++++ b/mt7996/debugfs.c
+@@ -1391,3 +1391,107 @@
+ }
+
+ #endif
++
++#ifdef CONFIG_MAC80211_DEBUGFS
++/* Per-VIF emergency rollback to the unmodified hostapd EDCA baseline. */
++static ssize_t mt7996_stock_policy_read(struct file *file,
++				       char __user *user_buf,
++				       size_t count, loff_t *ppos)
++{
++	struct ieee80211_vif *vif = file->private_data;
++	struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
++	struct mt7996_phy *phy;
++	char buf[1536];
++	u64 events[3];
++	int i, len = 0;
++
++	phy = mt7996_vif_link_phy(&mvif->deflink);
++	if (!phy)
++		return -ENODEV;
++	wiphy_lock(mt76_hw(phy->dev)->wiphy);
++	mutex_lock(&phy->dev->mt76.mutex);
++	for (i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++) {
++		struct mt7996_stock_edca *s = &mvif->link_info[i].stock;
++
++		if (!link_conf_dereference_protected(vif, i))
++			continue;
++		len += scnprintf(buf + len, sizeof(buf) - len,
++			"link=%d enabled=%u active=%u txop=%u ul=%u "
++			"avg_tx_len=%u avg_rx_len=%u updates=%llu failures=%llu error=%d\n",
++			i, s->enabled, s->active, s->txop, s->ul,
++			s->average_tx_len, s->average_rx_len,
++			s->updates, s->failures, s->error);
++	}
++	spin_lock_bh(&phy->dev->stock_stats_lock);
++	memcpy(events, phy->dev->stock_events, sizeof(events));
++	spin_unlock_bh(&phy->dev->stock_stats_lock);
++	len += scnprintf(buf + len, sizeof(buf) - len,
++			"events_bytes=%llu events_msdu=%llu events_mpdu=%llu\n",
++			events[0], events[1], events[2]);
++	len += scnprintf(buf + len, sizeof(buf) - len,
++			"polls=%llu missing_samples=%llu\n",
++			phy->dev->stock_polls, phy->dev->stock_missing);
++	mutex_unlock(&phy->dev->mt76.mutex);
++	wiphy_unlock(mt76_hw(phy->dev)->wiphy);
++	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
++}
++
++static ssize_t mt7996_stock_policy_write(struct file *file,
++					const char __user *user_buf,
++					size_t count, loff_t *ppos)
++{
++	struct ieee80211_vif *vif = file->private_data;
++	struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
++	struct mt7996_phy *phy;
++	struct mt7996_dev *dev;
++	bool enable;
++	int i, ret;
++
++	ret = kstrtobool_from_user(user_buf, count, &enable);
++	if (ret)
++		return ret;
++	phy = mt7996_vif_link_phy(&mvif->deflink);
++	if (!phy)
++		return -ENODEV;
++	wiphy_lock(mt76_hw(phy->dev)->wiphy);
++	dev = phy->dev;
++	mutex_lock(&dev->mt76.mutex);
++	if (!dev->stock_policy) {
++		ret = -EOPNOTSUPP;
++		goto unlock;
++	}
++	if (test_bit(MT76_MCU_RESET, &dev->mphy.state) ||
++	    test_bit(MT76_RESET, &dev->mphy.state)) {
++		ret = -EBUSY;
++		goto unlock;
++	}
++	for (i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++) {
++		struct mt7996_stock_edca *s = &mvif->link_info[i].stock;
++
++		s->enabled = enable;
++		/* The worker applies and retries the transition under both locks. */
++		s->error = -EINPROGRESS;
++	}
++	wiphy_delayed_work_queue(mt76_hw(phy->dev)->wiphy, &dev->stock_work, 0);
++	ret = count;
++unlock:
++	mutex_unlock(&dev->mt76.mutex);
++	wiphy_unlock(mt76_hw(phy->dev)->wiphy);
++	return ret;
++}
++
++static const struct file_operations mt7996_stock_policy_fops = {
++	.open = simple_open,
++	.read = mt7996_stock_policy_read,
++	.write = mt7996_stock_policy_write,
++	.llseek = default_llseek,
++};
++
++void mt7996_vif_add_debugfs(struct ieee80211_hw *hw,
++			  struct ieee80211_vif *vif)
++{
++	if (mt7996_hw_dev(hw)->stock_policy)
++		debugfs_create_file("stock_txop_policy", 0600, vif->debugfs_dir,
++				    vif, &mt7996_stock_policy_fops);
++}
++#endif
+--- a/mt7996/main.c
++++ b/mt7996/main.c
+@@ -690,6 +690,7 @@
+
+ 	vif->offload_flags |= IEEE80211_OFFLOAD_ENCAP_4ADDR;
+ 	mvif->mt76.deflink_id = IEEE80211_LINK_UNSPECIFIED;
++	mt7996_stock_add(dev, vif);
+
+ out:
+ 	mutex_unlock(&dev->mt76.mutex);
+@@ -733,6 +734,7 @@
+ 	int i;
+
+ 	mutex_lock(&dev->mt76.mutex);
++	mt7996_stock_remove(dev);
+ 	mt7996_vif_links_destroy(dev, vif, mvif->mt76.valid_links, NULL);
+ 	mutex_unlock(&dev->mt76.mutex);
+
+@@ -1410,6 +1412,10 @@
+ 	INIT_LIST_HEAD(&msta_link->wcid.poll_list);
+ 	msta_link->sta = msta;
+ 	msta_link->connected = false;
++	memset(&msta_link->stock_stats, 0, sizeof(msta_link->stock_stats));
++	memset(&msta_link->stock_avg, 0, sizeof(msta_link->stock_avg));
++	msta_link->stock_sampled = 0;
++	msta_link->stock_avg_epoch = READ_ONCE(dev->stock_epoch);
+ 	msta_link->wcid.tx_info = 0;
+ 	msta_link->wcid.sta = 1;
+ 	msta_link->wcid.idx = idx;
+@@ -3546,6 +3552,7 @@
+ 	.add_twt_setup = mt7996_mac_add_twt_setup,
+ 	.twt_teardown_request = mt7996_twt_teardown_request,
+ #ifdef CONFIG_MAC80211_DEBUGFS
++	.vif_add_debugfs = mt7996_vif_add_debugfs,
+ 	.sta_add_debugfs = mt7996_sta_add_debugfs,
+ 	.link_sta_add_debugfs = mt7996_link_sta_add_debugfs,
+ #endif
+--- a/mt7996/mcu.c
++++ b/mt7996/mcu.c
+@@ -1014,6 +1014,9 @@
+ 	case UNI_ALL_STA_TXRX_RATE:
+ 		elem_size = sizeof(res->rate[0]);
+ 		break;
++	case UNI_ALL_STA_TX_STAT:
++		elem_size = sizeof(res->tx_stat[0]);
++		break;
+ 	case UNI_ALL_STA_TXRX_ADM_STAT:
+ 		elem_size = sizeof(res->adm_stat[0]);
+ 		break;
+@@ -1029,6 +1032,7 @@
+
+ 	for (i = 0; i < sta_num; i++) {
+ 		u8 ac;
++		u64 stock_tx = 0, stock_rx = 0;
+ 		u16 wlan_idx;
+ 		struct mt76_wcid *wcid;
+
+@@ -1043,6 +1047,13 @@
+ 			if (mt7996_mcu_update_tx_gi(&wcid->rate, &res->rate[i]))
+ 				dev_err(dev->mt76.dev, "Failed to update TX GI\n");
+ 			break;
++		case UNI_ALL_STA_TX_STAT:
++			wlan_idx = le16_to_cpu(res->tx_stat[i].wlan_idx);
++			wcid = mt76_wcid_ptr(dev, wlan_idx);
++			if (wcid)
++				mt7996_stock_event(dev, wcid, UNI_ALL_STA_TX_STAT,
++					le32_to_cpu(res->tx_stat[i].attempts), 0);
++			break;
+ 		case UNI_ALL_STA_TXRX_ADM_STAT:
+ 			wlan_idx = le16_to_cpu(res->adm_stat[i].wlan_idx);
+ 			wcid = mt76_wcid_ptr(dev, wlan_idx);
+@@ -1051,11 +1062,15 @@
+ 				break;
+
+ 			for (ac = 0; ac < IEEE80211_NUM_ACS; ac++) {
++				stock_tx += le32_to_cpu(res->adm_stat[i].tx_bytes[ac]);
++				stock_rx += le32_to_cpu(res->adm_stat[i].rx_bytes[ac]);
+ 				wcid->stats.tx_bytes +=
+ 					le32_to_cpu(res->adm_stat[i].tx_bytes[ac]);
+ 				wcid->stats.rx_bytes +=
+ 					le32_to_cpu(res->adm_stat[i].rx_bytes[ac]);
+ 			}
++			mt7996_stock_event(dev, wcid, UNI_ALL_STA_TXRX_ADM_STAT,
++					   stock_tx, stock_rx);
+ 			break;
+ 		case UNI_ALL_STA_TXRX_MSDU_COUNT:
+ 			wlan_idx = le16_to_cpu(res->msdu_cnt[i].wlan_idx);
+@@ -1064,6 +1079,9 @@
+ 			if (!wcid)
+ 				break;
+
++			mt7996_stock_event(dev, wcid, UNI_ALL_STA_TXRX_MSDU_COUNT,
++				le32_to_cpu(res->msdu_cnt[i].tx_msdu_cnt),
++				le32_to_cpu(res->msdu_cnt[i].rx_msdu_cnt));
+ 			wcid->stats.tx_packets +=
+ 				le32_to_cpu(res->msdu_cnt[i].tx_msdu_cnt);
+ 			wcid->stats.rx_packets +=
+@@ -4644,6 +4662,9 @@
+ 		e->queue = ac;
+ 		e->aifs = q->aifs;
+ 		e->txop = cpu_to_le16(q->txop);
++		/* Firmware ACI 0 is BE. Keep hostapd's baseline untouched. */
++		if (!ac && link_info->stock.active && dev->stock_policy)
++			e->txop = cpu_to_le16(link_info->stock.txop);
+
+ 		if (q->cw_min)
+ 			e->cw_min = fls(q->cw_min);
+--- a/mt7996/mcu.h
++++ b/mt7996/mcu.h
+@@ -245,6 +245,14 @@
+
+ 	union {
+ 		DECLARE_FLEX_ARRAY(struct all_sta_trx_rate, rate);
++
++		/* ALL_STA_INFO tag 1, same 12-byte ABI as retail 5.1.1.12. */
++		DECLARE_FLEX_ARRAY(struct {
++			__le16 wlan_idx;
++			u8 rsv[2];
++			__le32 attempts;
++			__le32 failed;
++		} __packed, tx_stat);
+ 		DECLARE_FLEX_ARRAY(struct {
+ 			__le16 wlan_idx;
+ 			u8 rsv[2];
+--- a/mt7996/mt7996.h
++++ b/mt7996/mt7996.h
+@@ -287,10 +287,40 @@
+ 	VOW_DRR_CTRL_STA_PAUSE = 0x30,
+ };
+
++/* Raw firmware counters are protected by stock_stats_lock. */
++struct mt7996_stock_stats {
++	u64 tx_bytes, rx_bytes;
++	u32 tx_msdu, rx_msdu, tx_mpdu;
++	u8 seen;
++	u32 epoch;
++	unsigned long started;
++};
++
++struct mt7996_stock_average {
++	u64 tx_bytes, rx_bytes;
++	u32 tx_msdu, rx_msdu, tx_mpdu;
++};
++
++struct mt7996_stock_edca {
++	bool enabled;
++	bool active;
++	bool ul;
++	u16 txop;
++	u16 average_tx_len;
++	u32 average_rx_len;
++	int error;
++	u64 updates, failures;
++	u32 epoch;
++};
++
+ struct mt7996_sta_link {
+ 	struct mt76_wcid wcid; /* must be first */
+
+ 	struct mt7996_sta *sta;
++	struct mt7996_stock_stats stock_stats;
++	struct mt7996_stock_average stock_avg;
++	unsigned long stock_sampled;
++	u32 stock_avg_epoch;
+ 	bool connected;
+
+ 	struct list_head rc_list;
+@@ -351,6 +381,7 @@
+
+ struct mt7996_vif_link_info {
+ 	struct ieee80211_tx_queue_params queue_params[IEEE80211_NUM_ACS];
++	struct mt7996_stock_edca stock;
+ };
+
+ struct mt7996_vif {
+@@ -559,6 +590,15 @@
+ 	u16 chainmask;
+ 	u8 chainshift[__MT_MAX_BAND];
+ 	u32 hif_idx;
++
++	/* Stock host TXOP policy; wiphy mutex -> mt76.mutex -> stats lock. */
++	bool stock_policy;
++	unsigned int stock_interfaces;
++	struct wiphy_delayed_work stock_work;
++	spinlock_t stock_stats_lock; /* raw firmware counter snapshots */
++	u64 stock_polls, stock_missing;
++	u64 stock_events[3];
++	u32 stock_epoch;
+
+ 	struct work_struct init_work;
+ 	struct work_struct rc_work;
+@@ -1061,6 +1101,13 @@
+ void mt7996_mac_update_beacons(struct mt7996_phy *phy);
+ void mt7996_mac_set_coverage_class(struct mt7996_phy *phy);
+ void mt7996_mac_work(struct work_struct *work);
++void mt7996_stock_init(struct mt7996_dev *dev);
++void mt7996_stock_add(struct mt7996_dev *dev, struct ieee80211_vif *vif);
++void mt7996_stock_remove(struct mt7996_dev *dev);
++void mt7996_stock_event(struct mt7996_dev *dev, struct mt76_wcid *wcid,
++			u16 tag, u64 tx, u64 rx);
++void mt7996_vif_add_debugfs(struct ieee80211_hw *hw,
++			  struct ieee80211_vif *vif);
+ void mt7996_mac_reset_work(struct work_struct *work);
+ void mt7996_mac_dump_work(struct work_struct *work);
+ void mt7996_mac_sta_rc_work(struct work_struct *work);
+--- a/mt7996/mac.c
++++ b/mt7996/mac.c
+@@ -2619,6 +2619,7 @@
+ 	/* chip full reset */
+ 	if (dev->recovery.restart) {
+ 		mt7996_thermal_cache_reset(dev);
++		WRITE_ONCE(dev->stock_epoch, dev->stock_epoch + 1);
+ 		/* disable WA/WM WDT */
+ 		mt76_clear(dev, MT_WFDMA0_MCU_HOST_INT_ENA,
+ 			   MT_MCU_CMD_WDT_MASK);
+@@ -2646,6 +2647,7 @@
+ 		return;
+
+ 	mt7996_thermal_cache_reset(dev);
++	WRITE_ONCE(dev->stock_epoch, dev->stock_epoch + 1);
+
+ 	dev_info(dev->mt76.dev,"\n%s L1 SER recovery start.",
+ 		 wiphy_name(hw->wiphy));
+@@ -3091,7 +3093,8 @@
+ 		mt7996_mac_update_stats(phy);
+
+ 		mt7996_mcu_get_all_sta_info(phy, UNI_ALL_STA_TXRX_RATE);
+-		if (mtk_wed_device_active(&phy->dev->mt76.mmio.wed)) {
++		if (!phy->dev->stock_policy &&
++		    mtk_wed_device_active(&phy->dev->mt76.mmio.wed)) {
+ 			mt7996_mcu_get_all_sta_info(phy, UNI_ALL_STA_TXRX_ADM_STAT);
+ 			mt7996_mcu_get_all_sta_info(phy, UNI_ALL_STA_TXRX_MSDU_COUNT);
+ 		}
+--- a/mt7996/init.c
++++ b/mt7996/init.c
+@@ -1912,6 +1912,7 @@
+ 	dev->phy.dev = dev;
+ 	dev->phy.mt76 = &dev->mt76.phy;
+ 	dev->mt76.phy.priv = &dev->phy;
++	mt7996_stock_init(dev);
+ 	INIT_WORK(&dev->rc_work, mt7996_mac_sta_rc_work);
+ 	INIT_DELAYED_WORK(&dev->mphy.mac_work, mt7996_mac_work);
+ 	INIT_LIST_HEAD(&dev->sta_rc_list);
+--- /dev/null
++++ b/mt7996/stock_policy.c
+@@ -0,0 +1,315 @@
++// SPDX-License-Identifier: BSD-3-Clause-Clear
++/* Independent implementation of the retail host TXOP state machine.
++ * See scripts/xr1710g-b27-stock-txop/README.md for sources and limits.
++ */
++#include <linux/of.h>
++#include "mt7996.h"
++#include "mcu.h"
++#include "stock_policy.h"
++
++#define STOCK_BYTES BIT(0)
++#define STOCK_MSDU BIT(1)
++#define STOCK_MPDU BIT(2)
++
++struct mt7996_stock_band {
++	struct ieee80211_vif *ap, *sta, *main;
++	u8 ap_link, sta_link, main_link;
++	bool mlo, main_valid;
++	u64 ap_tx, ap_rx, sta_rx, main_bytes, main_tx;
++	u32 ap_packets, sta_packets, main_mpdu;
++};
++
++struct mt7996_stock_scene {
++	struct mt7996_dev *dev;
++	struct mt7996_stock_band band[MT7996_MAX_RADIOS];
++};
++
++void mt7996_stock_event(struct mt7996_dev *dev, struct mt76_wcid *wcid,
++			u16 tag, u64 tx, u64 rx)
++{
++	struct mt7996_sta_link *link;
++	struct mt7996_stock_stats *s;
++
++	if (!dev->stock_policy || !wcid->sta ||
++	    test_bit(MT76_MCU_RESET, &dev->mphy.state))
++		return;
++	link = container_of(wcid, struct mt7996_sta_link, wcid);
++	s = &link->stock_stats;
++	spin_lock_bh(&dev->stock_stats_lock);
++	if (s->epoch != READ_ONCE(dev->stock_epoch)) {
++		memset(s, 0, sizeof(*s));
++		s->epoch = READ_ONCE(dev->stock_epoch);
++	}
++	if (!s->started)
++		s->started = jiffies;
++	switch (tag) {
++	case UNI_ALL_STA_TXRX_ADM_STAT:
++		s->tx_bytes += tx;
++		s->rx_bytes += rx;
++		s->seen |= STOCK_BYTES;
++		dev->stock_events[0]++;
++		break;
++	case UNI_ALL_STA_TXRX_MSDU_COUNT:
++		s->tx_msdu += tx;
++		s->rx_msdu += rx;
++		s->seen |= STOCK_MSDU;
++		dev->stock_events[1]++;
++		break;
++	case UNI_ALL_STA_TX_STAT:
++		s->tx_mpdu += tx;
++		s->seen |= STOCK_MPDU;
++		dev->stock_events[2]++;
++		break;
++	}
++	spin_unlock_bh(&dev->stock_stats_lock);
++}
++
++/* Atomic iterator only collects statistics; never sends an MCU request. */
++static void mt7996_stock_collect(void *data, struct ieee80211_sta *sta)
++{
++	struct mt7996_stock_scene *scene = data;
++	struct mt7996_dev *dev = scene->dev;
++	struct mt7996_sta *msta = (struct mt7996_sta *)sta->drv_priv;
++	struct ieee80211_vif *vif;
++	int i;
++
++	vif = container_of((void *)msta->vif, struct ieee80211_vif, drv_priv);
++	if (vif->type != NL80211_IFTYPE_AP &&
++	    vif->type != NL80211_IFTYPE_STATION)
++		return;
++
++	for (i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++) {
++		struct mt7996_sta_link *sl = rcu_dereference(msta->link[i]);
++		struct mt7996_stock_average *a;
++		struct mt7996_stock_stats s;
++		struct mt7996_vif_link *vl;
++		struct mt7996_stock_band *b;
++		struct mt7996_phy *phy;
++		bool ready;
++		unsigned long elapsed;
++		u32 milliseconds;
++
++		if (!sl || !sl->connected)
++			continue;
++		vl = mt7996_vif_link(dev, vif, i);
++		if (!vl)
++			continue;
++		phy = mt7996_vif_link_phy(vl);
++		if (!phy || phy->mt76->band_idx >= MT7996_MAX_RADIOS)
++			continue;
++		b = &scene->band[phy->mt76->band_idx];
++		b->mlo |= sta->mlo;
++		if (vif->type == NL80211_IFTYPE_AP && !b->ap) {
++			b->ap = vif;
++			b->ap_link = i;
++		} else if (vif->type == NL80211_IFTYPE_STATION && !b->sta) {
++			b->sta = vif;
++			b->sta_link = i;
++		}
++
++		spin_lock_bh(&dev->stock_stats_lock);
++		s = sl->stock_stats;
++		ready = s.epoch == READ_ONCE(dev->stock_epoch) &&
++			(s.seen & (STOCK_BYTES | STOCK_MSDU)) ==
++			(STOCK_BYTES | STOCK_MSDU);
++		if (ready || (s.started &&
++		    time_after(jiffies, s.started + 3 * HZ)))
++			memset(&sl->stock_stats, 0, sizeof(sl->stock_stats));
++		spin_unlock_bh(&dev->stock_stats_lock);
++		if (!ready) {
++			dev->stock_missing++;
++			memset(&sl->stock_avg, 0, sizeof(sl->stock_avg));
++			continue;
++		}
++
++		if (sl->stock_avg_epoch != READ_ONCE(dev->stock_epoch)) {
++			memset(&sl->stock_avg, 0, sizeof(sl->stock_avg));
++			sl->stock_sampled = 0;
++			sl->stock_avg_epoch = READ_ONCE(dev->stock_epoch);
++		}
++		elapsed = sl->stock_sampled ? jiffies - sl->stock_sampled : HZ;
++		sl->stock_sampled = jiffies;
++		if (elapsed > 3 * HZ || elapsed < HZ / 2) {
++			dev->stock_missing++;
++			memset(&sl->stock_avg, 0, sizeof(sl->stock_avg));
++			continue;
++		}
++		milliseconds = max_t(u32, jiffies_to_msecs(elapsed), 1);
++		s.tx_bytes = div_u64(s.tx_bytes * 1000, milliseconds);
++		s.rx_bytes = div_u64(s.rx_bytes * 1000, milliseconds);
++		s.tx_msdu = div_u64((u64)s.tx_msdu * 1000, milliseconds);
++		s.rx_msdu = div_u64((u64)s.rx_msdu * 1000, milliseconds);
++		s.tx_mpdu = div_u64((u64)s.tx_mpdu * 1000, milliseconds);
++		a = &sl->stock_avg;
++		a->tx_bytes = mt7996_stock_ewma(a->tx_bytes, s.tx_bytes);
++		a->rx_bytes = mt7996_stock_ewma(a->rx_bytes, s.rx_bytes);
++		a->tx_msdu = mt7996_stock_ewma(a->tx_msdu, s.tx_msdu);
++		a->rx_msdu = mt7996_stock_ewma(a->rx_msdu, s.rx_msdu);
++		a->tx_mpdu = mt7996_stock_ewma(a->tx_mpdu, s.tx_mpdu);
++		if (a->tx_bytes + a->rx_bytes > b->main_bytes || !b->main) {
++			b->main = vif;
++			b->main_link = i;
++			b->main_bytes = a->tx_bytes + a->rx_bytes;
++			b->main_tx = a->tx_bytes;
++			b->main_mpdu = a->tx_mpdu;
++			b->main_valid = s.seen & STOCK_MPDU;
++		}
++		if (vif->type == NL80211_IFTYPE_AP) {
++			if (!mt7996_stock_high_rate(a->tx_bytes, a->rx_bytes))
++				continue;
++			b->ap_tx += s.tx_bytes;
++			b->ap_rx += s.rx_bytes;
++			b->ap_packets += s.rx_msdu;
++		} else {
++			b->sta_rx += s.rx_bytes;
++			b->sta_packets += s.rx_msdu;
++			if (!mt7996_stock_high_rate(a->tx_bytes, a->rx_bytes)) {
++				b->sta_rx = 0;
++				b->sta_packets = 0;
++			}
++		}
++	}
++}
++
++static void mt7996_stock_apply(void *data, u8 *mac, struct ieee80211_vif *vif)
++{
++	struct mt7996_stock_scene *scene = data;
++	struct mt7996_dev *dev = scene->dev;
++	struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
++	int i;
++
++	if (vif->type != NL80211_IFTYPE_AP &&
++	    vif->type != NL80211_IFTYPE_STATION)
++		return;
++	for (i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++) {
++		struct ieee80211_bss_conf *conf;
++		struct mt7996_vif_link *vl;
++		struct mt7996_stock_band *b;
++		struct mt7996_phy *phy;
++		struct mt7996_stock_edca *s = &mvif->link_info[i].stock;
++		struct mt7996_stock_edca old = *s;
++		struct mt7996_stock_vote votes = {};
++		bool mu;
++		int err;
++
++		conf = link_conf_dereference_protected(vif, i);
++		if (!conf)
++			continue;
++		vl = mt7996_vif_link(dev, vif, i);
++		if (!vl)
++			continue;
++		phy = mt7996_vif_link_phy(vl);
++		if (!phy || phy->mt76->band_idx >= MT7996_MAX_RADIOS)
++			continue;
++		if (vif->type == NL80211_IFTYPE_AP && !conf->enable_beacon)
++			continue;
++		b = &scene->band[phy->mt76->band_idx];
++		mu = mvif->link_info[i].queue_params[0].mu_edca_param_rec.mu_edca_timer;
++		mt7996_stock_vote_set(&votes, MT7996_STOCK_DEFAULT,
++				      MT7996_STOCK_BURST, true);
++		s->epoch = READ_ONCE(dev->stock_epoch);
++		s->ul = false;
++		if (b->mlo) {
++			if (b->main == vif && b->main_link == i && b->main_valid) {
++				mt7996_stock_vote_set(&votes, MT7996_STOCK_DEFAULT,
++					mt7996_stock_mlo_txop(b->main_tx, b->main_mpdu, mu),
++					true);
++				s->average_tx_len = b->main_mpdu ?
++					min_t(u64, b->main_tx / b->main_mpdu, U16_MAX) : 0;
++			}
++		} else if (b->ap == vif && b->ap_link == i) {
++			s->ul = mt7996_stock_ap_ul(b->ap_tx, b->ap_rx,
++						 b->ap_packets, mu);
++			s->average_rx_len = b->ap_packets ?
++				b->ap_rx / b->ap_packets : 0;
++		} else if (b->sta == vif && b->sta_link == i) {
++			s->ul = mt7996_stock_sta_ul(b->sta_rx, b->sta_packets);
++			s->average_rx_len = b->sta_packets ?
++				b->sta_rx / b->sta_packets : 0;
++		}
++		mt7996_stock_vote_set(&votes, MT7996_STOCK_UL, 0, s->ul);
++		s->active = s->enabled;
++		s->txop = mt7996_stock_winner(&votes);
++		if (s->active == old.active && s->txop == old.txop &&
++		    s->epoch == old.epoch && !old.error)
++			continue;
++		err = mt7996_mcu_set_tx(dev, vif, conf);
++		if (err) {
++			*s = old;
++			s->error = err;
++			s->failures++;
++			dev_warn_ratelimited(dev->mt76.dev,
++				"stock TXOP update failed (link %d): %d\n", i, err);
++		} else {
++			s->error = 0;
++			s->updates++;
++		}
++	}
++}
++
++static void mt7996_stock_work(struct wiphy *wiphy, struct wiphy_work *work)
++{
++	struct mt7996_dev *dev = container_of(work, struct mt7996_dev,
++					    stock_work.work);
++	struct mt7996_stock_scene scene = { .dev = dev };
++	struct mt7996_phy *phy;
++	bool running = false;
++
++	mt7996_for_each_phy(dev, phy)
++		running |= test_bit(MT76_STATE_RUNNING, &phy->mt76->state);
++
++	mutex_lock(&dev->mt76.mutex);
++	if (!dev->stock_interfaces)
++		goto out;
++	if (!test_bit(MT76_MCU_RESET, &dev->mphy.state) &&
++	    !test_bit(MT76_RESET, &dev->mphy.state) &&
++	    running) {
++		ieee80211_iterate_stations_atomic(mt76_hw(dev),
++						 mt7996_stock_collect, &scene);
++		ieee80211_iterate_active_interfaces_mtx(mt76_hw(dev), 0,
++						       mt7996_stock_apply, &scene);
++		/* Read-clear station statistics once per device, not per radio. */
++		mt7996_mcu_get_all_sta_info(&dev->phy, UNI_ALL_STA_TXRX_ADM_STAT);
++		mt7996_mcu_get_all_sta_info(&dev->phy, UNI_ALL_STA_TXRX_MSDU_COUNT);
++		mt7996_mcu_get_all_sta_info(&dev->phy, UNI_ALL_STA_TX_STAT);
++		dev->stock_polls++;
++	}
++	wiphy_delayed_work_queue(wiphy, &dev->stock_work, HZ);
++out:
++	mutex_unlock(&dev->mt76.mutex);
++}
++
++void mt7996_stock_init(struct mt7996_dev *dev)
++{
++	dev->stock_policy = of_machine_is_compatible("gemtek,xr1710g") ||
++		of_machine_is_compatible("gemtek,xr1710g-ubi");
++	spin_lock_init(&dev->stock_stats_lock);
++	wiphy_delayed_work_init(&dev->stock_work, mt7996_stock_work);
++}
++
++void mt7996_stock_add(struct mt7996_dev *dev, struct ieee80211_vif *vif)
++{
++	struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
++	bool supported = vif->type == NL80211_IFTYPE_AP ||
++			 vif->type == NL80211_IFTYPE_STATION;
++	int i;
++
++	if (!dev->stock_policy)
++		return;
++	for (i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++) {
++		struct mt7996_stock_edca *s = &mvif->link_info[i].stock;
++
++		memset(s, 0, sizeof(*s));
++		s->enabled = supported;
++		s->active = supported;
++		s->txop = MT7996_STOCK_BURST;
++	}
++	if (!dev->stock_interfaces++)
++		wiphy_delayed_work_queue(mt76_hw(dev)->wiphy, &dev->stock_work, HZ);
++}
++
++void mt7996_stock_remove(struct mt7996_dev *dev)
++{
++	if (dev->stock_policy && dev->stock_interfaces && !--dev->stock_interfaces)
++		wiphy_delayed_work_cancel(mt76_hw(dev)->wiphy, &dev->stock_work);
++}
+--- /dev/null
++++ b/mt7996/stock_policy.h
+@@ -0,0 +1,69 @@
++/* SPDX-License-Identifier: BSD-3-Clause-Clear */
++#ifndef __MT7996_STOCK_POLICY_H
++#define __MT7996_STOCK_POLICY_H
++
++/* Reconstructed host TXOP rules from XR1710G retail 5.1.1.12.
++ * TXOP units are 32 us; this is a device capability, not APTxop=0.
++ */
++#define MT7996_STOCK_BURST 187
++#define MT7996_STOCK_DEFAULT 0
++#define MT7996_STOCK_UL 1
++#define MT7996_STOCK_PRIORITIES 2
++
++struct mt7996_stock_vote {
++	u16 level[MT7996_STOCK_PRIORITIES];
++	u8 valid;
++};
++
++static inline void
++mt7996_stock_vote_set(struct mt7996_stock_vote *v, unsigned int priority,
++		     u16 level, bool enable)
++{
++	if (enable) {
++		v->valid |= 1U << priority;
++		v->level[priority] = level;
++	} else {
++		v->valid &= ~(1U << priority);
++	}
++}
++
++static inline u16 mt7996_stock_winner(const struct mt7996_stock_vote *v)
++{
++	int i;
++
++	for (i = MT7996_STOCK_PRIORITIES - 1; i >= 0; i--)
++		if (v->valid & (1U << i))
++			return v->level[i];
++	return 0;
++}
++
++static inline u64 mt7996_stock_ewma(u64 old, u64 sample)
++{
++	return old ? (old >> 1) + (sample >> 1) + (old & sample & 1) : sample;
++}
++
++static inline u16 mt7996_stock_mlo_txop(u64 bytes, u32 mpdu, bool mu)
++{
++	u64 len = mpdu ? bytes / mpdu : 0;
++
++	return len <= 700 && !mu ? 0 : MT7996_STOCK_BURST;
++}
++
++static inline bool mt7996_stock_ap_ul(u64 tx, u64 rx, u32 packets, bool mu)
++{
++	if (packets)
++		return rx / packets > 1000 && !mu;
++	return rx > tx * 10;
++}
++
++static inline bool mt7996_stock_sta_ul(u64 rx, u32 packets)
++{
++	return packets && rx / packets > 1000;
++}
++
++static inline bool mt7996_stock_high_rate(u64 avg_tx, u64 avg_rx)
++{
++	return ((avg_tx + avg_rx) >> 17) >= 500;
++}
++
++#endif
