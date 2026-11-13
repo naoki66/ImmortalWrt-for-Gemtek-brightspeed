@@ -9,7 +9,7 @@
 | 原厂行为 | B27 对应实现 | 验证/限制 |
 |---|---|---|
 | TxBurst=1；BSS/peer 建立时 DEFAULT vote | XR1710G AP/STA 默认开；BE TXOP=187（5984us） | 原厂初始化 + profile + SDK 调用链；不是 APTxop=0 |
-| 周期采集/平滑每站统计 | 每设备约1秒查询 ADM、MSDU、TX_STAT，独立统计缓冲；EWMA | 额外请求新 tag 1；当前 WM 的实际回复需刷入后验收 |
+| 周期采集/平滑每站统计 | 每设备约1秒查询 ADM、MSDU、TX_STAT，独立统计缓冲；EWMA；非WED路径不重复累计通用站点计数 | 额外请求新 tag 1；当前 WM 的实际回复需刷入后验收 |
 | MLO 主流站平均 TX MPDU 长度 <=700 且无 MU 时 TXOP0 | 按 band 选平均字节数最大的站，使用真正 MPDU 数；否则187 | 不用 MSDU 冒充 MPDU；缺失 MPDU 时回默认187 |
 | 普通 AP 的 500Mbps 资格门槛 | 原样保留 `(avg_tx+avg_rx)>>17 >=500` | 2.4GHz 较低吞吐可能不会触发 UL vote，不能调低门槛后称与原厂一致 |
 | AP UL：平均RX MSDU >1000 且MU timer0 | 高优先级 UL vote=0；否则撤销 | RX包数0走 rx_bytes>tx_bytes*10 分支 |

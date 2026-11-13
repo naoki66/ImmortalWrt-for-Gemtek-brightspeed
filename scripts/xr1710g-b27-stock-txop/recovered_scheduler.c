@@ -26,8 +26,8 @@ struct recovered_peak_cfg {
 _Static_assert(sizeof(struct recovered_peak_cfg)==60,"layout");
 _Static_assert(offsetof(struct recovered_peak_cfg,tx_count_th)==28,"layout");
 
-/* 0x297b54 peak_adjust_init_mac_ad. Capability predicate is supplied rather
- * than assigning a guessed name to adapter+0x1083302 or chip_cap+690. */
+/* 0x297b54 peak_adjust_init_mac_ad: predicate is bEnableTxBurst.
+ * physical_dev+690 initial capability is 187; see README pointer chain. */
 void recovered_peak_init(struct recovered_peak_cfg *c,
                          bool capability_predicate, uint16_t cap_txop)
 {

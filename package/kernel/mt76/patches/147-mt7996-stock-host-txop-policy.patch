@@ -197,33 +197,49 @@ or a verified throughput fix. See scripts/xr1710g-b27-stock-txop/README.md.
  		case UNI_ALL_STA_TXRX_ADM_STAT:
  			wlan_idx = le16_to_cpu(res->adm_stat[i].wlan_idx);
  			wcid = mt76_wcid_ptr(dev, wlan_idx);
-@@ -1051,11 +1062,15 @@
+@@ -1051,11 +1062,17 @@
  				break;
 
  			for (ac = 0; ac < IEEE80211_NUM_ACS; ac++) {
+-				wcid->stats.tx_bytes +=
+-					le32_to_cpu(res->adm_stat[i].tx_bytes[ac]);
+-				wcid->stats.rx_bytes +=
+-					le32_to_cpu(res->adm_stat[i].rx_bytes[ac]);
 +				stock_tx += le32_to_cpu(res->adm_stat[i].tx_bytes[ac]);
 +				stock_rx += le32_to_cpu(res->adm_stat[i].rx_bytes[ac]);
- 				wcid->stats.tx_bytes +=
- 					le32_to_cpu(res->adm_stat[i].tx_bytes[ac]);
- 				wcid->stats.rx_bytes +=
- 					le32_to_cpu(res->adm_stat[i].rx_bytes[ac]);
++				if (mtk_wed_device_active(&dev->mt76.mmio.wed)) {
++					wcid->stats.tx_bytes +=
++						le32_to_cpu(res->adm_stat[i].tx_bytes[ac]);
++					wcid->stats.rx_bytes +=
++						le32_to_cpu(res->adm_stat[i].rx_bytes[ac]);
++				}
  			}
 +			mt7996_stock_event(dev, wcid, UNI_ALL_STA_TXRX_ADM_STAT,
 +					   stock_tx, stock_rx);
  			break;
  		case UNI_ALL_STA_TXRX_MSDU_COUNT:
  			wlan_idx = le16_to_cpu(res->msdu_cnt[i].wlan_idx);
-@@ -1064,6 +1079,9 @@
+@@ -1064,10 +1081,15 @@
  			if (!wcid)
  				break;
 
+-			wcid->stats.tx_packets +=
+-				le32_to_cpu(res->msdu_cnt[i].tx_msdu_cnt);
+-			wcid->stats.rx_packets +=
+-				le32_to_cpu(res->msdu_cnt[i].rx_msdu_cnt);
 +			mt7996_stock_event(dev, wcid, UNI_ALL_STA_TXRX_MSDU_COUNT,
 +				le32_to_cpu(res->msdu_cnt[i].tx_msdu_cnt),
 +				le32_to_cpu(res->msdu_cnt[i].rx_msdu_cnt));
- 			wcid->stats.tx_packets +=
- 				le32_to_cpu(res->msdu_cnt[i].tx_msdu_cnt);
- 			wcid->stats.rx_packets +=
-@@ -4644,6 +4662,9 @@
++			if (mtk_wed_device_active(&dev->mt76.mmio.wed)) {
++				wcid->stats.tx_packets +=
++					le32_to_cpu(res->msdu_cnt[i].tx_msdu_cnt);
++				wcid->stats.rx_packets +=
++					le32_to_cpu(res->msdu_cnt[i].rx_msdu_cnt);
++			}
+ 			break;
+ 		default:
+ 			break;
+@@ -4644,6 +4666,9 @@
  		e->queue = ac;
  		e->aifs = q->aifs;
  		e->txop = cpu_to_le16(q->txop);
