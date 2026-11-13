@@ -1,0 +1,281 @@
+{
+  "module_sha256": "04c2b073664d471b6d557bfde46cc191f53303aeb3a0b29cacbe4a08d2e4ddf0",
+  "emulation": "Unicorn ARM64; original red_init + nested ACM send machine code; host service calls intercepted",
+  "cases": [
+    {
+      "sources": [
+        16384,
+        16384,
+        16384,
+        16384
+      ],
+      "software": 16384,
+      "injected_tx_failure": false,
+      "byte_exact": true,
+      "payload_sha256": "5b75ddf843534bb6ab78bbbaa2093c3b8cb0273c89271070c903fe42196ac2c5",
+      "trace": [
+        [
+          "WM_RED",
+          2
+        ],
+        [
+          "WA_PARAM",
+          14,
+          1,
+          0
+        ],
+        [
+          "ALLOC_MSG",
+          644
+        ],
+        [
+          "PBC",
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "sources": [
+        16384,
+        16384,
+        16384,
+        16384
+      ],
+      "software": 8192,
+      "injected_tx_failure": false,
+      "byte_exact": true,
+      "payload_sha256": "125a009b80cb21511a572c8feb554701c08aee088bba99351714411b5005eb06",
+      "trace": [
+        [
+          "WM_RED",
+          2
+        ],
+        [
+          "WA_PARAM",
+          14,
+          1,
+          0
+        ],
+        [
+          "ALLOC_MSG",
+          644
+        ],
+        [
+          "PBC",
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "sources": [
+        0,
+        65535,
+        1,
+        8192
+      ],
+      "software": 4096,
+      "injected_tx_failure": false,
+      "byte_exact": true,
+      "payload_sha256": "5689ed607664920bf8345ea4ebfd1b3b998fea2a0231f08a9786010fe0cee7d8",
+      "trace": [
+        [
+          "WM_RED",
+          2
+        ],
+        [
+          "WA_PARAM",
+          14,
+          1,
+          0
+        ],
+        [
+          "ALLOC_MSG",
+          644
+        ],
+        [
+          "PBC",
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "sources": [
+        16385,
+        16383,
+        2,
+        0
+      ],
+      "software": 1,
+      "injected_tx_failure": false,
+      "byte_exact": true,
+      "payload_sha256": "b9a9a5475b5ecefde88e84d3c78f3ef5d0944ff200106f49ffe96514223a9247",
+      "trace": [
+        [
+          "WM_RED",
+          2
+        ],
+        [
+          "WA_PARAM",
+          14,
+          1,
+          0
+        ],
+        [
+          "ALLOC_MSG",
+          644
+        ],
+        [
+          "PBC",
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "sources": [
+        16384,
+        16384,
+        16384,
+        16384
+      ],
+      "software": 16384,
+      "injected_tx_failure": true,
+      "byte_exact": true,
+      "payload_sha256": "5b75ddf843534bb6ab78bbbaa2093c3b8cb0273c89271070c903fe42196ac2c5",
+      "trace": [
+        [
+          "WM_RED",
+          2
+        ],
+        [
+          "WA_PARAM",
+          14,
+          1,
+          0
+        ],
+        [
+          "ALLOC_MSG",
+          644
+        ],
+        [
+          "PBC",
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "sources": [
+        16384,
+        16384,
+        16384,
+        16384
+      ],
+      "software": 8192,
+      "injected_tx_failure": true,
+      "byte_exact": true,
+      "payload_sha256": "125a009b80cb21511a572c8feb554701c08aee088bba99351714411b5005eb06",
+      "trace": [
+        [
+          "WM_RED",
+          2
+        ],
+        [
+          "WA_PARAM",
+          14,
+          1,
+          0
+        ],
+        [
+          "ALLOC_MSG",
+          644
+        ],
+        [
+          "PBC",
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "sources": [
+        0,
+        65535,
+        1,
+        8192
+      ],
+      "software": 4096,
+      "injected_tx_failure": true,
+      "byte_exact": true,
+      "payload_sha256": "5689ed607664920bf8345ea4ebfd1b3b998fea2a0231f08a9786010fe0cee7d8",
+      "trace": [
+        [
+          "WM_RED",
+          2
+        ],
+        [
+          "WA_PARAM",
+          14,
+          1,
+          0
+        ],
+        [
+          "ALLOC_MSG",
+          644
+        ],
+        [
+          "PBC",
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "sources": [
+        16385,
+        16383,
+        2,
+        0
+      ],
+      "software": 1,
+      "injected_tx_failure": true,
+      "byte_exact": true,
+      "payload_sha256": "b9a9a5475b5ecefde88e84d3c78f3ef5d0944ff200106f49ffe96514223a9247",
+      "trace": [
+        [
+          "WM_RED",
+          2
+        ],
+        [
+          "WA_PARAM",
+          14,
+          1,
+          0
+        ],
+        [
+          "ALLOC_MSG",
+          644
+        ],
+        [
+          "PBC",
+          0,
+          0,
+          0
+        ]
+      ]
+    }
+  ],
+  "all_passed": true,
+  "actual_router_access": false,
+  "firmware_internal_execution_verified": false
+}
