@@ -1,0 +1,24 @@
+# Internal use
+docs/
+/resources/
+/screenshots/*.png
+
+# Hidden dotfiles/folders
+.*
+!.gitignore
+!.gitkeep
+
+# Editor files
+*.swp
+*.swo
+*~
+
+# Signing keys (secret key is in GitHub Secrets, NEVER commit)
+/keys/
+
+# Build output
+dist/
+
+# Node modules (for LESS compilation)
+node_modules/
+package-lock.json

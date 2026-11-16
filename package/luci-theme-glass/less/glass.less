@@ -1,0 +1,55 @@
+/* ==========================================================================
+   Glassmorphism Mixins — luci-theme-glass
+   ========================================================================== */
+
+/* Standard glass panel — default for cards, sections, dropdowns */
+.glass-effect() {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-panel-filter);
+  -webkit-backdrop-filter: var(--glass-panel-filter);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+/* Frosted glass — stronger blur, higher opacity (sidebar, login card) */
+.glass-frosted() {
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-chrome-filter);
+  -webkit-backdrop-filter: var(--glass-chrome-filter);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-lg);
+}
+
+/* Subtle glass — minimal effect for secondary/nested elements */
+.glass-subtle() {
+  background: rgba(255, 255, 255, 0.40);
+  backdrop-filter: var(--glass-detail-filter);
+  -webkit-backdrop-filter: var(--glass-detail-filter);
+  border: 0.5px solid rgba(255, 255, 255, 0.25);
+}
+
+/* Glass hover state */
+.glass-hover() {
+  background: var(--glass-bg-hover);
+  box-shadow: var(--glass-shadow-lg);
+}
+
+/* Inner glow — top highlight for glass panels */
+.glass-inner-glow() {
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.6),
+      transparent
+    );
+    border-radius: inherit;
+    pointer-events: none;
+  }
+}

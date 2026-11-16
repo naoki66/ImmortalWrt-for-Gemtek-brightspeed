@@ -1,0 +1,105 @@
+/* ==========================================================================
+   Effect profiles, accessibility and compositing fallbacks
+   ========================================================================== */
+
+html[data-glass-effects="full"] {
+  --glass-panel-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  --glass-detail-filter: blur(8px) saturate(160%);
+}
+
+html[data-glass-effects="reduced"] {
+  --glass-chrome-filter: none;
+  --glass-panel-filter: none;
+  --glass-detail-filter: none;
+  --glass-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --glass-shadow-lg: 0 2px 8px rgba(0, 0, 0, 0.10);
+}
+
+html[data-glass-effects="reduced"] #sidebar,
+html[data-glass-effects="reduced"] #header,
+html[data-glass-effects="reduced"] #header-sub,
+html[data-glass-effects="reduced"] #modal_overlay > .modal,
+html[data-glass-effects="reduced"] .login-card,
+html[data-glass-effects="reduced"] .cbi-dropdown[open] > ul.dropdown {
+  background-image: none;
+  background-color: var(--glass-bg-strong);
+}
+
+html[data-glass-effects="reduced"] #bg-wrap video {
+  display: none;
+}
+
+html[data-glass-effects="reduced"] *,
+html[data-glass-effects="reduced"] *::before,
+html[data-glass-effects="reduced"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0ms !important;
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+button,
+.btn,
+.cbi-button,
+.nav-item,
+.header-tab,
+.sub-tab {
+  touch-action: manipulation;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --glass-chrome-filter: none !important;
+    --glass-panel-filter: none !important;
+    --glass-detail-filter: none !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-chrome-filter: none !important;
+    --glass-panel-filter: none !important;
+    --glass-detail-filter: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --color-border: rgba(0, 0, 0, 0.24);
+    --color-border-strong: rgba(0, 0, 0, 0.40);
+    --color-separator: rgba(0, 0, 0, 0.28);
+    --glass-border: rgba(255, 255, 255, 0.72);
+  }
+}
+
+@media (forced-colors: active) {
+  #sidebar,
+  #header,
+  #header-sub,
+  .cbi-section,
+  .btn,
+  .cbi-button,
+  .login-card,
+  #modal_overlay > .modal {
+    background-image: none;
+    border: 1px solid CanvasText;
+    box-shadow: none;
+  }
+}

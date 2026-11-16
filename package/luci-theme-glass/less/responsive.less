@@ -1,0 +1,126 @@
+/* ==========================================================================
+   Responsive — Media queries for tablet & mobile
+   ========================================================================== */
+
+/* Tablet: sidebar overlay */
+@media (max-width: 1024px) {
+  #sidebar {
+    transform: translateX(calc(-100% - var(--sidebar-gap)));
+
+    &.open {
+      transform: translateX(0);
+    }
+  }
+
+  #header {
+    left: var(--sidebar-gap);
+  }
+
+  #header-sub {
+    left: var(--sidebar-gap);
+    max-width: calc(100vw - var(--sidebar-gap) * 2);
+  }
+
+  #content-wrap {
+    margin-left: 0;
+  }
+
+  .glass-footer {
+    margin-left: 0;
+  }
+
+  .menu-toggle {
+    display: block;
+  }
+
+  body.sidebar-open {
+    overflow: hidden;
+  }
+}
+
+/* Hide status indicators on small screens */
+@media (max-width: 900px) {
+  #status-indicators {
+    display: none !important;
+  }
+}
+
+/* Mobile: tighter spacing */
+@media (max-width: 640px) {
+  :root {
+    --content-padding: 16px;
+    --sidebar-width: 280px;
+  }
+
+  #header {
+    gap: 2px;
+  }
+
+  #header-nav {
+    flex: 1;
+  }
+
+  .header-title {
+    max-width: 42vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .header-actions {
+    padding: 2px var(--space-xs);
+  }
+
+  .cbi-value {
+    flex-direction: column;
+  }
+
+  .cbi-value-title {
+    flex: none;
+    padding-right: 0;
+    padding-bottom: var(--space-xs);
+  }
+
+  .cbi-value-field,
+  .cbi-input-text,
+  .cbi-input-password,
+  input[type="text"],
+  input[type="password"],
+  input[type="number"],
+  select,
+  textarea {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .cbi-page-actions {
+    flex-direction: column;
+
+    .cbi-button {
+      width: 100%;
+    }
+  }
+
+  .login-card {
+    padding: var(--space-2xl) var(--space-xl);
+  }
+
+  .cbi-tabmenu {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+
+    li a {
+      white-space: nowrap;
+    }
+  }
+
+  table.cbi-section-table,
+  .table {
+    display: block;
+    overflow-x: auto;
+  }
+
+  .glass-footer {
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+}

@@ -1,0 +1,316 @@
+msgid ""
+msgstr ""
+"Language: zh_Hans\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: htdocs/luci-static/resources/view/system/glass.js:52
+msgid "Accent Colors"
+msgstr "强调色"
+
+#: htdocs/luci-static/resources/view/system/glass.js:72
+msgid "Accent color used for active elements, links, and buttons in dark mode."
+msgstr "深色模式下用于活动元素、链接和按钮的强调色。"
+
+#: htdocs/luci-static/resources/view/system/glass.js:56
+msgid ""
+"Accent color used for active elements, links, and buttons in light mode."
+msgstr "浅色模式下用于活动元素、链接和按钮的强调色。"
+
+#: htdocs/luci-static/resources/view/system/glass.js:128
+msgid "Active"
+msgstr "已启用"
+
+#: htdocs/luci-static/resources/view/system/glass.js:33
+msgid "Auto (follow system)"
+msgstr "自动（跟随系统）"
+
+#: htdocs/luci-static/resources/view/system/glass.js:108
+msgid "Backdrop blur radius for glass panels in dark mode."
+msgstr "深色模式下玻璃面板的背景模糊半径。"
+
+#: htdocs/luci-static/resources/view/system/glass.js:92
+msgid ""
+"Backdrop blur radius for glass panels. Higher values create a more frosted "
+"appearance."
+msgstr "玻璃面板的背景模糊半径。数值越高，磨砂效果越明显。"
+
+#: htdocs/luci-static/resources/view/system/glass.js:120
+msgid "Background"
+msgstr "背景"
+
+#: htdocs/luci-static/resources/view/system/glass.js:98
+msgid ""
+"Background opacity of glass panels (0 = fully transparent, 1 = fully opaque)."
+msgstr "玻璃面板的背景不透明度（0 = 完全透明，1 = 完全不透明）。"
+
+#: htdocs/luci-static/resources/view/system/glass.js:114
+msgid ""
+"Background opacity of glass panels in dark mode (0 = fully transparent, 1 = "
+"fully opaque)."
+msgstr "深色模式下玻璃面板的背景不透明度（0 = 完全透明，1 = 完全不透明）。"
+
+#: htdocs/luci-static/resources/view/system/glass.js:43
+msgid "Base font size"
+msgstr "基础字体大小"
+
+#: htdocs/luci-static/resources/view/system/glass.js:91
+#: htdocs/luci-static/resources/view/system/glass.js:107
+msgid "Blur intensity (px)"
+msgstr "模糊强度（像素）"
+
+#: htdocs/luci-static/resources/view/system/glass.js:25
+msgid ""
+"Configure the appearance of the Glass theme. Changes take effect after "
+"saving and refreshing the page."
+msgstr "配置 Glass 主题的外观。保存并刷新页面后生效。"
+
+#: htdocs/luci-static/resources/view/system/glass.js:32
+msgid ""
+"Controls the overall appearance. \"Normal\" follows the system preference."
+msgstr "控制整体外观。“普通”模式跟随系统偏好。"
+
+#: htdocs/luci-static/resources/view/system/glass.js:123
+msgid "Current background"
+msgstr "当前背景"
+
+#: htdocs/luci-static/resources/view/system/glass.js:35
+msgid "Dark"
+msgstr "深色"
+
+#: htdocs/luci-static/resources/view/system/glass.js:48
+msgid "Extra Large (18px)"
+msgstr "超大（18px）"
+
+#: htdocs/luci-static/resources/view/system/glass.js:28
+msgid "General"
+msgstr "常规"
+
+#: htdocs/luci-static/resources/view/system/glass.js:104
+msgid "Glass Effects — Dark Mode"
+msgstr "Glass 效果 - 深色模式"
+
+#: htdocs/luci-static/resources/view/system/glass.js:88
+msgid "Glass Effects — Light Mode"
+msgstr "Glass 效果 - 浅色模式"
+
+#: htdocs/luci-static/resources/view/system/glass.js:24
+msgid "Glass Theme"
+msgstr "Glass 主题"
+
+#: root/usr/share/luci/menu.d/luci-theme-glass.json:3
+msgid "Glass Theme Config"
+msgstr "Glass 主题配置"
+
+#: ucode/template/themes/glass/header.ut:204
+msgid "Go to password configuration..."
+msgstr "前往密码配置..."
+
+#: root/usr/share/rpcd/acl.d/luci-theme-glass.json:3
+msgid "Grant access for luci-theme-glass"
+msgstr "授予 luci-theme-glass 访问权限"
+
+#: htdocs/luci-static/resources/view/system/glass.js:38
+msgid "Header status bar"
+msgstr "顶部状态栏"
+
+#: ucode/template/themes/glass/sysauth.ut:111
+msgid "Invalid username and/or password! Please try again."
+msgstr "用户名或密码无效！请重试。"
+
+#: ucode/template/themes/glass/header.ut:211
+msgid "JavaScript required!"
+msgstr "需要 JavaScript！"
+
+#: htdocs/luci-static/resources/view/system/glass.js:47
+msgid "Large (16px)"
+msgstr "大（16px）"
+
+#: htdocs/luci-static/resources/view/system/glass.js:34
+msgid "Light"
+msgstr "浅色"
+
+#: ucode/template/themes/glass/sysauth.ut:129
+msgid "Log in"
+msgstr "登录"
+
+#: ucode/template/themes/glass/sysauth.ut:51
+msgid "Login"
+msgstr "登录"
+
+#: htdocs/luci-static/resources/view/system/glass.js:131
+msgid ""
+"No background set. Upload an image or video named \"bg\" (e.g. bg.jpg, "
+"bg.png, bg.mp4) to /www/luci-static/glass/background/ via SCP."
+msgstr ""
+"未设置背景。请通过 SCP 将名为“bg”的图像或视频（例如 bg.jpg、bg.png、"
+"bg.mp4）上传到 /www/luci-static/glass/background/。"
+
+#: ucode/template/themes/glass/header.ut:201
+msgid "No password set!"
+msgstr "未设置密码！"
+
+#: htdocs/luci-static/resources/view/system/glass.js:46
+msgid "Normal (14px)"
+msgstr "普通（14px）"
+
+#: htdocs/luci-static/resources/view/system/glass.js:97
+#: htdocs/luci-static/resources/view/system/glass.js:113
+msgid "Panel transparency"
+msgstr "面板透明度"
+
+#: ucode/template/themes/glass/sysauth.ut:124
+msgid "Password"
+msgstr "密码"
+
+#: htdocs/luci-static/resources/view/system/glass.js:71
+msgid "Primary color (dark mode)"
+msgstr "深色模式主色"
+
+#: htdocs/luci-static/resources/view/system/glass.js:55
+msgid "Primary color (light mode)"
+msgstr "浅色模式主色"
+
+#: htdocs/luci-static/resources/view/system/glass.js:44
+msgid ""
+"Scales all text in the theme. Larger values improve readability on high-DPI "
+"displays."
+msgstr "缩放主题中的所有文字。较大的值可提升高 DPI 显示屏上的可读性。"
+
+#: htdocs/luci-static/resources/view/system/glass.js:39
+msgid ""
+"Show live system stats (CPU, RAM, network, uptime) in the header. Disable to "
+"reduce resource usage on low-end devices."
+msgstr ""
+"在顶部显示实时系统状态（CPU、内存、网络、运行时间）。在低性能设备上禁用可"
+"减少资源占用。"
+
+#: ucode/template/themes/glass/sysauth.ut:106
+msgid "Sign in to continue"
+msgstr "登录以继续"
+
+#: htdocs/luci-static/resources/view/system/glass.js:45
+msgid "Small (13px)"
+msgstr "小（13px）"
+
+#: htdocs/luci-static/resources/view/system/glass.js:31
+msgid "Theme mode"
+msgstr "主题模式"
+
+#: ucode/template/themes/glass/header.ut:202
+msgid ""
+"There is no password set on this router. Please configure a root password to "
+"protect the web interface."
+msgstr "此路由器尚未设置密码。请设置 root 密码以保护 Web 管理界面。"
+
+#: ucode/template/themes/glass/sysauth.ut:117
+msgid "Username"
+msgstr "用户名"
+
+#: ucode/template/themes/glass/header.ut:212
+msgid ""
+"You must enable JavaScript in your browser or LuCI will not work properly."
+msgstr "必须在浏览器中启用 JavaScript，否则 LuCI 将无法正常工作。"
+
+#: htdocs/luci-static/resources/status-glass.js:79
+#: htdocs/luci-static/resources/status-glass.js:178
+msgid "CPU usage (%)"
+msgstr "CPU 使用率（%）"
+
+#: htdocs/luci-static/resources/status-glass.js:180
+msgid "core"
+msgstr "核心"
+
+#: htdocs/luci-static/resources/status-glass.js:180
+msgid "cores"
+msgstr "核心"
+
+#: htdocs/luci-static/resources/status-glass.js:252
+msgid "day"
+msgstr "天"
+
+#: htdocs/luci-static/resources/status-glass.js:252
+msgid "days"
+msgstr "天"
+
+#: htdocs/luci-static/resources/status-glass.js:253
+msgid "hour"
+msgstr "小时"
+
+#: htdocs/luci-static/resources/status-glass.js:253
+msgid "hours"
+msgstr "小时"
+
+#: htdocs/luci-static/resources/status-glass.js:225
+msgid "Link Speed"
+msgstr "链路速度"
+
+#: htdocs/luci-static/resources/status-glass.js:80
+#: htdocs/luci-static/resources/status-glass.js:193
+msgid "Memory usage (%)"
+msgstr "内存使用率（%）"
+
+#: htdocs/luci-static/resources/status-glass.js:152
+msgid "Network"
+msgstr "网络"
+
+#: htdocs/luci-static/resources/status-glass.js:254
+msgid "less than a minute"
+msgstr "少于一分钟"
+
+#: htdocs/luci-static/resources/status-glass.js:254
+msgid "minute"
+msgstr "分钟"
+
+#: htdocs/luci-static/resources/status-glass.js:254
+msgid "minutes"
+msgstr "分钟"
+
+#: htdocs/luci-static/resources/status-glass.js:81
+#: htdocs/luci-static/resources/status-glass.js:202
+msgid "Uptime"
+msgstr "运行时间"
+
+#: ucode/template/themes/glass/header.ut:154
+msgid "Toggle menu"
+msgstr "切换菜单"
+
+#: htdocs/luci-static/resources/status-glass.js:242
+msgid "%dd %dh"
+msgstr "%d天 %d小时"
+
+#: htdocs/luci-static/resources/status-glass.js:243
+msgid "%dh %dm"
+msgstr "%d小时 %d分钟"
+
+msgid "Balanced"
+msgstr "平衡"
+
+msgid ""
+"Balanced keeps blur on primary navigation and overlays. Reduced disables "
+"backdrop blur and most motion."
+msgstr "平衡模式仅在主导航和浮层保留模糊。精简模式会关闭背景模糊和大部分动效。"
+
+msgid "Effects profile"
+msgstr "效果档位"
+
+msgid "Expecting: %s"
+msgstr "期望：%s"
+
+msgid "Full"
+msgstr "完整"
+
+msgid "Invalid hexadecimal value"
+msgstr "无效的十六进制值"
+
+msgid "Main navigation"
+msgstr "主导航"
+
+msgid "Reduced"
+msgstr "精简"
+
+msgid "Sub-navigation"
+msgstr "子导航"
+
+msgid "a number between 0 and 1"
+msgstr "0 到 1 之间的数值"

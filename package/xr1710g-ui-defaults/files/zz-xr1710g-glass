@@ -1,0 +1,11 @@
+#!/bin/sh
+# Run once, after the individual themes register their defaults. This also
+# selects Glass and Simplified Chinese after restoring an older configuration.
+uci -q get luci.main >/dev/null || exit 1
+uci -q batch <<'EOF' || exit 1
+set luci.themes.Glass='/luci-static/glass'
+set luci.main.mediaurlbase='/luci-static/glass'
+set luci.main.lang='zh_cn'
+commit luci
+EOF
+exit 0
