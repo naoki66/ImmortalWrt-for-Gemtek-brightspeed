@@ -10,7 +10,7 @@ for name in ['stock_policy.c', 'mt7996.h', 'stock_policy.h']:
     (T / dest).write_bytes((D / 'mt7996' / name).read_bytes())
 s=(T/'current-stock_policy.c').read_text();h=(T/'current-mt7996.h').read_text()
 fn=s[s.index('static void mt7996_stock_apply('):s.index('static void mt7996_stock_work(')]
-bands=s[s.index('struct mt7996_stock_band {'):s.index('void mt7996_stock_event(')]
+bands=s[s.index('struct mt7996_stock_band {'):s.index('void mt7996_stock_event(')].split('/* AP MU EDCA', 1)[0]
 edca=h[h.index('struct mt7996_stock_edca {'):h.index('struct mt7996_sta_link {')]
 preamble=r'''
 #include <stdint.h>
@@ -34,7 +34,7 @@ typedef uint8_t u8;typedef uint16_t u16;typedef uint32_t u32;typedef uint64_t u6
 shim=r'''
 struct queue_params { unsigned mu_edca_timer; };
 struct params {struct queue_params mu_edca_param_rec;u16 txop;};
-struct mt7996_vif_link_info {struct params queue_params[4];struct mt7996_stock_edca stock;};
+struct mt7996_vif_link_info {struct params queue_params[4];bool stock_mu_edca;struct mt7996_stock_edca stock;};
 struct mt76_phy {u8 band_idx;};
 struct mt7996_phy {struct mt76_phy *mt76;};
 struct mt7996_vif_link {struct mt7996_phy *phy;};
@@ -76,13 +76,22 @@ int main(void){
  mt7996_stock_apply(&scene,0,&vif);assert(actual==0&&st->ul);
  b->ap_rx=0;b->ap_packets=0;
  mt7996_stock_apply(&scene,0,&vif);assert(actual==187&&!st->ul);
- b->ap_rx=2000000;b->ap_packets=1000;mv.link_info[0].queue_params[0].mu_edca_param_rec.mu_edca_timer=1;
+ b->ap_rx=2000000;b->ap_packets=1000;mv.link_info[0].stock_mu_edca=true;
  mt7996_stock_apply(&scene,0,&vif);assert(actual==187&&!st->ul);
- mv.link_info[0].queue_params[0].mu_edca_param_rec.mu_edca_timer=0;
+ mv.link_info[0].stock_mu_edca=false;
  b->mlo=true;b->main=&vif;b->selected=&vif;b->main_valid=true;b->main_tx=700000;b->main_mpdu=1000;
  fail=1;unsigned updates=st->updates;
  mt7996_stock_apply(&scene,0,&vif);assert(st->txop==187&&actual==187&&st->error==-110&&st->failures==1&&st->updates==updates);
  fail=0;mt7996_stock_apply(&scene,0,&vif);assert(st->txop==0&&actual==0&&st->error==0);
+ /* Managed station still reads peer MU parameters, independent of AP cache. */
+ vif.type=NL80211_IFTYPE_STATION;mv.link_info[0].stock_mu_edca=false;
+ mv.link_info[0].queue_params[0].mu_edca_param_rec.mu_edca_timer=1;
+ mt7996_stock_apply(&scene,0,&vif);assert(actual==187);
+ mv.link_info[0].queue_params[0].mu_edca_param_rec.mu_edca_timer=0;
+ mt7996_stock_apply(&scene,0,&vif);assert(actual==0);
+ vif.type=NL80211_IFTYPE_AP;mv.link_info[0].stock_mu_edca=true;
+ mt7996_stock_apply(&scene,0,&vif);assert(actual==187);
+ mv.link_info[0].stock_mu_edca=false;
  b->main_tx=701000;mt7996_stock_apply(&scene,0,&vif);assert(actual==187);
  b->main_tx=700000;b->main_valid=false;mt7996_stock_apply(&scene,0,&vif);assert(actual==187);
  st->enabled=false;mt7996_stock_apply(&scene,0,&vif);assert(!st->active&&actual==0);

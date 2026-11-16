@@ -1,0 +1,101 @@
+--- a/mt7996/stock_policy.c
++++ b/mt7996/stock_policy.c
+@@ -65,6 +65,40 @@
+ 	}
+ 	info->stock_mu_edca = enabled;
+ 	dev_kfree_skb(skb);
++}
++
++/* Check host send results without pretending they identify async replies.
++ * After a failed read-clear query, discard its first successful query as a
++ * new counter baseline; only the following success is policy-eligible.
++ * This repairs known send failures, not arbitrary late firmware replies.
++ */
++static void mt7996_stock_query(struct mt7996_dev *dev)
++{
++	static const u16 tags[] = {
++		UNI_ALL_STA_TXRX_ADM_STAT,
++		UNI_ALL_STA_TXRX_MSDU_COUNT,
++		UNI_ALL_STA_TX_STAT,
++	};
++	u8 valid = 0;
++	int i, err;
++
++	for (i = 0; i < ARRAY_SIZE(tags); i++) {
++		err = mt7996_mcu_get_all_sta_info(&dev->phy, tags[i]);
++		dev->stock_query_attempts[i]++;
++		dev->stock_query_error[i] = err;
++		if (err) {
++			dev->stock_query_failures[i]++;
++			dev->stock_query_dirty |= BIT(i);
++		} else if (dev->stock_query_dirty & BIT(i)) {
++			dev->stock_query_dirty &= ~BIT(i);
++			dev->stock_query_rebases[i]++;
++		} else {
++			valid |= BIT(i);
++		}
++	}
++	dev->stock_query_valid = valid;
++	dev->stock_query_started = true;
++	dev->stock_polls++;
+ }
+ 
+ void mt7996_stock_event(struct mt7996_dev *dev, struct mt76_wcid *wcid,
+@@ -193,6 +227,11 @@
+ 		mt7996_stock_ba_update(dev, msta, sl, enabled, false);
+ 		spin_lock_bh(&dev->stock_stats_lock);
+ 		s = sl->stock_stats;
++		/* A send failure invalidates only that tag in this snapshot.
++		 * TX_STAT is optional: missing PER must not discard byte/MSDU data.
++		 */
++		if (dev->stock_query_started)
++			s.seen &= dev->stock_query_valid | STOCK_INVALID;
+ 		ready = s.epoch == READ_ONCE(dev->stock_epoch) &&
+ 			!(s.seen & STOCK_INVALID) &&
+ 			(s.seen & (STOCK_BYTES | STOCK_MSDU)) ==
+@@ -439,10 +478,7 @@
+ 		ieee80211_iterate_active_interfaces_mtx(mt76_hw(dev), 0,
+ 						       mt7996_stock_apply, &scene);
+ 		/* Read-clear station statistics once per device, not per radio. */
+-		mt7996_mcu_get_all_sta_info(&dev->phy, UNI_ALL_STA_TXRX_ADM_STAT);
+-		mt7996_mcu_get_all_sta_info(&dev->phy, UNI_ALL_STA_TXRX_MSDU_COUNT);
+-		mt7996_mcu_get_all_sta_info(&dev->phy, UNI_ALL_STA_TX_STAT);
+-		dev->stock_polls++;
++		mt7996_stock_query(dev);
+ 	}
+ 	wiphy_delayed_work_queue(wiphy, &dev->stock_work, HZ);
+ out:
+--- a/mt7996/mt7996.h
++++ b/mt7996/mt7996.h
+@@ -621,6 +621,12 @@
+ 	spinlock_t stock_stats_lock; /* raw firmware counter snapshots */
+ 	u64 stock_polls, stock_missing;
+ 	u64 stock_events[3];
++	/* Query lifecycle is serialized by mt76.mutex; RX never writes it. */
++	u64 stock_query_attempts[3], stock_query_failures[3];
++	u64 stock_query_rebases[3];
++	int stock_query_error[3];
++	u8 stock_query_valid, stock_query_dirty;
++	bool stock_query_started;
+ 	u32 stock_epoch;
+ 	u64 stock_ba_updates, stock_ba_errors, stock_ba_skips;
+ 
+--- a/mt7996/debugfs.c
++++ b/mt7996/debugfs.c
+@@ -1443,6 +1443,16 @@
+ 			"polls=%llu missing_samples=%llu\n",
+ 			phy->dev->stock_polls, phy->dev->stock_missing);
+ 	len += scnprintf(buf + len, PAGE_SIZE - len,
++			"query_valid=0x%x query_rebase_pending=0x%x\n",
++			phy->dev->stock_query_valid, phy->dev->stock_query_dirty);
++	for (i = 0; i < 3; i++)
++		len += scnprintf(buf + len, PAGE_SIZE - len,
++				"query=%d attempts=%llu failures=%llu rebases=%llu error=%d\n",
++				i, phy->dev->stock_query_attempts[i],
++				phy->dev->stock_query_failures[i],
++				phy->dev->stock_query_rebases[i],
++				phy->dev->stock_query_error[i]);
++	len += scnprintf(buf + len, PAGE_SIZE - len,
+ 			"ba_updates=%llu ba_errors=%llu ba_skips=%llu\n",
+ 			phy->dev->stock_ba_updates, phy->dev->stock_ba_errors,
+ 			phy->dev->stock_ba_skips);

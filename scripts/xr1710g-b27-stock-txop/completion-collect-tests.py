@@ -8,7 +8,7 @@ for name in ['stock_policy.c', 'mt7996.h', 'stock_policy.h']:
     dest = name if name == 'stock_policy.h' else 'current-' + name
     (T / dest).write_bytes((D / 'mt7996' / name).read_bytes())
 s=(D/'mt7996/stock_policy.c').read_text();h=(D/'mt7996/mt7996.h').read_text()
-fn=s[s.index('static void mt7996_stock_collect('):s.index('/* A second pass')];bands=s[s.index('struct mt7996_stock_band {'):s.index('void mt7996_stock_event(')];fields=h[h.index('struct mt7996_stock_stats {'):h.index('struct mt7996_stock_edca {')]
+fn=s[s.index('static void mt7996_stock_collect('):s.index('/* A second pass')];bands=s[s.index('struct mt7996_stock_band {'):s.index('void mt7996_stock_event(')].split('/* AP MU EDCA', 1)[0];fields=h[h.index('struct mt7996_stock_stats {'):h.index('struct mt7996_stock_edca {')]
 pre=r'''
 #include <stdint.h>
 #include <stddef.h>
@@ -25,6 +25,7 @@ typedef uint8_t u8;typedef uint16_t u16;typedef uint32_t u32;typedef uint64_t u6
 #define STOCK_BYTES BIT(0)
 #define STOCK_MSDU BIT(1)
 #define STOCK_MPDU BIT(2)
+#define STOCK_INVALID BIT(3)
 #define spin_lock_bh(p) ((void)(p))
 #define spin_unlock_bh(p) ((void)(p))
 #define container_of(ptr,type,member) ((type*)((char*)(ptr)-offsetof(type,member)))
@@ -52,7 +53,7 @@ struct mt7996_vif {struct mt7996_vif_link links[16];struct {struct {bool enabled
 struct ieee80211_vif {int type;_Alignas(16) unsigned char drv_priv[sizeof(struct mt7996_vif)];};
 struct mt7996_sta {struct mt7996_vif *vif;struct mt7996_sta_link *link[16];};
 struct ieee80211_sta {bool mlo;_Alignas(16) unsigned char drv_priv[sizeof(struct mt7996_sta)];};
-struct mt7996_dev {int stock_stats_lock;u32 stock_epoch;u64 stock_missing;};
+struct mt7996_dev {int stock_stats_lock;u32 stock_epoch;u64 stock_missing;bool stock_query_started;u8 stock_query_valid;};
 static void mt7996_stock_ba_update(struct mt7996_dev *d,struct mt7996_sta *m,struct mt7996_sta_link *s,bool enable,bool sample){(void)d;(void)m;(void)s;(void)enable;(void)sample;}
 static struct mt7996_vif_link *mt7996_vif_link(struct mt7996_dev *d,struct ieee80211_vif *v,int i){(void)d;return &((struct mt7996_vif*)v->drv_priv)->links[i];}
 static struct mt7996_phy *mt7996_vif_link_phy(struct mt7996_vif_link *v){return v->phy;}

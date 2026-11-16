@@ -29,6 +29,7 @@ typedef uint8_t u8;typedef uint16_t u16;typedef uint32_t u32;typedef uint64_t u6
 #define STOCK_BYTES BIT(0)
 #define STOCK_MSDU BIT(1)
 #define STOCK_MPDU BIT(2)
+#define STOCK_INVALID BIT(3)
 #define spin_lock_bh(p) ((void)(p))
 #define spin_unlock_bh(p) ((void)(p))
 #define test_bit(b,p) (!!(*(p)&BIT(b)))

@@ -76,3 +76,12 @@ echo 0 > /sys/kernel/debug/ieee80211/phy0/netdev:接口名/stock_txop_policy
 6. 2.4GHz低速必须以双向接收端吞吐复测判定；只有离线测试通过、没有断线或TXOP改变，均不能称问题已解决。
 
 构建方式：清理mt76后重新编译驱动，再make world；保留已有工具链及未修改软件包缓存，不是全量清空重建。驱动文件、实际FIT/rootfs/module、固件bin哈希及设备DTS做离线一致性核验，不能替代实机测试。
+
+
+## r21：撤销r20全设备锁存，收窄到查询发送失败修复
+
+当前156为stock-query-send-recovery，不再使用r20的stock-stat-fail-closed。不存在stock_faults锁存，不因一次统计异常关闭全设备策略；保留154的逐链路缺项/重复窗口丢弃与下一轮恢复，TX_STAT仍可选。新增逐tag发送返回值检查。某tag发送失败后，失败轮无效，第一次后续成功查询用于重建read-clear基线，下一次成功查询恢复使用；其他tag持续查询。可用mask只表示主机发送/重建状态，不是固件回复已确认或同轮匹配保证。此修改不解决任意迟到回复归属，438跨轮误配仍待协议证据。
+
+stock_txop_policy新增query_valid和query_rebase_pending、query=0/1/2（字节/MSDU/TX_STAT）的attempts/failures/rebases/error。工作线程与读取受mt76.mutex串行化，事件计数仍用stats_lock。没有新增固定超时重开、全局停用、TXOP数值或NPU恢复改动。
+
+新增stat-query-send-tests.py与stat-query-send-worker-tests.py覆盖发送失败、read-clear基线重建、自动恢复、可选PER与客户端隔离。已有回归保持原预期，只扩展统计查询状态的测试替身字段。
