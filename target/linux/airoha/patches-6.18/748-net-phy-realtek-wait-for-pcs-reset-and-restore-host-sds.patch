@@ -1,0 +1,109 @@
+From: XR1710G local maintenance
+Subject: [PATCH] net: phy: realtek: wait for PCS reset and restore host SDS
+
+Wait for the existing USXGMII PCS reset to complete before restoring the
+host SerDes. For boards opting into RTK SerDes tuning, replay the selected
+firmware's SDS page 6 registers 0x0d, 0x0e and 0x1d before flow_s. The
+existing 743 patch documents reset-induced loss of these settings.
+
+Keep the reset itself: it latches the in-band mode required by phylink.
+Do not replace firmware, reload copper microcode, or introduce new tuning
+constants. Return MDIO errors and reset timeout to phylink.
+
+Reference: existing 743 and 747 patches in this source tree;
+Linux drivers/net/phy/phy-c45.c:genphy_c45_pma_soft_reset for the bounded
+reset-completion polling pattern. This is a conservative candidate;
+post-reset register restoration and link stability still need board tests.
+
+--- a/drivers/net/phy/realtek/realtek_main.c
++++ b/drivers/net/phy/realtek/realtek_main.c
+@@ -3491,7 +3491,7 @@
+ static int rtl826x_config_inband(struct phy_device *phydev,
+ 				  unsigned int modes)
+ {
+-	int ret;
++	int ret, val;
+ 
+ 	if (modes != LINK_INBAND_ENABLE)
+ 		return -EOPNOTSUPP;
+@@ -3504,10 +3504,17 @@
+ 	if (ret < 0)
+ 		return ret;
+ 
+-	/* Restore the board's tuned host-SerDes values right after the reset
+-	 * that re-latches the PCS instead of waiting for the next copper AN.
++	/* Do not program the host SerDes while the PCS is still in reset. */
++	ret = phy_read_mmd_poll_timeout(phydev, MDIO_MMD_PCS, MDIO_CTRL1,
++					val, !(val & MDIO_CTRL1_RESET),
++					5000, 600000, true);
++	if (ret < 0)
++		return ret;
++
++	/* A reset can discard host SDS settings loaded from the firmware.
++	 * Restore those settings before the board-specific flow_s pulse.
+ 	 */
+-	return rtl826x_phy_patch_rtk_serdes(phydev);
++	return rtl826x_phy_patch_restore_host(phydev);
+ }
+ 
+ static int rtl826x_suspend(struct phy_device *phydev)
+--- a/drivers/net/phy/realtek/phy_patch_rtl826x.h
++++ b/drivers/net/phy/realtek/phy_patch_rtl826x.h
+@@ -12,5 +12,6 @@
+ int rtl8261n_phy_patch_db_init(struct phy_device *phydev);
+ int rtl8264b_phy_patch_db_init(struct phy_device *phydev);
+ int rtl826x_phy_patch_rtk_serdes(struct phy_device *phydev);
++int rtl826x_phy_patch_restore_host(struct phy_device *phydev);
+ 
+ #endif
+--- a/drivers/net/phy/realtek/phy_patch_rtl826x.c
++++ b/drivers/net/phy/realtek/phy_patch_rtl826x.c
+@@ -251,6 +251,48 @@
+ 	}
+ 
+ 	return ret;
++}
++
++int rtl826x_phy_patch_restore_host(struct phy_device *phydev)
++{
++	struct rtl826x_priv *priv = phydev->priv;
++	const struct rtlgen_phy_patch_db *patch_db;
++	size_t i;
++	int ret;
++
++	if (!priv || !priv->patch_rtk_serdes)
++		return 0;
++
++	patch_db = priv->patch;
++	if (!patch_db)
++		return -EINVAL;
++
++	/* PCS resets can discard firmware-programmed host SDS settings.
++	 * Replay only these configuration registers, in firmware order, using
++	 * the selected variant's values and masks rather than fixed constants.
++	 * Do not reload the MCU patch or reset a running copper PHY.
++	 */
++	for (i = 0; i < patch_db->count; i++) {
++		const struct rtlgen_hwpatch *patch = &patch_db->conf[i];
++
++		if (patch->patch_op != RTK_PATCH_OP_PSDS0 ||
++		    le16_to_cpu(patch->pagemmd) != 0x06)
++			continue;
++
++		switch (le16_to_cpu(patch->addr)) {
++		case 0x0d:
++		case 0x0e:
++		case 0x1d:
++			ret = rtl826x_phy_patch_op(phydev, patch);
++			if (ret < 0)
++				return ret;
++			break;
++		default:
++			break;
++		}
++	}
++
++	return rtl826x_phy_patch_rtk_serdes(phydev);
+ }
+ 
+ static int rtl826x_phy_patch_db_init(struct phy_device *phydev, const char *fw_name)

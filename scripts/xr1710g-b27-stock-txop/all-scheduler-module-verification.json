@@ -1,0 +1,11 @@
+{
+  "artifact": "/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/mt76-2026.10.28~0936617d/mt7996/mt7996e.ko",
+  "sha256": "a7c4bc3ee1ef9a3933455d76463ad52c41f5b888fc9f5b51782534919e82dded",
+  "bytes": 2052800,
+  "debugfs_interface": true,
+  "debugfs_near_far_state": true,
+  "stock_worker": true,
+  "near_far_collection": true,
+  "is_final_firmware": false,
+  "hardware_tested": false
+}

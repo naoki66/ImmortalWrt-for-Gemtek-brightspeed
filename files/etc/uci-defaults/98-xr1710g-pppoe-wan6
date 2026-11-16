@@ -1,0 +1,20 @@
+#!/bin/sh
+# PPPoE DHCPv6 must follow the logical WAN, not the underlying Ethernet port.
+# Scoped to XR1710G; do not override an explicitly chosen other IPv6 device.
+case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
+ gemtek,xr1710g) ;;
+ *) exit 0 ;;
+esac
+[ "$(uci -q get network.wan.proto)" = pppoe ] || exit 0
+[ "$(uci -q get network.wan6.proto)" = dhcpv6 ] || exit 0
+physical="$(uci -q get network.wan.device)"
+[ -n "$physical" ] || exit 0
+[ "$(uci -q get network.wan6.device)" = "$physical" ] || exit 0
+umask 077
+backup=/root/xr1710g-B20-runtime-backup
+mkdir -p "$backup" || exit 1
+[ -f "$backup/network.before-wan6" ] || cp -p /etc/config/network "$backup/network.before-wan6" || exit 1
+uci set 'network.wan6.device=@wan' || exit 1
+uci commit network || exit 1
+logger -t xr1710g-B20 'Corrected DHCPv6 device to @wan for PPPoE; IPv6 upstream availability still required'
+exit 0

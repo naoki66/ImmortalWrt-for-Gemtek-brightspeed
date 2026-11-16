@@ -1,0 +1,4 @@
+PASS optin=0 never_lock=0: 4 calibration passes, per-lane samples=32, LPF/IDAC/latch/CDR/MAC verified
+PASS optin=0 never_lock=1: 4 calibration passes, per-lane samples=50, LPF/IDAC/latch/CDR/MAC verified
+PASS optin=1 never_lock=0: 4 calibration passes, per-lane samples=50, LPF/IDAC/latch/CDR/MAC verified
+PASS optin=1 never_lock=1: 4 calibration passes, per-lane samples=50, LPF/IDAC/latch/CDR/MAC verified

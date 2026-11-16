@@ -1,0 +1,15 @@
+make: Entering directory '/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/linux-6.18.60'
+make[1]: Entering directory '/home/builder/xr1710g-stock-hardware-checks/mt76'
+  MODPOST Module.symvers
+WARNING: modpost: missing MODULE_DESCRIPTION() in mt76.o
+WARNING: modpost: missing MODULE_DESCRIPTION() in mt76-connac-lib.o
+WARNING: modpost: missing MODULE_DESCRIPTION() in mt7996/mt7996e.o
+  CC [M]  mt76.mod.o
+  CC [M]  .module-common.o
+  CC [M]  mt76-connac-lib.mod.o
+  CC [M]  mt7996/mt7996e.mod.o
+  LD [M]  mt76.ko
+  LD [M]  mt76-connac-lib.ko
+  LD [M]  mt7996/mt7996e.ko
+make[1]: Leaving directory '/home/builder/xr1710g-stock-hardware-checks/mt76'
+make: Leaving directory '/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/linux-6.18.60'

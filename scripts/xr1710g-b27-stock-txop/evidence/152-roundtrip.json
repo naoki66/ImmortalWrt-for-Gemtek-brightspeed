@@ -1,0 +1,10 @@
+{
+  "patches": [
+    "150-mt7996-retail-paired-tx-per.patch",
+    "151-mt7996-retail-mcli-txop.patch",
+    "152-mt7996-retail-dynamic-ba-wtbl-lock.patch"
+  ],
+  "fuzz": 0,
+  "forward_matches_actual_sources": true,
+  "reverse_byte_exact": true
+}

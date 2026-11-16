@@ -1,0 +1,126 @@
+
+/home/builder/stock-xr1710g-5.1.1.12/rootfs/lib/modules/5.4.55/mt_wifi.ko:     file format elf64-littleaarch64
+
+
+Disassembly of section .text:
+
+0000000000379050 <MtAsicUniCmdSetWmmParam>:
+  379050:	a9af7bfd 	stp	x29, x30, [sp, #-272]!
+  379054:	910003fd 	mov	x29, sp
+  379058:	a90153f3 	stp	x19, x20, [sp, #16]
+  37905c:	b40005e1 	cbz	x1, 379118 <MtAsicUniCmdSetWmmParam+0xc8>
+  379060:	aa0103f4 	mov	x20, x1
+  379064:	2a0403f3 	mov	w19, w4
+  379068:	d2801881 	mov	x1, #0xc4                  	// #196
+  37906c:	a9025bf5 	stp	x21, x22, [sp, #32]
+  379070:	2a0303f6 	mov	w22, w3
+  379074:	aa0003f5 	mov	x21, x0
+  379078:	910133e0 	add	x0, sp, #0x4c
+  37907c:	f9001bf7 	str	x23, [sp, #48]
+  379080:	2a0503f7 	mov	w23, w5
+  379084:	94000000 	bl	3942b4 <os_zero_mem>
+			379084: R_AARCH64_CALL26	os_zero_mem
+  379088:	390143f6 	strb	w22, [sp, #80]
+  37908c:	52800020 	mov	w0, #0x1                   	// #1
+  379090:	79009be0 	strh	w0, [sp, #76]
+  379094:	71000a7f 	cmp	w19, #0x2
+  379098:	540008e0 	b.eq	3791b4 <MtAsicUniCmdSetWmmParam+0x164>  // b.none
+  37909c:	540001e8 	b.hi	3790d8 <MtAsicUniCmdSetWmmParam+0x88>  // b.pmore
+  3790a0:	340005f3 	cbz	w19, 37915c <MtAsicUniCmdSetWmmParam+0x10c>
+  3790a4:	910133e2 	add	x2, sp, #0x4c
+  3790a8:	aa1403e1 	mov	x1, x20
+  3790ac:	390147e0 	strb	w0, [sp, #81]
+  3790b0:	aa1503e0 	mov	x0, x21
+  3790b4:	39014bf7 	strb	w23, [sp, #82]
+  3790b8:	94000000 	bl	b5530 <MtUniCmdEdcaParameterSet>
+			3790b8: R_AARCH64_CALL26	MtUniCmdEdcaParameterSet
+  3790bc:	a9425bf5 	ldp	x21, x22, [sp, #32]
+  3790c0:	52800013 	mov	w19, #0x0                   	// #0
+  3790c4:	f9401bf7 	ldr	x23, [sp, #48]
+  3790c8:	2a1303e0 	mov	w0, w19
+  3790cc:	a94153f3 	ldp	x19, x20, [sp, #16]
+  3790d0:	a8d17bfd 	ldp	x29, x30, [sp], #272
+  3790d4:	d65f03c0 	ret
+  3790d8:	71000e7f 	cmp	w19, #0x3
+  3790dc:	54000481 	b.ne	37916c <MtAsicUniCmdSetWmmParam+0x11c>  // b.any
+  3790e0:	52800080 	mov	w0, #0x4                   	// #4
+  3790e4:	390147e0 	strb	w0, [sp, #81]
+  3790e8:	7900abf7 	strh	w23, [sp, #84]
+  3790ec:	aa1403e1 	mov	x1, x20
+  3790f0:	910133e2 	add	x2, sp, #0x4c
+  3790f4:	aa1503e0 	mov	x0, x21
+  3790f8:	52800013 	mov	w19, #0x0                   	// #0
+  3790fc:	94000000 	bl	b5530 <MtUniCmdEdcaParameterSet>
+			3790fc: R_AARCH64_CALL26	MtUniCmdEdcaParameterSet
+  379100:	2a1303e0 	mov	w0, w19
+  379104:	a94153f3 	ldp	x19, x20, [sp, #16]
+  379108:	a9425bf5 	ldp	x21, x22, [sp, #32]
+  37910c:	f9401bf7 	ldr	x23, [sp, #48]
+  379110:	a8d17bfd 	ldp	x29, x30, [sp], #272
+  379114:	d65f03c0 	ret
+  379118:	90000001 	adrp	x1, 26c828 <SecEncryModeNewToOld+0x18>
+			379118: R_AARCH64_ADR_PREL_PG_HI21	DebugCategory
+  37911c:	52800033 	mov	w19, #0x1                   	// #1
+  379120:	b9400021 	ldr	w1, [x1]
+			379120: R_AARCH64_LDST32_ABS_LO12_NC	DebugCategory
+  379124:	361ffd21 	tbz	w1, #3, 3790c8 <MtAsicUniCmdSetWmmParam+0x78>
+  379128:	90000001 	adrp	x1, 26c830 <SecEncryModeNewToOld+0x20>
+			379128: R_AARCH64_ADR_PREL_PG_HI21	DebugSubCategory+0x8c
+  37912c:	b9400021 	ldr	w1, [x1]
+			37912c: R_AARCH64_LDST32_ABS_LO12_NC	DebugSubCategory+0x8c
+  379130:	3657fcc1 	tbz	w1, #10, 3790c8 <MtAsicUniCmdSetWmmParam+0x78>
+  379134:	90000003 	adrp	x3, 0 <AutoChBssSearchWithSSID-0x27e4>
+			379134: R_AARCH64_ADR_PREL_PG_HI21	.rodata+0x2bf78
+  379138:	91000063 	add	x3, x3, #0x0
+			379138: R_AARCH64_ADD_ABS_LO12_NC	.rodata+0x2bf78
+  37913c:	91044063 	add	x3, x3, #0x110
+  379140:	2a1303e2 	mov	w2, w19
+  379144:	90000005 	adrp	x5, 0 <AutoChBssSearchWithSSID-0x27e4>
+			379144: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.8+0xac5f0
+  379148:	5280b2a4 	mov	w4, #0x595                 	// #1429
+  37914c:	910000a5 	add	x5, x5, #0x0
+			37914c: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.8+0xac5f0
+  379150:	52800061 	mov	w1, #0x3                   	// #3
+  379154:	94000000 	bl	1e37a0 <mtwf_dbg_prt>
+			379154: R_AARCH64_CALL26	mtwf_dbg_prt
+  379158:	17ffffdc 	b	3790c8 <MtAsicUniCmdSetWmmParam+0x78>
+  37915c:	52800100 	mov	w0, #0x8                   	// #8
+  379160:	390147e0 	strb	w0, [sp, #81]
+  379164:	7900aff7 	strh	w23, [sp, #86]
+  379168:	17ffffe1 	b	3790ec <MtAsicUniCmdSetWmmParam+0x9c>
+  37916c:	90000000 	adrp	x0, 26c828 <SecEncryModeNewToOld+0x18>
+			37916c: R_AARCH64_ADR_PREL_PG_HI21	DebugCategory
+  379170:	b9400000 	ldr	w0, [x0]
+			379170: R_AARCH64_LDST32_ABS_LO12_NC	DebugCategory
+  379174:	361ffbc0 	tbz	w0, #3, 3790ec <MtAsicUniCmdSetWmmParam+0x9c>
+  379178:	90000000 	adrp	x0, 26c830 <SecEncryModeNewToOld+0x20>
+			379178: R_AARCH64_ADR_PREL_PG_HI21	DebugSubCategory+0x8c
+  37917c:	b9400000 	ldr	w0, [x0]
+			37917c: R_AARCH64_LDST32_ABS_LO12_NC	DebugSubCategory+0x8c
+  379180:	3657fb60 	tbz	w0, #10, 3790ec <MtAsicUniCmdSetWmmParam+0x9c>
+  379184:	90000003 	adrp	x3, 0 <AutoChBssSearchWithSSID-0x27e4>
+			379184: R_AARCH64_ADR_PREL_PG_HI21	.rodata+0x2bf78
+  379188:	91000063 	add	x3, x3, #0x0
+			379188: R_AARCH64_ADD_ABS_LO12_NC	.rodata+0x2bf78
+  37918c:	2a1303e6 	mov	w6, w19
+  379190:	91044063 	add	x3, x3, #0x110
+  379194:	aa1503e0 	mov	x0, x21
+  379198:	90000005 	adrp	x5, 0 <AutoChBssSearchWithSSID-0x27e4>
+			379198: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.8+0xac600
+  37919c:	5280b6a4 	mov	w4, #0x5b5                 	// #1461
+  3791a0:	910000a5 	add	x5, x5, #0x0
+			3791a0: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.8+0xac600
+  3791a4:	52800022 	mov	w2, #0x1                   	// #1
+  3791a8:	52800061 	mov	w1, #0x3                   	// #3
+  3791ac:	94000000 	bl	1e37a0 <mtwf_dbg_prt>
+			3791ac: R_AARCH64_CALL26	mtwf_dbg_prt
+  3791b0:	17ffffcf 	b	3790ec <MtAsicUniCmdSetWmmParam+0x9c>
+  3791b4:	390147f3 	strb	w19, [sp, #81]
+  3791b8:	39014ff7 	strb	w23, [sp, #83]
+  3791bc:	17ffffcc 	b	3790ec <MtAsicUniCmdSetWmmParam+0x9c>
+
+Disassembly of section .text.unlikely:
+
+Disassembly of section .init.text:
+
+Disassembly of section .exit.text:

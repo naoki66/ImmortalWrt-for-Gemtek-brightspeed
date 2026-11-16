@@ -1,0 +1,331 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8"
+
+#: htdocs/luci-static/resources/status-glass.js:293
+msgid "%dd %dh"
+msgstr ""
+
+#: htdocs/luci-static/resources/status-glass.js:294
+msgid "%dh %dm"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:110
+msgid "Accent Colors"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:121
+msgid "Accent color used for active elements, links, and buttons in dark mode."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:114
+msgid ""
+"Accent color used for active elements, links, and buttons in light mode."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:170
+msgid "Active"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:82
+#: ucode/template/themes/glass/header.ut:213
+#: ucode/template/themes/glass/header.ut:214
+#: ucode/template/themes/glass/header.ut:215
+#: ucode/template/themes/glass/sysauth.ut:144
+#: ucode/template/themes/glass/sysauth.ut:145
+#: ucode/template/themes/glass/sysauth.ut:146
+msgid "Auto (follow system)"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:150
+msgid "Backdrop blur radius for glass panels in dark mode."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:132
+msgid ""
+"Backdrop blur radius for glass panels. Higher values create a more frosted "
+"appearance."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:164
+msgid "Background"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:139
+msgid ""
+"Background opacity of glass panels (0 = fully transparent, 1 = fully opaque)."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:157
+msgid ""
+"Background opacity of glass panels in dark mode (0 = fully transparent, 1 = "
+"fully opaque)."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:90
+msgid "Balanced"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:89
+msgid ""
+"Balanced keeps blur on primary navigation and overlays. Reduced disables "
+"backdrop blur and most motion."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:101
+msgid "Base font size"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:131
+#: htdocs/luci-static/resources/view/system/glass.js:149
+msgid "Blur intensity (px)"
+msgstr ""
+
+#: htdocs/luci-static/resources/status-glass.js:112
+#: htdocs/luci-static/resources/status-glass.js:234
+msgid "CPU usage (%)"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:74
+msgid ""
+"Configure the appearance of the Glass theme. Changes take effect after "
+"saving and refreshing the page."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:81
+msgid ""
+"Controls the overall appearance. \"Normal\" follows the system preference."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:167
+msgid "Current background"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:84
+#: ucode/template/themes/glass/header.ut:217
+#: ucode/template/themes/glass/sysauth.ut:148
+msgid "Dark"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:88
+msgid "Effects profile"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:54
+msgid "Expecting: %s"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:106
+msgid "Extra Large (18px)"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:91
+msgid "Full"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:77
+msgid "General"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:146
+msgid "Glass Effects — Dark Mode"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:128
+msgid "Glass Effects — Light Mode"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:73
+msgid "Glass Theme"
+msgstr ""
+
+#: root/usr/share/luci/menu.d/luci-theme-glass.json:3
+msgid "Glass Theme Config"
+msgstr ""
+
+#: ucode/template/themes/glass/header.ut:246
+msgid "Go to password configuration..."
+msgstr ""
+
+#: root/usr/share/rpcd/acl.d/luci-theme-glass.json:3
+msgid "Grant access for luci-theme-glass"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:96
+msgid "Header status bar"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:48
+msgid "Invalid hexadecimal value"
+msgstr ""
+
+#: ucode/template/themes/glass/sysauth.ut:184
+msgid "Invalid username and/or password! Please try again."
+msgstr ""
+
+#: ucode/template/themes/glass/header.ut:253
+msgid "JavaScript required!"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:105
+msgid "Large (16px)"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:83
+#: ucode/template/themes/glass/header.ut:216
+#: ucode/template/themes/glass/sysauth.ut:147
+msgid "Light"
+msgstr ""
+
+#: htdocs/luci-static/resources/status-glass.js:277
+msgid "Link Speed"
+msgstr ""
+
+#: ucode/template/themes/glass/sysauth.ut:202
+msgid "Log in"
+msgstr ""
+
+#: ucode/template/themes/glass/sysauth.ut:92
+msgid "Login"
+msgstr ""
+
+#: ucode/template/themes/glass/header.ut:181
+#: ucode/template/themes/glass/header.ut:186
+#: ucode/template/themes/glass/header.ut:204
+msgid "Main navigation"
+msgstr ""
+
+#: htdocs/luci-static/resources/status-glass.js:113
+#: htdocs/luci-static/resources/status-glass.js:247
+msgid "Memory usage (%)"
+msgstr ""
+
+#: htdocs/luci-static/resources/status-glass.js:204
+msgid "Network"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:171
+msgid ""
+"No background set. Upload an image or video named \"bg\" (e.g. bg.jpg, bg."
+"png, bg.mp4) to /www/luci-static/glass/background/ via SCP."
+msgstr ""
+
+#: ucode/template/themes/glass/header.ut:243
+msgid "No password set!"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:104
+msgid "Normal (14px)"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:138
+#: htdocs/luci-static/resources/view/system/glass.js:156
+msgid "Panel transparency"
+msgstr ""
+
+#: ucode/template/themes/glass/sysauth.ut:197
+msgid "Password"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:120
+msgid "Primary color (dark mode)"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:113
+msgid "Primary color (light mode)"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:92
+msgid "Reduced"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:102
+msgid ""
+"Scales all text in the theme. Larger values improve readability on high-DPI "
+"displays."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:97
+msgid ""
+"Show live system stats (CPU, RAM, network, uptime) in the header. Disable to "
+"reduce resource usage on low-end devices."
+msgstr ""
+
+#: ucode/template/themes/glass/sysauth.ut:179
+msgid "Sign in to continue"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:103
+msgid "Small (13px)"
+msgstr ""
+
+#: ucode/template/themes/glass/header.ut:236
+msgid "Sub-navigation"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:80
+msgid "Theme mode"
+msgstr ""
+
+#: ucode/template/themes/glass/header.ut:244
+msgid ""
+"There is no password set on this router. Please configure a root password to "
+"protect the web interface."
+msgstr ""
+
+#: ucode/template/themes/glass/header.ut:196
+msgid "Toggle menu"
+msgstr ""
+
+#: htdocs/luci-static/resources/status-glass.js:114
+#: htdocs/luci-static/resources/status-glass.js:256
+msgid "Uptime"
+msgstr ""
+
+#: ucode/template/themes/glass/sysauth.ut:190
+msgid "Username"
+msgstr ""
+
+#: ucode/template/themes/glass/header.ut:254
+msgid ""
+"You must enable JavaScript in your browser or LuCI will not work properly."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/system/glass.js:54
+msgid "a number between 0 and 1"
+msgstr ""
+
+#: htdocs/luci-static/resources/status-glass.js:236
+msgid "core"
+msgstr ""
+
+#: htdocs/luci-static/resources/status-glass.js:236
+msgid "cores"
+msgstr ""
+
+#: htdocs/luci-static/resources/status-glass.js:302
+msgid "day"
+msgstr ""
+
+#: htdocs/luci-static/resources/status-glass.js:302
+msgid "days"
+msgstr ""
+
+#: htdocs/luci-static/resources/status-glass.js:303
+msgid "hour"
+msgstr ""
+
+#: htdocs/luci-static/resources/status-glass.js:303
+msgid "hours"
+msgstr ""
+
+#: htdocs/luci-static/resources/status-glass.js:305
+msgid "less than a minute"
+msgstr ""
+
+#: htdocs/luci-static/resources/status-glass.js:304
+msgid "minute"
+msgstr ""
+
+#: htdocs/luci-static/resources/status-glass.js:304
+msgid "minutes"
+msgstr ""

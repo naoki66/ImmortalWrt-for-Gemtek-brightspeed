@@ -1,0 +1,11 @@
+completion-state-tests.py
+PASS: paired PER validation; MCLI qualification boundaries, previous RX length, actual apply enter/hold/withdraw/target/reset/MCU retry/disable; earlier TXOP regressions
+PASS: actual driver apply function: automatic AP/MLO selection, idle restoration, MU, missing MPDU fallback, MCU failure rollback/retry, disable, reset epoch resend, stopped beacon
+
+
+completion-event-tests.py
+PASS: actual event ingestion paired counters, accumulation, invalid sample, epoch clearing, both reset states, nonstation/disabled gating
+
+
+completion-collect-tests.py
+PASS: actual collection: paired PER, missing/invalid reports, previous-cycle length ordering, epoch clearing and long-gap invalidation

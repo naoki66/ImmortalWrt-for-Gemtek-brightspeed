@@ -1,0 +1,109 @@
+{
+  "status": "PASS",
+  "images": [
+    {
+      "image": "immortalwrt-naoki66-20261116-b27-r22-upstream-glass-zhcn-airoha-an7581-gemtek_xr1710g-squashfs-sysupgrade.itb",
+      "factory_app_release": 4,
+      "actual_files_match_reviewed_package": [
+        {
+          "path": "usr/libexec/rpcd/luci.airoha_factory",
+          "sha256": "a750705b4ceba31a735a04e6155265eae73e46a88b0c240c077210871f2b29a0",
+          "bytes": 22873
+        },
+        {
+          "path": "www/luci-static/resources/view/airoha_factory/factory.js",
+          "sha256": "de07ea36cc3ceacc3bc505532a9bb590fe50b509ac4c575f77eab7a0db971570",
+          "bytes": 18472
+        },
+        {
+          "path": "usr/lib/lua/luci/i18n/luci-app-airoha-factory.zh-cn.lmo",
+          "sha256": "0e6741d29a011f5e70c99a0a41551cb4cf4df8e2ec56e26277e97a7671caf0b5",
+          "bytes": 1984
+        }
+      ],
+      "rpcd_backend_executable": true,
+      "split_dsd_read_at_zero": true,
+      "board_name_function_loaded": true,
+      "chinese_hint_present": true,
+      "factory_data_write_not_enabled_on_split_layout": true
+    },
+    {
+      "image": "immortalwrt-naoki66-20261116-b27-r22-upstream-glass-zhcn-airoha-an7581-gemtek_xr1710g-ubi-squashfs-sysupgrade.itb",
+      "factory_app_release": 4,
+      "actual_files_match_reviewed_package": [
+        {
+          "path": "usr/libexec/rpcd/luci.airoha_factory",
+          "sha256": "a750705b4ceba31a735a04e6155265eae73e46a88b0c240c077210871f2b29a0",
+          "bytes": 22873
+        },
+        {
+          "path": "www/luci-static/resources/view/airoha_factory/factory.js",
+          "sha256": "de07ea36cc3ceacc3bc505532a9bb590fe50b509ac4c575f77eab7a0db971570",
+          "bytes": 18472
+        },
+        {
+          "path": "usr/lib/lua/luci/i18n/luci-app-airoha-factory.zh-cn.lmo",
+          "sha256": "0e6741d29a011f5e70c99a0a41551cb4cf4df8e2ec56e26277e97a7671caf0b5",
+          "bytes": 1984
+        }
+      ],
+      "rpcd_backend_executable": true,
+      "split_dsd_read_at_zero": true,
+      "board_name_function_loaded": true,
+      "chinese_hint_present": true,
+      "factory_data_write_not_enabled_on_split_layout": true
+    }
+  ],
+  "backend_tests": {
+    "pass": true,
+    "tests": [
+      {
+        "test": "split DSD: offset zero, serial/MAC preserved, no env config or writer calls",
+        "pass": true
+      },
+      {
+        "test": "split DSD setFactory rejects before JSON parsing and all writes",
+        "pass": true
+      },
+      {
+        "test": "missing DSD reports accurate error",
+        "pass": true
+      },
+      {
+        "test": "short read rejected",
+        "pass": true
+      },
+      {
+        "test": "I/O failure rejected",
+        "pass": true
+      },
+      {
+        "test": "legacy vendor priority retained and 4 MiB offset correct",
+        "pass": true
+      },
+      {
+        "test": "UBI board detected with sourced board_name and offset zero",
+        "pass": true
+      },
+      {
+        "test": "UBI layout never falls back to unrelated MTD",
+        "pass": true
+      },
+      {
+        "test": "split DSD support restricted to XR1710G board",
+        "pass": true
+      },
+      {
+        "test": "sysfs MTD lookup fallback with globbing initially disabled",
+        "pass": true
+      }
+    ],
+    "method": "Actual shell backend with fixture paths and regular-file device predicates; no physical NAND used."
+  },
+  "frontend_tests": {
+    "pass": true,
+    "runtime": "V8 orchestration isolate",
+    "result": "PASS packaged frontend: read-only serial, stored LAN preserved, no invented ethaddr, correct hint, no save RPC"
+  },
+  "runtime_verified": false
+}

@@ -1,0 +1,117 @@
+{
+  "command": "00130022",
+  "decode": {
+    "wm_bit20": true,
+    "uni_bit17": true,
+    "query_bit16": true,
+    "id": 34,
+    "name": "MCU_UNI_CMD_GET_MIB_INFO"
+  },
+  "fault_logs": [
+    {
+      "path": "/mnt/d/iperf压测/XR1710G_复测_20261107_2127/故障日志提取/01_213300_MT7996超时与PCIe错误_原文.txt",
+      "sha256": "f8ab4889844a6a2ce2fac42aa5f52221f12f40735f22c90e8dd00e4e549f8973",
+      "events": [
+        {
+          "kind": "mcu_timeout",
+          "uptime_s": 3666.754157,
+          "line": "Sat Nov  7 21:33:00 2026 kern.err kernel: [ 3666.754157] mt7996e 0000:01:00.0: Message 00130022 (seq 15) timeout",
+          "seconds_after_first_logged_mcu_timeout": 0.0
+        },
+        {
+          "kind": "first_aer_report",
+          "uptime_s": 3667.064721,
+          "line": "Sat Nov  7 21:33:00 2026 kern.info kernel: [ 3667.064721] pcieport 0000:00:00.0: AER: Multiple Uncorrectable (Non-Fatal) error message received from 0000:00:00.0",
+          "seconds_after_first_logged_mcu_timeout": 0.310564
+        },
+        {
+          "kind": "pcie_completion_timeout",
+          "uptime_s": 3667.310538,
+          "line": "Sat Nov  7 21:33:00 2026 kern.err kernel: [ 3667.310538] pcieport 0000:00:00.0:    [14] CmpltTO                (First)",
+          "seconds_after_first_logged_mcu_timeout": 0.556381
+        },
+        {
+          "kind": "no_aer_callback",
+          "uptime_s": 3667.317551,
+          "line": "Sat Nov  7 21:33:00 2026 kern.info kernel: [ 3667.317551] mt7996e 0000:01:00.0: AER: can't recover (no error_detected callback)",
+          "seconds_after_first_logged_mcu_timeout": 0.563394
+        },
+        {
+          "kind": "firmware_init_timeout",
+          "uptime_s": 3669.294326,
+          "line": "Sat Nov  7 21:33:02 2026 kern.err kernel: [ 3669.294326] mt7996e 0000:01:00.0: Timeout for initializing firmware",
+          "seconds_after_first_logged_mcu_timeout": 2.540169
+        }
+      ]
+    },
+    {
+      "path": "/mnt/d/iperf压测/XR1710G_三频各2小时_20261110_143428/故障日志取回_20261110_215854/01_首次故障_MT7996与PCIe_原文.txt",
+      "sha256": "a296c51014318dda81677f3af6059240a592315b6a043e0bb710bc7d0a89db93",
+      "events": [
+        {
+          "kind": "mcu_timeout",
+          "uptime_s": 10637.97228,
+          "line": "Tue Nov 10 16:47:49 2026 kern.err kernel: [10637.972280] mt7996e 0000:01:00.0: Message 00130022 (seq 4) timeout",
+          "seconds_after_first_logged_mcu_timeout": 0.0
+        },
+        {
+          "kind": "first_aer_report",
+          "uptime_s": 10638.066638,
+          "line": "Tue Nov 10 16:47:49 2026 kern.info kernel: [10638.066638] pcieport 0000:00:00.0: AER: Multiple Uncorrectable (Non-Fatal) error message received from 0000:00:00.0",
+          "seconds_after_first_logged_mcu_timeout": 0.094358
+        },
+        {
+          "kind": "pcie_completion_timeout",
+          "uptime_s": 10638.493849,
+          "line": "Tue Nov 10 16:47:50 2026 kern.err kernel: [10638.493849] pcieport 0000:00:00.0:    [14] CmpltTO                (First)",
+          "seconds_after_first_logged_mcu_timeout": 0.521569
+        },
+        {
+          "kind": "no_aer_callback",
+          "uptime_s": 10638.5147,
+          "line": "Tue Nov 10 16:47:50 2026 kern.info kernel: [10638.514700] mt7996e 0000:01:00.0: AER: can't recover (no error_detected callback)",
+          "seconds_after_first_logged_mcu_timeout": 0.54242
+        },
+        {
+          "kind": "firmware_init_timeout",
+          "uptime_s": 10640.522147,
+          "line": "Tue Nov 10 16:47:52 2026 kern.err kernel: [10640.522147] mt7996e 0000:01:00.0: Timeout for initializing firmware",
+          "seconds_after_first_logged_mcu_timeout": 2.549867
+        },
+        {
+          "kind": "firmware_not_ready",
+          "uptime_s": 10642.528412,
+          "line": "Tue Nov 10 16:47:54 2026 kern.err kernel: [10642.528412] mt7996e 0000:01:00.0: Firmware is not ready for download",
+          "seconds_after_first_logged_mcu_timeout": 4.556132
+        }
+      ]
+    }
+  ],
+  "current_sources": [
+    {
+      "path": "mt76_connac_mcu.h",
+      "sha256": "50f2b07d3388f7371f504f9469dc34c1bac950e6a8554a16e0cf7ea0dc493106"
+    },
+    {
+      "path": "mt7996/mcu.c",
+      "sha256": "e3ec009bac03a283e2a8379a29809d5d1fc995d87b6a08e4bdca295ac369242c"
+    },
+    {
+      "path": "mt7996/mac.c",
+      "sha256": "382c30f2b282df44f166e0afeabbf1a742cd69cf1ce61998ba7b9b66916638a3"
+    },
+    {
+      "path": "mt7996/pci.c",
+      "sha256": "1a1db98e8176538b6860c605be3a966ee981489683d5f9290a249f6ac586d635"
+    },
+    {
+      "path": "mt7996/dma.c",
+      "sha256": "b78f3fc83da48c7ab5d10ed2165b238517e3b784eec7e6ca288b5b20937cac50"
+    }
+  ],
+  "limitations": [
+    "Current B27 source mapping; logs came from older builds. No binary-symbol proof of historical function bodies.",
+    "Kernel log print order does not establish whether first MCU timeout preceded underlying PCIe or firmware failure.",
+    "No pre-reset firmware PC/stack or synchronized over-the-air capture available."
+  ]
+}

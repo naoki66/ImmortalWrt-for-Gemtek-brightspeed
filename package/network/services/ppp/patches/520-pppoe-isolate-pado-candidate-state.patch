@@ -1,0 +1,57 @@
+--- a/pppd/plugins/pppoe/discovery.c
++++ b/pppd/plugins/pppoe/discovery.c
+@@ -453,17 +453,29 @@
+ 		warn("Ignoring PADO packet from wrong MAC address");
+ 		continue;
+ 	    }
+-	    if (parsePacket(&packet, parsePADOTags, &pc) < 0)
+-		continue;
+-	    if (conn->error)
+-		continue;
++	    PPPoEConnection candidate = *conn;
++
++	    /* Match and stage each offer independently. Rejected offers must
++	     * not supply credentials for PADR or reduce the selected MTU.
++	     */
++	    candidate.actualACname = NULL;
++	    memset(&candidate.cookie, 0, sizeof(candidate.cookie));
++	    memset(&candidate.relayId, 0, sizeof(candidate.relayId));
++	    candidate.seenMaxPayload = 0;
++	    pc.conn = &candidate;
++	    pc.acNameOK = conn->acName ? 0 : 1;
++	    pc.serviceNameOK = conn->serviceName ? 0 : 1;
++	    pc.seenACName = 0;
++	    pc.seenServiceName = 0;
++	    if (parsePacket(&packet, parsePADOTags, &pc) < 0 || candidate.error)
++		goto next_pado;
+ 	    if (!pc.seenACName) {
+ 		error("Ignoring PADO packet with no AC-Name tag");
+-		continue;
++		goto next_pado;
+ 	    }
+ 	    if (!pc.seenServiceName) {
+ 		error("Ignoring PADO packet with no Service-Name tag");
+-		continue;
++		goto next_pado;
+ 	    }
+ 	    if (pppoe_verbose >= 1) {
+ 		info("AC-Ethernet-Address: %02x:%02x:%02x:%02x:%02x:%02x",
+@@ -478,8 +490,18 @@
+ 	    conn->numPADOs++;
+ 	    if (pc.acNameOK && pc.serviceNameOK && conn->discoveryState != STATE_RECEIVED_PADO) {
+ 		memcpy(conn->peerEth, packet.ethHdr.h_source, ETH_ALEN);
++		conn->cookie = candidate.cookie;
++		conn->relayId = candidate.relayId;
++		conn->mtu = candidate.mtu;
++		conn->mru = candidate.mru;
++		conn->seenMaxPayload = candidate.seenMaxPayload;
++		free(conn->actualACname);
++		conn->actualACname = candidate.actualACname;
++		candidate.actualACname = NULL;
+ 		conn->discoveryState = STATE_RECEIVED_PADO;
+ 	    }
++next_pado:
++	    free(candidate.actualACname);
+ 	}
+     } while (waitWholeTimeoutForPADO || conn->discoveryState != STATE_RECEIVED_PADO);
+ }

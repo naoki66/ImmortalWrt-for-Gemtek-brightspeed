@@ -1,0 +1,16 @@
+[
+  {
+    "seed": "0x0",
+    "main_register_final_states_equal": true,
+    "registers_compared": 132,
+    "non_optin_trace_unchanged": true,
+    "limitations": "main init only; calibration calls stubbed, dynamic MMIO readback and post-init diagnostics excluded"
+  },
+  {
+    "seed": "0xa5a5a5a5",
+    "main_register_final_states_equal": true,
+    "registers_compared": 132,
+    "non_optin_trace_unchanged": true,
+    "limitations": "main init only; calibration calls stubbed, dynamic MMIO readback and post-init diagnostics excluded"
+  }
+]

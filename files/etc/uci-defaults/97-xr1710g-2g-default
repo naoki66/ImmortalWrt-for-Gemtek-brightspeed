@@ -1,0 +1,19 @@
+#!/bin/sh
+# Repair the missing 2.4 GHz mode in a preserved XR1710G configuration.
+case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
+ gemtek,xr1710g) ;;
+ *) exit 0 ;;
+esac
+changed=0
+for radio in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p'); do
+ [ "$(uci -q get wireless.$radio.band)" = 2g ] || continue
+ [ -z "$(uci -q get wireless.$radio.htmode)" ] || continue
+ umask 077
+ backup=/root/xr1710g-B20-runtime-backup
+ mkdir -p "$backup" || exit 1
+ [ -f "$backup/wireless.before-HE20" ] || cp -p /etc/config/wireless "$backup/wireless.before-HE20" || exit 1
+ uci set "wireless.$radio.htmode=HE20" || exit 1
+ changed=1
+done
+[ "$changed" = 0 ] || uci commit wireless || exit 1
+exit 0

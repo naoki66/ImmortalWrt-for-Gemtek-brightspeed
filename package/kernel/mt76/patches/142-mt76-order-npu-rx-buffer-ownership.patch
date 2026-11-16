@@ -1,0 +1,86 @@
+From: XR1710G local integration
+Subject: [PATCH] mt76: order NPU RX page publication before returning ownership
+
+Adapt the ownership-publication portion of YYH2913/openwrt patch 0221
+at 9e44788d769164dc9f691670add71dc466d99a4c, authored by Yanghan Ye.
+This tree has no mt76_npu_drop_rx helper. Preserve its ndesc-1 capacity,
+free-index updates and existing stop/drain prerequisite; do not import
+the other tree's teardown or fragment-validation stack implicitly.
+
+Do not advertise this independently reproducible ordering defect as the
+proven cause of measured 2.4 GHz TCP starvation until hardware A/B tests.
+
+--- a/dma.c
++++ b/dma.c
+@@ -858,6 +858,16 @@
+ 	if (!q->desc)
+ 		return -ENOMEM;
+ 
++	if (mt76_queue_is_npu_rx(q)) {
++		struct airoha_npu_rx_dma_desc *desc = (void *)q->desc;
++		int i;
++
++		/* Do not advertise unfilled slots as DMA-ready. */
++		for (i = 0; i < q->ndesc; i++)
++			WRITE_ONCE(desc[i].ctrl, NPU_RX_DMA_DESC_DONE_MASK);
++		dma_wmb();
++	}
++
+ 	mt76_dma_queue_magic_cnt_init(dev, q);
+ 	size = q->ndesc * sizeof(*q->entry);
+ 	q->entry = devm_kzalloc(dev->dev, size, GFP_KERNEL);
+--- a/npu.c
++++ b/npu.c
+@@ -37,8 +37,14 @@
+ 		page = virt_to_head_page(e->buf);
+ 		e->dma_addr[0] = page_pool_get_dma_addr(page) + offset;
+ 
+-		memset(&desc[q->head], 0, sizeof(*desc));
+-		desc[q->head].addr = e->dma_addr[0];
++		WRITE_ONCE(desc[q->head].info, 0);
++		WRITE_ONCE(desc[q->head].data, 0);
++		WRITE_ONCE(desc[q->head].addr, e->dma_addr[0]);
++		WRITE_ONCE(desc[q->head].rsv, 0);
++
++		/* DONE clear hands the slot to the independent NPU producer. */
++		dma_wmb();
++		WRITE_ONCE(desc[q->head].ctrl, 0);
+ 
+ 		q->head = (q->head + 1) % q->ndesc;
+ 		q->queued++;
+@@ -55,10 +61,19 @@
+ 
+ void mt76_npu_queue_cleanup(struct mt76_dev *dev, struct mt76_queue *q)
+ {
++	struct airoha_npu_rx_dma_desc *desc = (void *)q->desc;
++	int i;
++
+ 	if (!q->ndesc)
+ 		return;
+ 
+ 	spin_lock_bh(&q->lock);
++	/* Existing caller must already have stopped and drained NPU DMA. */
++	if (mt76_queue_is_npu_rx(q)) {
++		for (i = 0; i < q->ndesc; i++)
++			WRITE_ONCE(desc[i].ctrl, NPU_RX_DMA_DESC_DONE_MASK);
++		dma_wmb();
++	}
+ 	while (q->queued > 0) {
+ 		struct mt76_queue_entry *e = &q->entry[q->tail];
+ 
+@@ -66,6 +81,7 @@
+ 					e->dma_len[0],
+ 					page_pool_get_dma_dir(q->page_pool));
+ 		mt76_put_page_pool_buf(e->buf, false);
++		e->buf = NULL;
+ 		q->tail = (q->tail + 1) % q->ndesc;
+ 		q->queued--;
+ 	}
+@@ -129,6 +145,7 @@
+ 		}
+ 
+ 		*info = desc[index].info;
++		e->buf = NULL;
+ 		index = (index + 1) % q->ndesc;
+ 	}
+ 	q->tail = index;

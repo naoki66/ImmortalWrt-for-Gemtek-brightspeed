@@ -1,0 +1,13 @@
+PASS board: missing NCT7802 does not write unrelated hwmon5
+PASS feed: missing NCT7802 does not write unrelated hwmon5
+PASS board: discovers hwmon9 and programs existing curve
+PASS feed: discovers hwmon9 and programs existing curve
+PASS feed: invalid setting -> full PWM (TEST_T1=60)
+PASS feed: invalid setting -> full PWM (TEST_T1=invalid)
+PASS feed: invalid setting -> full PWM (TEST_T1=08)
+PASS feed: invalid setting -> full PWM (TEST_PRESET=unknown)
+PASS feed: invalid setting -> full PWM (TEST_MODE=manual; TEST_PWM=300)
+PASS feed: invalid setting -> full PWM (TEST_MODE=invalid)
+PASS feed: valid manual mode retained
+PASS board: failed table write -> full PWM requested
+PASS feed: failed table write -> full PWM requested

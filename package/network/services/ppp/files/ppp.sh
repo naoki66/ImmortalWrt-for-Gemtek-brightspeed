@@ -73,8 +73,11 @@ ppp_install_file() {
 	local file="$1" owner="$2" tmp
 
 	tmp=$(mktemp /var/run/.pppd.XXXXXX) || return
-	cat > "$tmp"
-	[ -z "$owner" ] || chown "$owner" "$tmp"
+	# Never install a partial file or hand an unreadable file to jailed pppd.
+	if ! cat > "$tmp" || { [ -n "$owner" ] && ! chown "$owner" "$tmp"; }; then
+		rm -f "$tmp"
+		return 1
+	fi
 	mv -f -T "$tmp" "$file" || {
 		rm -f "$tmp"
 		return 1
@@ -191,7 +194,11 @@ ppp_generic_setup() {
 		for secret in chap-secrets pap-secrets; do
 			grep -qs '^[[:space:]]*[^#[:space:]]' "/etc/ppp/$secret" || continue
 			ppp_install_file "/var/run/pppd/$config.$secret" ppp \
-				< "/etc/ppp/$secret" || continue
+				< "/etc/ppp/$secret" || {
+				proto_notify_error "$config" AUTH_FILE_ERROR
+				proto_setup_failed "$config"
+				return 1
+			}
 			secrets="$secrets $secret /var/run/pppd/$config.$secret"
 		done
 	}
@@ -199,8 +206,13 @@ ppp_generic_setup() {
 	local optfile
 	[ -n "$username" ] && {
 		optfile="/var/run/pppd/$config.opts"
-		mkdir -p /var/run/pppd
-		ppp_write_auth_file "$optfile" "$username" "$password" ${jail:+ppp}
+		if ! mkdir -p /var/run/pppd ||
+		   ! ppp_write_auth_file "$optfile" "$username" "$password" ${jail:+ppp}; then
+			# A local I/O failure is retryable, not a pppd option error.
+			proto_notify_error "$config" AUTH_FILE_ERROR
+			proto_setup_failed "$config"
+			return 1
+		fi
 	}
 
 	proto_run_command "$config" $jail /usr/sbin/pppd \

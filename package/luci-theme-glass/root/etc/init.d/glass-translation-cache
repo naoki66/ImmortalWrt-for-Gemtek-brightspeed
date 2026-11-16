@@ -1,0 +1,64 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+
+CACHE_DIR=/www/luci-static/resources/translations
+TMP_DIR=/tmp/glass-translations
+MAX_ATTEMPTS=15
+RETRY_DELAY=1
+
+add_language() {
+	case " $languages " in
+		*" $1 "*) ;;
+		*) languages="$languages $1" ;;
+	esac
+}
+
+cache_language() {
+	local lang="$1"
+	local tmp="$TMP_DIR/$lang.js"
+	local dest="$CACHE_DIR/$lang.js"
+	local attempt=1
+
+	while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
+		if wget -q -T 15 -O "$tmp" \
+			"http://127.0.0.1/cgi-bin/luci/admin/translations/$lang" &&
+			[ "$(tail -c 2 "$tmp" 2>/dev/null)" = '};' ]; then
+			if ! cmp -s "$tmp" "$dest"; then
+				cp "$tmp" "$dest.new" && chmod 0644 "$dest.new" &&
+					mv -f "$dest.new" "$dest"
+			fi
+
+			rm -f "$tmp"
+			return 0
+		fi
+
+		rm -f "$tmp"
+		attempt=$((attempt + 1))
+		[ "$attempt" -le "$MAX_ATTEMPTS" ] && sleep "$RETRY_DELAY"
+	done
+
+	logger -t glass-theme "failed to cache LuCI translations for $lang"
+	return 1
+}
+
+start() {
+	local catalog name lang
+	local languages="en"
+
+	mkdir -p "$CACHE_DIR" "$TMP_DIR"
+
+	for catalog in /usr/lib/lua/luci/i18n/*.lmo; do
+		[ -f "$catalog" ] || continue
+		name="${catalog##*/}"
+		lang="${name%.lmo}"
+		lang="${lang##*.}"
+		[ -n "$lang" ] && add_language "$lang"
+	done
+
+	for lang in $languages; do
+		cache_language "$lang"
+	done
+
+	rmdir "$TMP_DIR" 2>/dev/null
+}

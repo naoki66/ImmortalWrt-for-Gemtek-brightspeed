@@ -1,0 +1,19 @@
+diff --git a/applications/luci-app-openclash/root/usr/share/openclash/openclash_core.sh b/applications/luci-app-openclash/root/usr/share/openclash/openclash_core.sh
+index c8858e54a8575439ff818fd20f434489623d6ff0..dd9b452ae2140b1bd465164a0b83f5cec0d1725c 100644
+--- a/applications/luci-app-openclash/root/usr/share/openclash/openclash_core.sh
++++ b/applications/luci-app-openclash/root/usr/share/openclash/openclash_core.sh
+@@ -15,6 +15,14 @@ del_lock() {
+    rm -rf "/tmp/lock/openclash_core.lock" 2>/dev/null
+ }
+ 
++# The packaged core contains an EIP93 Go overlay. A stock updater would
++# silently replace it. Keep normal updating available through an explicit UCI
++# setting; subscriptions and rule updates are unaffected.
++if [ -f /usr/share/xr1710g-proxy-accel/env.sh ] && [ "$(uci -q get xr1710g_crypto.main.protect_bundled_core)" != "0" ]; then
++   LOG_WARN "Bundled EIP93 core retained. Upgrade it with the firmware/package; set xr1710g_crypto.main.protect_bundled_core=0 to allow a stock core (without the overlay)."
++   exit 0
++fi
++
+ set_lock
+ inc_job_counter
+ 

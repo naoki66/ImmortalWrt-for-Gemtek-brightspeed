@@ -1,0 +1,59 @@
+
+#include <assert.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
+typedef uint32_t u32;
+#define NPU_RX_DMA_DESC_DONE_MASK 1U
+#define SKB_WITH_OVERHEAD(x) (x)
+struct airoha_npu_rx_dma_desc { u32 ctrl,info,data,addr; uint64_t rsv; };
+struct mt76_queue_entry { void *buf; unsigned dma_len[2]; u32 dma_addr[2]; };
+struct mt76_queue { unsigned queued,ndesc,head,tail,buf_size; struct airoha_npu_rx_dma_desc *desc; struct mt76_queue_entry *entry; };
+struct mt76_dev { int unused; };
+struct page { uintptr_t addr; };
+static struct mt76_queue *observed;
+static int issues,ordered,remaining,serial,releases;
+static void *mt76_get_page_pool_buf(struct mt76_queue*q,int*offset,int size){(void)q;(void)size;*offset=0;if(remaining--==0)return NULL;return (void*)(uintptr_t)(0x100000+(++serial)*4096);}
+static struct page *virt_to_head_page(void*p){static struct page v;v.addr=(uintptr_t)p;return &v;}
+static u32 page_pool_get_dma_addr(struct page*p){return p->addr;}
+static void observe(void *p,uint64_t value){
+ for(unsigned i=0;i<observed->ndesc;i++) if(p==&observed->desc[i].ctrl && !value){
+  if(!ordered || !observed->desc[i].addr || observed->desc[i].addr!=observed->entry[i].dma_addr[0])issues++;
+  releases++;ordered=0;
+ }
+}
+static void *observed_memset(void*p,int value,size_t n){
+ if(n==sizeof(struct airoha_npu_rx_dma_desc)&&value==0){issues++;releases++;}
+ return memset(p,value,n);
+}
+#define memset observed_memset
+#define WRITE_ONCE(x,v) (observe(&(x),(v)),(x)=(v))
+#define dma_wmb() (ordered=1)
+#define Q_WRITE(q,reg,v) ((void)(q),(void)(v))
+
+#define TEST_NEW @TEST_NEW@
+@ACTUAL_FILL_FUNCTION@
+
+int main(void){
+ unsigned cases=0;
+ for(unsigned n=2;n<=32;n++) for(unsigned start=0;start<n;start++) for(int fail=0;fail<=(int)n;fail++){
+  struct airoha_npu_rx_dma_desc d[32]={0};struct mt76_queue_entry e[32]={0};
+  struct mt76_queue q={.ndesc=n,.head=start,.tail=start,.buf_size=2048,.desc=d,.entry=e};struct mt76_dev dev={0};observed=&q;
+  for(unsigned i=0;i<n;i++)d[i].ctrl=1;
+  remaining=fail;int before=issues;
+  int filled=mt76_npu_fill_rx_queue(&dev,&q);
+  assert(filled>=0&&q.queued<=n-1);assert((unsigned)filled==q.queued);
+  if(TEST_NEW)assert(issues==before);
+  else if(filled)assert(issues>before);
+  for(int cycle=0;cycle<5;cycle++){
+   unsigned consumed=q.queued>2?2:q.queued;
+   for(unsigned j=0;j<consumed;j++){unsigned k=q.tail;d[k].ctrl=1;e[k].buf=NULL;q.tail=(q.tail+1)%n;q.queued--;}
+   remaining=100;before=issues;mt76_npu_fill_rx_queue(&dev,&q);assert(q.queued==n-1);
+   if(TEST_NEW)assert(issues==before);
+  }
+  cases++;
+ }
+ if(TEST_NEW)assert(issues==0);else assert(issues>0);
+ printf("cases=%u modeled_publication_violations=%d releases=%d new=%d\n",cases,issues,releases,TEST_NEW);return 0;
+}

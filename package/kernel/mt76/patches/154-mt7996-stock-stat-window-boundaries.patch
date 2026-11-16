@@ -1,0 +1,72 @@
+Subject: mt7996: discard incomplete or duplicated stock statistic windows
+
+Keep read-clear counters within one host poll window and normalize
+recovery against the most recent boundary. Firmware replies have no
+shared interval ID; do not claim arbitrary delayed replies match.
+
+---
+--- a/mt7996/stock_policy.c
++++ b/mt7996/stock_policy.c
+@@ -10,6 +10,7 @@
+ #define STOCK_BYTES BIT(0)
+ #define STOCK_MSDU BIT(1)
+ #define STOCK_MPDU BIT(2)
++#define STOCK_INVALID BIT(3)
+ 
+ struct mt7996_stock_band {
+ 	struct ieee80211_vif *ap, *sta, *main, *selected, *mcli_target;
+@@ -35,11 +36,26 @@
+ {
+ 	struct mt7996_sta_link *link;
+ 	struct mt7996_stock_stats *s;
++	u8 bit;
+ 
+ 	if (!dev->stock_policy || !wcid->sta ||
+ 	    test_bit(MT76_MCU_RESET, &dev->mphy.state) ||
+ 	    test_bit(MT76_RESET, &dev->mphy.state))
+ 		return;
++	/* Replies have no common transaction ID: reject ambiguous windows. */
++	switch (tag) {
++	case UNI_ALL_STA_TXRX_ADM_STAT:
++		bit = STOCK_BYTES;
++		break;
++	case UNI_ALL_STA_TXRX_MSDU_COUNT:
++		bit = STOCK_MSDU;
++		break;
++	case UNI_ALL_STA_TX_STAT:
++		bit = STOCK_MPDU;
++		break;
++	default:
++		return;
++	}
+ 	link = container_of(wcid, struct mt7996_sta_link, wcid);
+ 	s = &link->stock_stats;
+ 	spin_lock_bh(&dev->stock_stats_lock);
+@@ -47,6 +63,8 @@
+ 		memset(s, 0, sizeof(*s));
+ 		s->epoch = READ_ONCE(dev->stock_epoch);
+ 	}
++	if (s->seen & bit)
++		s->seen |= STOCK_INVALID;
+ 	if (!s->started)
+ 		s->started = jiffies;
+ 	switch (tag) {
+@@ -140,13 +158,15 @@
+ 		spin_lock_bh(&dev->stock_stats_lock);
+ 		s = sl->stock_stats;
+ 		ready = s.epoch == READ_ONCE(dev->stock_epoch) &&
++			!(s.seen & STOCK_INVALID) &&
+ 			(s.seen & (STOCK_BYTES | STOCK_MSDU)) ==
+ 			(STOCK_BYTES | STOCK_MSDU);
+-		if (ready || (s.started &&
+-		    time_after(jiffies, s.started + 3 * HZ)))
+-			memset(&sl->stock_stats, 0, sizeof(sl->stock_stats));
++		/* Do not pair one poll's bytes with a later poll's MSDU count. */
++		memset(&sl->stock_stats, 0, sizeof(sl->stock_stats));
+ 		spin_unlock_bh(&dev->stock_stats_lock);
+ 		if (!ready) {
++			/* The next sample starts at this boundary, even after a loss. */
++			sl->stock_sampled = jiffies;
+ 			dev->stock_missing++;
+ 			memset(&sl->stock_avg, 0, sizeof(sl->stock_avg));
+ 			continue;

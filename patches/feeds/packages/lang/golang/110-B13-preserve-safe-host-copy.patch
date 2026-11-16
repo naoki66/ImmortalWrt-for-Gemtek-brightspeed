@@ -1,0 +1,17 @@
+--- a/lang/golang/golang-compiler.mk
++++ b/lang/golang/golang-compiler.mk
+@@ -45,12 +45,8 @@
+ 	$(INSTALL_DIR) "$(2)/lib/go-$(3)/$(4)"; \
+ 	cd "$(1)/$(4)" && \
+ 	$(FIND) . ! -type d -a \( $(5) \) -print0 | \
+-	cpio \
+-		--make-directories \
+-		--null \
+-		--pass-through \
+-		--unconditional \
+-		"$(2)/lib/go-$(3)/$(4)/"
++	tar --null --verbatim-files-from --no-recursion -T - -cf - | \
++	tar -C "$(2)/lib/go-$(3)/$(4)/" -xf -
+   endif
+ endef
+ 

@@ -1,0 +1,13 @@
+实机SIGSEGV：
+blobmsg_get_u16
+hostapd_notify
+ubus_process_invoke
+ubus_process_obj_msg
+ubus_process_msg
+ubus_handle_data
+uloop_run_events
+uloop_run_timeout
+dawn_init_ubus
+main
+
+完整core仅保留在本地诊断目录，未上传。

@@ -1,0 +1,216 @@
+
+/home/builder/stock-xr1710g-5.1.1.12/rootfs/lib/modules/5.4.55/mt_wifi.ko:     file format elf64-littleaarch64
+
+
+Disassembly of section .text:
+
+0000000000380da0 <physical_device_add_mac_adapter>:
+  380da0:	a9ba7bfd 	stp	x29, x30, [sp, #-96]!
+  380da4:	d5384102 	mrs	x2, sp_el0
+  380da8:	910003fd 	mov	x29, sp
+  380dac:	a90153f3 	stp	x19, x20, [sp, #16]
+  380db0:	aa0003f4 	mov	x20, x0
+  380db4:	a9025bf5 	stp	x21, x22, [sp, #32]
+  380db8:	a90363f7 	stp	x23, x24, [sp, #48]
+  380dbc:	aa0103f7 	mov	x23, x1
+  380dc0:	aa1e03f8 	mov	x24, x30
+  380dc4:	a9046bf9 	stp	x25, x26, [sp, #64]
+  380dc8:	b9401841 	ldr	w1, [x2, #24]
+  380dcc:	f85e82f6 	ldur	x22, [x23, #-24]
+  380dd0:	11080021 	add	w1, w1, #0x200
+  380dd4:	b9001841 	str	w1, [x2, #24]
+  380dd8:	90000015 	adrp	x21, 0 <AutoChBssSearchWithSSID-0x27e4>
+			380dd8: R_AARCH64_ADR_PREL_PG_HI21	.bss+0x1c940
+  380ddc:	d2800000 	mov	x0, #0x0                   	// #0
+  380de0:	910002b9 	add	x25, x21, #0x0
+			380de0: R_AARCH64_ADD_ABS_LO12_NC	.bss+0x1c940
+  380de4:	52800022 	mov	w2, #0x1                   	// #1
+  380de8:	f9800331 	prfm	pstl1strm, [x25]
+  380dec:	885fff21 	ldaxr	w1, [x25]
+  380df0:	4a000023 	eor	w3, w1, w0
+  380df4:	35000063 	cbnz	w3, 380e00 <physical_device_add_mac_adapter+0x60>
+  380df8:	88037f22 	stxr	w3, w2, [x25]
+  380dfc:	35ffff83 	cbnz	w3, 380dec <physical_device_add_mac_adapter+0x4c>
+  380e00:	35000c41 	cbnz	w1, 380f88 <physical_device_add_mac_adapter+0x1e8>
+  380e04:	f9400733 	ldr	x19, [x25, #8]
+  380e08:	b5000093 	cbnz	x19, 380e18 <physical_device_add_mac_adapter+0x78>
+  380e0c:	14000062 	b	380f94 <physical_device_add_mac_adapter+0x1f4>
+  380e10:	f9400273 	ldr	x19, [x19]
+  380e14:	b4000b13 	cbz	x19, 380f74 <physical_device_add_mac_adapter+0x1d4>
+  380e18:	f941e263 	ldr	x3, [x19, #960]
+  380e1c:	eb03029f 	cmp	x20, x3
+  380e20:	54ffff81 	b.ne	380e10 <physical_device_add_mac_adapter+0x70>  // b.any
+  380e24:	5280001a 	mov	w26, #0x0                   	// #0
+  380e28:	910002a1 	add	x1, x21, #0x0
+			380e28: R_AARCH64_ADD_ABS_LO12_NC	.bss+0x1c940
+  380e2c:	52800000 	mov	w0, #0x0                   	// #0
+  380e30:	089ffc20 	stlrb	w0, [x1]
+  380e34:	aa1803fe 	mov	x30, x24
+  380e38:	d50320ff 	xpaclri
+  380e3c:	52804001 	mov	w1, #0x200                 	// #512
+  380e40:	aa1e03e0 	mov	x0, x30
+  380e44:	94000000 	bl	0 <__local_bh_enable_ip>
+			380e44: R_AARCH64_CALL26	__local_bh_enable_ip
+  380e48:	35000b7a 	cbnz	w26, 380fb4 <physical_device_add_mac_adapter+0x214>
+  380e4c:	d5384101 	mrs	x1, sp_el0
+  380e50:	b9401820 	ldr	w0, [x1, #24]
+  380e54:	11080000 	add	w0, w0, #0x200
+  380e58:	b9001820 	str	w0, [x1, #24]
+  380e5c:	d2800000 	mov	x0, #0x0                   	// #0
+  380e60:	910002a4 	add	x4, x21, #0x0
+			380e60: R_AARCH64_ADD_ABS_LO12_NC	.bss+0x1c940
+  380e64:	52800022 	mov	w2, #0x1                   	// #1
+  380e68:	f9800091 	prfm	pstl1strm, [x4]
+  380e6c:	885ffc81 	ldaxr	w1, [x4]
+  380e70:	4a000023 	eor	w3, w1, w0
+  380e74:	35000063 	cbnz	w3, 380e80 <physical_device_add_mac_adapter+0xe0>
+  380e78:	88037c82 	stxr	w3, w2, [x4]
+  380e7c:	35ffff83 	cbnz	w3, 380e6c <physical_device_add_mac_adapter+0xcc>
+  380e80:	350007e1 	cbnz	w1, 380f7c <physical_device_add_mac_adapter+0x1dc>
+  380e84:	f941e660 	ldr	x0, [x19, #968]
+  380e88:	f9002fe0 	str	x0, [sp, #88]
+  380e8c:	b50000a0 	cbnz	x0, 380ea0 <physical_device_add_mac_adapter+0x100>
+  380e90:	14000023 	b	380f1c <physical_device_add_mac_adapter+0x17c>
+  380e94:	f9400000 	ldr	x0, [x0]
+  380e98:	f9002fe0 	str	x0, [sp, #88]
+  380e9c:	b4000400 	cbz	x0, 380f1c <physical_device_add_mac_adapter+0x17c>
+  380ea0:	f9400402 	ldr	x2, [x0, #8]
+  380ea4:	eb16005f 	cmp	x2, x22
+  380ea8:	54ffff61 	b.ne	380e94 <physical_device_add_mac_adapter+0xf4>  // b.any
+  380eac:	91010261 	add	x1, x19, #0x40
+  380eb0:	d29a0000 	mov	x0, #0xd000                	// #53248
+  380eb4:	b97d46c4 	ldr	w4, [x22, #15684]
+  380eb8:	f2a04e60 	movk	x0, #0x273, lsl #16
+  380ebc:	8b000020 	add	x0, x1, x0
+  380ec0:	f941c022 	ldr	x2, [x1, #896]
+  380ec4:	90000001 	adrp	x1, 0 <AutoChBssSearchWithSSID-0x27e4>
+			380ec4: R_AARCH64_ADR_PREL_PG_HI21	.rodata+0x2c5f8
+  380ec8:	39669003 	ldrb	w3, [x0, #2468]
+  380ecc:	91000021 	add	x1, x1, #0x0
+			380ecc: R_AARCH64_ADD_ABS_LO12_NC	.rodata+0x2c5f8
+  380ed0:	9103c021 	add	x1, x1, #0xf0
+  380ed4:	90000000 	adrp	x0, 0 <AutoChBssSearchWithSSID-0x27e4>
+			380ed4: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.8+0xad780
+  380ed8:	91000000 	add	x0, x0, #0x0
+			380ed8: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.8+0xad780
+  380edc:	94000000 	bl	0 <printk>
+			380edc: R_AARCH64_CALL26	printk
+  380ee0:	52800000 	mov	w0, #0x0                   	// #0
+  380ee4:	910002a1 	add	x1, x21, #0x0
+			380ee4: R_AARCH64_ADD_ABS_LO12_NC	.bss+0x1c940
+  380ee8:	089ffc20 	stlrb	w0, [x1]
+  380eec:	aa1803fe 	mov	x30, x24
+  380ef0:	d50320ff 	xpaclri
+  380ef4:	52804001 	mov	w1, #0x200                 	// #512
+  380ef8:	aa1e03e0 	mov	x0, x30
+  380efc:	94000000 	bl	0 <__local_bh_enable_ip>
+			380efc: R_AARCH64_CALL26	__local_bh_enable_ip
+  380f00:	52800020 	mov	w0, #0x1                   	// #1
+  380f04:	a94153f3 	ldp	x19, x20, [sp, #16]
+  380f08:	a9425bf5 	ldp	x21, x22, [sp, #32]
+  380f0c:	a94363f7 	ldp	x23, x24, [sp, #48]
+  380f10:	a9446bf9 	ldp	x25, x26, [sp, #64]
+  380f14:	a8c67bfd 	ldp	x29, x30, [sp], #96
+  380f18:	d65f03c0 	ret
+  380f1c:	910163e1 	add	x1, sp, #0x58
+  380f20:	d2800202 	mov	x2, #0x10                  	// #16
+  380f24:	d2800000 	mov	x0, #0x0                   	// #0
+  380f28:	94000000 	bl	393e50 <os_alloc_mem>
+			380f28: R_AARCH64_CALL26	os_alloc_mem
+  380f2c:	f9402fe0 	ldr	x0, [sp, #88]
+  380f30:	b5000540 	cbnz	x0, 380fd8 <physical_device_add_mac_adapter+0x238>
+  380f34:	90000001 	adrp	x1, 0 <AutoChBssSearchWithSSID-0x27e4>
+			380f34: R_AARCH64_ADR_PREL_PG_HI21	.rodata+0x2c5f8
+  380f38:	91000021 	add	x1, x1, #0x0
+			380f38: R_AARCH64_ADD_ABS_LO12_NC	.rodata+0x2c5f8
+  380f3c:	9103c021 	add	x1, x1, #0xf0
+  380f40:	90000000 	adrp	x0, 0 <AutoChBssSearchWithSSID-0x27e4>
+			380f40: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.8+0xad758
+  380f44:	91000000 	add	x0, x0, #0x0
+			380f44: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.8+0xad758
+  380f48:	94000000 	bl	0 <printk>
+			380f48: R_AARCH64_CALL26	printk
+  380f4c:	910002a1 	add	x1, x21, #0x0
+			380f4c: R_AARCH64_ADD_ABS_LO12_NC	.bss+0x1c940
+  380f50:	52800000 	mov	w0, #0x0                   	// #0
+  380f54:	089ffc20 	stlrb	w0, [x1]
+  380f58:	aa1803fe 	mov	x30, x24
+  380f5c:	d50320ff 	xpaclri
+  380f60:	52804001 	mov	w1, #0x200                 	// #512
+  380f64:	aa1e03e0 	mov	x0, x30
+  380f68:	94000000 	bl	0 <__local_bh_enable_ip>
+			380f68: R_AARCH64_CALL26	__local_bh_enable_ip
+  380f6c:	52800000 	mov	w0, #0x0                   	// #0
+  380f70:	17ffffe5 	b	380f04 <physical_device_add_mac_adapter+0x164>
+  380f74:	5280003a 	mov	w26, #0x1                   	// #1
+  380f78:	17ffffac 	b	380e28 <physical_device_add_mac_adapter+0x88>
+  380f7c:	aa1903e0 	mov	x0, x25
+  380f80:	94000000 	bl	0 <queued_spin_lock_slowpath>
+			380f80: R_AARCH64_CALL26	queued_spin_lock_slowpath
+  380f84:	17ffffc0 	b	380e84 <physical_device_add_mac_adapter+0xe4>
+  380f88:	aa1903e0 	mov	x0, x25
+  380f8c:	94000000 	bl	0 <queued_spin_lock_slowpath>
+			380f8c: R_AARCH64_CALL26	queued_spin_lock_slowpath
+  380f90:	17ffff9d 	b	380e04 <physical_device_add_mac_adapter+0x64>
+  380f94:	910002a1 	add	x1, x21, #0x0
+			380f94: R_AARCH64_ADD_ABS_LO12_NC	.bss+0x1c940
+  380f98:	52800000 	mov	w0, #0x0                   	// #0
+  380f9c:	089ffc20 	stlrb	w0, [x1]
+  380fa0:	aa1803fe 	mov	x30, x24
+  380fa4:	d50320ff 	xpaclri
+  380fa8:	52804001 	mov	w1, #0x200                 	// #512
+  380fac:	aa1e03e0 	mov	x0, x30
+  380fb0:	94000000 	bl	0 <__local_bh_enable_ip>
+			380fb0: R_AARCH64_CALL26	__local_bh_enable_ip
+  380fb4:	90000001 	adrp	x1, 0 <AutoChBssSearchWithSSID-0x27e4>
+			380fb4: R_AARCH64_ADR_PREL_PG_HI21	.rodata+0x2c5f8
+  380fb8:	91000021 	add	x1, x1, #0x0
+			380fb8: R_AARCH64_ADD_ABS_LO12_NC	.rodata+0x2c5f8
+  380fbc:	aa1403e2 	mov	x2, x20
+  380fc0:	9103c021 	add	x1, x1, #0xf0
+  380fc4:	90000000 	adrp	x0, 0 <AutoChBssSearchWithSSID-0x27e4>
+			380fc4: R_AARCH64_ADR_PREL_PG_HI21	.rodata.str1.8+0xad720
+  380fc8:	91000000 	add	x0, x0, #0x0
+			380fc8: R_AARCH64_ADD_ABS_LO12_NC	.rodata.str1.8+0xad720
+  380fcc:	94000000 	bl	0 <printk>
+			380fcc: R_AARCH64_CALL26	printk
+  380fd0:	52800000 	mov	w0, #0x0                   	// #0
+  380fd4:	17ffffcc 	b	380f04 <physical_device_add_mac_adapter+0x164>
+  380fd8:	91010261 	add	x1, x19, #0x40
+  380fdc:	f900dec1 	str	x1, [x22, #440]
+  380fe0:	d29d8503 	mov	x3, #0xec28                	// #60456
+  380fe4:	f9000416 	str	x22, [x0, #8]
+  380fe8:	910f8262 	add	x2, x19, #0x3e0
+  380fec:	f2a04c23 	movk	x3, #0x261, lsl #16
+  380ff0:	8b030263 	add	x3, x19, x3
+  380ff4:	f9114ac2 	str	x2, [x22, #8848]
+  380ff8:	f9114ec3 	str	x3, [x22, #8856]
+  380ffc:	910f2262 	add	x2, x19, #0x3c8
+  381000:	394f6263 	ldrb	w3, [x19, #984]
+  381004:	b93d46c3 	str	w3, [x22, #15684]
+  381008:	35000063 	cbnz	w3, 381014 <physical_device_add_mac_adapter+0x274>
+  38100c:	b94012e3 	ldr	w3, [x23, #16]
+  381010:	b9004663 	str	w3, [x19, #68]
+  381014:	f900001f 	str	xzr, [x0]
+  381018:	f9400443 	ldr	x3, [x2, #8]
+  38101c:	b40001a3 	cbz	x3, 381050 <physical_device_add_mac_adapter+0x2b0>
+  381020:	f9000060 	str	x0, [x3]
+  381024:	39404045 	ldrb	w5, [x2, #16]
+  381028:	d2a02623 	mov	x3, #0x1310000             	// #19988480
+  38102c:	d29df004 	mov	x4, #0xef80                	// #61312
+  381030:	8b0302c3 	add	x3, x22, x3
+  381034:	f2a04c24 	movk	x4, #0x261, lsl #16
+  381038:	f9000440 	str	x0, [x2, #8]
+  38103c:	8b040020 	add	x0, x1, x4
+  381040:	110004a4 	add	w4, w5, #0x1
+  381044:	39004044 	strb	w4, [x2, #16]
+  381048:	f9113860 	str	x0, [x3, #8816]
+  38104c:	17ffff99 	b	380eb0 <physical_device_add_mac_adapter+0x110>
+  381050:	f901e660 	str	x0, [x19, #968]
+  381054:	17fffff4 	b	381024 <physical_device_add_mac_adapter+0x284>
+
+Disassembly of section .text.unlikely:
+
+Disassembly of section .init.text:
+
+Disassembly of section .exit.text:

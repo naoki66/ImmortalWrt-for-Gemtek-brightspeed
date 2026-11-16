@@ -1,0 +1,7 @@
+{
+  "passed": true,
+  "cases": 30000,
+  "reference": "Andes binutils pinned source extraction macros compiled by host cc",
+  "commit": "dd22be9a0ef80fde64e65e57d25f988a1ea1460f",
+  "scope": "GP load/add address and store signed immediates; not every opcode"
+}

@@ -1,0 +1,4495 @@
+{
+  "enum_mapping": {
+    "1": [
+      "RTK_PATCH_OP_PHYOCP"
+    ],
+    "2": [
+      "RTK_PATCH_OP_TOP"
+    ],
+    "4": [
+      "RTK_PATCH_OP_PSDS0"
+    ]
+  },
+  "tables": [
+    {
+      "table": "rtl8261n_c_alg_giga_conf",
+      "stock_entries": 5,
+      "current_entries": 2,
+      "operand_differences": [
+        {
+          "index": 0,
+          "stock": [
+            1,
+            15,
+            0,
+            43062,
+            15,
+            15,
+            1
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            33639
+          ]
+        },
+        {
+          "index": 1,
+          "stock": [
+            1,
+            15,
+            0,
+            43100,
+            7,
+            7,
+            1
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            8,
+            93
+          ]
+        }
+      ],
+      "operands_identical": false
+    },
+    {
+      "table": "rtl8261n_c_nctl0_conf",
+      "stock_entries": 51,
+      "current_entries": 51,
+      "operand_differences": [],
+      "operands_identical": true
+    },
+    {
+      "table": "rtl8261n_c_normal_conf",
+      "stock_entries": 21,
+      "current_entries": 21,
+      "operand_differences": [
+        {
+          "index": 20,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            7
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            5
+          ]
+        }
+      ],
+      "operands_identical": false
+    },
+    {
+      "table": "rtl8261n_c_nctl2_conf",
+      "stock_entries": 878,
+      "current_entries": 858,
+      "operand_differences": [
+        {
+          "index": 19,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            33590
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            33570
+          ]
+        },
+        {
+          "index": 21,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            33590
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            33570
+          ]
+        },
+        {
+          "index": 808,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            55040
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41230
+          ]
+        },
+        {
+          "index": 809,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            10601
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            65535
+          ]
+        },
+        {
+          "index": 810,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            33586
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41228
+          ]
+        },
+        {
+          "index": 811,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            14281
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            65535
+          ]
+        },
+        {
+          "index": 812,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            33583
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41226
+          ]
+        },
+        {
+          "index": 813,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            13225
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            65535
+          ]
+        },
+        {
+          "index": 814,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            33580
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41224
+          ]
+        },
+        {
+          "index": 815,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            53642
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            2578
+          ]
+        },
+        {
+          "index": 816,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            53323
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41222
+          ]
+        },
+        {
+          "index": 817,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            61449
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            2425
+          ]
+        },
+        {
+          "index": 818,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            53626
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41220
+          ]
+        },
+        {
+          "index": 819,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            53323
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            2207
+          ]
+        },
+        {
+          "index": 820,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            61446
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41218
+          ]
+        },
+        {
+          "index": 821,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            53702
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            1682
+          ]
+        },
+        {
+          "index": 822,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            53323
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41216
+          ]
+        },
+        {
+          "index": 823,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            61443
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            3936
+          ]
+        },
+        {
+          "index": 824,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            53687
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41232
+          ]
+        },
+        {
+          "index": 825,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            53322
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            31
+          ]
+        },
+        {
+          "index": 826,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            6144
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            40982
+          ]
+        },
+        {
+          "index": 827,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            1286
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            32
+          ]
+        },
+        {
+          "index": 828,
+          "stock": [
+            1,
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41230
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            40978
+          ]
+        },
+        {
+          "index": 829,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            65535
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            8184
+          ]
+        },
+        {
+          "index": 830,
+          "stock": [
+            1,
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41228
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            40980
+          ]
+        },
+        {
+          "index": 831,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            65535
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            2830
+          ]
+        },
+        {
+          "index": 832,
+          "stock": [
+            1,
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41226
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            2830
+          ]
+        },
+        {
+          "index": 833,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            1268
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            2830
+          ]
+        },
+        {
+          "index": 834,
+          "stock": [
+            1,
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41224
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            0
+          ]
+        },
+        {
+          "index": 835,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            2578
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            0
+          ]
+        },
+        {
+          "index": 836,
+          "stock": [
+            1,
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41222
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            0
+          ]
+        },
+        {
+          "index": 837,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            2425
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            0
+          ]
+        },
+        {
+          "index": 838,
+          "stock": [
+            1,
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41220
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            0
+          ]
+        },
+        {
+          "index": 839,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            2207
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41316
+          ]
+        },
+        {
+          "index": 840,
+          "stock": [
+            1,
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41218
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            2986
+          ]
+        },
+        {
+          "index": 841,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            1682
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41318
+          ]
+        },
+        {
+          "index": 842,
+          "stock": [
+            1,
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41216
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            3097
+          ]
+        },
+        {
+          "index": 843,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            3936
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41320
+          ]
+        },
+        {
+          "index": 844,
+          "stock": [
+            1,
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41232
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            4755
+          ]
+        },
+        {
+          "index": 845,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            63
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41322
+          ]
+        },
+        {
+          "index": 846,
+          "stock": [
+            1,
+            15,
+            0,
+            42038,
+            15,
+            0,
+            40982
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            16383
+          ]
+        },
+        {
+          "index": 847,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            32
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41324
+          ]
+        },
+        {
+          "index": 848,
+          "stock": [
+            1,
+            15,
+            0,
+            42038,
+            15,
+            0,
+            40978
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            16383
+          ]
+        },
+        {
+          "index": 849,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            8184
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41326
+          ]
+        },
+        {
+          "index": 850,
+          "stock": [
+            1,
+            15,
+            0,
+            42038,
+            15,
+            0,
+            40980
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            16383
+          ]
+        },
+        {
+          "index": 851,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            2830
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41328
+          ]
+        },
+        {
+          "index": 852,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            2830
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            16383
+          ]
+        },
+        {
+          "index": 853,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            2830
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41330
+          ]
+        },
+        {
+          "index": 854,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            0
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            16383
+          ]
+        },
+        {
+          "index": 855,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            0
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            41314
+          ]
+        },
+        {
+          "index": 856,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            0
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            7
+          ]
+        },
+        {
+          "index": 857,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            0
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47136,
+            7,
+            7,
+            0
+          ]
+        }
+      ],
+      "operands_identical": false
+    },
+    {
+      "table": "rtl8261n_c_top_conf",
+      "stock_entries": 17,
+      "current_entries": 17,
+      "operand_differences": [
+        {
+          "index": 14,
+          "stock": [
+            2,
+            15,
+            90,
+            18,
+            15,
+            0,
+            7
+          ],
+          "current": [
+            "RTK_PATCH_OP_TOP",
+            15,
+            90,
+            18,
+            15,
+            0,
+            5
+          ]
+        },
+        {
+          "index": 15,
+          "stock": [
+            2,
+            15,
+            90,
+            19,
+            15,
+            0,
+            7
+          ],
+          "current": [
+            "RTK_PATCH_OP_TOP",
+            15,
+            90,
+            19,
+            15,
+            0,
+            5
+          ]
+        }
+      ],
+      "operands_identical": false
+    },
+    {
+      "table": "rtl8261n_c_algxg_conf",
+      "stock_entries": 78,
+      "current_entries": 32,
+      "operand_differences": [
+        {
+          "index": 10,
+          "stock": [
+            1,
+            15,
+            0,
+            47228,
+            15,
+            0,
+            36857
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47228,
+            15,
+            0,
+            36858
+          ]
+        },
+        {
+          "index": 12,
+          "stock": [
+            1,
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33497
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47228,
+            15,
+            0,
+            36857
+          ]
+        },
+        {
+          "index": 13,
+          "stock": [
+            1,
+            15,
+            0,
+            47230,
+            15,
+            8,
+            32
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47230,
+            15,
+            8,
+            30
+          ]
+        },
+        {
+          "index": 14,
+          "stock": [
+            1,
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33498
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33497
+          ]
+        },
+        {
+          "index": 15,
+          "stock": [
+            1,
+            15,
+            0,
+            47230,
+            15,
+            8,
+            0
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47230,
+            15,
+            8,
+            32
+          ]
+        },
+        {
+          "index": 16,
+          "stock": [
+            1,
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33134
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33498
+          ]
+        },
+        {
+          "index": 17,
+          "stock": [
+            1,
+            15,
+            0,
+            47230,
+            15,
+            8,
+            171
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47230,
+            15,
+            8,
+            0
+          ]
+        },
+        {
+          "index": 18,
+          "stock": [
+            1,
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33113
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33134
+          ]
+        },
+        {
+          "index": 19,
+          "stock": [
+            1,
+            15,
+            0,
+            47230,
+            15,
+            8,
+            88
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47230,
+            15,
+            8,
+            171
+          ]
+        },
+        {
+          "index": 20,
+          "stock": [
+            1,
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33114
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33113
+          ]
+        },
+        {
+          "index": 21,
+          "stock": [
+            1,
+            15,
+            0,
+            47230,
+            15,
+            8,
+            153
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47230,
+            15,
+            8,
+            88
+          ]
+        },
+        {
+          "index": 22,
+          "stock": [
+            1,
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33081
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33114
+          ]
+        },
+        {
+          "index": 23,
+          "stock": [
+            1,
+            15,
+            0,
+            47230,
+            15,
+            8,
+            37
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47230,
+            15,
+            8,
+            153
+          ]
+        },
+        {
+          "index": 24,
+          "stock": [
+            1,
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33061
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33081
+          ]
+        },
+        {
+          "index": 25,
+          "stock": [
+            1,
+            15,
+            0,
+            47230,
+            15,
+            8,
+            103
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47230,
+            15,
+            8,
+            37
+          ]
+        },
+        {
+          "index": 26,
+          "stock": [
+            1,
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33062
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33061
+          ]
+        },
+        {
+          "index": 27,
+          "stock": [
+            1,
+            15,
+            0,
+            47230,
+            15,
+            8,
+            137
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47230,
+            15,
+            8,
+            103
+          ]
+        },
+        {
+          "index": 28,
+          "stock": [
+            1,
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33405
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33062
+          ]
+        },
+        {
+          "index": 29,
+          "stock": [
+            1,
+            15,
+            0,
+            47230,
+            15,
+            8,
+            76
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47230,
+            15,
+            8,
+            137
+          ]
+        },
+        {
+          "index": 30,
+          "stock": [
+            1,
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33285
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47228,
+            15,
+            0,
+            33405
+          ]
+        },
+        {
+          "index": 31,
+          "stock": [
+            1,
+            15,
+            0,
+            47230,
+            15,
+            8,
+            77
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47230,
+            15,
+            8,
+            66
+          ]
+        }
+      ],
+      "operands_identical": false
+    },
+    {
+      "table": "rtl8261n_c_rtct_conf",
+      "stock_entries": 176,
+      "current_entries": 0,
+      "operand_differences": [],
+      "operands_identical": false
+    },
+    {
+      "table": "rtl8261n_c_sds_conf",
+      "stock_entries": 103,
+      "current_entries": 103,
+      "operand_differences": [],
+      "operands_identical": true
+    },
+    {
+      "table": "rtl8261n_c_afe_conf",
+      "stock_entries": 2,
+      "current_entries": 0,
+      "operand_differences": [],
+      "operands_identical": false
+    },
+    {
+      "table": "rtl8261n_c_dataram_conf",
+      "stock_entries": 148,
+      "current_entries": 84,
+      "operand_differences": [
+        {
+          "index": 83,
+          "stock": [
+            1,
+            15,
+            0,
+            47246,
+            15,
+            0,
+            49432
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47254,
+            0,
+            0,
+            1
+          ]
+        }
+      ],
+      "operands_identical": false
+    },
+    {
+      "table": "rtl8261n_c_uc2_conf",
+      "stock_entries": 282,
+      "current_entries": 240,
+      "operand_differences": [
+        {
+          "index": 15,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            35885
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            35802
+          ]
+        },
+        {
+          "index": 30,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            35885
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            35802
+          ]
+        },
+        {
+          "index": 34,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            35957
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            35874
+          ]
+        },
+        {
+          "index": 43,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            652
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            651
+          ]
+        },
+        {
+          "index": 44,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            20960
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            65248
+          ]
+        },
+        {
+          "index": 52,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            35957
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            35874
+          ]
+        },
+        {
+          "index": 101,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            35993
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            35910
+          ]
+        },
+        {
+          "index": 106,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            58114
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            36866
+          ]
+        },
+        {
+          "index": 109,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            61954
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            40706
+          ]
+        },
+        {
+          "index": 112,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            63490
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            42242
+          ]
+        },
+        {
+          "index": 118,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49001
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            63727
+          ]
+        },
+        {
+          "index": 119,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            32514
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            18936
+          ]
+        },
+        {
+          "index": 120,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            26482
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49007
+          ]
+        },
+        {
+          "index": 121,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            58767
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            14850
+          ]
+        },
+        {
+          "index": 122,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            63696
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            26482
+          ]
+        },
+        {
+          "index": 123,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            209
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            44072
+          ]
+        },
+        {
+          "index": 124,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            191
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            4799
+          ]
+        },
+        {
+          "index": 125,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            27007
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28003
+          ]
+        },
+        {
+          "index": 127,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            21439
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            29413
+          ]
+        },
+        {
+          "index": 128,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28426
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            36860
+          ]
+        },
+        {
+          "index": 129,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            624
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49005
+          ]
+        },
+        {
+          "index": 130,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            60351
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28418
+          ]
+        },
+        {
+          "index": 131,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28426
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            26482
+          ]
+        },
+        {
+          "index": 132,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            624
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            58767
+          ]
+        },
+        {
+          "index": 133,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            62678
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            65020
+          ]
+        },
+        {
+          "index": 134,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            0
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            61332
+          ]
+        },
+        {
+          "index": 135,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49007
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            64516
+          ]
+        },
+        {
+          "index": 136,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            3330
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            63727
+          ]
+        },
+        {
+          "index": 137,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28916
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            18936
+          ]
+        },
+        {
+          "index": 139,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            3330
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            14850
+          ]
+        },
+        {
+          "index": 140,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28907
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            26482
+          ]
+        },
+        {
+          "index": 141,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            42496
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            44072
+          ]
+        },
+        {
+          "index": 142,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            32519
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            4833
+          ]
+        },
+        {
+          "index": 143,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            53249
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            36862
+          ]
+        },
+        {
+          "index": 144,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            58505
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49005
+          ]
+        },
+        {
+          "index": 145,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            65198
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            25346
+          ]
+        },
+        {
+          "index": 146,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            3263
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            26451
+          ]
+        },
+        {
+          "index": 147,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28498
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            57743
+          ]
+        },
+        {
+          "index": 148,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            615
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            65471
+          ]
+        },
+        {
+          "index": 149,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            29357
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28015
+          ]
+        },
+        {
+          "index": 150,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            10243
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            615
+          ]
+        },
+        {
+          "index": 151,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            5806
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            21500
+          ]
+        },
+        {
+          "index": 152,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            56784
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            61332
+          ]
+        },
+        {
+          "index": 153,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            225
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            64516
+          ]
+        },
+        {
+          "index": 154,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            36856
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            63727
+          ]
+        },
+        {
+          "index": 155,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49001
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            18936
+          ]
+        },
+        {
+          "index": 156,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            32514
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49007
+          ]
+        },
+        {
+          "index": 157,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            26451
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            14850
+          ]
+        },
+        {
+          "index": 158,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            44883
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            26482
+          ]
+        },
+        {
+          "index": 159,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            41720
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            44072
+          ]
+        },
+        {
+          "index": 160,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            61257
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            4833
+          ]
+        },
+        {
+          "index": 161,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            63679
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            36860
+          ]
+        },
+        {
+          "index": 162,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28474
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49005
+          ]
+        },
+        {
+          "index": 163,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            615
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            25346
+          ]
+        },
+        {
+          "index": 164,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            29356
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            26451
+          ]
+        },
+        {
+          "index": 165,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            10258
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            57743
+          ]
+        },
+        {
+          "index": 166,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49005
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            64959
+          ]
+        },
+        {
+          "index": 167,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            25346
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28015
+          ]
+        },
+        {
+          "index": 168,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            26482
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            615
+          ]
+        },
+        {
+          "index": 169,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            58767
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            21500
+          ]
+        },
+        {
+          "index": 170,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            64703
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            61332
+          ]
+        },
+        {
+          "index": 171,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28015
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            64516
+          ]
+        },
+        {
+          "index": 172,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            615
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            63738
+          ]
+        },
+        {
+          "index": 173,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            29413
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            61289
+          ]
+        },
+        {
+          "index": 174,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            36861
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49007
+          ]
+        },
+        {
+          "index": 175,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            64751
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            14850
+          ]
+        },
+        {
+          "index": 176,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            38140
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            26482
+          ]
+        },
+        {
+          "index": 177,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            1272
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            44328
+          ]
+        },
+        {
+          "index": 178,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            61257
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            3775
+          ]
+        },
+        {
+          "index": 179,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            63679
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            35987
+          ]
+        },
+        {
+          "index": 180,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28474
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            624
+          ]
+        },
+        {
+          "index": 181,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            615
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            62655
+          ]
+        },
+        {
+          "index": 182,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            29356
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            35984
+          ]
+        },
+        {
+          "index": 183,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            10258
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            624
+          ]
+        },
+        {
+          "index": 184,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            57743
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            62638
+          ]
+        },
+        {
+          "index": 185,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            65215
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            10961
+          ]
+        },
+        {
+          "index": 186,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28003
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            4031
+          ]
+        },
+        {
+          "index": 187,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            615
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            35990
+          ]
+        },
+        {
+          "index": 188,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            21473
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            615
+          ]
+        },
+        {
+          "index": 189,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            36863
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            21439
+          ]
+        },
+        {
+          "index": 190,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49005
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            35993
+          ]
+        },
+        {
+          "index": 191,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28418
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            624
+          ]
+        },
+        {
+          "index": 192,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            26451
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            60369
+          ]
+        },
+        {
+          "index": 193,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            64751
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            191
+          ]
+        },
+        {
+          "index": 194,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            38140
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            35996
+          ]
+        },
+        {
+          "index": 195,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            1272
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            615
+          ]
+        },
+        {
+          "index": 196,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            61257
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            21439
+          ]
+        },
+        {
+          "index": 197,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            63679
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            35999
+          ]
+        },
+        {
+          "index": 198,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28474
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            624
+          ]
+        },
+        {
+          "index": 199,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            615
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            62673
+          ]
+        },
+        {
+          "index": 200,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            29356
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            191
+          ]
+        },
+        {
+          "index": 201,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            10258
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            36002
+          ]
+        },
+        {
+          "index": 202,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            57743
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            615
+          ]
+        },
+        {
+          "index": 203,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            64703
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            21439
+          ]
+        },
+        {
+          "index": 204,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28003
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            36005
+          ]
+        },
+        {
+          "index": 205,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            615
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            624
+          ]
+        },
+        {
+          "index": 206,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            21473
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            62703
+          ]
+        },
+        {
+          "index": 207,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            36861
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            38654
+          ]
+        },
+        {
+          "index": 208,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49005
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            64516
+          ]
+        },
+        {
+          "index": 209,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28418
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            30653
+          ]
+        },
+        {
+          "index": 210,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            26451
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            27750
+          ]
+        },
+        {
+          "index": 211,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            64751
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            48492
+          ]
+        },
+        {
+          "index": 212,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            38140
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            12477
+          ]
+        },
+        {
+          "index": 213,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            1272
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            21572
+          ]
+        },
+        {
+          "index": 214,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            64239
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            48468
+          ]
+        },
+        {
+          "index": 215,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            27071
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            34237
+          ]
+        },
+        {
+          "index": 216,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28474
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            24149
+          ]
+        },
+        {
+          "index": 217,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            615
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            48468
+          ]
+        },
+        {
+          "index": 218,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            29357
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            42941
+          ]
+        },
+        {
+          "index": 219,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            10254
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            23739
+          ]
+        },
+        {
+          "index": 220,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49036
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            48476
+          ]
+        },
+        {
+          "index": 221,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            58882
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            47198
+          ]
+        },
+        {
+          "index": 222,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28916
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            25274
+          ]
+        },
+        {
+          "index": 223,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49036
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            47200
+          ]
+        },
+        {
+          "index": 224,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            58114
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            24150
+          ]
+        },
+        {
+          "index": 225,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28916
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            47202
+          ]
+        },
+        {
+          "index": 226,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            44586
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            25223
+          ]
+        },
+        {
+          "index": 227,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            53519
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            47204
+          ]
+        },
+        {
+          "index": 228,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49036
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            11527
+          ]
+        },
+        {
+          "index": 229,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            59650
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            47238
+          ]
+        },
+        {
+          "index": 230,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            26451
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            16752
+          ]
+        },
+        {
+          "index": 231,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49036
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            47240
+          ]
+        },
+        {
+          "index": 232,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            60418
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            18093
+          ]
+        },
+        {
+          "index": 233,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            28907
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            47242
+          ]
+        },
+        {
+          "index": 234,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            53504
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            65535
+          ]
+        },
+        {
+          "index": 235,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49036
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            47244
+          ]
+        },
+        {
+          "index": 236,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            61186
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            65535
+          ]
+        },
+        {
+          "index": 237,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            26451
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42038,
+            15,
+            0,
+            47160
+          ]
+        },
+        {
+          "index": 238,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            49036
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            42040,
+            15,
+            0,
+            63
+          ]
+        },
+        {
+          "index": 239,
+          "stock": [
+            1,
+            15,
+            0,
+            42040,
+            15,
+            0,
+            61954
+          ],
+          "current": [
+            "RTK_PATCH_OP_PHYOCP",
+            15,
+            0,
+            47136,
+            7,
+            7,
+            0
+          ]
+        }
+      ],
+      "operands_identical": false
+    },
+    {
+      "table": "rtl8261n_c_uc_conf",
+      "stock_entries": 10,
+      "current_entries": 10,
+      "operand_differences": [],
+      "operands_identical": true
+    }
+  ]
+}

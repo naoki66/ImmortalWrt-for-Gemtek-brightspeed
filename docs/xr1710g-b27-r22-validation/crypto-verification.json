@@ -1,0 +1,96 @@
+{
+  "offline_crypto_verified": true,
+  "runtime_verified": false,
+  "images": [
+    {
+      "image": "immortalwrt-naoki66-20261116-b27-r22-upstream-glass-zhcn-airoha-an7581-gemtek_xr1710g-squashfs-sysupgrade.itb",
+      "crypto_dtb_enabled": true,
+      "kernel_eip93_module": true,
+      "cryptodev_autoload": true,
+      "openssl_devcrypto_enabled": true,
+      "digest_acceleration_disabled": true,
+      "files": [
+        {
+          "path": "lib/modules/6.18.60/crypto-hw-eip93.ko",
+          "size": 64608,
+          "sha256": "caa1415b43a47565f4d0d7f5c13406eed4324d0b3c78dc3543e5360a9466b297"
+        },
+        {
+          "path": "lib/modules/6.18.60/cryptodev.ko",
+          "size": 77592,
+          "sha256": "d329c5d65370ab0511548f00b31fb4ecf678bc851649f33a00573a66ac3ce539"
+        },
+        {
+          "path": "usr/lib/engines-3/devcrypto.so",
+          "size": 28696,
+          "sha256": "05a31d733e4258e41a45f8d39de78fd5ba384c959c8bbec0992e6fd276b9ec03"
+        },
+        {
+          "path": "etc/ssl/modules.cnf.d/devcrypto.cnf",
+          "size": 1556,
+          "sha256": "2d49b54dc24cb8a0c2251889a047380d119ccc5cb2eced14d1bc072820a8810f"
+        },
+        {
+          "path": "etc/config/openssl",
+          "size": 47,
+          "sha256": "f06916404d1d132c670518011645ffba423c378aa8fdc0c5f3e84a72e0be644d"
+        },
+        {
+          "path": "etc/modules.d/50-cryptodev",
+          "size": 33,
+          "sha256": "3fad846582776590414faa51701360cd02af95b85d1a0b2e2481de2577ea5dff"
+        },
+        {
+          "path": "etc/modules.d/crypto-hw-airoha-eip93",
+          "size": 16,
+          "sha256": "116a20e07154a51e95e37e4dd20dd9004d97a2ea7a12d13f8f7b390fe53b018e"
+        }
+      ]
+    },
+    {
+      "image": "immortalwrt-naoki66-20261116-b27-r22-upstream-glass-zhcn-airoha-an7581-gemtek_xr1710g-ubi-squashfs-sysupgrade.itb",
+      "crypto_dtb_enabled": true,
+      "kernel_eip93_module": true,
+      "cryptodev_autoload": true,
+      "openssl_devcrypto_enabled": true,
+      "digest_acceleration_disabled": true,
+      "files": [
+        {
+          "path": "lib/modules/6.18.60/crypto-hw-eip93.ko",
+          "size": 64608,
+          "sha256": "caa1415b43a47565f4d0d7f5c13406eed4324d0b3c78dc3543e5360a9466b297"
+        },
+        {
+          "path": "lib/modules/6.18.60/cryptodev.ko",
+          "size": 77592,
+          "sha256": "d329c5d65370ab0511548f00b31fb4ecf678bc851649f33a00573a66ac3ce539"
+        },
+        {
+          "path": "usr/lib/engines-3/devcrypto.so",
+          "size": 28696,
+          "sha256": "05a31d733e4258e41a45f8d39de78fd5ba384c959c8bbec0992e6fd276b9ec03"
+        },
+        {
+          "path": "etc/ssl/modules.cnf.d/devcrypto.cnf",
+          "size": 1556,
+          "sha256": "2d49b54dc24cb8a0c2251889a047380d119ccc5cb2eced14d1bc072820a8810f"
+        },
+        {
+          "path": "etc/config/openssl",
+          "size": 47,
+          "sha256": "f06916404d1d132c670518011645ffba423c378aa8fdc0c5f3e84a72e0be644d"
+        },
+        {
+          "path": "etc/modules.d/50-cryptodev",
+          "size": 33,
+          "sha256": "3fad846582776590414faa51701360cd02af95b85d1a0b2e2481de2577ea5dff"
+        },
+        {
+          "path": "etc/modules.d/crypto-hw-airoha-eip93",
+          "size": 16,
+          "sha256": "116a20e07154a51e95e37e4dd20dd9004d97a2ea7a12d13f8f7b390fe53b018e"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,327 @@
+Subject: mt7996: serialize WTBL windows and apply retail TID0 BA adaptation
+
+Keep group selection and data operations under one host spinlock. Bound
+retail index transitions by the firmware-negotiated initial index, retain
+other TIDs, invalidate sessions on BA lifecycle/SER and restore on disable.
+No firmware binary is replaced. Hardware validation is still required.
+
+---
+--- a/mt7996/Makefile
++++ b/mt7996/Makefile
+@@ -4,7 +4,7 @@
+ obj-$(CONFIG_MT7996E) += mt7996e.o
+ 
+ mt7996e-y := pci.o init.o dma.o eeprom.o main.o mcu.o mac.o \
+-	     debugfs.o mmio.o stock_policy.o
++	     debugfs.o mmio.o stock_policy.o stock_ba.o
+ 
+ mt7996e-$(CONFIG_MT7996_NPU) += npu.o
+ mt7996e-$(CONFIG_DEV_COREDUMP) += coredump.o
+--- a/mt7996/mt7996.h
++++ b/mt7996/mt7996.h
+@@ -307,6 +307,12 @@
+ 	u32 tx_msdu, rx_msdu, tx_mpdu;
+ };
+ 
++struct mt7996_stock_ba {
++	u32 epoch, generation;
++	u8 baseline, index, cap;
++	bool valid, changed;
++};
++
+ struct mt7996_stock_edca {
+ 	bool enabled;
+ 	bool active;
+@@ -333,6 +339,7 @@
+ 	struct mt7996_sta *sta;
+ 	struct mt7996_stock_stats stock_stats;
+ 	struct mt7996_stock_average stock_avg;
++	struct mt7996_stock_ba stock_ba;
+ 	unsigned long stock_sampled;
+ 	u32 stock_avg_epoch;
+ 	bool connected;
+@@ -373,6 +380,7 @@
+ 	unsigned long wcid_flags;
+ 	u16 airtime_weight;
+ 
++	u32 stock_ba_generation;
+ 	u16 ba_tx_mask;
+ 	u16 ba_rx_mask;
+ 	struct mt7996_sta_ba ba_tx[IEEE80211_NUM_TIDS];
+@@ -613,6 +621,7 @@
+ 	u64 stock_polls, stock_missing;
+ 	u64 stock_events[3];
+ 	u32 stock_epoch;
++	u64 stock_ba_updates, stock_ba_errors, stock_ba_skips;
+ 
+ 	struct work_struct init_work;
+ 	struct work_struct rc_work;
+@@ -695,6 +704,8 @@
+ 	} twt;
+ 
+ 	spinlock_t reg_lock;
++	/* Serializes WTBL group selection with the following data accesses. */
++	spinlock_t wtbl_lock;
+ 
+ 	u8 wtbl_size_group;
+ 	struct {
+@@ -1115,6 +1126,8 @@
+ void mt7996_mac_update_beacons(struct mt7996_phy *phy);
+ void mt7996_mac_set_coverage_class(struct mt7996_phy *phy);
+ void mt7996_mac_work(struct work_struct *work);
++void mt7996_stock_ba_update(struct mt7996_dev *dev, struct mt7996_sta *msta,
++			    struct mt7996_sta_link *sl, bool enabled, bool sample);
+ void mt7996_stock_init(struct mt7996_dev *dev);
+ void mt7996_stock_add(struct mt7996_dev *dev, struct ieee80211_vif *vif);
+ void mt7996_stock_remove(struct mt7996_dev *dev);
+--- a/mt7996/stock_policy.h
++++ b/mt7996/stock_policy.h
+@@ -83,6 +83,23 @@
+ 	return old;
+ }
+ 
++/* Retail changes an index, not an ADDBA window count. The caller caps this
++ * by the firmware's initial negotiated index before invoking this rule.
++ */
++static inline u8 mt7996_stock_ba_next(u8 index, u8 cap, u8 per)
++{
++	index = index > cap ? cap : index;
++	if (per > 35) {
++		if (index > 7)
++			index >>= 1;
++		else if (index > 3)
++			index--;
++	} else if (per < 15 && index < cap) {
++		index++;
++	}
++	return index;
++}
++
+ static inline u64 mt7996_stock_ewma(u64 old, u64 sample)
+ {
+ 	return old ? (old >> 1) + (sample >> 1) + (old & sample & 1) : sample;
+--- a/mt7996/stock_policy.c
++++ b/mt7996/stock_policy.c
+@@ -95,7 +95,7 @@
+ 		struct mt7996_vif_link *vl;
+ 		struct mt7996_stock_band *b;
+ 		struct mt7996_phy *phy;
+-		bool ready, high_band;
++		bool ready, high_band, enabled;
+ 		u8 traffic, main_mode;
+ 		unsigned long elapsed;
+ 		u32 milliseconds;
+@@ -134,6 +134,9 @@
+ 			b->sta_wcid = sl->wcid.idx;
+ 		}
+ 
++		enabled = msta->vif->link_info[i].stock.enabled;
++		/* Also services rollback when policy is disabled or samples stop. */
++		mt7996_stock_ba_update(dev, msta, sl, enabled, false);
+ 		spin_lock_bh(&dev->stock_stats_lock);
+ 		s = sl->stock_stats;
+ 		ready = s.epoch == READ_ONCE(dev->stock_epoch) &&
+@@ -173,6 +176,7 @@
+ 		a->tx_per = 0;
+ 		a->tx_per_valid = (s.seen & STOCK_MPDU) && !s.tx_stat_invalid &&
+ 			mt7996_stock_per(s.tx_attempts, s.tx_failed, &a->tx_per);
++		mt7996_stock_ba_update(dev, msta, sl, enabled, true);
+ 		a->tx_bytes = mt7996_stock_ewma(a->tx_bytes, s.tx_bytes);
+ 		a->rx_bytes = mt7996_stock_ewma(a->rx_bytes, s.rx_bytes);
+ 		a->tx_msdu = mt7996_stock_ewma(a->tx_msdu, s.tx_msdu);
+--- a/mt7996/mac.c
++++ b/mt7996/mac.c
+@@ -66,6 +66,8 @@
+ 
+ u32 mt7996_mac_wtbl_lmac_addr(struct mt7996_dev *dev, u16 wcid, u8 dw)
+ {
++	lockdep_assert_held(&dev->wtbl_lock);
++
+ 	mt76_wr(dev, MT_WTBLON_TOP_WDUCR,
+ 		FIELD_PREP(MT_WTBLON_TOP_WDUCR_GROUP, (wcid >> 7)));
+ 
+@@ -117,6 +119,7 @@
+ 		idx = wcid->idx;
+ 
+ 		/* refresh peer's airtime reporting */
++		spin_lock_bh(&dev->wtbl_lock);
+ 		addr = mt7996_mac_wtbl_lmac_addr(dev, idx, 20);
+ 
+ 		for (i = 0; i < IEEE80211_NUM_ACS; i++) {
+@@ -134,6 +137,7 @@
+ 
+ 			addr += 8;
+ 		}
++		spin_unlock_bh(&dev->wtbl_lock);
+ 
+ 		if (clear) {
+ 			mt7996_mac_wtbl_update(dev, idx,
+@@ -160,8 +164,10 @@
+ 		}
+ 
+ 		/* get signal strength of resp frames (CTS/BA/ACK) */
++		spin_lock_bh(&dev->wtbl_lock);
+ 		addr = mt7996_mac_wtbl_lmac_addr(dev, idx, 34);
+ 		val = mt76_rr(dev, addr);
++		spin_unlock_bh(&dev->wtbl_lock);
+ 
+ 		rssi[0] = to_rssi(GENMASK(7, 0), val);
+ 		rssi[1] = to_rssi(GENMASK(15, 8), val);
+--- a/mt7996/mcu.c
++++ b/mt7996/mcu.c
+@@ -2868,11 +2868,13 @@
+ 		 * account, so driver should update here to reflect the
+ 		 * actual txrate hardware sends out.
+ 		 */
++		spin_lock_bh(&dev->wtbl_lock);
+ 		addr = mt7996_mac_wtbl_lmac_addr(dev, idx, 7);
+ 		if (has_he)
+ 			mt76_rmw_field(dev, addr, GENMASK(31, 24), phy.sgi);
+ 		else
+ 			mt76_rmw_field(dev, addr, GENMASK(15, 12), phy.sgi);
++		spin_unlock_bh(&dev->wtbl_lock);
+ 
+ 		ret = mt7996_mcu_set_fixed_field(dev, msta, &phy, link_id,
+ 						 RATE_PARAM_FIXED_GI);
+--- a/mt7996/main.c
++++ b/mt7996/main.c
+@@ -1824,6 +1824,8 @@
+ 		};
+ 
+ 		if (msta->ba_tx_mask & BIT(tid)) {
++			if (!tid)
++				msta->stock_ba_generation++;
+ 			params.ssn = msta->ba_tx[tid].ssn;
+ 			params.buf_size = msta->ba_tx[tid].buf_size;
+ 			params.amsdu = msta->ba_tx[tid].amsdu;
+@@ -2342,6 +2344,8 @@
+ 		ret = mt7996_mcu_add_tx_ba(dev, params, vif, links, true);
+ 		mtxq->aggr = !ret;
+ 		mtxq->send_bar = false;
++		if (!tid)
++			msta->stock_ba_generation++;
+ 		mt7996_sta_ba_update(&msta->ba_tx_mask, msta->ba_tx, params,
+ 				     !ret);
+ 		/* mac80211 ignores this callback's return value for OPERATIONAL.
+@@ -2353,6 +2357,8 @@
+ 	case IEEE80211_AMPDU_TX_STOP_FLUSH_CONT:
+ 		mtxq->aggr = false;
+ 		clear_bit(tid, &msta->deflink.wcid.ampdu_state);
++		if (!tid)
++			msta->stock_ba_generation++;
+ 		mt7996_sta_ba_update(&msta->ba_tx_mask, msta->ba_tx, params,
+ 				     false);
+ 		ret = mt7996_mcu_add_tx_ba(dev, params, vif, links, false);
+@@ -2364,6 +2370,8 @@
+ 	case IEEE80211_AMPDU_TX_STOP_CONT:
+ 		mtxq->aggr = false;
+ 		clear_bit(tid, &msta->deflink.wcid.ampdu_state);
++		if (!tid)
++			msta->stock_ba_generation++;
+ 		mt7996_sta_ba_update(&msta->ba_tx_mask, msta->ba_tx, params,
+ 				     false);
+ 		ret = mt7996_mcu_add_tx_ba(dev, params, vif, links, false);
+--- a/mt7996/mmio.c
++++ b/mt7996/mmio.c
+@@ -652,6 +652,7 @@
+ 	dev = container_of(mdev, struct mt7996_dev, mt76);
+ 	mt76_mmio_init(&dev->mt76, mem_base);
+ 	spin_lock_init(&dev->reg_lock);
++	spin_lock_init(&dev->wtbl_lock);
+ 
+ 	switch (device_id) {
+ 	case MT7996_DEVICE_ID:
+--- a/mt7996/debugfs.c
++++ b/mt7996/debugfs.c
+@@ -1442,6 +1442,10 @@
+ 	len += scnprintf(buf + len, PAGE_SIZE - len,
+ 			"polls=%llu missing_samples=%llu\n",
+ 			phy->dev->stock_polls, phy->dev->stock_missing);
++	len += scnprintf(buf + len, PAGE_SIZE - len,
++			"ba_updates=%llu ba_errors=%llu ba_skips=%llu\n",
++			phy->dev->stock_ba_updates, phy->dev->stock_ba_errors,
++			phy->dev->stock_ba_skips);
+ 	mutex_unlock(&phy->dev->mt76.mutex);
+ 	wiphy_unlock(mt76_hw(phy->dev)->wiphy);
+ 	ret = simple_read_from_buffer(user_buf, count, ppos, buf, len);
+--- /dev/null
++++ b/mt7996/stock_ba.c
+@@ -0,0 +1,78 @@
++// SPDX-License-Identifier: BSD-3-Clause-Clear
++/* Independent reconstruction of the XR1710G retail TID0 BA index rule. */
++#include "mt7996.h"
++#include "stock_policy.h"
++
++void mt7996_stock_ba_update(struct mt7996_dev *dev, struct mt7996_sta *msta,
++			    struct mt7996_sta_link *sl, bool enabled, bool sample)
++{
++	struct mt7996_stock_ba *s = &sl->stock_ba;
++	u32 epoch = READ_ONCE(dev->stock_epoch);
++	u32 generation = msta->stock_ba_generation;
++	u32 addr, value, readback;
++	u8 hw_index, next, cap;
++
++	lockdep_assert_held(&dev->mt76.mutex);
++	if (!dev->stock_policy || !is_mt7996(&dev->mt76) ||
++	    test_bit(MT76_MCU_RESET, &dev->mphy.state) ||
++	    test_bit(MT76_RESET, &dev->mphy.state))
++		return;
++	if (s->epoch != epoch || s->generation != generation) {
++		memset(s, 0, sizeof(*s));
++		s->epoch = epoch;
++		s->generation = generation;
++	}
++	/* BA stop and WCID destruction invalidate saved hardware state. */
++	if (!sl->connected || !(msta->ba_tx_mask & BIT(0)) ||
++	    !msta->ba_tx[0].buf_size) {
++		s->valid = false;
++		s->changed = false;
++		return;
++	}
++	if (enabled && (!sample || !sl->stock_avg.tx_per_valid))
++		return;
++	if (!enabled && !s->valid)
++		return;
++
++	spin_lock_bh(&dev->wtbl_lock);
++	addr = mt7996_mac_wtbl_lmac_addr(dev, sl->wcid.idx, 7);
++	value = mt76_rr(dev, addr);
++	hw_index = value & GENMASK(3, 0);
++	/* 15 is not a valid BA size index; never turn a sentinel into a write. */
++	if (value == U32_MAX || hw_index == 15) {
++		dev->stock_ba_skips++;
++		goto out;
++	}
++	if (!s->valid) {
++		/* Use FW's initial per-link index as an authoritative upper bound.
++		 * This avoids inventing an index-to-window LUT or exceeding ADDBA.
++		 */
++		cap = msta->ba_tx[0].buf_size <= 64 ? 7 : 14;
++		if (hw_index > cap) {
++			dev->stock_ba_skips++;
++			goto out;
++		}
++		s->baseline = hw_index;
++		s->index = hw_index;
++		s->cap = min(hw_index, cap);
++		s->valid = true;
++	}
++	next = enabled ? mt7996_stock_ba_next(hw_index, s->cap,
++					    sl->stock_avg.tx_per) : s->baseline;
++	if (next != hw_index) {
++		/* Preserve every other TID's nibble in the shared DW7. */
++		mt76_wr(dev, addr, (value & ~GENMASK(3, 0)) | next);
++		readback = mt76_rr(dev, addr);
++		if (readback == U32_MAX || (readback & GENMASK(3, 0)) != next) {
++			dev->stock_ba_errors++;
++			goto out;
++		}
++		dev->stock_ba_updates++;
++	}
++	s->index = next;
++	s->changed = next != s->baseline;
++	if (!enabled)
++		s->valid = false;
++out:
++	spin_unlock_bh(&dev->wtbl_lock);
++}

@@ -1,0 +1,22 @@
+{
+  "module": "/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/mt76-2026.10.28~0936617d/mt7996/mt7996e.ko",
+  "sha256": "3ff014a5df121674d9c1344546404f07e6eee41b42badd6a445dde70af3e02a3",
+  "bytes": 2058400,
+  "required_symbols": [
+    "mt7996_stock_event",
+    "mt7996_stock_collect",
+    "mt7996_stock_work"
+  ],
+  "note": "apply callback may be inlined; no standalone apply symbol required",
+  "required_diagnostic_strings": [
+    "band_main_wcid=%u per_valid=%u per=%u attempts=%llu failed=%llu",
+    "mcli=%u dl_clients=%u ul_clients=%u main_mode=%u",
+    "stock_txop_policy"
+  ],
+  "module_build_exit_code": 0,
+  "tests": "ASAN/UBSAN on actual ingestion/collection/apply functions with host stubs, not hardware validation",
+  "patches": {
+    "150-mt7996-retail-paired-tx-per.patch": "7e0b4445789c2f9d80e2b170b9e2ba30df3a574ac09d9408beee2e83a1d0808c",
+    "151-mt7996-retail-mcli-txop.patch": "bcdf5d1953ebbedcf4d000ec5c7e10625c428a872e39231e4dca928f5549f343"
+  }
+}

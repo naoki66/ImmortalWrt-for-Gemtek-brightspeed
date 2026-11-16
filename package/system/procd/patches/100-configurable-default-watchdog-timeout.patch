@@ -1,0 +1,22 @@
+From: XR1710G local fixes
+Subject: [PATCH] watchdog: allow a target-specific hardware timeout default
+
+Airoha EN7581 at 150 MHz can represent at most 28 seconds; request 20,
+retaining the 5-second ping and the 30-second default on other targets.
+Reference: Linux drivers/watchdog/airoha_wdt.c max_timeout calculation.
+
+--- a/watchdog.c
++++ b/watchdog.c
+@@ -30,7 +30,11 @@
+ 
+ static struct uloop_timeout wdt_timeout;
+ static int wdt_fd = -1;
+-static int wdt_drv_timeout = 30;
++#ifndef DEFAULT_WATCHDOG_TIMEOUT
++#define DEFAULT_WATCHDOG_TIMEOUT 30
++#endif
++
++static int wdt_drv_timeout = DEFAULT_WATCHDOG_TIMEOUT;
+ static int wdt_frequency = 5;
+ static bool wdt_magicclose = false;
+ 

@@ -1,0 +1,210 @@
+[
+  {
+    "name": "stock_WM",
+    "path": "/home/builder/stock-xr1710g-5.1.1.12/rootfs/lib/firmware/WIFI_RAM_CODE_MT7990_1_1.bin",
+    "bytes": 2596080,
+    "sha256": "1cb73cea57bebda2a2a8425028cb019f5026cc841ee6046925ead5035215d7ee",
+    "version": "____000000",
+    "build": "20240306143154",
+    "chip": 22,
+    "regions": [
+      {
+        "addr": "0x916c00",
+        "length": 135440,
+        "feature": "0x21",
+        "type": 0
+      },
+      {
+        "addr": "0x407200",
+        "length": 32720,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0xe0097800",
+        "length": 701392,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0xe0142c00",
+        "length": 771024,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0xe01ff000",
+        "length": 511952,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0x220e800",
+        "length": 115664,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0x404000",
+        "length": 12752,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0xe005b400",
+        "length": 144336,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0xe0031800",
+        "length": 170256,
+        "feature": "0x1",
+        "type": 0
+      }
+    ],
+    "trailer_hex": "160009020100005f5f5f5f3030303030303230323430333036313433313534008d1e7811",
+    "region_length_sum": 2595536,
+    "region_layout_complete": false,
+    "encrypted_regions": true,
+    "unparsed_bytes_before_region_table": 148
+  },
+  {
+    "name": "stock_WA",
+    "path": "/home/builder/stock-xr1710g-5.1.1.12/rootfs/lib/firmware/WIFI_MT7990_WACPU_RAM_CODE_1_1.bin",
+    "bytes": 515504,
+    "sha256": "b9fac549f36368c175a31e7e5638de2ceac33f93f79667ccef966d2299633629",
+    "version": "____000000",
+    "build": "20240207161506",
+    "chip": 0,
+    "regions": [
+      {
+        "addr": "0x10000000",
+        "length": 113040,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0x10200000",
+        "length": 386000,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0xe0000000",
+        "length": 16272,
+        "feature": "0x1",
+        "type": 0
+      }
+    ],
+    "trailer_hex": "000003020100005f5f5f5f3030303030303230323430323037313631353036009e065a16",
+    "region_length_sum": 515312,
+    "region_layout_complete": false,
+    "encrypted_regions": true,
+    "unparsed_bytes_before_region_table": 36
+  },
+  {
+    "name": "current_WM",
+    "path": "/home/builder/immortalwrt-B13/staging_dir/target-aarch64_cortex-a53_musl/root-airoha/lib/firmware/mediatek/mt7996/mt7996_wm.bin",
+    "bytes": 2666168,
+    "sha256": "99020e57ff91fdee09b833f9d35f97ff70722d0ef32fa8b02f70c8d3c6f95592",
+    "version": "____000000",
+    "build": "20260721003035",
+    "chip": 22,
+    "regions": [
+      {
+        "addr": "0x916400",
+        "length": 137488,
+        "feature": "0x21",
+        "type": 0
+      },
+      {
+        "addr": "0x407200",
+        "length": 32720,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0xe0088000",
+        "length": 736208,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0xe013bc00",
+        "length": 798672,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0xe01fec00",
+        "length": 511952,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0x220e800",
+        "length": 115664,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0x404000",
+        "length": 12752,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0xe005c400",
+        "length": 146384,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0xe0031800",
+        "length": 173776,
+        "feature": "0x1",
+        "type": 0
+      }
+    ],
+    "trailer_hex": "160009020100005f5f5f5f3030303030303230323630373231303033303335000240f01d",
+    "region_length_sum": 2665616,
+    "region_layout_complete": false,
+    "encrypted_regions": true,
+    "unparsed_bytes_before_region_table": 156
+  },
+  {
+    "name": "current_WA",
+    "path": "/home/builder/immortalwrt-B13/staging_dir/target-aarch64_cortex-a53_musl/root-airoha/lib/firmware/mediatek/mt7996/mt7996_wa.bin",
+    "bytes": 510064,
+    "sha256": "06106c918866c7ae3da47b27223da17030212a1a4adcb5c23871325291d06448",
+    "version": "____000000",
+    "build": "20260721002917",
+    "chip": 0,
+    "regions": [
+      {
+        "addr": "0x10000000",
+        "length": 106704,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0x10200000",
+        "length": 385168,
+        "feature": "0x1",
+        "type": 0
+      },
+      {
+        "addr": "0xe0000000",
+        "length": 18000,
+        "feature": "0x1",
+        "type": 0
+      }
+    ],
+    "trailer_hex": "000003020100005f5f5f5f3030303030303230323630373231303032393137004d58f343",
+    "region_length_sum": 509872,
+    "region_layout_complete": false,
+    "encrypted_regions": true,
+    "unparsed_bytes_before_region_table": 36
+  }
+]

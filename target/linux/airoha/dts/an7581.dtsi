@@ -36,17 +36,16 @@
 		};
 
 		/*
-		 * NPU V2 can only address the first 1 GiB of DRAM (0x80000000-0xbfffffff);
-		 * higher addresses alias the lower 1 GiB. Coherent buffers handed to the NPU
-		 * (mt76 RX/TX descriptor rings, HW-RRO ba_bitmap/addr_elem/msdu_pg/session
-		 * buffers, TXD buffers) must be allocated from here. Streaming mappings are
-		 * not affected. Size 16 MiB covers mt76 + mailbox (~10.7 MiB with MT7996).
+		 * NPU V2 can only address the first 1 GiB of DRAM. Coherent
+		 * buffers handed to the NPU (mailbox, WLAN rings) must be
+		 * allocated from here; streaming mappings are not affected.
 		 */
-		npu_dma: dma-pool@84a00000 {
+		npu_dma: dma-pool {
 			compatible = "shared-dma-pool";
 			no-map;
-			reg = <0x0 0x84a00000 0x0 0x1000000>;
+			size = <0x0 0x100000>;
 			alignment = <0x0 0x200000>;
+			alloc-ranges = <0x0 0x80000000 0x0 0x40000000>;
 		};
 
 		qdma0_buf: qdma0-buf@87000000 {

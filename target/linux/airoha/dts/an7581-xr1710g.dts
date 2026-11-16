@@ -234,6 +234,15 @@
 		reg = <0x2e>;
 	};
 };
+/* XR1710G stock PCIe2 analog setup, independent of USB3 reset. */
+&usb1_phy {
+	airoha,pcie-analog-init;
+};
+
+&pciephy {
+	gemtek,xr1710g-retail-rx-kflow;
+};
+
 &pcie0 {
 	status = "okay";
 
@@ -272,6 +281,7 @@
 			nvmem-cell-names = "eeprom";
 			airoha,npu = <&npu>;
 			airoha,eth = <&eth>;
+			#include "an7581-xr1710g-stock-power.dtsi"
 			band@0 {
 				/* 2.4 GHz */
 				reg = <0>;

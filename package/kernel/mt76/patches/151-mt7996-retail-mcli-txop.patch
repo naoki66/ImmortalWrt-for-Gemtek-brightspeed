@@ -1,0 +1,177 @@
+Subject: mt7996: implement retail BESRA multi-client TXOP votes
+
+Reconstruct traffic qualification, previous-interval RX length, default
+16-client threshold and separate per-band UL vote with retry/reset
+handling. Leave optional CW/WRR and TALOS-only SPL behavior untouched.
+This is not a complete vendor scheduler port or a throughput fix.
+
+---
+--- a/mt7996/mt7996.h
++++ b/mt7996/mt7996.h
+@@ -303,6 +303,7 @@
+ 	u64 tx_attempts, tx_failed;
+ 	u8 tx_per;
+ 	bool tx_per_valid;
++	u32 rx_pkt_len;
+ 	u32 tx_msdu, rx_msdu, tx_mpdu;
+ };
+ 
+@@ -311,6 +312,9 @@
+ 	bool active;
+ 	bool ul;
+ 	bool near_far;
++	bool mcli;
++	u16 mcli_tx_clients, mcli_rx_clients;
++	u8 main_mode;
+ 	bool main_per_valid;
+ 	u8 main_per;
+ 	u16 main_wcid;
+--- a/mt7996/stock_policy.h
++++ b/mt7996/stock_policy.h
+@@ -9,7 +9,10 @@
+ #define MT7996_STOCK_DEFAULT 0
+ #define MT7996_STOCK_UL 1
+ #define MT7996_STOCK_NEAR_FAR 2
+-#define MT7996_STOCK_PRIORITIES 3
++#define MT7996_STOCK_MCLI 3
++#define MT7996_STOCK_PRIORITIES 4
++#define MT7996_STOCK_DL 1
++#define MT7996_STOCK_UPLINK 2
+ 
+ struct mt7996_stock_vote {
+ 	u16 level[MT7996_STOCK_PRIORITIES];
+@@ -47,6 +50,37 @@
+ 		return false;
+ 	*per = div64_u64(failed * 100, attempts);
+ 	return true;
++}
++
++/* Retail uses the previous interval's RX packet length and staged integer
++ * divisions. Keep TX/RX qualification separate; DL wins the main-flow tie.
++ */
++static inline u8 mt7996_stock_traffic(u64 tx, u64 rx, u32 last_rx_len)
++{
++	u64 tenth = (tx + rx) / 10;
++	u8 traffic = 0;
++
++	if (tx > tenth * 7)
++		traffic |= MT7996_STOCK_DL;
++	if (rx > tenth * (last_rx_len < 256 ? 5 : 7))
++		traffic |= MT7996_STOCK_UPLINK;
++	return traffic;
++}
++
++static inline bool mt7996_stock_mcli_qualified(u32 packets, u64 bytes,
++					       bool high_band)
++{
++	return packets > 10 || bytes > (high_band ? 12800 : 2560);
++}
++
++static inline bool mt7996_stock_mcli_txop(u16 clients, u8 main_mode, bool old)
++{
++	if (clients < 16 || main_mode == MT7996_STOCK_DL)
++		return false;
++	if (main_mode == MT7996_STOCK_UPLINK)
++		return true;
++	/* Retail retains its vote for an unclassified main flow. */
++	return old;
+ }
+ 
+ static inline u64 mt7996_stock_ewma(u64 old, u64 sample)
+--- a/mt7996/stock_policy.c
++++ b/mt7996/stock_policy.c
+@@ -12,7 +12,9 @@
+ #define STOCK_MPDU BIT(2)
+ 
+ struct mt7996_stock_band {
+-	struct ieee80211_vif *ap, *sta, *main, *selected;
++	struct ieee80211_vif *ap, *sta, *main, *selected, *mcli_target;
++	u8 mcli_link, main_mode;
++	u16 mcli_wcid, mcli_tx_clients, mcli_rx_clients;
+ 	u8 ap_link, sta_link, main_link, current_link;
+ 	u16 ap_wcid, sta_wcid, main_wcid, current_wcid;
+ 	bool near_fast, near_slow;
+@@ -93,7 +95,8 @@
+ 		struct mt7996_vif_link *vl;
+ 		struct mt7996_stock_band *b;
+ 		struct mt7996_phy *phy;
+-		bool ready;
++		bool ready, high_band;
++		u8 traffic, main_mode;
+ 		unsigned long elapsed;
+ 		u32 milliseconds;
+ 
+@@ -107,6 +110,11 @@
+ 			continue;
+ 		b = &scene->band[phy->mt76->band_idx];
+ 		b->mlo |= sta->mlo;
++		if (!b->mcli_target || sl->wcid.idx > b->mcli_wcid) {
++			b->mcli_target = vif;
++			b->mcli_link = i;
++			b->mcli_wcid = sl->wcid.idx;
++		}
+ 		/* Retail cur_wdev is the last WCID, independent of main_entry. */
+ 		if (vif->type == NL80211_IFTYPE_AP &&
+ 		    (!b->selected || sl->wcid.idx > b->current_wcid)) {
+@@ -170,12 +178,28 @@
+ 		a->tx_msdu = mt7996_stock_ewma(a->tx_msdu, s.tx_msdu);
+ 		a->rx_msdu = mt7996_stock_ewma(a->rx_msdu, s.rx_msdu);
+ 		a->tx_mpdu = mt7996_stock_ewma(a->tx_mpdu, s.tx_mpdu);
++		traffic = mt7996_stock_traffic(a->tx_bytes, a->rx_bytes,
++					       a->rx_pkt_len);
++		main_mode = traffic & MT7996_STOCK_DL ? MT7996_STOCK_DL :
++			    traffic & MT7996_STOCK_UPLINK;
++		if (phy->mt76->chandef.chan) {
++			high_band = phy->mt76->chandef.chan->band != NL80211_BAND_2GHZ;
++			if ((traffic & MT7996_STOCK_DL) &&
++			    mt7996_stock_mcli_qualified(a->tx_msdu, a->tx_bytes, high_band))
++				b->mcli_tx_clients++;
++			if ((traffic & MT7996_STOCK_UPLINK) &&
++			    mt7996_stock_mcli_qualified(a->rx_msdu, a->rx_bytes, high_band))
++				b->mcli_rx_clients++;
++		}
++		/* Update after classification, as in retail MacTableMaintenance. */
++		a->rx_pkt_len = a->rx_msdu ? div_u64(a->rx_bytes, a->rx_msdu) : 0;
+ 		if (a->tx_bytes + a->rx_bytes > b->main_bytes || !b->main ||
+ 		    (a->tx_bytes + a->rx_bytes == b->main_bytes &&
+ 		     sl->wcid.idx < b->main_wcid)) {
+ 			b->main = vif;
+ 			b->main_link = i;
+ 			b->main_wcid = sl->wcid.idx;
++			b->main_mode = main_mode;
+ 			b->main_bytes = a->tx_bytes + a->rx_bytes;
+ 			b->main_tx = a->tx_bytes;
+ 			b->main_mpdu = a->tx_mpdu;
+@@ -279,6 +303,12 @@
+ 		s->main_per_valid = b->main_per_valid;
+ 		s->main_attempts = b->main_attempts;
+ 		s->main_failed = b->main_failed;
++		s->mcli_tx_clients = b->mcli_tx_clients;
++		s->mcli_rx_clients = b->mcli_rx_clients;
++		s->main_mode = b->main_mode;
++		s->mcli = s->enabled && b->mcli_target == vif && b->mcli_link == i &&
++			mt7996_stock_mcli_txop(b->mcli_tx_clients + b->mcli_rx_clients,
++					       b->main_mode, old.mcli && old.epoch == s->epoch);
+ 		s->ul = false;
+ 		s->near_far = b->selected == vif && b->current_link == i &&
+ 			b->near_fast && b->near_slow;
+@@ -302,6 +332,7 @@
+ 		}
+ 		mt7996_stock_vote_set(&votes, MT7996_STOCK_UL, 0, s->ul);
+ 		mt7996_stock_vote_set(&votes, MT7996_STOCK_NEAR_FAR, 0, s->near_far);
++		mt7996_stock_vote_set(&votes, MT7996_STOCK_MCLI, 0, s->mcli);
+ 		s->active = s->enabled;
+ 		s->txop = mt7996_stock_winner(&votes);
+ 		if (s->active == old.active && s->txop == old.txop &&
+--- a/mt7996/debugfs.c
++++ b/mt7996/debugfs.c
+@@ -1429,6 +1429,9 @@
+ 			"band_main_wcid=%u per_valid=%u per=%u attempts=%llu failed=%llu\n",
+ 			s->main_wcid, s->main_per_valid, s->main_per,
+ 			s->main_attempts, s->main_failed);
++		len += scnprintf(buf + len, PAGE_SIZE - len,
++			"mcli=%u dl_clients=%u ul_clients=%u main_mode=%u\n",
++			s->mcli, s->mcli_tx_clients, s->mcli_rx_clients, s->main_mode);
+ 	}
+ 	spin_lock_bh(&phy->dev->stock_stats_lock);
+ 	memcpy(events, phy->dev->stock_events, sizeof(events));

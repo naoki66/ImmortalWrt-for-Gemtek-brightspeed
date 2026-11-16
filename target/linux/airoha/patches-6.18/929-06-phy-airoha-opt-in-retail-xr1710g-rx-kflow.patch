@@ -1,0 +1,302 @@
+Subject: phy: airoha: opt into the XR1710G retail RX K-flow
+
+The XR1710G 5.1.1.12 retail firmware runs ten final lock measurements,
+keeps the LPF resistor override enabled, and writes the Gen2 result
+into PMA 0x174 as well as the Gen1/Gen2 reserve fields. Its x2 path
+also enables the per-lane K-flow control and latches the results with
+a pulse before cycling the CDR power. Match the TX1 multilane bit for
+the same retail x2 mode (SerDes interface selections 2=0 and 3=0).
+
+Use this sequence only on the XR1710G with the board opt-in. Keep
+the existing PLL/SSC, host reset timing and link speed policy.
+
+Reference: XR1710G 5.1.1.12 uncompressed kernel Image offsets
+  Rx_PR_Fw_Pre_Cal 0x3698d0, final sample 0x369cd0..0x369d58,
+  LPF exit 0x369d80..0x369db8, IDAC writeback 0x369df4..0x369e18;
+  PCIe_G3_L0L1_init x2 K-flow 0x36c440..0x36c670 and CDR pulse
+  0x36c250..0x36c30c; TX1 multilane 0x369ff4..0x36a000,
+  0x36c020..0x36c034, 0x36c428..0x36c43c. The mode mapping is
+  confirmed by mtk_pcie_probe 0x36f9dc..0x36fa4c (SCU PCIC=2).
+---
+--- a/drivers/phy/airoha/phy-airoha-pcie.c
++++ b/drivers/phy/airoha/phy-airoha-pcie.c
+@@ -37,6 +37,7 @@
+  * @p0_xr_dtime: IO mapped register base address of port0 Tx-Rx detection time
+  * @p1_xr_dtime: IO mapped register base address of port1 Tx-Rx detection time
+  * @rx_aeq: IO mapped register base address of Rx AEQ training
++ * @retail_rx_kflow: use the retail XR1710G RX calibration and load sequence
+  */
+ struct airoha_pcie_phy {
+ 	struct device *dev;
+@@ -47,6 +48,7 @@
+ 	void __iomem *p0_xr_dtime;
+ 	void __iomem *p1_xr_dtime;
+ 	void __iomem *rx_aeq;
++	bool retail_rx_kflow;
+ };
+ 
+ static void airoha_phy_clear_bits(void __iomem *reg, u32 mask)
+@@ -106,6 +108,8 @@
+ 	u32 fl_out_target = gen == PCIE_PORT_GEN3 ? 41600 : 41941;
+ 	u32 lock_cyclecnt = gen == PCIE_PORT_GEN3 ? 26000 : 32767;
+ 	u32 pr_idac, val, cdr_pr_idac_tmp = 0;
++	unsigned int unlocked = 0;
++	bool locked;
+ 	int i;
+ 
+ 	airoha_phy_pma0_set_bits(pcie_phy,
+@@ -221,16 +225,28 @@
+ 		usleep_range(10000, 15000);
+ 
+ 		val = readl(pcie_phy->pma0 + REG_PCIE_PMA_RO_RX_FREQDET);
+-		if (val & PCIE_RO_FBCK_LOCK)
++		/* Retail reads FL_OUT and then samples lock separately. */
++		if (pcie_phy->retail_rx_kflow)
++			locked = readl(pcie_phy->pma0 + REG_PCIE_PMA_RO_RX_FREQDET) &
++				 PCIE_RO_FBCK_LOCK;
++		else
++			locked = val & PCIE_RO_FBCK_LOCK;
++
++		if (locked && !pcie_phy->retail_rx_kflow)
+ 			break;
++		unlocked += !locked;
+ 	}
+ 
+ 	dev_info(pcie_phy->dev,
+ 		 "lane0 Gen%u calibration: IDAC=%#x FL_OUT=%u lock=%u attempts=%u\n",
+ 		 gen, cdr_pr_idac_tmp, (u32)FIELD_GET(PCIE_RO_FL_OUT, val),
+-		 !!(val & PCIE_RO_FBCK_LOCK),
++		 locked,
+ 		 min(i + 1, FREQ_LOCK_MAX_ATTEMPT));
+-	if (i == FREQ_LOCK_MAX_ATTEMPT)
++	if (pcie_phy->retail_rx_kflow && unlocked)
++		dev_warn(pcie_phy->dev,
++			 "lane0 Gen%u calibration: %u/%u samples unlocked\n",
++			 gen, unlocked, FREQ_LOCK_MAX_ATTEMPT);
++	else if (!locked)
+ 		dev_warn(pcie_phy->dev,
+ 			 "lane0 Gen%u calibration did not lock\n", gen);
+ 
+@@ -238,9 +254,16 @@
+ 	airoha_phy_csr_2l_clear_bits(pcie_phy, REG_CSR_2L_CDR0_PR_INJ_MODE,
+ 				     CSR_2L_PXP_CDR0_INJ_FORCE_OFF);
+ 
+-	airoha_phy_pma0_clear_bits(pcie_phy,
+-				   REG_PCIE_PMA_FORCE_DA_PXP_CDR_PR_LPF_C,
+-				   PCIE_FORCE_SEL_DA_PXP_CDR_PR_LPF_R_EN);
++	/* Retail keeps R forced on, then releases the C override. */
++	if (pcie_phy->retail_rx_kflow) {
++		airoha_phy_pma0_set_bits(pcie_phy, REG_PCIE_PMA_FORCE_DA_PXP_CDR_PR_LPF_C,
++					 PCIE_FORCE_DA_PXP_CDR_PR_LPF_R_EN);
++		airoha_phy_pma0_set_bits(pcie_phy, REG_PCIE_PMA_FORCE_DA_PXP_CDR_PR_LPF_C,
++					 PCIE_FORCE_SEL_DA_PXP_CDR_PR_LPF_R_EN);
++	} else {
++		airoha_phy_pma0_clear_bits(pcie_phy, REG_PCIE_PMA_FORCE_DA_PXP_CDR_PR_LPF_C,
++					   PCIE_FORCE_SEL_DA_PXP_CDR_PR_LPF_R_EN);
++	}
+ 	airoha_phy_pma0_clear_bits(pcie_phy,
+ 				   REG_PCIE_PMA_FORCE_DA_PXP_CDR_PR_LPF_C,
+ 				   PCIE_FORCE_SEL_DA_PXP_CDR_PR_LPF_C_EN);
+@@ -256,6 +279,9 @@
+ 					     PCIE_FLL_IDAC_PCIEG3,
+ 					     cdr_pr_idac_tmp);
+ 	} else {
++		if (pcie_phy->retail_rx_kflow)
++			airoha_phy_pma0_update_field(pcie_phy, REG_PCIE_PMA_RETAIL_RX_IDAC,
++						     PCIE_RETAIL_RX_IDAC, cdr_pr_idac_tmp);
+ 		airoha_phy_pma0_update_field(pcie_phy,
+ 					     REG_PCIE_PMA_DIG_RESERVE_13,
+ 					     PCIE_FLL_IDAC_PCIEG1,
+@@ -274,6 +300,8 @@
+ 	u32 fl_out_target = gen == PCIE_PORT_GEN3 ? 41600 : 41941;
+ 	u32 lock_cyclecnt = gen == PCIE_PORT_GEN3 ? 26000 : 32767;
+ 	u32 pr_idac, val, cdr_pr_idac_tmp = 0;
++	unsigned int unlocked = 0;
++	bool locked;
+ 	int i;
+ 
+ 	airoha_phy_pma1_set_bits(pcie_phy,
+@@ -388,16 +416,28 @@
+ 		usleep_range(10000, 15000);
+ 
+ 		val = readl(pcie_phy->pma1 + REG_PCIE_PMA_RO_RX_FREQDET);
+-		if (val & PCIE_RO_FBCK_LOCK)
++		/* Retail reads FL_OUT and then samples lock separately. */
++		if (pcie_phy->retail_rx_kflow)
++			locked = readl(pcie_phy->pma1 + REG_PCIE_PMA_RO_RX_FREQDET) &
++				 PCIE_RO_FBCK_LOCK;
++		else
++			locked = val & PCIE_RO_FBCK_LOCK;
++
++		if (locked && !pcie_phy->retail_rx_kflow)
+ 			break;
++		unlocked += !locked;
+ 	}
+ 
+ 	dev_info(pcie_phy->dev,
+ 		 "lane1 Gen%u calibration: IDAC=%#x FL_OUT=%u lock=%u attempts=%u\n",
+ 		 gen, cdr_pr_idac_tmp, (u32)FIELD_GET(PCIE_RO_FL_OUT, val),
+-		 !!(val & PCIE_RO_FBCK_LOCK),
++		 locked,
+ 		 min(i + 1, FREQ_LOCK_MAX_ATTEMPT));
+-	if (i == FREQ_LOCK_MAX_ATTEMPT)
++	if (pcie_phy->retail_rx_kflow && unlocked)
++		dev_warn(pcie_phy->dev,
++			 "lane1 Gen%u calibration: %u/%u samples unlocked\n",
++			 gen, unlocked, FREQ_LOCK_MAX_ATTEMPT);
++	else if (!locked)
+ 		dev_warn(pcie_phy->dev,
+ 			 "lane1 Gen%u calibration did not lock\n", gen);
+ 
+@@ -405,9 +445,16 @@
+ 	airoha_phy_csr_2l_clear_bits(pcie_phy, REG_CSR_2L_CDR1_PR_INJ_MODE,
+ 				     CSR_2L_PXP_CDR1_INJ_FORCE_OFF);
+ 
+-	airoha_phy_pma1_clear_bits(pcie_phy,
+-				   REG_PCIE_PMA_FORCE_DA_PXP_CDR_PR_LPF_C,
+-				   PCIE_FORCE_SEL_DA_PXP_CDR_PR_LPF_R_EN);
++	/* Retail keeps R forced on, then releases the C override. */
++	if (pcie_phy->retail_rx_kflow) {
++		airoha_phy_pma1_set_bits(pcie_phy, REG_PCIE_PMA_FORCE_DA_PXP_CDR_PR_LPF_C,
++					 PCIE_FORCE_DA_PXP_CDR_PR_LPF_R_EN);
++		airoha_phy_pma1_set_bits(pcie_phy, REG_PCIE_PMA_FORCE_DA_PXP_CDR_PR_LPF_C,
++					 PCIE_FORCE_SEL_DA_PXP_CDR_PR_LPF_R_EN);
++	} else {
++		airoha_phy_pma1_clear_bits(pcie_phy, REG_PCIE_PMA_FORCE_DA_PXP_CDR_PR_LPF_C,
++					   PCIE_FORCE_SEL_DA_PXP_CDR_PR_LPF_R_EN);
++	}
+ 	airoha_phy_pma1_clear_bits(pcie_phy,
+ 				   REG_PCIE_PMA_FORCE_DA_PXP_CDR_PR_LPF_C,
+ 				   PCIE_FORCE_SEL_DA_PXP_CDR_PR_LPF_C_EN);
+@@ -423,6 +470,9 @@
+ 					     PCIE_FLL_IDAC_PCIEG3,
+ 					     cdr_pr_idac_tmp);
+ 	} else {
++		if (pcie_phy->retail_rx_kflow)
++			airoha_phy_pma1_update_field(pcie_phy, REG_PCIE_PMA_RETAIL_RX_IDAC,
++						     PCIE_RETAIL_RX_IDAC, cdr_pr_idac_tmp);
+ 		airoha_phy_pma1_update_field(pcie_phy,
+ 					     REG_PCIE_PMA_DIG_RESERVE_13,
+ 					     PCIE_FLL_IDAC_PCIEG1,
+@@ -1041,8 +1091,13 @@
+ 				   CSR_2L_PXP_TX0_DMEDGEGEN_EN);
+ 	airoha_phy_csr_2l_set_bits(pcie_phy, REG_CSR_2L_TX1_CKLDO,
+ 				   CSR_2L_PXP_TX1_DMEDGEGEN_EN);
+-	airoha_phy_csr_2l_clear_bits(pcie_phy, REG_CSR_2L_TX1_MULTLANE,
+-				     CSR_2L_PXP_TX1_MULTLANE_EN);
++	/* Retail x2: interface selections 2 and 3 are both PCIe (zero). */
++	if (pcie_phy->retail_rx_kflow)
++		airoha_phy_csr_2l_set_bits(pcie_phy, REG_CSR_2L_TX1_MULTLANE,
++					 CSR_2L_PXP_TX1_MULTLANE_EN);
++	else
++		airoha_phy_csr_2l_clear_bits(pcie_phy, REG_CSR_2L_TX1_MULTLANE,
++					   CSR_2L_PXP_TX1_MULTLANE_EN);
+ }
+ 
+ static void airoha_pcie_phy_set_rx_mode(struct airoha_pcie_phy *pcie_phy)
+@@ -1096,6 +1151,18 @@
+ 
+ static void airoha_pcie_phy_load_kflow(struct airoha_pcie_phy *pcie_phy)
+ {
++	/* Retail 5.1.1.12, PCIe_G3_L0L1_init x2 branch, 0x36c440..0x36c4dc. */
++	if (pcie_phy->retail_rx_kflow) {
++		airoha_phy_pma0_set_bits(pcie_phy, REG_PCIE_PMA_RETAIL_RX_KFLOW,
++					 PCIE_RETAIL_RX_KFLOW_EN);
++		airoha_phy_pma1_set_bits(pcie_phy, REG_PCIE_PMA_RETAIL_RX_KFLOW,
++					 PCIE_RETAIL_RX_KFLOW_EN);
++		airoha_phy_pma0_clear_bits(pcie_phy, REG_PCIE_PMA_DIG_RESERVE_14,
++					   PCIE_FLL_LOAD_EN);
++		airoha_phy_pma1_clear_bits(pcie_phy, REG_PCIE_PMA_DIG_RESERVE_14,
++					   PCIE_FLL_LOAD_EN);
++	}
++
+ 	airoha_phy_pma0_update_field(pcie_phy, REG_PCIE_PMA_DIG_RESERVE_12,
+ 				     PCIE_FORCE_PMA_RX_SPEED, 0xa);
+ 	airoha_phy_pma1_update_field(pcie_phy, REG_PCIE_PMA_DIG_RESERVE_12,
+@@ -1111,6 +1178,19 @@
+ 
+ 	airoha_phy_init_lane0_rx_fw_pre_calib(pcie_phy, PCIE_PORT_GEN2);
+ 	airoha_phy_init_lane1_rx_fw_pre_calib(pcie_phy, PCIE_PORT_GEN2);
++
++	/* Load the newly calibrated values before cycling CDR power. */
++	if (pcie_phy->retail_rx_kflow) {
++		airoha_phy_pma0_clear_bits(pcie_phy, REG_PCIE_PMA_DIG_RESERVE_14,
++					   PCIE_RETAIL_FLL_LATCH);
++		airoha_phy_pma1_clear_bits(pcie_phy, REG_PCIE_PMA_DIG_RESERVE_14,
++					   PCIE_RETAIL_FLL_LATCH);
++		usleep_range(10, 20);
++		airoha_phy_pma0_set_bits(pcie_phy, REG_PCIE_PMA_DIG_RESERVE_14,
++					 PCIE_RETAIL_FLL_LATCH);
++		airoha_phy_pma1_set_bits(pcie_phy, REG_PCIE_PMA_DIG_RESERVE_14,
++					 PCIE_RETAIL_FLL_LATCH);
++	}
+ }
+ 
+ /**
+@@ -1191,12 +1271,18 @@
+ 	airoha_phy_pma1_clear_bits(pcie_phy, REG_PCIE_PMA_SS_DA_XPON_PWDB0,
+ 				   PCIE_DA_XPON_CDR_PR_PWDB);
+ 
+-	usleep_range(100, 200);
++	if (pcie_phy->retail_rx_kflow)
++		usleep_range(10, 20);
++	else
++		usleep_range(100, 200);
+ 
+ 	airoha_phy_pma0_set_bits(pcie_phy, REG_PCIE_PMA_SS_DA_XPON_PWDB0,
+ 				 PCIE_DA_XPON_CDR_PR_PWDB);
+ 	airoha_phy_pma1_set_bits(pcie_phy, REG_PCIE_PMA_SS_DA_XPON_PWDB0,
+ 				 PCIE_DA_XPON_CDR_PR_PWDB);
++
++	if (pcie_phy->retail_rx_kflow)
++		usleep_range(100, 200);
+ 
+ 	/* Wait for the PCIe PHY to complete initialization before returning */
+ 	msleep(PHY_HW_INIT_TIME_MS);
+@@ -1274,6 +1360,8 @@
+ 				     "Failed to map Rx AEQ base\n");
+ 
+ 	pcie_phy->dev = dev;
++	pcie_phy->retail_rx_kflow = of_property_read_bool(dev->of_node,
++							"gemtek,xr1710g-retail-rx-kflow");
+ 	phy_set_drvdata(pcie_phy->phy, pcie_phy);
+ 
+ 	provider = devm_of_phy_provider_register(dev, of_phy_simple_xlate);
+--- a/drivers/phy/airoha/phy-airoha-pcie-regs.h
++++ b/drivers/phy/airoha/phy-airoha-pcie-regs.h
+@@ -346,6 +346,12 @@
+ 
+ #define REG_PCIE_PMA_SS_RX_SIGDET0		0x0168
+ #define PCIE_SIGDET_WIN_NONVLD_TIMES		GENMASK(28, 24)
++
++#define REG_PCIE_PMA_RETAIL_RX_IDAC		0x0174
++#define PCIE_RETAIL_RX_IDAC			GENMASK(10, 0)
++
++#define REG_PCIE_PMA_RETAIL_RX_KFLOW		0x019c
++#define PCIE_RETAIL_RX_KFLOW_EN			BIT(0)
+ 
+ #define REG_PCIE_PMA_TX_RESET			0x0260
+ #define PCIE_TX_TOP_RST				BIT(0)
+@@ -442,6 +448,7 @@
+ #define REG_PCIE_PMA_DIG_RESERVE_14		0x08c0
+ #define PCIE_FLL_IDAC_PCIEG3			GENMASK(10, 0)
+ #define PCIE_FLL_LOAD_EN			BIT(16)
++#define PCIE_RETAIL_FLL_LATCH			BIT(20)
+ 
+ #define REG_PCIE_PMA_FORCE_DA_PXP_RX_FE_GAIN_CTRL	0x088c
+ #define PCIE_FORCE_DA_PXP_RX_FE_GAIN_CTRL		GENMASK(1, 0)
+--- a/Documentation/devicetree/bindings/phy/airoha,en7581-pcie-phy.yaml
++++ b/Documentation/devicetree/bindings/phy/airoha,en7581-pcie-phy.yaml
+@@ -37,6 +37,12 @@
+   "#phy-cells":
+     const: 0
+ 
++  gemtek,xr1710g-retail-rx-kflow:
++    type: boolean
++    description:
++      Apply the RX calibration and result latching sequence used by the
++      Gemtek XR1710G retail firmware on the two-lane PCIe PHY.
++
+ required:
+   - compatible
+   - reg

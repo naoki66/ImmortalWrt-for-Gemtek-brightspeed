@@ -1,0 +1,95 @@
+{
+  "tested_source_commit": "4184aa261aac40c0364f867676e4339d4b5e4271",
+  "upstream_commit": "9a70b25731dc64822dcb24cf9a7dbe7a84ed1ba1",
+  "firmware_version": "20261116-B27-r22-upstream-glass-zhcn",
+  "build_steps": [
+    {
+      "step": "world",
+      "exit_code": 0
+    },
+    {
+      "step": "metadata-checksums",
+      "exit_code": 0
+    }
+  ],
+  "source_tests": [
+    {
+      "test": "interval-window-tests.py",
+      "exit_code": 0
+    },
+    {
+      "test": "stat-query-send-worker-tests.py",
+      "exit_code": 0
+    },
+    {
+      "test": "ppp-authfile-tests.py",
+      "exit_code": 0
+    },
+    {
+      "test": "ppp-discovery-tests.py",
+      "exit_code": 0
+    },
+    {
+      "test": "ap-mu-edca-tests.py",
+      "exit_code": 0
+    }
+  ],
+  "image_checks": [
+    {
+      "check": "finalize-candidate",
+      "exit_code": 0
+    },
+    {
+      "check": "verify-current-fixes",
+      "exit_code": 0
+    },
+    {
+      "check": "verify-theme-language",
+      "exit_code": 0
+    },
+    {
+      "check": "verify-factory-fix",
+      "exit_code": 0
+    },
+    {
+      "check": "verify-crypto",
+      "exit_code": 0
+    },
+    {
+      "check": "verify-proxy",
+      "exit_code": 0
+    }
+  ],
+  "source_roundtrip": {
+    "status": "PASS",
+    "upstream_commit": "9a70b25731dc64822dcb24cf9a7dbe7a84ed1ba1",
+    "commit": "4184aa261aac40c0364f867676e4339d4b5e4271",
+    "tree": "c5b8a485e57aa0ca7a756c1fc6128d50a935d5bd",
+    "upstream_is_ancestor": true,
+    "changes_from_delivered_r21": [
+      "README.md",
+      "configs/xr1710g-b27-r22.config",
+      "patches/feeds/app_airoha/luci-app-airoha-factory/101-sync-split-dsd-translation-template.patch"
+    ],
+    "all_existing_driver_system_sources_preserved": true,
+    "forward_apply_check": true,
+    "reverse_apply_check": true
+  },
+  "runtime_verified_for_r22": false,
+  "images": [
+    {
+      "image": "immortalwrt-naoki66-20261116-b27-r22-upstream-glass-zhcn-airoha-an7581-gemtek_xr1710g-squashfs-sysupgrade.itb",
+      "size": 78479683,
+      "sha256": "3c1d67e08eb9a0c056eee30a0c8d98cb4df06c6b003cdb860d6762e41bdd0cd6",
+      "supported_device": "gemtek,xr1710g",
+      "metadata_and_fit_check": "passed"
+    },
+    {
+      "image": "immortalwrt-naoki66-20261116-b27-r22-upstream-glass-zhcn-airoha-an7581-gemtek_xr1710g-ubi-squashfs-sysupgrade.itb",
+      "size": 78480385,
+      "sha256": "98adfa7ca773f2093909a8188c922a530f8a9ee914425d948d2763b47d495203",
+      "supported_device": "gemtek,xr1710g-ubi",
+      "metadata_and_fit_check": "passed"
+    }
+  ]
+}

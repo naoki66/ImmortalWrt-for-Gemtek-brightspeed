@@ -1,0 +1,38 @@
+Subject: mt7996: preserve the leading mt76 union with ADC diagnostics
+
+The local ADC patch inserted thermal_adc_debug ahead of the union marked
+"must be first". mt76_alloc_device() initializes hw->priv as mt76_dev;
+container_of(mdev, mt7996_dev, mt76) then subtracts the unexpected leading
+offset, pointing before the allocation. Keep telemetry after the union
+and assert the allocation contract at compile time.
+
+References: mt76 mac80211.c mt76_alloc_device(), mt7996/mmio.c
+mt7996_mmio_probe(), and upstream mt7996.h's leading union layout.
+---
+--- a/mt7996/mt7996.h
++++ b/mt7996/mt7996.h
+@@ -527,11 +527,12 @@
+ };
+ 
+ struct mt7996_dev {
+-	struct mt7996_thermal_adc_debug thermal_adc_debug;
+ 	union { /* must be first */
+ 		struct mt76_dev mt76;
+ 		struct mt76_phy mphy;
+ 	};
++
++	struct mt7996_thermal_adc_debug thermal_adc_debug;
+ 
+ 	struct mt7996_phy *radio_phy[MT7996_MAX_RADIOS];
+ 	struct wiphy_radio radios[MT7996_MAX_RADIOS];
+@@ -648,6 +649,10 @@
+ 
+ 	bool vow_atf_en;
+ };
++
++/* mt76_alloc_device() places mt76 at hw->priv, with no leading storage. */
++static_assert(offsetof(struct mt7996_dev, mt76) == 0);
++static_assert(offsetof(struct mt7996_dev, mphy) == 0);
+ 
+ enum {
+ 	WFDMA0 = 0x0,

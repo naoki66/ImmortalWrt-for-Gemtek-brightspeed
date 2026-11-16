@@ -1,0 +1,13 @@
+150-mt7996-retail-paired-tx-per.patch
+total: 0 errors, 0 warnings, 0 checks, 166 lines checked
+
+/home/builder/immortalwrt-B13/package/kernel/mt76/patches/150-mt7996-retail-paired-tx-per.patch has no obvious style problems and is ready for submission.
+
+NOTE: Ignored message types: FILE_PATH_CHANGES
+
+151-mt7996-retail-mcli-txop.patch
+total: 0 errors, 0 warnings, 0 checks, 150 lines checked
+
+/home/builder/immortalwrt-B13/package/kernel/mt76/patches/151-mt7996-retail-mcli-txop.patch has no obvious style problems and is ready for submission.
+
+NOTE: Ignored message types: FILE_PATH_CHANGES

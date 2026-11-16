@@ -1,0 +1,30 @@
+From: Dict Xiong <me@dxng.cn>
+Subject: [PATCH] wifi: mac80211: drop monitor-only decapsulated RX frames
+
+RX_FLAG_ONLY_MONITOR tells mac80211 not to process a frame on regular
+interfaces. Frames with RX_FLAG_8023 bypass ieee80211_rx_monitor(),
+including its ONLY_MONITOR check, and can therefore reach the Ethernet
+data path despite that flag. In particular, mt76 can set ONLY_MONITOR
+after rejecting a frame's packet number without clearing RX_FLAG_8023.
+
+Honor the flag before forwarding or delivering a decapsulated frame.
+The raw 802.11 monitor path is unchanged. This only fixes frames handled
+by mac80211; it does not deduplicate traffic forwarded entirely in
+hardware.
+
+Signed-off-by: Dict Xiong <me@dxng.cn>
+Assisted-by: Codex:GPT-6
+---
+--- a/net/mac80211/rx.c
++++ b/net/mac80211/rx.c
+@@ -5274,6 +5274,10 @@
+ 	rx.link_id = -1;
+ 
+ 	I802_DEBUG_INC(local->dot11ReceivedFragmentCount);
++
++	/* Decapsulated monitor-only frames must not enter the data path. */
++	if (unlikely(status->flag & RX_FLAG_ONLY_MONITOR))
++		goto drop;
+ 
+ 	/* drop frame if too short for header */
+ 	if (skb->len < sizeof(struct ethhdr))

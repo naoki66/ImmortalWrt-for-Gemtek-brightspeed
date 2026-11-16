@@ -1,0 +1,25 @@
+{
+  "passed": true,
+  "cases": 16384,
+  "instructions_interpreted": 400256,
+  "result_digest": "823812f52ababf0a2229f40d240013208b86013d18cf38de1812272aa4ca39bb",
+  "scope": "Whole decoded WA map_acm_up_to_ac function with logging disabled; actual firmware UP/AC tables; all 256 input priority bytes, 16 ACM masks, both QoS states for both samples",
+  "tables": {
+    "up_to_ac": [
+      1,
+      0,
+      0,
+      1,
+      2,
+      2,
+      3,
+      3
+    ],
+    "ac_to_up": [
+      1,
+      0,
+      5,
+      7
+    ]
+  }
+}

@@ -32,6 +32,11 @@
 	};
 };
 
+&npu_dma {
+	/* mt76 allocates its NPU rings, RRO and TXD buffers from here. */
+	size = <0x0 0x1000000>;
+};
+
 &npu {
 	memory-region = <&npu_binary>, <&npu_pkt>, <&npu_txpkt>,
 			<&npu_txbufid>, <&npu_ba>, <&npu_dma>;

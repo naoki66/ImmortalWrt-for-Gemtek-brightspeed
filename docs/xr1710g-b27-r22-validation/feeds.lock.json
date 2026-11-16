@@ -1,0 +1,22 @@
+[
+  {
+    "name": "app_airoha",
+    "commit": "9263b4a64c5a76e51e9cafc88b5df432feec5ed4"
+  },
+  {
+    "name": "luci",
+    "commit": "319f7c96e3530246cf91cfdd9bacb3fa44dc3a4e"
+  },
+  {
+    "name": "packages",
+    "commit": "1f3fd9d1ec3bdaa4b26f95ea49f4ce010aea539b"
+  },
+  {
+    "name": "routing",
+    "commit": "39c42d389e2871504bacd0a6e178977e8727643e"
+  },
+  {
+    "name": "telephony",
+    "commit": "9bcb6d71db03377ff49ccb099be763add9a5b059"
+  }
+]

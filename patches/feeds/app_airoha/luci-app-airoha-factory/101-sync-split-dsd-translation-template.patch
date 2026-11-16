@@ -1,0 +1,12 @@
+--- a/luci-app-airoha-factory/po/templates/luci-app-airoha-factory.pot
++++ b/luci-app-airoha-factory/po/templates/luci-app-airoha-factory.pot
+@@ -137,3 +137,9 @@
+ 
+ msgid "Reload render failed"
+ msgstr ""
++
++msgid "Factory data is read-only"
++msgstr ""
++
++msgid "Factory data is read from the separate DSD partition. This editor supports viewing only on this layout. No U-Boot upgrade is needed to read the serial number."
++msgstr ""

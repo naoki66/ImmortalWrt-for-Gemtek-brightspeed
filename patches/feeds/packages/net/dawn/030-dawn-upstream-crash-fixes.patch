@@ -1,0 +1,210 @@
+--- /dev/null
++++ b/net/dawn/patches/110-upstream-168286e4222d.patch
+@@ -0,0 +1,18 @@
++From: Ut0pia Yu <14101589+Jefferyu@users.noreply.github.com>
++Subject: [PATCH] ubus: reject beacon reports missing rcpi, rsni, or channel
++Origin: https://github.com/berlin-open-wireless-lab/DAWN/commit/168286e4222d4feba63d29680c061f0435ca3ea5
++
++--- a/src/utils/ubus.c
+++++ b/src/utils/ubus.c
++@@ -342,6 +342,11 @@ static probe_entry* parse_to_beacon_rep(struct blob_attr *msg) {
++ 
++     if (!tb[BEACON_REP_BSSID] ||
++         !tb[BEACON_REP_ADDR] ||
+++        /* Refused/incapable measurements may have no measurement body.
+++         * Validate every field below before using blobmsg_get_u16(). */
+++        !tb[BEACON_REP_RCPI] ||
+++        !tb[BEACON_REP_RSNI] ||
+++        !tb[BEACON_REP_CHANNEL] ||
++         hwaddr_aton(blobmsg_data(tb[BEACON_REP_BSSID]), msg_bssid.u8) ||
++         hwaddr_aton(blobmsg_data(tb[BEACON_REP_ADDR]), msg_client.u8))
++     {
+--- /dev/null
++++ b/net/dawn/patches/111-upstream-0a4ce31a5512.patch
+@@ -0,0 +1,89 @@
++From: Eneas U de Queiroz <cotequeiroz@gmail.com>
++Subject: [PATCH] iwinfo: deal with iwinfo_backends returning NULL
++Origin: https://github.com/berlin-open-wireless-lab/DAWN/commit/0a4ce31a55121d197d161f5df5be42c02807a1ba
++
++--- a/src/utils/dawn_iwinfo.c
+++++ b/src/utils/dawn_iwinfo.c
++@@ -40,6 +40,10 @@ int compare_essid_iwinfo(struct dawn_mac bssid_addr, struct dawn_mac bssid_addr_
++                 continue;
++ 
++             iw = iwinfo_backend(entry->d_name);
+++            if (iw == NULL) {
+++                iwinfo_finish();
+++                continue;
+++            }
++ 
++             // FIXME: Try to reduce string conversion and comparison here by using byte array compares
++             // TODO: Magic number
++@@ -118,7 +122,7 @@ int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rat
++ 
++         char buf[IWINFO_BUFSIZE];
++         int len;
++-        if (iw->assoclist(ifname, buf, &len) == 0 && len > 0)
+++        if (iw != NULL && iw->assoclist(ifname, buf, &len) == 0 && len > 0)
++         {
++             struct iwinfo_assoclist_entry* e = (struct iwinfo_assoclist_entry*)buf;
++             for (int i = 0; ret == 0 && i < len; i += sizeof(struct iwinfo_assoclist_entry)) {
++@@ -173,7 +177,7 @@ int get_rssi(const char *ifname, struct dawn_mac client_addr) {
++         return INT_MIN;
++     iw = iwinfo_backend(ifname);
++ 
++-    if (iw->assoclist(ifname, buf, &len)) {
+++    if (iw == NULL || iw->assoclist(ifname, buf, &len)) {
++         dawnlog_warning("No information available\n");
++         iwinfo_finish();
++         return INT_MIN;
++@@ -229,7 +233,7 @@ int get_expected_throughput(const char *ifname, struct dawn_mac client_addr) {
++         return INT_MIN;
++     iw = iwinfo_backend(ifname);
++ 
++-    if (iw->assoclist(ifname, buf, &len)) {
+++    if (iw == NULL || iw->assoclist(ifname, buf, &len)) {
++         dawnlog_warning("No information available\n");
++         iwinfo_finish();
++         return INT_MIN;
++@@ -260,7 +264,7 @@ int get_bssid(const char *ifname, uint8_t bssid_addr[]) {
++ 
++     static char buf[18] = { 0 };
++ 
++-    if (iw->bssid(ifname, buf))
+++    if (iw == NULL || iw->bssid(ifname, buf))
++         snprintf(buf, sizeof(buf), "00:00:00:00:00:00");
++ 
++     hwaddr_aton(buf,bssid_addr);
++@@ -275,7 +279,7 @@ int get_ssid(const char *ifname, char* ssid, size_t ssidmax) {
++     if (strcmp(ifname, "global") == 0)
++         return 0;
++     iw = iwinfo_backend(ifname);
++-    if (iw->ssid(ifname, buf))
+++    if (iw == NULL || iw->ssid(ifname, buf))
++         memset(buf, 0, sizeof(buf));
++ 
++     strncpy(ssid, buf, ssidmax);
++@@ -295,7 +299,7 @@ int get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uin
++     iw = iwinfo_backend(ifname);
++ 
++     int freq;
++-    if (iw->frequency(ifname, &freq))
+++    if (iw == NULL || iw->frequency(ifname, &freq))
++     {
++         iwinfo_finish();
++         return 0;
++@@ -343,7 +347,7 @@ int support_ht(const char *ifname) {
++     iw = iwinfo_backend(ifname);
++     int htmodes = 0;
++ 
++-    if (iw->htmodelist(ifname, &htmodes))
+++    if (iw == NULL || iw->htmodelist(ifname, &htmodes))
++     {
++         dawnlog_debug("No HT mode information available\n");
++         iwinfo_finish();
++@@ -363,7 +367,7 @@ int support_vht(const char *ifname) {
++     iw = iwinfo_backend(ifname);
++     int htmodes = 0;
++ 
++-    if (iw->htmodelist(ifname, &htmodes))
+++    if (iw == NULL || iw->htmodelist(ifname, &htmodes))
++     {
++         dawnlog_error("No VHT mode information available\n");
++         iwinfo_finish();
+--- /dev/null
++++ b/net/dawn/patches/112-upstream-1f8950067cb7.patch
+@@ -0,0 +1,65 @@
++From: Max Berger <max@berger.name>
++Subject: [PATCH] datastorage: prevent NPE in update_iw_info
++Origin: https://github.com/berlin-open-wireless-lab/DAWN/commit/1f8950067cb7913407cfddfc4f0fe92d2e70db4b
++
++--- a/src/storage/datastorage.c
+++++ b/src/storage/datastorage.c
++@@ -751,24 +751,29 @@ void update_iw_info(struct dawn_mac bssid_mac) {
++     dawn_mutex_require(&ap_array_mutex);
++     ap* this_ap = ap_array_get_ap(bssid_mac);
++ 
++-    dawnlog_trace("IW info update for AP " MACSTR "\n", MAC2STR(bssid_mac.u8));
++-
++-    // Go through clients for BSSID
++-    for (client* j = *client_find_first_bc_entry(bssid_mac, dawn_mac_null, false);
++-            j != NULL && mac_is_equal_bb(j->bssid_addr, bssid_mac); j = j->next_entry_bc) {
++-        // update rssi
++-        int rssi = get_rssi_iwinfo(j->client_addr);
++-        dawnlog_trace("Expected throughput %f Mbit/sec\n",
++-                iee80211_calculate_expected_throughput_mbit(get_expected_throughput_iwinfo(j->client_addr)));
++-
++-        if (rssi != INT_MIN) {
++-            if (probe_array_update_rssi(j->client_addr, this_ap, rssi, true) == NULL) {
++-                dawnlog_info("Failed to update rssi!\n");
++-            }
++-            else {
++-                dawnlog_trace("Updated rssi: %d\n", rssi);
+++    if (this_ap) {
+++        dawnlog_trace("IW info update for AP " MACSTR "\n", MAC2STR(bssid_mac.u8));
+++
+++        // Go through clients for BSSID
+++        for (client* j = *client_find_first_bc_entry(bssid_mac, dawn_mac_null, false);
+++                j != NULL && mac_is_equal_bb(j->bssid_addr, bssid_mac); j = j->next_entry_bc) {
+++            // update rssi
+++            int rssi = get_rssi_iwinfo(j->client_addr);
+++            dawnlog_trace("Expected throughput %f Mbit/sec\n",
+++                    iee80211_calculate_expected_throughput_mbit(get_expected_throughput_iwinfo(j->client_addr)));
+++
+++            if (rssi != INT_MIN) {
+++                if (probe_array_update_rssi(j->client_addr, this_ap, rssi, true) == NULL) {
+++                    dawnlog_info("Failed to update rssi!\n");
+++                }
+++                else {
+++                    dawnlog_trace("Updated rssi: %d\n", rssi);
+++                }
++             }
++         }
+++    } else {
+++        dawnlog_warning("IW info update: AP " MACSTR " not found in storage, skipping client update\n",
+++                MAC2STR(bssid_mac.u8));
++     }
++ 
++     dawnlog_trace("---------------------------\n");
++@@ -922,6 +927,12 @@ probe_entry* probe_array_update_rssi(struct dawn_mac client_addr, ap* connected_
++ {
++     dawnlog_debug_func("Entering...");
++ 
+++    if (!connected_ap) {
+++        dawnlog_error("probe_array_update_rssi called with NULL connected_ap for client " MACSTR "\n",
+++                      MAC2STR(client_addr.u8));
+++        return NULL;
+++    }
+++
++     dawn_mutex_require(&probe_array_mutex);
++     probe_entry* probe_req_new = dawn_malloc(sizeof(probe_entry));
++     probe_entry* probe_req_updated = NULL;
+--- /dev/null
++++ b/net/dawn/patches/113-upstream-fbe90b8bcb3e.patch
+@@ -0,0 +1,15 @@
++From: David Woodhouse <dwmw@amazon.co.uk>
++Subject: [PATCH] ubus: parse umdns browse table with the correct policy count
++Origin: https://github.com/berlin-open-wireless-lab/DAWN/commit/fbe90b8bcb3e1bcc2df5e8dcc4069d4c1f514c7c
++
++--- a/src/utils/ubus.c
+++++ b/src/utils/ubus.c
++@@ -1344,7 +1344,7 @@ static void ubus_umdns_cb(struct ubus_request *req, int type, struct blob_attr *
++     if (!msg)
++         return;
++ 
++-    blobmsg_parse(dawn_umdns_table_policy, __DAWN_UMDNS_MAX, tb, blob_data(msg), blob_len(msg));
+++    blobmsg_parse(dawn_umdns_table_policy, __DAWN_UMDNS_TABLE_MAX, tb, blob_data(msg), blob_len(msg));
++ 
++     if (!tb[DAWN_UMDNS_TABLE]) {
++         return;
+--- a/net/dawn/Makefile
++++ b/net/dawn/Makefile
+@@ -6,7 +6,7 @@
+ 
+ PKG_NAME:=dawn
+ PKG_SOURCE_DATE:=2026-06-10
+-PKG_RELEASE:=1
++PKG_RELEASE:=3
+ 
+ PKG_SOURCE_PROTO:=git
+ PKG_SOURCE_URL:=https://github.com/berlin-open-wireless-lab/DAWN.git

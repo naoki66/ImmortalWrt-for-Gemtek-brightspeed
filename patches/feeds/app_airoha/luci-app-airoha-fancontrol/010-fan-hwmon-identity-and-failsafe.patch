@@ -1,0 +1,129 @@
+Subject: fan: validate hardware and curves, seed auto from live temperature
+
+--- a/luci-app-airoha-fancontrol/root/etc/init.d/fan
++++ b/luci-app-airoha-fancontrol/root/etc/init.d/fan
+@@ -10,45 +10,102 @@
+ 			return
+ 		fi
+ 	done
+-	echo "/sys/class/hwmon/hwmon5"  # fallback
++	return 1
+ }
+ 
+-HWMON=$(find_nct7802)
++HWMON=
+ 
+-apply_curve() {
+-	local preset="$1"
+-	local temp pwm
++fan_write() {
++	printf '%s\n' "$2" > "$HWMON/$1"
++}
++
++fan_failsafe() {
++	fan_write pwm1_enable 1
++	fan_write pwm1 255
++	logger -t fan "Invalid fan configuration or hwmon write failed; requested full speed"
++	return 1
++}
++
++valid_uint() {
++	case "$1" in ''|*[!0-9]*|0[0-9]*) return 1;; esac
++	[ "${#1}" -le 3 ] && [ "$1" -le "$2" ]
++}
++
++validate_curve() {
++	local preset="$1" temp pwm prev_temp=-1 prev_pwm=-1 i
++	case "$preset" in quiet|balanced|performance|custom) ;; *) return 1;; esac
++	# Validate the complete curve before changing any table entry.
+ 	for i in 1 2 3 4 5; do
+-		temp=$(uci -q get fan.${preset}.point${i}_temp)
+-		pwm=$(uci -q get fan.${preset}.point${i}_pwm)
+-		if [ -n "$temp" ]; then
+-			echo $((temp * 1000)) > ${HWMON}/pwm1_auto_point${i}_temp 2>/dev/null
+-		fi
+-		if [ -n "$pwm" ] && [ "$i" -lt 5 ]; then
+-			echo "$pwm" > ${HWMON}/pwm1_auto_point${i}_pwm 2>/dev/null
++		temp=$(uci -q get "fan.${preset}.point${i}_temp")
++		valid_uint "$temp" 127 && [ "$temp" -gt "$prev_temp" ] || return 1
++		prev_temp=$temp
++		if [ "$i" -lt 5 ]; then
++			pwm=$(uci -q get "fan.${preset}.point${i}_pwm")
++			valid_uint "$pwm" 255 && [ "$pwm" -ge "$prev_pwm" ] || return 1
++			prev_pwm=$pwm
+ 		fi
+ 	done
+ }
+ 
++apply_curve() {
++	local preset="$1" temp pwm i
++	for i in 1 2 3 4 5; do
++		temp=$(uci -q get "fan.${preset}.point${i}_temp")
++		fan_write "pwm1_auto_point${i}_temp" "$((temp * 1000))" || return 1
++		if [ "$i" -lt 5 ]; then
++			pwm=$(uci -q get "fan.${preset}.point${i}_pwm")
++			fan_write "pwm1_auto_point${i}_pwm" "$pwm" || return 1
++		fi
++	done
++}
++
++# Seed SmartFan at a conservative upper curve point, rather than 255 on
++# every reload. NCT7802's default falling ramp is about one PWM count/s:
++# repeatedly seeding 255 makes a healthy auto mode look stuck at full speed.
++# This board's existing mapping uses RTD1; include local temperature too.
++# An invalid active sensor keeps the established full-speed fail-safe.
++auto_seed() {
++	local preset="$1" temp local_temp fault threshold pwm i
++	fault=$(cat "$HWMON/temp1_fault" 2>/dev/null) || return 1
++	[ "$fault" = 0 ] || return 1
++	temp=$(cat "$HWMON/temp1_input" 2>/dev/null) || return 1
++	local_temp=$(cat "$HWMON/temp4_input" 2>/dev/null) || return 1
++	case "$temp:$local_temp" in *[!0-9:]*|:*|*:) return 1;; esac
++	[ "${#temp}" -le 6 ] && [ "${#local_temp}" -le 6 ] || return 1
++	[ "$temp" -le 127000 ] && [ "$local_temp" -le 127000 ] || return 1
++	[ "$local_temp" -le "$temp" ] || temp=$local_temp
++	for i in 1 2 3 4; do
++		threshold=$(uci -q get "fan.${preset}.point${i}_temp")
++		if [ "$temp" -le "$((threshold * 1000))" ]; then
++			pwm=$(uci -q get "fan.${preset}.point${i}_pwm")
++			echo "$pwm"
++			return
++		fi
++	done
++	echo 255
++}
++
+ apply_settings() {
+-	local mode preset manual_pwm
+-	[ ! -d "$HWMON" ] && return 1
+-
++	local mode preset manual_pwm seed
++	HWMON=$(find_nct7802) || {
++		logger -t fan "NCT7802 not found; no hwmon fallback used"
++		return 1
++	}
+ 	mode=$(uci -q get fan.settings.mode)
+ 	preset=$(uci -q get fan.settings.curve_preset)
+ 	manual_pwm=$(uci -q get fan.settings.manual_pwm)
+ 
+-	# Disable auto mode temporarily to write settings
+-	echo 1 > ${HWMON}/pwm1_enable 2>/dev/null
+-
+ 	case "$mode" in
+ 		manual)
+-			[ -n "$manual_pwm" ] && echo "$manual_pwm" > ${HWMON}/pwm1 2>/dev/null
++			valid_uint "$manual_pwm" 255 && fan_write pwm1_enable 1 && fan_write pwm1 "$manual_pwm" || { fan_failsafe; return 1; }
+ 			;;
+-		auto|*)
+-			[ -n "$preset" ] && apply_curve "$preset"
+-			echo 2 > ${HWMON}/pwm1_enable 2>/dev/null
++		auto)
++			validate_curve "$preset" || { fan_failsafe; return 1; }
++			seed=$(auto_seed "$preset") || { fan_failsafe; return 1; }
++			fan_write pwm1_enable 1 && fan_write pwm1 "$seed" &&
++				apply_curve "$preset" && fan_write pwm1_enable 2 || { fan_failsafe; return 1; }
+ 			;;
++		*) fan_failsafe; return 1;;
+ 	esac
+ }
+ 

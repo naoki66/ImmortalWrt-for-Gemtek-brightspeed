@@ -1,0 +1,20 @@
+[
+  {
+    "reference": "stock_module",
+    "path": "/home/builder/stock-xr1710g-5.1.1.12/rootfs/lib/modules/5.4.55/rtk-ms-phy.ko",
+    "bytes": 119704,
+    "sha256": "4de464940e1a88ee7cadd66d8702a6413c20fc23669f39da8721cac6dfd98f1f"
+  },
+  {
+    "reference": "stock_kernel",
+    "path": "/mnt/f/openwrt/research/wifi6-public-references-20261108/stock-5.1.1.12-extracted/stock-kernel.uncompressed.bin",
+    "bytes": 12441608,
+    "sha256": "4b74cbb519a6eedf229b43c9c8bb7fbca2c56a1620cf9a8fdedbe364345f291e"
+  },
+  {
+    "reference": "stock_dts",
+    "path": "/mnt/f/openwrt/research/stock-pcie-gen3x2-20261111/stock-5.1.1.12.dts",
+    "bytes": 16151,
+    "sha256": "a62ee064adbc705aa5129797b52930adbef3508eb993364ce8d3bd2599c06cf6"
+  }
+]

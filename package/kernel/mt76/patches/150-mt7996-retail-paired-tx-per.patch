@@ -1,0 +1,195 @@
+Subject: mt7996: retain paired retail TX_STAT failure counters and PER
+
+Expose valid interval PER for later dynamic BA integration. Do not write
+WTBL or enable BA adaptation before hardware/lifecycle checks are complete.
+
+---
+--- a/mt7996/mcu.c
++++ b/mt7996/mcu.c
+@@ -1052,7 +1052,8 @@
+ 			wcid = mt76_wcid_ptr(dev, wlan_idx);
+ 			if (wcid)
+ 				mt7996_stock_event(dev, wcid, UNI_ALL_STA_TX_STAT,
+-					le32_to_cpu(res->tx_stat[i].attempts), 0);
++					le32_to_cpu(res->tx_stat[i].attempts),
++					le32_to_cpu(res->tx_stat[i].failed));
+ 			break;
+ 		case UNI_ALL_STA_TXRX_ADM_STAT:
+ 			wlan_idx = le16_to_cpu(res->adm_stat[i].wlan_idx);
+--- a/mt7996/mt7996.h
++++ b/mt7996/mt7996.h
+@@ -290,6 +290,8 @@
+ /* Raw firmware counters are protected by stock_stats_lock. */
+ struct mt7996_stock_stats {
+ 	u64 tx_bytes, rx_bytes;
++	u64 tx_attempts, tx_failed;
++	bool tx_stat_invalid;
+ 	u32 tx_msdu, rx_msdu, tx_mpdu;
+ 	u8 seen;
+ 	u32 epoch;
+@@ -298,6 +300,9 @@
+ 
+ struct mt7996_stock_average {
+ 	u64 tx_bytes, rx_bytes;
++	u64 tx_attempts, tx_failed;
++	u8 tx_per;
++	bool tx_per_valid;
+ 	u32 tx_msdu, rx_msdu, tx_mpdu;
+ };
+ 
+@@ -306,6 +311,10 @@
+ 	bool active;
+ 	bool ul;
+ 	bool near_far;
++	bool main_per_valid;
++	u8 main_per;
++	u16 main_wcid;
++	u64 main_attempts, main_failed;
+ 	u16 txop;
+ 	u16 average_tx_len;
+ 	u32 average_rx_len;
+--- a/mt7996/stock_policy.h
++++ b/mt7996/stock_policy.h
+@@ -36,6 +36,17 @@
+ 		if (v->valid & (1U << i))
+ 			return v->level[i];
+ 	return 0;
++}
++
++/* Use paired firmware TX_STAT counters, never TX-free retry accounting.
++ * Reject an empty or inconsistent interval instead of manufacturing PER=0.
++ */
++static inline bool mt7996_stock_per(u64 attempts, u64 failed, u8 *per)
++{
++	if (!attempts || failed > attempts || attempts > U64_MAX / 100)
++		return false;
++	*per = div64_u64(failed * 100, attempts);
++	return true;
+ }
+ 
+ static inline u64 mt7996_stock_ewma(u64 old, u64 sample)
+--- a/mt7996/stock_policy.c
++++ b/mt7996/stock_policy.c
+@@ -16,7 +16,9 @@
+ 	u8 ap_link, sta_link, main_link, current_link;
+ 	u16 ap_wcid, sta_wcid, main_wcid, current_wcid;
+ 	bool near_fast, near_slow;
+-	bool mlo, main_valid;
++	bool mlo, main_valid, main_per_valid;
++	u8 main_per;
++	u64 main_attempts, main_failed;
+ 	u64 ap_tx, ap_rx, sta_rx, main_bytes, main_tx;
+ 	u32 ap_packets, sta_packets, main_mpdu;
+ };
+@@ -33,7 +35,8 @@
+ 	struct mt7996_stock_stats *s;
+ 
+ 	if (!dev->stock_policy || !wcid->sta ||
+-	    test_bit(MT76_MCU_RESET, &dev->mphy.state))
++	    test_bit(MT76_MCU_RESET, &dev->mphy.state) ||
++	    test_bit(MT76_RESET, &dev->mphy.state))
+ 		return;
+ 	link = container_of(wcid, struct mt7996_sta_link, wcid);
+ 	s = &link->stock_stats;
+@@ -59,6 +62,9 @@
+ 		break;
+ 	case UNI_ALL_STA_TX_STAT:
+ 		s->tx_mpdu += tx;
++		s->tx_attempts += tx;
++		s->tx_failed += rx;
++		s->tx_stat_invalid |= rx > tx;
+ 		s->seen |= STOCK_MPDU;
+ 		dev->stock_events[2]++;
+ 		break;
+@@ -154,6 +160,11 @@
+ 		s.rx_msdu = div_u64((u64)s.rx_msdu * 1000, milliseconds);
+ 		s.tx_mpdu = div_u64((u64)s.tx_mpdu * 1000, milliseconds);
+ 		a = &sl->stock_avg;
++		a->tx_attempts = s.tx_attempts;
++		a->tx_failed = s.tx_failed;
++		a->tx_per = 0;
++		a->tx_per_valid = (s.seen & STOCK_MPDU) && !s.tx_stat_invalid &&
++			mt7996_stock_per(s.tx_attempts, s.tx_failed, &a->tx_per);
+ 		a->tx_bytes = mt7996_stock_ewma(a->tx_bytes, s.tx_bytes);
+ 		a->rx_bytes = mt7996_stock_ewma(a->rx_bytes, s.rx_bytes);
+ 		a->tx_msdu = mt7996_stock_ewma(a->tx_msdu, s.tx_msdu);
+@@ -169,6 +180,10 @@
+ 			b->main_tx = a->tx_bytes;
+ 			b->main_mpdu = a->tx_mpdu;
+ 			b->main_valid = s.seen & STOCK_MPDU;
++			b->main_per_valid = a->tx_per_valid;
++			b->main_per = a->tx_per;
++			b->main_attempts = a->tx_attempts;
++			b->main_failed = a->tx_failed;
+ 		}
+ 		if (vif->type == NL80211_IFTYPE_AP) {
+ 			if (!mt7996_stock_high_rate(a->tx_bytes, a->rx_bytes))
+@@ -259,6 +274,11 @@
+ 		mt7996_stock_vote_set(&votes, MT7996_STOCK_DEFAULT,
+ 				      MT7996_STOCK_BURST, true);
+ 		s->epoch = READ_ONCE(dev->stock_epoch);
++		s->main_wcid = b->main_wcid;
++		s->main_per = b->main_per;
++		s->main_per_valid = b->main_per_valid;
++		s->main_attempts = b->main_attempts;
++		s->main_failed = b->main_failed;
+ 		s->ul = false;
+ 		s->near_far = b->selected == vif && b->current_link == i &&
+ 			b->near_fast && b->near_slow;
+--- a/mt7996/debugfs.c
++++ b/mt7996/debugfs.c
+@@ -1401,13 +1401,17 @@
+ 	struct ieee80211_vif *vif = file->private_data;
+ 	struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
+ 	struct mt7996_phy *phy;
+-	char buf[1536];
++	char *buf;
++	ssize_t ret;
+ 	u64 events[3];
+ 	int i, len = 0;
+ 
+ 	phy = mt7996_vif_link_phy(&mvif->deflink);
+ 	if (!phy)
+ 		return -ENODEV;
++	buf = kzalloc(PAGE_SIZE, GFP_KERNEL);
++	if (!buf)
++		return -ENOMEM;
+ 	wiphy_lock(mt76_hw(phy->dev)->wiphy);
+ 	mutex_lock(&phy->dev->mt76.mutex);
+ 	for (i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++) {
+@@ -1415,25 +1419,31 @@
+ 
+ 		if (!link_conf_dereference_protected(vif, i))
+ 			continue;
+-		len += scnprintf(buf + len, sizeof(buf) - len,
++		len += scnprintf(buf + len, PAGE_SIZE - len,
+ 			"link=%d enabled=%u active=%u txop=%u ul=%u near_far=%u "
+ 			"avg_tx_len=%u avg_rx_len=%u updates=%llu failures=%llu error=%d\n",
+ 			i, s->enabled, s->active, s->txop, s->ul, s->near_far,
+ 			s->average_tx_len, s->average_rx_len,
+ 			s->updates, s->failures, s->error);
++		len += scnprintf(buf + len, PAGE_SIZE - len,
++			"band_main_wcid=%u per_valid=%u per=%u attempts=%llu failed=%llu\n",
++			s->main_wcid, s->main_per_valid, s->main_per,
++			s->main_attempts, s->main_failed);
+ 	}
+ 	spin_lock_bh(&phy->dev->stock_stats_lock);
+ 	memcpy(events, phy->dev->stock_events, sizeof(events));
+ 	spin_unlock_bh(&phy->dev->stock_stats_lock);
+-	len += scnprintf(buf + len, sizeof(buf) - len,
++	len += scnprintf(buf + len, PAGE_SIZE - len,
+ 			"events_bytes=%llu events_msdu=%llu events_mpdu=%llu\n",
+ 			events[0], events[1], events[2]);
+-	len += scnprintf(buf + len, sizeof(buf) - len,
++	len += scnprintf(buf + len, PAGE_SIZE - len,
+ 			"polls=%llu missing_samples=%llu\n",
+ 			phy->dev->stock_polls, phy->dev->stock_missing);
+ 	mutex_unlock(&phy->dev->mt76.mutex);
+ 	wiphy_unlock(mt76_hw(phy->dev)->wiphy);
+-	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
++	ret = simple_read_from_buffer(user_buf, count, ppos, buf, len);
++	kfree(buf);
++	return ret;
+ }
+ 
+ static ssize_t mt7996_stock_policy_write(struct file *file,

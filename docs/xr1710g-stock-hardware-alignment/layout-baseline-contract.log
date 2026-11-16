@@ -1,0 +1,26 @@
+In file included from /home/builder/immortalwrt-B13/staging_dir/target-aarch64_cortex-a53_musl/usr/include/mac80211-backport/linux/build_bug.h:4,
+                 from /home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/linux-6.18.60/include/linux/container_of.h:5,
+                 from /home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/linux-6.18.60/include/linux/kernel.h:22,
+                 from /home/builder/immortalwrt-B13/staging_dir/target-aarch64_cortex-a53_musl/usr/include/mac80211-backport/linux/kernel.h:3,
+                 from /home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/linux-6.18.60/include/linux/interrupt.h:6,
+                 from /home/builder/immortalwrt-B13/staging_dir/target-aarch64_cortex-a53_musl/usr/include/mac80211-backport/linux/interrupt.h:4,
+                 from /home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/mt76-2026.10.28~0936617d/mt7996/mt7996.h:9,
+                 from /mnt/f/openwrt/research/stock-hardware-alignment-20261111/layout-baseline-contract.c:1:
+/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/linux-6.18.60/include/linux/build_bug.h:78:41: error: static assertion failed: "offsetof(struct mt7996_dev, mt76) == 0"
+   78 | #define __static_assert(expr, msg, ...) _Static_assert(expr, msg)
+      |                                         ^~~~~~~~~~~~~~
+/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/linux-6.18.60/include/linux/build_bug.h:77:34: note: in expansion of macro '__static_assert'
+   77 | #define static_assert(expr, ...) __static_assert(expr, ##__VA_ARGS__, #expr)
+      |                                  ^~~~~~~~~~~~~~~
+/mnt/f/openwrt/research/stock-hardware-alignment-20261111/layout-baseline-contract.c:2:1: note: in expansion of macro 'static_assert'
+    2 | static_assert(offsetof(struct mt7996_dev, mt76) == 0);
+      | ^~~~~~~~~~~~~
+/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/linux-6.18.60/include/linux/build_bug.h:78:41: error: static assertion failed: "offsetof(struct mt7996_dev, mphy) == 0"
+   78 | #define __static_assert(expr, msg, ...) _Static_assert(expr, msg)
+      |                                         ^~~~~~~~~~~~~~
+/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/linux-6.18.60/include/linux/build_bug.h:77:34: note: in expansion of macro '__static_assert'
+   77 | #define static_assert(expr, ...) __static_assert(expr, ##__VA_ARGS__, #expr)
+      |                                  ^~~~~~~~~~~~~~~
+/mnt/f/openwrt/research/stock-hardware-alignment-20261111/layout-baseline-contract.c:3:1: note: in expansion of macro 'static_assert'
+    3 | static_assert(offsetof(struct mt7996_dev, mphy) == 0);
+      | ^~~~~~~~~~~~~

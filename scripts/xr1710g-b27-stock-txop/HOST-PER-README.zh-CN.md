@@ -1,0 +1,11 @@
+# 原厂 TX_STAT 失败计数与 PER 输入
+
+150补丁将现有固件TX_STAT报告中的failed字段传入调度器，与同份报告的attempts配对累计；按failed×100÷attempts计算区间PER。没有新增MCU查询，也没有写WTBL或启用动态BA。
+
+失败数大于尝试数、零尝试数、缺失MPDU报告及不合理区间均标为无效；合法的0% PER保留为有效。乘法前检查64位溢出。事件在MCU或设备reset期间不进入统计；epoch变化时清理旧累计。该处理不能识别固件在reset结束后迟到且无代号的旧报告，未声称解决这项协议限制。
+
+stock_txop_policy新增band_main_wcid、per_valid、per、attempts和failed，描述所在band主流量站的本次采样。缺失报告时不能把per=0单独当成无错误，必须先看per_valid。诊断读缓冲改为堆分配，避免扩大内核栈。
+
+参考：量产5.1.1.12 mt_wifi.ko SHA256 04c2b073664d471b6d557bfde46cc191f53303aeb3a0b29cacbe4a08d2e4ddf0；UniEventAllStaUnsolicitHandler:0xd6b24..0xd6b34。公开SDK辅助参考为benboguan/mt799x提交0e5bc821b821a30645404cb5584ad6cef6887474，chip/mcu/cmm_fw_uni_event.c:7460..7467。独立实现，未并入原厂模块或整份厂商源码。
+
+验证：实际事件函数和采样函数的ASAN/UBSAN测试通过；与151一起完成mt76模块构建。具体日志与整体限制见HOST-SCHEDULER-COMPLETION.zh-CN.md。150本身没有完成动态BA硬件执行部分，不能作为2.4GHz问题已修复的证据。

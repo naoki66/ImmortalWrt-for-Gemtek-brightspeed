@@ -1,0 +1,24 @@
+{
+  "boards": [
+    {
+      "board": "an7581-xr1710g",
+      "dtb_compile_before_after": "PASS",
+      "pre_id_reset_phy5_and_phy8": "PASS",
+      "assert_and_deassert_us": 200000,
+      "warnings_before": 12,
+      "warnings_after": 12,
+      "warnings_unchanged": true
+    },
+    {
+      "board": "an7581-gemtek-xr1710g-ubi",
+      "dtb_compile_before_after": "PASS",
+      "pre_id_reset_phy5_and_phy8": "PASS",
+      "assert_and_deassert_us": 200000,
+      "warnings_before": 11,
+      "warnings_after": 11,
+      "warnings_unchanged": true
+    }
+  ],
+  "patch_roundtrip": "PASS",
+  "git_diff_check": "PASS"
+}

@@ -1,0 +1,324 @@
+{# luci-theme-glass — Main page footer template #}
+{%
+  import { readfile, access } from 'fs';
+  import { cursor } from 'uci';
+  const glass_version = trim(readfile('/usr/share/ucode/luci/template/themes/glass/version')) ?? '?';
+  let glass_status_bar = '1';
+  let _cfg = cursor();
+  if (access('/etc/config/glass')) {
+    glass_status_bar = _cfg.get_first('glass', 'global', 'status_bar') ?? '1';
+  }
+%}
+{% if (!blank_page): %}
+    </div>
+  </div>
+</main>
+
+<footer class="glass-footer">
+  <span>GlassTheme v{{ glass_version }}</span>
+  <span class="footer-sep">|</span>
+  <a href="https://github.com/openwrt/luci" target="_blank" rel="noopener noreferrer">{{ version.luciname }} ({{ version.luciversion }})</a>
+  <span class="footer-sep">|</span>
+  <a href="{{ version.disturl }}" target="_blank" rel="noopener noreferrer">{{ version.distname }} {{ version.distversion }}</a>
+</footer>
+
+<script>
+  L.require('menu-glass');
+{% if (glass_status_bar == '1'): %}
+  L.require('status-glass');
+{% endif %}
+
+  if (history.scrollRestoration) history.scrollRestoration = 'manual';
+
+  (function() {
+    var toggle = document.getElementById('menu-toggle');
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    var mobile = window.matchMedia('(max-width: 1024px)');
+    if (!toggle || !sidebar || !overlay) return;
+
+    function setInert(value) {
+      if ('inert' in sidebar) sidebar.inert = value;
+      else if (value) sidebar.setAttribute('inert', '');
+      else sidebar.removeAttribute('inert');
+    }
+
+    function openSidebar() {
+      if (!mobile.matches) return;
+      sidebar.classList.add('open');
+      overlay.classList.add('active');
+      document.body.classList.add('sidebar-open');
+      toggle.setAttribute('aria-expanded', 'true');
+      sidebar.setAttribute('aria-hidden', 'false');
+      overlay.setAttribute('aria-hidden', 'false');
+      setInert(false);
+
+      requestAnimationFrame(function() {
+        var firstLink = sidebar.querySelector('a');
+        if (firstLink) firstLink.focus();
+      });
+    }
+
+    function closeSidebar(restoreFocus) {
+      sidebar.classList.remove('open');
+      overlay.classList.remove('active');
+      document.body.classList.remove('sidebar-open');
+      toggle.setAttribute('aria-expanded', 'false');
+      overlay.setAttribute('aria-hidden', 'true');
+
+      if (mobile.matches) {
+        sidebar.setAttribute('aria-hidden', 'true');
+        setInert(true);
+      } else {
+        sidebar.setAttribute('aria-hidden', 'false');
+        setInert(false);
+      }
+
+      if (restoreFocus) toggle.focus();
+    }
+
+    toggle.addEventListener('click', function() {
+      sidebar.classList.contains('open') ? closeSidebar(false) : openSidebar();
+    });
+
+    overlay.addEventListener('click', function() { closeSidebar(true); });
+    document.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Escape' && sidebar.classList.contains('open'))
+        closeSidebar(true);
+    });
+
+    function syncViewport() { closeSidebar(false); }
+    if (mobile.addEventListener) mobile.addEventListener('change', syncViewport);
+    else mobile.addListener(syncViewport);
+    syncViewport();
+  })();
+
+  /* Theme toggle — auto / light / dark cycle */
+  (function(){
+    var btn=document.getElementById('theme-toggle');
+    if(!btn)return;
+    var order=['auto','light','dark'];
+    var labels={
+      auto:btn.getAttribute('data-label-auto') || 'Auto (follow system)',
+      light:btn.getAttribute('data-label-light') || 'Light',
+      dark:btn.getAttribute('data-label-dark') || 'Dark'
+    };
+    var cur=document.documentElement.dataset.theme||'auto';
+    btn.title=labels[cur];btn.setAttribute('aria-label',labels[cur]);
+    btn.addEventListener('click',function(){
+      var cur=document.documentElement.dataset.theme||'auto';
+      var next=order[(order.indexOf(cur)+1)%3];
+      document.documentElement.dataset.theme=next;
+      try{localStorage.setItem('glass-theme',next)}catch(e){}
+      var d=document.getElementById('dark-styles'),m=document.getElementById('meta-theme-color');
+      if(next==='dark'){d.media='all';if(m)m.content='#2c2e3a'}
+      else if(next==='light'){d.media='not all';if(m)m.content='#f5f5f7'}
+      else{d.media='(prefers-color-scheme: dark)';if(m)m.content=window.matchMedia('(prefers-color-scheme: dark)').matches?'#2c2e3a':'#f5f5f7'}
+      btn.title=labels[next];btn.setAttribute('aria-label',labels[next]);
+    });
+    /* Update theme-color meta when OS changes in auto mode */
+    var colorScheme=window.matchMedia('(prefers-color-scheme: dark)');
+    var syncColorScheme=function(e){
+      if(document.documentElement.dataset.theme!=='auto')return;
+      var m=document.getElementById('meta-theme-color');
+      if(m)m.content=e.matches?'#2c2e3a':'#f5f5f7';
+    };
+    if(colorScheme.addEventListener)colorScheme.addEventListener('change',syncColorScheme);
+    else colorScheme.addListener(syncColorScheme);
+  })();
+
+  /* Avoid decoding an animated background while the page is hidden or the
+     browser/user selected a reduced-effects experience. */
+  (function() {
+    var video = document.querySelector('#bg-wrap video');
+    if (!video) return;
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    function syncVideo() {
+      var pause = document.hidden || reduceMotion.matches ||
+        document.documentElement.dataset.glassEffects === 'reduced';
+      if (pause) video.pause();
+      else {
+        var playback = video.play();
+        if (playback && playback.catch) playback.catch(function() {});
+      }
+    }
+
+    document.addEventListener('visibilitychange', syncVideo);
+    if (reduceMotion.addEventListener) reduceMotion.addEventListener('change', syncVideo);
+    else reduceMotion.addListener(syncVideo);
+    syncVideo();
+  })();
+
+  /* Move CBI tabmenus into sub-nav bar; attach descriptions as tooltips */
+  (function() {
+    var headerSub = document.getElementById('header-sub');
+    var headerTitle = document.getElementById('header-title');
+    var content = document.getElementById('maincontent');
+    if (!content) return;
+
+    var currentTabmenu = null;
+    var scheduledFrame = null;
+    var tabResizeObserver = null;
+    var tabResizeHandler = null;
+
+    function stopSliderTracking() {
+      if (tabResizeObserver) tabResizeObserver.disconnect();
+      if (tabResizeHandler) window.removeEventListener('resize', tabResizeHandler);
+      tabResizeObserver = null;
+      tabResizeHandler = null;
+    }
+
+    function positionSlider(slider) {
+      var active = headerSub.querySelector('.sub-tab.active');
+      if (!active) return;
+
+      slider.style.transition = 'none';
+      slider.style.left = active.offsetLeft + 'px';
+      slider.style.width = active.offsetWidth + 'px';
+      slider.style.opacity = '1';
+      requestAnimationFrame(function() { slider.style.transition = ''; });
+    }
+
+    function trackSlider(slider) {
+      stopSliderTracking();
+      if (window.ResizeObserver) {
+        tabResizeObserver = new ResizeObserver(function() { positionSlider(slider); });
+        tabResizeObserver.observe(headerSub);
+      } else {
+        tabResizeHandler = function() { positionSlider(slider); };
+        window.addEventListener('resize', tabResizeHandler);
+      }
+    }
+
+    function processContent() {
+      /* Attach page description as tooltip on header title */
+      if (headerTitle && !headerTitle.title) {
+        var descr = content.querySelector('.cbi-map-descr');
+        if (descr && !descr.dataset.moved) {
+          descr.dataset.moved = '1';
+          headerTitle.title = descr.textContent.trim();
+        }
+      }
+
+      /* Move top-level CBI tabmenus into sub-nav bar.
+         Skip if renderTabMenu already populated header-sub (menu-tree tabs).
+         Nested tabmenus (e.g. DNS Records sub-tabs inside a tab panel)
+         stay in-content so they don't get mixed with top-level tabs. */
+      if (!headerSub) return;
+      if (headerSub.dataset.source === 'menu') {
+        currentTabmenu = null;
+        stopSliderTracking();
+        return;
+      }
+
+      var tabmenu = content.querySelector('.cbi-tabmenu');
+      if (!tabmenu) {
+        if (currentTabmenu && !currentTabmenu.isConnected && headerSub.dataset.source === 'cbi') {
+          currentTabmenu = null;
+          stopSliderTracking();
+          headerSub.innerHTML = '';
+          delete headerSub.dataset.source;
+          headerSub.classList.remove('active');
+          document.body.classList.remove('has-sub-nav');
+        }
+        return;
+      }
+      if (tabmenu === currentTabmenu && headerSub.dataset.source === 'cbi') return;
+
+      /* Only move the first CBI tabmenu to sub-nav.
+         Any deeper tabmenus (e.g. DNS Records sub-tabs, dnsmasq section tabs)
+         stay in-content with glass styling. */
+      /* Skip rebuild if we're in the middle of a tab click */
+      if (headerSub._switching) return;
+
+      currentTabmenu = tabmenu;
+      stopSliderTracking();
+
+      /* Clear existing sub-tabs to prevent duplicates on re-render (Save & Apply) */
+      headerSub.innerHTML = '';
+      headerSub.dataset.source = 'cbi';
+      headerSub.classList.remove('active');
+      document.body.classList.remove('has-sub-nav');
+
+      /* Sliding selector for sub-tabs */
+      var slider = document.createElement('div');
+      slider.className = 'tab-slider';
+      headerSub.appendChild(slider);
+
+      var items = tabmenu.querySelectorAll('li');
+      items.forEach(function(li) {
+          var a = li.querySelector('a');
+          if (!a) return;
+          /* Skip hidden tabs (e.g. DNSSEC when not available) */
+          if (li.hidden || li.classList.contains('hidden') || li.style.display === 'none') return;
+          var tab = a.cloneNode(true);
+          tab.className = 'sub-tab' + (li.classList.contains('cbi-tab') ? ' active' : '');
+          if (li.classList.contains('cbi-tab')) tab.setAttribute('aria-current', 'page');
+          tab.addEventListener('click', function(ev) {
+            ev.preventDefault();
+            /* Guard: prevent MutationObserver from rebuilding during tab switch */
+            headerSub._switching = true;
+            a.click();
+            setTimeout(function() { headerSub._switching = false; }, 100);
+            headerSub.querySelectorAll('.sub-tab').forEach(function(t) {
+              t.classList.remove('active');
+              t.removeAttribute('aria-current');
+            });
+            tab.classList.add('active');
+            tab.setAttribute('aria-current', 'page');
+            /* Slide to clicked tab */
+            slider.style.left = tab.offsetLeft + 'px';
+            slider.style.width = tab.offsetWidth + 'px';
+            slider.style.opacity = '1';
+          });
+          headerSub.appendChild(tab);
+      });
+
+      tabmenu.style.display = 'none';
+
+      headerSub.classList.add('active');
+      document.body.classList.add('has-sub-nav');
+
+      /* Position slider on active sub-tab */
+      requestAnimationFrame(function() {
+        positionSlider(slider);
+        trackSlider(slider);
+      });
+    }
+
+    function mutationTouchesTabs(records) {
+      if (currentTabmenu && !currentTabmenu.isConnected)
+        return true;
+
+      for (var i = 0; i < records.length; i++) {
+        for (var j = 0; j < records[i].addedNodes.length; j++) {
+          var node = records[i].addedNodes[j];
+          if (node.nodeType !== 1) continue;
+          if (node.matches('.cbi-tabmenu, .cbi-map-descr') ||
+              node.querySelector('.cbi-tabmenu, .cbi-map-descr'))
+            return true;
+        }
+      }
+
+      return false;
+    }
+
+    function scheduleProcess() {
+      if (scheduledFrame != null) return;
+      scheduledFrame = requestAnimationFrame(function() {
+        scheduledFrame = null;
+        processContent();
+      });
+    }
+
+    processContent();
+    new MutationObserver(function(records) {
+      if (mutationTouchesTabs(records)) scheduleProcess();
+    }).observe(content, { childList: true, subtree: true });
+  })();
+</script>
+{% endif %}
+{% if (js): %}<script>{{ js }}</script>{% endif %}
+</body>
+</html>

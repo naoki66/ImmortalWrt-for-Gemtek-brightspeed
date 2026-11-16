@@ -1,0 +1,94 @@
+Subject: mt7996: read AP MU EDCA policy input from its beacon
+
+AP conf_tx parameters contain ordinary WMM settings with MU fields zeroed.
+Cache the configured BE MU timer on per-link beacon changes; retain the
+managed-station source. No firmware ABI or TXOP threshold changes.
+
+---
+--- a/mt7996/stock_policy.c
++++ b/mt7996/stock_policy.c
+@@ -30,6 +30,42 @@
+ 	struct mt7996_dev *dev;
+ 	struct mt7996_stock_band band[MT7996_MAX_RADIOS];
+ };
++
++/* AP MU EDCA is advertised in the beacon, not in AP conf_tx parameters. */
++void mt7996_stock_update_beacon(struct ieee80211_hw *hw,
++				struct ieee80211_vif *vif,
++				struct ieee80211_bss_conf *conf)
++{
++	struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
++	struct mt7996_vif_link_info *info = &mvif->link_info[conf->link_id];
++	const struct ieee80211_mu_edca_param_set *mu;
++	const struct element *elem;
++	struct sk_buff *skb;
++	unsigned int offset = offsetof(struct ieee80211_mgmt, u.beacon.variable);
++	bool enabled = false;
++
++	if (vif->type != NL80211_IFTYPE_AP)
++		return;
++	if (!conf->enable_beacon) {
++		info->stock_mu_edca = false;
++		return;
++	}
++
++	skb = ieee80211_beacon_get_template(hw, vif, NULL, conf->link_id);
++	/* Preserve the previous configuration after a transient allocation loss. */
++	if (!skb)
++		return;
++	if (skb->len >= offset) {
++		elem = cfg80211_find_ext_elem(WLAN_EID_EXT_HE_MU_EDCA,
++					      skb->data + offset, skb->len - offset);
++		if (elem && elem->datalen >= 1 + sizeof(*mu)) {
++			mu = (const void *)(elem->data + 1);
++			enabled = mu->ac_be.mu_edca_timer;
++		}
++	}
++	info->stock_mu_edca = enabled;
++	dev_kfree_skb(skb);
++}
+ 
+ void mt7996_stock_event(struct mt7996_dev *dev, struct mt76_wcid *wcid,
+ 			u16 tag, u64 tx, u64 rx)
+@@ -318,7 +354,10 @@
+ 		if (vif->type == NL80211_IFTYPE_AP && !conf->enable_beacon)
+ 			continue;
+ 		b = &scene->band[phy->mt76->band_idx];
+-		mu = mvif->link_info[i].queue_params[0].mu_edca_param_rec.mu_edca_timer;
++		if (vif->type == NL80211_IFTYPE_AP)
++			mu = mvif->link_info[i].stock_mu_edca;
++		else
++			mu = mvif->link_info[i].queue_params[0].mu_edca_param_rec.mu_edca_timer;
+ 		mt7996_stock_vote_set(&votes, MT7996_STOCK_DEFAULT,
+ 				      MT7996_STOCK_BURST, true);
+ 		s->epoch = READ_ONCE(dev->stock_epoch);
+--- a/mt7996/main.c
++++ b/mt7996/main.c
+@@ -1214,6 +1214,7 @@
+ 		link->mt76.beacon_rates_idx =
+ 			mt7996_get_rates_table(phy, info, true, false);
+ 
++		mt7996_stock_update_beacon(hw, vif, info);
+ 		mt7996_link_beacon_update(hw, vif, info, link, phy);
+ 	}
+ 
+--- a/mt7996/mt7996.h
++++ b/mt7996/mt7996.h
+@@ -403,6 +403,7 @@
+ 
+ struct mt7996_vif_link_info {
+ 	struct ieee80211_tx_queue_params queue_params[IEEE80211_NUM_ACS];
++	bool stock_mu_edca;
+ 	struct mt7996_stock_edca stock;
+ };
+ 
+@@ -1128,6 +1129,9 @@
+ void mt7996_mac_work(struct work_struct *work);
+ void mt7996_stock_ba_update(struct mt7996_dev *dev, struct mt7996_sta *msta,
+ 			    struct mt7996_sta_link *sl, bool enabled, bool sample);
++void mt7996_stock_update_beacon(struct ieee80211_hw *hw,
++				struct ieee80211_vif *vif,
++				struct ieee80211_bss_conf *conf);
+ void mt7996_stock_init(struct mt7996_dev *dev);
+ void mt7996_stock_add(struct mt7996_dev *dev, struct ieee80211_vif *vif);
+ void mt7996_stock_remove(struct mt7996_dev *dev);

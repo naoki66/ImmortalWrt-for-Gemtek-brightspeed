@@ -1,0 +1,3 @@
+config acceleration 'main'
+	option mode 'auto'
+	option protect_bundled_core '1'

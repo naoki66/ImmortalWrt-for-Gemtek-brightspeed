@@ -1,3 +1,4 @@
+From 3edfc0cbf7dc666a0b051b54f51634d6ff2a3be6 Mon Sep 17 00:00:00 2001
 From: Shayne Chen <shayne.chen@mediatek.com>
 Subject: [PATCH] wifi: mt76: mt7996: use irqsave on reg_lock to prevent AP panic
 
@@ -6,9 +7,9 @@ window (protected by dev->reg_lock) is accessed from hardirq context:
 spin_lock_bh does not disable hardirqs, so an interrupt can reenter the
 remap window mid-access. Use spin_lock_irqsave/irqrestore instead.
 
-Rebased onto OpenWrt mt76 pin be5ce791 (2026-09-01): upstream 69f26dbae7
-changed the addr test to INVALID_REG_ADDR. Original: gerrit 12465539
-(mtk-openwrt-feeds).
+Rebased onto OpenWrt mt76 pin be5ce791 (2026-09-01): upstream 69f26dbae7 changed the
+addr test to INVALID_REG_ADDR. Previously rebased onto b2704cf5 (2026-08-01); original MTK context
+was cut against an older base. Original: gerrit 12465539 (mtk-openwrt-feeds).
 
 Signed-off-by: Shayne Chen <shayne.chen@mediatek.com>
 ---

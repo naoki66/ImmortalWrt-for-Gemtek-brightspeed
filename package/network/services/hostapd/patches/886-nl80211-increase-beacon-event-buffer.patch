@@ -1,0 +1,35 @@
+From: XR1710G local build <xr1710g-build@localhost>
+Subject: [PATCH] nl80211: give beacon event sockets a bounded larger RX buffer
+
+Local mitigation based on observed hostapd netlink socket drops and the
+existing upstream buffer sizing rationale. Not an mt76/PCIe recovery fix.
+
+--- a/src/drivers/driver_nl80211.c
++++ b/src/drivers/driver_nl80211.c
+@@ -126,6 +126,9 @@
+ #define ELOOP_SOCKET_INVALID	(intptr_t) 0x88888889ULL
+ #endif
+ 
++static void nl80211_recv_beacons(int sock, void *eloop_ctx, void *handle);
++
++
+ static void nl80211_register_eloop_read(struct nl_sock **handle,
+ 					eloop_sock_handler handler,
+ 					void *eloop_data, int persist)
+@@ -138,8 +141,14 @@
+ 	 * this less likely to occur.
+ 	 */
+ 	int err;
+-
+-	err = nl_socket_set_buffer_size(*handle, 262144, 0);
++	/* Beacon delivery is shared across BSSes on a wiphy. A stalled event
++	 * loop can overflow the 256 KiB buffer even with ample system memory.
++	 * Keep the larger allowance bounded and local to this event socket;
++	 * SO_RCVBUF still observes the administrator's net.core.rmem_max.
++	 */
++	int rxbuf = handler == nl80211_recv_beacons ? 1048576 : 262144;
++
++	err = nl_socket_set_buffer_size(*handle, rxbuf, 0);
+ 	if (err < 0) {
+ 		wpa_printf(MSG_DEBUG,
+ 			   "nl80211: Could not set nl_socket RX buffer size: %s",

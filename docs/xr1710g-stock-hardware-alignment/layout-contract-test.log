@@ -1,0 +1,2 @@
+baseline: expected zero-offset assertion FAIL reproduced
+fixed: expected zero-offset assertion PASS

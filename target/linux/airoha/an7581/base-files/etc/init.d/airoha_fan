@@ -15,7 +15,17 @@ find_nct7802()
 			return
 		fi
 	done
-	echo "/sys/class/hwmon/hwmon5" # fallback
+	return 1
+}
+
+fan_write()
+{
+	if ! printf '%s\n' "$2" > "$hwmon/$1"; then
+		printf '%s\n' 1 > "$hwmon/pwm1_enable"
+		printf '%s\n' 255 > "$hwmon/pwm1"
+		logger -t airoha_fan "Fan setup failed at $1; requested full speed"
+		return 1
+	fi
 }
 
 boot()
@@ -24,26 +34,36 @@ boot()
 	gemtek,w1700k-ubi|\
 	gemtek,xr1710g|\
 	gemtek,xr1710g-ubi)
-		hwmon=$(find_nct7802)
+		# LuCI owns the persisted mode and curve when installed. Do not
+		# overwrite its setup later in the same START=99 boot sequence.
+		if [ -x /etc/init.d/fan ] && [ -s /etc/config/fan ]; then
+			/etc/init.d/fan start
+			return $?
+		fi
 
-		# Temporarily disable automatic fan control to configure curve
-		echo 1 > $hwmon/pwm1_enable
+		hwmon=$(find_nct7802) || {
+			logger -t airoha_fan "NCT7802 not found; fan setup skipped"
+			return 1
+		}
 
-		# Match trigger points from vendor firmware
-		echo 40000 > $hwmon/pwm1_auto_point1_temp
-		echo 50000 > $hwmon/pwm1_auto_point2_temp
-		echo 60000 > $hwmon/pwm1_auto_point3_temp
-		echo 70000 > $hwmon/pwm1_auto_point4_temp
-		echo 80000 > $hwmon/pwm1_auto_point5_temp
+		# Keep cooling active while configuring; fail to full speed on errors.
+		fan_write pwm1_enable 1 && fan_write pwm1 255 || return 1
 
-		# Match fan speed from vendor firmware
-		echo 54  > $hwmon/pwm1_auto_point1_pwm
-		echo 69  > $hwmon/pwm1_auto_point2_pwm
-		echo 95  > $hwmon/pwm1_auto_point3_pwm
-		echo 199 > $hwmon/pwm1_auto_point4_pwm
+		# Existing OpenWrt PWM policy; retail uses separate local/PHY/Wi-Fi curves.
+		fan_write pwm1_auto_point1_temp 40000 || return 1
+		fan_write pwm1_auto_point2_temp 50000 || return 1
+		fan_write pwm1_auto_point3_temp 60000 || return 1
+		fan_write pwm1_auto_point4_temp 70000 || return 1
+		fan_write pwm1_auto_point5_temp 80000 || return 1
+
+		# Preserve the existing PWM duty points (not retail RPM targets).
+		fan_write pwm1_auto_point1_pwm 54 || return 1
+		fan_write pwm1_auto_point2_pwm 69 || return 1
+		fan_write pwm1_auto_point3_pwm 95 || return 1
+		fan_write pwm1_auto_point4_pwm 199 || return 1
 
 		# Re-enable automatic fan control
-		echo 2 > $hwmon/pwm1_enable
+		fan_write pwm1_enable 2 || return 1
 		;;
 	esac
 }

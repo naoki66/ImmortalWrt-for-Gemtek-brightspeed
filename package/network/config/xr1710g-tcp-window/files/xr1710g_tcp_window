@@ -1,0 +1,5 @@
+config policy 'main'
+	option enabled '0'
+	option station_mac ''
+	option window '65536'
+	option interval '5'

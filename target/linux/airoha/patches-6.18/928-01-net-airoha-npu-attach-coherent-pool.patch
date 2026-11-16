@@ -29,6 +29,9 @@ bouncing) costs ~22% of host-path TX.
 A device coherent pool has no fallback once full; mt76 and the mailbox
 use ~10.7 MiB with MT7996, so the DT region should be 16 MiB.
 
+This patch was written with the help of Claude (Anthropic, claude-
+opus-5-5).
+
 Backported to 6.18 on top of the coherent-mailbox patch: the probe hunk
 inserts before the mailbox buffer allocation instead of before
 airoha_npu_run_firmware().
@@ -40,7 +43,6 @@ Signed-off-by: Chris Scott <gilroyscott1970@gmail.com>
 ---
 
 --- a/drivers/net/ethernet/airoha/airoha_npu.c
-+++ b/drivers/net/ethernet/airoha/airoha_npu.c
 @@ -717,6 +717,11 @@ static const struct regmap_config regmap
  	.disable_locking	= true,
  };
@@ -72,3 +74,4 @@ Signed-off-by: Chris Scott <gilroyscott1970@gmail.com>
 +
  	for (i = 0; i < ARRAY_SIZE(npu->cores); i++) {
  		struct airoha_npu_core *core = &npu->cores[i];
+ 

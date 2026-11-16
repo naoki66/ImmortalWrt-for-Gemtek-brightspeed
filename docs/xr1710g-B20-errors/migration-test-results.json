@@ -1,0 +1,62 @@
+[
+  {
+    "case": "PPPoE physical WAN corrected",
+    "passed": true,
+    "idempotent": true
+  },
+  {
+    "case": "DHCP untouched",
+    "passed": true,
+    "idempotent": true
+  },
+  {
+    "case": "explicit alternate IPv6 device preserved",
+    "passed": true,
+    "idempotent": true
+  },
+  {
+    "case": "already logical preserved",
+    "passed": true,
+    "idempotent": true
+  },
+  {
+    "case": "static IPv6 preserved",
+    "passed": true,
+    "idempotent": true
+  },
+  {
+    "case": "other board untouched",
+    "passed": true,
+    "idempotent": true
+  },
+  {
+    "case": "missing 2G htmode fixed only on 2G",
+    "passed": true,
+    "idempotent": true
+  },
+  {
+    "case": "existing HT20 preserved",
+    "passed": true,
+    "idempotent": true
+  },
+  {
+    "case": "existing HE40 preserved",
+    "passed": true,
+    "idempotent": true
+  },
+  {
+    "case": "existing HE20 preserved",
+    "passed": true,
+    "idempotent": true
+  },
+  {
+    "case": "existing NOHT preserved",
+    "passed": true,
+    "idempotent": true
+  },
+  {
+    "case": "other board wireless untouched",
+    "passed": true,
+    "idempotent": true
+  }
+]

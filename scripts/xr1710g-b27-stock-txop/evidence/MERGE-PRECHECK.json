@@ -1,0 +1,171 @@
+{
+  "type": "static_merge_precheck",
+  "base_commit": "84662bcccd3dc8be23ff85e8c9c26ad8ed3e504f",
+  "driver_modified": false,
+  "router_accessed": false,
+  "overall_merge_ready": false,
+  "checks": [
+    {
+      "name": "tx_stat ABI includes attempts and failed",
+      "source": "/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/mt76-2026.10.28~0936617d/mt7996/mcu.h",
+      "sha256": "0e968ccb57c51e9f2616666aa619c864f66a98d33e8e1316474ccee9e33bf79a",
+      "matches": [
+        {
+          "line": 253,
+          "context": [
+            "\t\t/* ALL_STA_INFO tag 1, same 12-byte ABI as retail 5.1.1.12. */",
+            "\t\tDECLARE_FLEX_ARRAY(struct {",
+            "\t\t\t__le16 wlan_idx;",
+            "\t\t\tu8 rsv[2];",
+            "\t\t\t__le32 attempts;",
+            "\t\t\t__le32 failed;",
+            "\t\t} __packed, tx_stat);",
+            "\t\tDECLARE_FLEX_ARRAY(struct {"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "B27 scheduler receives no failure count",
+      "source": "/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/mt76-2026.10.28~0936617d/mt7996/mcu.c",
+      "sha256": "3c9ffbbef44355a339c4529f0f9a9be1b94a36093a3e72efcc7a46c39bb7aa9d",
+      "matches": [
+        {
+          "line": 1055,
+          "context": [
+            "\t\t\twlan_idx = le16_to_cpu(res->tx_stat[i].wlan_idx);",
+            "\t\t\twcid = mt76_wcid_ptr(dev, wlan_idx);",
+            "\t\t\tif (wcid)",
+            "\t\t\t\tmt7996_stock_event(dev, wcid, UNI_ALL_STA_TX_STAT,",
+            "\t\t\t\t\tle32_to_cpu(res->tx_stat[i].attempts), 0);",
+            "\t\t\tbreak;"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "scheduler TX_STAT stores attempts only",
+      "source": "/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/mt76-2026.10.28~0936617d/mt7996/stock_policy.c",
+      "sha256": "f89eb2c0cf3ece003a19c0b6f3864626ad18e564b3040f2a35afa119d3b72d71",
+      "matches": [
+        {
+          "line": 60,
+          "context": [
+            "\tcase UNI_ALL_STA_TX_STAT:",
+            "\t\ts->tx_mpdu += tx;",
+            "\t\ts->seen |= STOCK_MPDU;",
+            "\t\tdev->stock_events[2]++;",
+            "\t\tbreak;",
+            "\t}"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "current VOW table intentionally scales mac80211 weights",
+      "source": "/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/mt76-2026.10.28~0936617d/mt76_connac.h",
+      "sha256": "fc15c5f36a5a62d354bb2420044c3d7a02b87aaeb1a0a15696a5be062e027c4e",
+      "matches": [
+        {
+          "line": 92,
+          "context": [
+            "/* Per-level DRR airtime quantum (unit: 256us). Halved from the hardware's",
+            " * default assignment so that scaling down from the mac80211-provided airtime",
+            " * weight maps onto the available levels.",
+            " */",
+            "#define VOW_DRR_QUANTUM_TABLE\t{ 3, 6, 8, 10, 12, 14, 16, 18 }"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "current VOW index centred on weight 256",
+      "source": "/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/mt76-2026.10.28~0936617d/mt76_connac.h",
+      "sha256": "fc15c5f36a5a62d354bb2420044c3d7a02b87aaeb1a0a15696a5be062e027c4e",
+      "matches": [
+        {
+          "line": 142,
+          "context": [
+            "\tidx = 3 + ilog2(w) - ilog2(IEEE80211_DEFAULT_AIRTIME_WEIGHT);",
+            "",
+            "\treturn clamp(idx, 0, VOW_DRR_QUANTUM_NUM - 1);",
+            "}"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "current VOW WATF and ATF are coupled",
+      "source": "/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/mt76-2026.10.28~0936617d/mt7996/mcu.c",
+      "sha256": "3c9ffbbef44355a339c4529f0f9a9be1b94a36093a3e72efcc7a46c39bb7aa9d",
+      "matches": [
+        {
+          "line": 3236,
+          "context": [
+            "\tif (atf_en)",
+            "\t\tctrl |= VOW_FEATURE_WATF_EN | VOW_FEATURE_ATF_EN;"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RED disabled at MCU initialization",
+      "source": "/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/mt76-2026.10.28~0936617d/mt7996/mcu.c",
+      "sha256": "3c9ffbbef44355a339c4529f0f9a9be1b94a36093a3e72efcc7a46c39bb7aa9d",
+      "matches": [
+        {
+          "line": 4559,
+          "context": [
+            "\treturn mt7996_mcu_wa_cmd(dev, MCU_WA_PARAM_CMD(SET),",
+            "\t\t\t\t MCU_WA_PARAM_RED, 0, 0);"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "WTBL group selection is shared",
+      "source": "/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/mt76-2026.10.28~0936617d/mt7996/mac.c",
+      "sha256": "52a2d60d14ff11141e4ce8d8da96e5ade112ed3e70f33dca8ce468806ace1754",
+      "matches": [
+        {
+          "line": 67,
+          "context": [
+            "u32 mt7996_mac_wtbl_lmac_addr(struct mt7996_dev *dev, u16 wcid, u8 dw)",
+            "{",
+            "\tmt76_wr(dev, MT_WTBLON_TOP_WDUCR,",
+            "\t\tFIELD_PREP(MT_WTBLON_TOP_WDUCR_GROUP, (wcid >> 7)));",
+            "",
+            "\treturn MT_WTBL_LMAC_OFFS(wcid, dw);",
+            "}"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "retail PER arithmetic",
+      "source_module_sha256": "04c2b073664d471b6d557bfde46cc191f53303aeb3a0b29cacbe4a08d2e4ddf0",
+      "function": "UniEventAllStaUnsolicitHandler",
+      "matches": [
+        {
+          "context": [
+            "   d6b20:\t17ffff18 \tb\td6780 <UniEventAllStaUnsolicitHandler+0x380>",
+            "   d6b24:\tb9400a60 \tldr\tw0, [x19, #8]",
+            "   d6b28:\t52800c85 \tmov\tw5, #0x64                  \t// #100",
+            "   d6b2c:\t1b057c00 \tmul\tw0, w0, w5",
+            "   d6b30:\t1ac30800 \tudiv\tw0, w0, w3",
+            "   d6b34:\tb91f0020 \tstr\tw0, [x1, #7936]",
+            "   d6b38:\t17ffff6b \tb\td68e4 <UniEventAllStaUnsolicitHandler+0x4e4>"
+          ]
+        }
+      ],
+      "interpretation": "32-bit multiply failed by 100, divide by attempts; caller checks nonzero attempts"
+    }
+  ],
+  "unresolved": [
+    "dynamic BA statistics, index mapping, lifecycle and WTBL concurrency",
+    "MCLI classification and independent priority vote integration",
+    "VOW weight semantics, WATF initialization and feature/restore mapping",
+    "RED event routing and WA ACM resource accounting",
+    "WM/WA encrypted internal scheduler equivalence"
+  ]
+}

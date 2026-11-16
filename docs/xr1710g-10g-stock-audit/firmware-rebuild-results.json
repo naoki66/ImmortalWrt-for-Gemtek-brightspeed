@@ -1,0 +1,26 @@
+[
+  {
+    "file": "rtl8261n.bin",
+    "bytes": 14370,
+    "operations": 1437,
+    "sha256": "ae1963b2a84a17eaa2fb9052591bdb5152838feda045d7313f45a8608b918533",
+    "reproduces_current_binary": true,
+    "bit_ranges_valid": true
+  },
+  {
+    "file": "rtl8261n_lp.bin",
+    "bytes": 23080,
+    "operations": 2308,
+    "sha256": "7668c6da144f5f2407fbac010f39eee6102b70cb6532e33536ebd027d82ae2d5",
+    "reproduces_current_binary": true,
+    "bit_ranges_valid": true
+  },
+  {
+    "file": "rtl8264b.bin",
+    "bytes": 21700,
+    "operations": 2170,
+    "sha256": "7a0bcf605739d6f780e0799bbea0c73acf56c9a4cbba015da5d27589bf4352ca",
+    "reproduces_current_binary": true,
+    "bit_ranges_valid": true
+  }
+]

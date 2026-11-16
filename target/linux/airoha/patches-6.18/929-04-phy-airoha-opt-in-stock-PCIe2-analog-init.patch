@@ -1,0 +1,87 @@
+--- a/drivers/phy/airoha/phy-airoha-usb.c
++++ b/drivers/phy/airoha/phy-airoha-usb.c
+@@ -149,6 +149,7 @@
+ 
+ 	unsigned int monclk_sel;
+ 	unsigned int serdes_port;
++	bool pcie_analog_init;
+ 
+ 	struct airoha_usb_phy_instance *phys[AIROHA_PHY_USB_MAX];
+ };
+@@ -277,6 +278,54 @@
+ 			   FIELD_PREP(AIROHA_USB_PHY_SSUSB_PLL_SSC_DELTA1_U3, 0x43));
+ }
+ 
++/* XR1710G stock PCIe2 analog setup, kept separate from USB3 SSC/reset. */
++static int airoha_usb_phy_pcie_init(struct airoha_usb_phy_priv *priv)
++{
++	unsigned int b20, b18, b00, b04;
++	int ret;
++
++	ret = regmap_update_bits(priv->regmap, AIROHA_USB_PHY_U3_PHYA_REG8,
++				 AIROHA_USB_PHY_SSUSB_CDR_RST_DLY,
++				 AIROHA_USB_PHY_SSUSB_CDR_RST_DLY_32);
++	if (ret)
++		return ret;
++
++	ret = regmap_update_bits(priv->regmap, AIROHA_USB_PHY_U3_PHYA_REG6,
++				 AIROHA_USB_PHY_SSUSB_CDR_RESERVE,
++				 FIELD_PREP(AIROHA_USB_PHY_SSUSB_CDR_RESERVE, 0xe));
++	if (ret)
++		return ret;
++
++	ret = regmap_update_bits(priv->regmap, AIROHA_USB_PHY_U3_PHYA_REG0,
++				 AIROHA_USB_PHY_SSUSB_BG_DIV,
++				 AIROHA_USB_PHY_SSUSB_BG_DIV_4);
++	if (ret)
++		return ret;
++
++	ret = regmap_set_bits(priv->regmap, AIROHA_USB_PHY_U3_PHYA_REG1,
++			      FIELD_PREP(AIROHA_USB_PHY_SSUSB_XTAL_TOP_RESERVE, 0x600));
++	if (ret)
++		return ret;
++
++	ret = regmap_read(priv->regmap, AIROHA_USB_PHY_U3_PHYA_REG8, &b20);
++	if (ret)
++		return ret;
++	ret = regmap_read(priv->regmap, AIROHA_USB_PHY_U3_PHYA_REG6, &b18);
++	if (ret)
++		return ret;
++	ret = regmap_read(priv->regmap, AIROHA_USB_PHY_U3_PHYA_REG0, &b00);
++	if (ret)
++		return ret;
++	ret = regmap_read(priv->regmap, AIROHA_USB_PHY_U3_PHYA_REG1, &b04);
++	if (ret)
++		return ret;
++
++	dev_info(priv->dev,
++		 "PCIe2 stock analog init: b20=%#x b18=%#x b00=%#x b04=%#x\n",
++		 b20, b18, b00, b04);
++	return 0;
++}
++
+ static int airoha_usb_phy_init(struct phy *phy)
+ {
+ 	struct airoha_usb_phy_instance *instance = phy_get_drvdata(phy);
+@@ -287,8 +336,11 @@
+ 		airoha_usb_phy_u2_init(priv);
+ 		break;
+ 	case PHY_TYPE_USB3:
+-		if (phy_get_mode(phy) == PHY_MODE_PCIE)
++		if (phy_get_mode(phy) == PHY_MODE_PCIE) {
++			if (priv->pcie_analog_init)
++				return airoha_usb_phy_pcie_init(priv);
+ 			return 0;
++		}
+ 
+ 		airoha_usb_phy_u3_init(priv);
+ 		break;
+@@ -539,6 +591,8 @@
+ 		return -ENOMEM;
+ 
+ 	priv->dev = dev;
++	priv->pcie_analog_init = of_property_read_bool(dev->of_node,
++						    "airoha,pcie-analog-init");
+ 
+ 	ret = of_property_read_u32(dev->of_node, "airoha,usb2-monitor-clk-sel",
+ 				   &priv->monclk_sel);

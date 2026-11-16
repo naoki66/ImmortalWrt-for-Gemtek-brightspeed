@@ -1,0 +1,77 @@
+#!/bin/sh
+# IPv4 router-local TCP window workaround for one explicitly selected station.
+# Does not rewrite forwarded TCP packets or set a bandwidth rate.
+set -u
+PROTO=242
+METRIC=42721
+LAN=br-lan
+D=''
+owned_routes() {
+ ip -4 route show proto "$PROTO" dev "$LAN" 2>/dev/null |
+ awk -v metric="$METRIC" '{ for (i=1;i<NF;i++) if ($i=="metric" && $(i+1)==metric) print $1 }'
+}
+cleanup() {
+ for prefix in $(owned_routes); do
+  ip -4 route del "$prefix" dev "$LAN" proto "$PROTO" metric "$METRIC" 2>/dev/null || true
+ done
+ [ -z "$D" ] || rm -f "$D/radios" "$D/desired" "$D/station"
+ [ -z "$D" ] || rmdir "$D" 2>/dev/null || true
+}
+case "$(cat /tmp/sysinfo/board_name 2>/dev/null)" in
+ gemtek,xr1710g|gemtek,xr1710g-ubi) ;;
+ *) exit 0 ;;
+esac
+[ "$(uci -q get xr1710g_tcp_window.main.enabled)" = 1 ] || exit 0
+MAC=$(uci -q get xr1710g_tcp_window.main.station_mac | tr A-F a-f)
+printf '%s\n' "$MAC" | grep -Eq '^([0-9a-f]{2}:){5}[0-9a-f]{2}$' || exit 1
+WINDOW=$(uci -q get xr1710g_tcp_window.main.window || echo 65536)
+INTERVAL=$(uci -q get xr1710g_tcp_window.main.interval || echo 5)
+case "$WINDOW:$INTERVAL" in *[!0-9:]*|:*|*:) exit 1;; esac
+[ "$WINDOW" -ge 32768 ] && [ "$WINDOW" -le 1048576 ] || exit 1
+[ "$INTERVAL" -ge 1 ] && [ "$INTERVAL" -le 60 ] || exit 1
+LAN=$(uci -q get network.lan.device || echo br-lan)
+case "$LAN" in ''|*[!a-zA-Z0-9_.:-]*) exit 1;; esac
+D=$(mktemp -d /tmp/xr-tcp-window.XXXXXX) || exit 1
+trap 'exit 0' INT TERM
+trap cleanup EXIT
+sync_routes() {
+ : > "$D/desired"
+ iw dev 2>/dev/null | awk '
+ $1=="Interface" {iface=$2;ap=0}
+ $1=="type" {ap=($2=="AP")}
+ $1=="channel" && ap {f=$3;gsub(/[^0-9]/,"",f); if(f>=2400&&f<=2500) print iface,"slow"; else if(f>=4900) print iface,"fast"}
+ ' > "$D/radios"
+ slow=0
+ fast=0
+ while read -r iface band; do
+  [ -n "$iface" ] || continue
+  iw dev "$iface" station get "$MAC" > "$D/station" 2>/dev/null || continue
+  grep -Eq 'associated:[[:space:]]+yes' "$D/station" || continue
+  if [ "$band" = slow ]; then slow=1; else fast=1; fi
+ done < "$D/radios"
+ if [ "$slow" = 1 ] && [ "$fast" = 0 ]; then
+  ip -4 neigh show dev "$LAN" 2>/dev/null |
+   awk -v mac="$MAC" '{for(i=1;i<NF;i++)if($i=="lladdr"&&tolower($(i+1))==mac)print $1"/32"}' |
+   sort -u > "$D/desired"
+ fi
+ for prefix in $(owned_routes); do
+  grep -Fxq "$prefix" "$D/desired" && continue
+  ip -4 route del "$prefix" dev "$LAN" proto "$PROTO" metric "$METRIC" 2>/dev/null || true
+ done
+ while read -r prefix; do
+  [ -n "$prefix" ] || continue
+  existing=$(ip -4 route show exact "$prefix" 2>/dev/null)
+  # Never replace an administrator's host route.
+  if [ -n "$existing" ]; then
+   printf '%s\n' "$existing" | grep -Eq "proto $PROTO([[:space:]]|$)" || continue
+   printf '%s\n' "$existing" | grep -Eq "metric $METRIC([[:space:]]|$)" || continue
+   continue
+  fi
+  ip -4 route add "$prefix" dev "$LAN" scope link proto "$PROTO" metric "$METRIC" window "$WINDOW" 2>/dev/null || continue
+  logger -t xr-tcp-window "Applied IPv4 local TCP receive window $WINDOW for selected 2.4GHz station at $prefix"
+ done < "$D/desired"
+}
+while :; do
+ sync_routes
+ sleep "$INTERVAL"
+done

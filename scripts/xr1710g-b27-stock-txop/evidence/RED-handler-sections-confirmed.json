@@ -1,0 +1,17 @@
+{
+  "section23": ".eh_frame",
+  "handler_start": "0xcdac4",
+  "handler_end": "0xcddc8",
+  "references_to_any_handler_instruction": [
+    {
+      "section": 23,
+      "offset": 116228,
+      "type": 261,
+      "target": "",
+      "target_section": 2,
+      "addend": 842436,
+      "owner": null,
+      "source_section_name": ".eh_frame"
+    }
+  ]
+}

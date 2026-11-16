@@ -1,0 +1,12 @@
+[
+  {
+    "board": "an7581-xr1710g",
+    "warning_lines": 12,
+    "warnings_unchanged": true
+  },
+  {
+    "board": "an7581-gemtek-xr1710g-ubi",
+    "warning_lines": 11,
+    "warnings_unchanged": true
+  }
+]

@@ -1,0 +1,118 @@
+[
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/benboguan/common/performance/cmm_peak_adjust.c",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/common/performance/cmm_peak_adjust.c",
+    "sha256": "3b978741b0d7d000b1836d2f7aab3f59c34362c7f7c999ca2250c068f7b19dab",
+    "bytes": 18174
+  },
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/benboguan/ap/ap.c",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/ap/ap.c",
+    "sha256": "3b6a3c2271953ed26d6a6dcfe91ce75f525983a11e47cf045eeff3621618cc8f",
+    "bytes": 306383
+  },
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/benboguan/common/rtmp_init.c",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/common/rtmp_init.c",
+    "sha256": "02fdec341be3f5a3498fec8450860c571b577a88ac9d082e5620aca996368cd3",
+    "bytes": 64487
+  },
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/benboguan/include/mlme.h",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/include/mlme.h",
+    "sha256": "70ef5f563948a168f3488b7c816f79bb6d524a59d174dc130a79909657d89113",
+    "bytes": 67629
+  },
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/benboguan/include/rtmp.h",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/include/rtmp.h",
+    "sha256": "d4dd596ab5c9e513dde0dc2e1e760cda985ac5bf4ea08fc876254377b7caf017",
+    "bytes": 398354
+  },
+  {
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/chips/mt7990.c",
+    "error": "HTTP Error 404: Not Found"
+  },
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/benboguan/common/cmm_data.c",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/common/cmm_data.c",
+    "sha256": "3866ded4eef769329149234a0c9def1a735c4764d704c191ce15e8e796d32206",
+    "bytes": 224598
+  },
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/benboguan/common/cmm_cfg.c",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/common/cmm_cfg.c",
+    "sha256": "d84899f5553d30d95e38e530bb8a38dc333337c75e279785a21c0db878ce3338",
+    "bytes": 401525
+  },
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/benboguan/hw_ctrl/hw_ctrl_basic.c",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/hw_ctrl/hw_ctrl_basic.c",
+    "sha256": "8864371e131970d32e72e0f5e9e1d4b003cdd84e02a48284f66499ffa8473af6",
+    "bytes": 22442
+  },
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/benboguan/include/rtmp_chip.h",
+    "url": "https://raw.githubusercontent.com/benboguan/mt799x/0e5bc821b821a30645404cb5584ad6cef6887474/mt_wifi/include/rtmp_chip.h",
+    "sha256": "fea55ae21bce3a8de74f1f94dcb1d1faf0e3227acad88c61973ef368aee06dab",
+    "bytes": 6129
+  },
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/airoha/common/performance/cmm_peak_adjust.c",
+    "url": "https://raw.githubusercontent.com/Sirherobrine23/airoha_sdk_wireless/828414b3db0af4ada1ddf086c9a13e3b57ce626d/mt_wifi/common/performance/cmm_peak_adjust.c",
+    "sha256": "3b978741b0d7d000b1836d2f7aab3f59c34362c7f7c999ca2250c068f7b19dab",
+    "bytes": 18174
+  },
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/airoha/ap/ap.c",
+    "url": "https://raw.githubusercontent.com/Sirherobrine23/airoha_sdk_wireless/828414b3db0af4ada1ddf086c9a13e3b57ce626d/mt_wifi/ap/ap.c",
+    "sha256": "cdc8e1994e7da3fc0758967509fb6ff901aa6185a88800609869fc92d1b1c4b2",
+    "bytes": 309155
+  },
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/airoha/common/rtmp_init.c",
+    "url": "https://raw.githubusercontent.com/Sirherobrine23/airoha_sdk_wireless/828414b3db0af4ada1ddf086c9a13e3b57ce626d/mt_wifi/common/rtmp_init.c",
+    "sha256": "4910f3afe4ab832bec93a3cbcdacbe3c09882417873f85abe8366324de2ad807",
+    "bytes": 64500
+  },
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/airoha/include/mlme.h",
+    "url": "https://raw.githubusercontent.com/Sirherobrine23/airoha_sdk_wireless/828414b3db0af4ada1ddf086c9a13e3b57ce626d/mt_wifi/include/mlme.h",
+    "sha256": "151604d03a941bc1bac944c26e022ed8b87a0ffc0f43ef6bf042954374acc51e",
+    "bytes": 68141
+  },
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/airoha/include/rtmp.h",
+    "url": "https://raw.githubusercontent.com/Sirherobrine23/airoha_sdk_wireless/828414b3db0af4ada1ddf086c9a13e3b57ce626d/mt_wifi/include/rtmp.h",
+    "sha256": "f76ed675e9f0e6e6f628eeb924de24623d532d845577736fb960621fd12de003",
+    "bytes": 403081
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Sirherobrine23/airoha_sdk_wireless/828414b3db0af4ada1ddf086c9a13e3b57ce626d/mt_wifi/chips/mt7990.c",
+    "error": "HTTP Error 404: Not Found"
+  },
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/airoha/common/cmm_data.c",
+    "url": "https://raw.githubusercontent.com/Sirherobrine23/airoha_sdk_wireless/828414b3db0af4ada1ddf086c9a13e3b57ce626d/mt_wifi/common/cmm_data.c",
+    "sha256": "0885de251221b176580b3a5324f54ba6d956638cd14174a021f56e5532e0ba41",
+    "bytes": 234346
+  },
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/airoha/common/cmm_cfg.c",
+    "url": "https://raw.githubusercontent.com/Sirherobrine23/airoha_sdk_wireless/828414b3db0af4ada1ddf086c9a13e3b57ce626d/mt_wifi/common/cmm_cfg.c",
+    "sha256": "846771a764667979616ed5ed164deb2347b20ced96b05ce13210bdbeca16e684",
+    "bytes": 399362
+  },
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/airoha/hw_ctrl/hw_ctrl_basic.c",
+    "url": "https://raw.githubusercontent.com/Sirherobrine23/airoha_sdk_wireless/828414b3db0af4ada1ddf086c9a13e3b57ce626d/mt_wifi/hw_ctrl/hw_ctrl_basic.c",
+    "sha256": "7f8bc3aefe4be096afdded45d6891eccb3a9c617c965546abeca6b337384cc72",
+    "bytes": 22486
+  },
+  {
+    "path": "/mnt/f/openwrt/wifi-fix27-stock/vendor-source/airoha/include/rtmp_chip.h",
+    "url": "https://raw.githubusercontent.com/Sirherobrine23/airoha_sdk_wireless/828414b3db0af4ada1ddf086c9a13e3b57ce626d/mt_wifi/include/rtmp_chip.h",
+    "sha256": "fea55ae21bce3a8de74f1f94dcb1d1faf0e3227acad88c61973ef368aee06dab",
+    "bytes": 6129
+  }
+]

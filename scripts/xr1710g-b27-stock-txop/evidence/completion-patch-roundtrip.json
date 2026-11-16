@@ -1,0 +1,13 @@
+{
+  "forward_and_reverse_byte_exact": true,
+  "patches": [
+    {
+      "patch": "150-mt7996-retail-paired-tx-per.patch",
+      "forward": "patching file mt7996/mcu.c\npatching file mt7996/mt7996.h\npatching file mt7996/stock_policy.h\npatching file mt7996/stock_policy.c\npatching file mt7996/debugfs.c\n"
+    },
+    {
+      "patch": "151-mt7996-retail-mcli-txop.patch",
+      "forward": "patching file mt7996/mt7996.h\npatching file mt7996/stock_policy.h\npatching file mt7996/stock_policy.c\npatching file mt7996/debugfs.c\n"
+    }
+  ]
+}

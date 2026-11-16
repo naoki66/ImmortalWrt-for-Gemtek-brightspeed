@@ -1,0 +1,303 @@
+核对基线：9e5ae76a6a5b582baaa9977a8cdd6f634d332f4e
+
+===== 743-net-phy-realtek-restore-optional-RTK-SerDes-patch.patch =====
+From: Balázs Triszka <info@balika011.hu>
+Date: Sat, 18 Oct 2025 18:13:28 +0200
+Subject: [PATCH] net: phy: realtek: restore optional RTK SerDes patch
+
+The Realtek SDK applies two additional host SerDes writes on platforms
+which require the RTK SerDes tuning sequence. Support for selecting this
+sequence was present in the original RTL826x driver conversion, but was
+not retained when the driver was integrated for Linux 6.18.
+
+Restore the board opt-in realtek,patch-rtk-serdes property and append the
+two PSDS0 tuning operations after the common firmware patch table. Keep
+the sequence opt-in because it is not valid for every RTL826x host.
+
+Do not reset the DTE XS after applying the firmware table.
+rtl826x_config_init() already performs the vendor 0x145 reset before
+rtlgen_phy_patch(), matching the original driver order. A second reset at
+the end of the table was found to clear firmware-programmed SDS 6.0x0d,
+6.0x0e, and 6.0x1d bits. The PHY then reached Base-R block lock while the
+AN7581 received no USXGMII partner word. Restoring those firmware values
+and reapplying the two flow_s writes immediately raised AN_STATS_0 and
+carrier on the affected XR1710G.
+
+On the same board, the flow_s values change SDS 7.0x10 from 0x8003 to
+0x80aa and SDS 6.0x12 from 0x00a4 to 0x5078. Repeated positive, negative,
+and positive tests showed that these adjusted values eliminate the original
+load-dependent retransmission stalls.
+
+Link: https://github.com/openwrt/openwrt/commit/46d81ac28caf2e0018089da921e9ae953f6dd3d2
+Signed-off-by: Balázs Triszka <info@balika011.hu>
+[yyh: adapt the optional operations to the flex-array, little-endian patch database and preserve the vendor reset-before-patch ordering]
+Assisted-by: Codex:GPT-5.6-sol
+Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
+
+
+===== 744-net-phy-realtek-reapply-RTK-SerDes-after-aneg.patch =====
+From: Yanghan Ye <yyh94306@gmail.com>
+Date: Fri, 28 Aug 2026 12:00:00 +0800
+Subject: [PATCH] net: phy: realtek: retry RTK SerDes until carrier
+
+The optional RTL826x host-SerDes flow_s values can become ineffective
+when copper Clause 45 auto-negotiation starts. The PHY can then report a
+completed copper link while the connected AN7581 USXGMII PCS receives no
+partner word or carrier.
+
+After copper AN, pulse SDS 7.0x10 through 0x8003 before restoring the
+board's final 0x80aa value, then restore SDS 6.0x12 to 0x5078. Keep the
+intermediate value active for 10--12 ms. On the affected XR1710G,
+zero-delay pulses repeatedly left AN_STATS_0 at zero. Holding 0x8003 for
+one second, and then for only 10 ms on a separate cold boot, raised
+AN_STATS_0 and established 2.5G carrier. The Realtek firmware table also
+naturally performs about 96 patch operations between programming 0x8003
+and appending 0x80aa.
+
+Neither a single early pulse nor the RTL8261 DTE XS and SDS link bits
+prove that the outgoing in-band word reached the MAC PCS. A failing cold
+boot had both PHY-side bits set while AN_STATS_0 and netdev carrier
+remained zero.
+
+Close the loop using the attached netdev's generic carrier feedback. For
+each new copper AN cycle, pulse the SerDes and leave the copper PHY link
+published so phylink can observe the PCS. Keep it published while netdev
+carrier is down for a grace window of complete PCS polling rounds, then
+pulse again if needed. Stop retrying only after netdev carrier is up, and
+restart the sequence if carrier later drops while copper remains up.
+
+phylink re-enters config_aneg() on every netdev open, after the in-band
+PCS has been latched again. Re-apply the tuned flow_s values there as
+well, so an open that follows a torn-down probe-time instance (one whose
+copper AN had already completed) starts from the board's final SerDes
+setup instead of the state left behind by the previous instance.
+
+This does not read Airoha MMIO or add a retry limit, DTE XS or PCS reset,
+TXPLL reset, or TX FIR default. Boards that opt in also skip the
+independent SDS reset work so it cannot race this sequence.
+
+Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
+Assisted-by: Codex:GPT-5.6-sol
+
+
+===== 745-net-pcs-airoha-extend-manual-rx-calib-to-E2-silicon.patch =====
+From: Gilly <gilroyscott1970@gmail.com>
+Date: Tue, 6 May 2026 13:30:00 +1000
+Subject: [PATCH] net: pcs: airoha: extend E2 RX calibration and recovery
+
+The AN7581 PCS driver skips manual RX calibration for SoC revisions
+>= E2, on the assumption that E2+ silicon autocalibrates correctly.
+In practice E2 silicon (PRODUCT_ID = 2) on Gemtek W1700K HW.1.1
+boards leaves RX permanently stuck on ~80% of cold boots when manual
+calibration is skipped, while HW.1.0 (PRODUCT_ID = 1) is reliable.
+
+The manual calibration path retries up to AIROHA_PCS_MAX_CALIBRATION_TRY
+times when the FreqDet module fails to lock; the autocalibration path
+has no equivalent retry. Extend the threshold to include E2 silicon.
+
+XR1710G routes its 10G LAN port through the PON PCS instance. The SDK
+applies the same RX calibration and CDR recovery sequence to either
+external SerDes, but Linux only enabled both mechanisms for the ETH PCS.
+Apply E2 manual calibration to both ETH and PON PCS instances and enable
+the existing signal-detect/CDR recovery callback for PON as well.
+
+Signed-off-by: Gilly <gilroyscott1970@gmail.com>
+Assisted-by: Codex:GPT-5.6-sol
+Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
+
+
+===== 747-net-phy-realtek-add-RTL8261-USXGMII-inband-control.patch =====
+From: pbs05 <27010143+pbs05@users.noreply.github.com>
+Subject: [PATCH] net: phy: realtek: configure RTL8261 USXGMII in-band mode
+
+RTL8261BE and RTL8261N use a PCS reset to latch the MAC-side USXGMII
+in-band configuration. Advertise the mode to phylink and perform that
+reset when phylink enables it.
+
+Re-apply the board's tuned host-SerDes flow_s values right after that
+reset, so the re-latched PCS does not have to wait for the next copper
+AN cycle to get its working configuration back.
+
+Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
+
+
+
+===== 620-net-pcs-airoha-fix-USXGMII-rate-adaptation-on-speed.patch =====
+From: Ryan Chen <rchen14b@gmail.com>
+Date: Thu, 06 Mar 2026 12:00:00 -0600
+Subject: [PATCH] net: pcs: airoha: fix USXGMII rate adaptation on speed
+ changes
+
+The USXGMII rate adaptation code in airoha_pcs_link_up() is inside an
+else branch that only executes when neg_mode is not
+PHYLINK_PCS_NEG_INBAND_ENABLED. However, USXGMII uses in-band
+autonegotiation, so this code path is never reached on speed changes.
+The RATE_UPDATE_MODE and FORCE_RATE_ADAPT_MODE registers remain
+configured for the previous speed.
+
+Fix this by moving the USXGMII rate adaptation block out of the
+forced-mode-only branch so it runs regardless of the negotiation mode.
+The SGMII in-band FIFO threshold adjustment and the SGMII/1000BASEX
+forced-mode speed configuration remain gated on their respective
+negotiation modes as before.
+
+Signed-off-by: Ryan Chen <rchen14b@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
+---
+ drivers/net/pcs/airoha/pcs-airoha-common.c | 136 ++++++++++++---------
+ 1 file changed, 70 insertions(+), 66 deletions(-)
+
+
+
+===== 621-net-pcs-airoha-AN7581-avoid-resetting-TXPCS-on-link-up.patch =====
+From: Yanghan Ye <yyh94306@gmail.com>
+Date: Sat, 08 Aug 2026 22:18:53 +0800
+Subject: [PATCH] net: pcs: airoha: AN7581: avoid resetting TXPCS on link up
+
+The AN7581 SDK does not reset PCS logic from its normal link-up path.
+It performs the global PCS/PMA reset during PHY initialization and only
+resets the CDR when signal detection reports a signal while the PCS is
+not locked.
+
+The Linux driver instead unconditionally toggles HSG_TXPCS_RST_N after
+phylink has reported link up.  This can disturb a freshly negotiated
+link and does not match the SDK state machine, especially for USXGMII
+where link-up follows in-band autonegotiation.
+
+Remove the AN7581 link-up callback.  Keep the initialization reset and
+the existing SigDet/CDR recovery workaround unchanged.
+
+Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
+---
+ drivers/net/pcs/airoha/pcs-airoha-common.c |  3 ---
+ drivers/net/pcs/airoha/pcs-airoha.h        |  6 ------
+ drivers/net/pcs/airoha/pcs-an7581.c        | 14 --------------
+ 3 files changed, 23 deletions(-)
+
+
+
+===== 624-net-pcs-airoha-fix-TXPLL-regmap-fields.patch =====
+From: Yanghan Ye <yyh94306@gmail.com>
+Date: Sun, 9 Aug 2026 00:00:00 +0800
+Subject: [PATCH] net: pcs: airoha: fix TXPLL regmap fields
+
+Correct the TXPLL spread-spectrum delta field order and the two-lane
+TXPLL TCL enable field locations for AN7581 PCIe PCS instances.
+
+Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
+---
+
+
+===== 628-net-pcs-airoha-use-SDK-crossing-search-for-RX-calibration.patch =====
+From: Yanghan Ye <yyh94306@gmail.com>
+Date: Wed, 26 Aug 2026 10:37:13 +0800
+Subject: [PATCH] net: pcs: airoha: use SDK RX calibration crossing search
+
+The AN7581 PCS driver chooses the major CDR PR IDAC value whose FL_OUT
+is numerically closest to the target, then applies a heuristic minor-bit
+search. FL_OUT is not globally monotonic across all major ranges, so
+that can select the wrong interval and leave the FreqDet module
+unlocked.
+
+Airoha's SDK RX_PRCal() instead keeps the last major value above the
+target crossing and searches bits 7 through 0, retaining a bit only
+while FL_OUT remains at or above the target. Adapt that search order and
+remove the conflicting closest-value fallback.
+
+On an affected Gemtek XR1710G, the old search settled on IDAC 0x580 and
+failed to lock. A register scan following the SDK order selected 0x5a5,
+measured the exact 0x9edf target, and asserted FBCK_LOCK.
+
+The vendor SDK source tree does not retain VCS metadata identifying an
+individual author. The reference implementation is RX_PRCal() in:
+linux/arch/arm64/mach-econet/sgmii/air_eth_xsgmii.c
+
+Signed-off-by: Yanghan Ye <yyh94306@gmail.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
+Assisted-by: Codex:GPT-5.6-sol
+
+
+===== 629-net-pcs-airoha-program-rate-adaptation-before-link.patch =====
+From: naoki66 <naoki66@qq.com>
+Date: Fri, 06 Nov 2026 12:00:00 +0800
+Subject: [PATCH] net: pcs: airoha: program USXGMII rate adaptation before link
+
+The USXGMII rate adapter is programmed from airoha_pcs_link_up(), which
+phylink calls only after pcs_get_state() has already reported the link.
+On a renegotiated link the PCS therefore publishes carrier while the
+rate adapter still runs at the previous speed, so the frames arriving in
+that window are dropped. This is visible as a short burst of packet loss
+right after the copper side finishes auto-negotiation, for example a
+DHCP DISCOVER that never reaches the server at 5G speed.
+
+Move the helper into a shared function and call it from
+airoha_pcs_get_state_usxgmii() as soon as the in-band word reports a new
+speed, before phylink publishes the link. Keep the unconditional
+programming in airoha_pcs_link_up() so a reconfiguration or reset is
+still covered, and cache the programmed speed to avoid rewriting the
+registers on every poll.
+
+Signed-off-by: naoki66 <naoki66@qq.com>
+---
+ .../net/pcs/airoha/pcs-airoha-common.c     | 86 ++++++++++-----------
+ drivers/net/pcs/airoha/pcs-airoha.h        |  3 ++
+ 2 files changed, 49 insertions(+), 40 deletions(-)
+
+
+
+===== 630-net-pcs-airoha-add-rxlock-recovery-backoff.patch =====
+From: naoki66 <naoki66@qq.com>
+Date: Fri, 06 Nov 2026 12:00:00 +0800
+Subject: [PATCH] net: pcs: airoha: back off the SigDet/CDR recovery
+
+an7581_pcs_rxlock_workaround() runs from every USXGMII pcs_get_state(),
+which phylink calls once per second. Whenever the PCS reports link down
+while the RX SigDet module still sees a signal, it resets the CDR and
+reports link down for that poll.
+
+That is also the state a freshly renegotiated link goes through: the
+partner restarts in-band AN, and the PCS needs more than one poll round
+to regain block lock. Resetting the CDR on every poll restarts the lock
+acquisition the AN depends on, which stretches a short renegotiation
+window into a repeating reset loop.
+
+Only consider the recovery once the CDR had time to lock, and back off
+exponentially between retries. A PCS that is down while in-band AN has
+not completed is expected to be transient, so keep a small grace of poll
+rounds before resetting it; a PCS that stays stuck since bringup is
+still recovered after that grace.
+
+Signed-off-by: naoki66 <naoki66@qq.com>
+---
+ drivers/net/pcs/airoha/pcs-an7581.c | 40 +++++++++++++++++++++++++++++-------
+ drivers/net/pcs/airoha/pcs-airoha.h |  5 +++++
+ 2 files changed, 39 insertions(+), 6 deletions(-)
+
+
+
+===== 927-net-airoha-select-NBQ-for-PPE-egress-on-external-SerDes.patch =====
+From: pbs05 <27010143+pbs05@users.noreply.github.com>
+Subject: [PATCH] net: airoha: select NBQ for PPE egress on external SerDes
+
+GDM3 and GDM4 can each connect multiple net_devices through an external
+SerDes arbiter. The QDMA transmit path selects the net_device's NBQ, while
+PPE flow entries currently select NBQ 0 for direct GDM3/GDM4 egress.
+
+Observed IPv4 flow entries directed to GDM3 NBQ 5 and GDM4 NBQ 1 both
+carry NBQ 0. Program the net_device NBQ in those flow entries so PPE
+selects the same SerDes as the QDMA transmit path.
+
+Fixes: 7758cb462ff7 ("net: airoha: Introduce WAN device flag")
+Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
+Signed-off-by: naoki66 <naoki66@qq.com>
+---
+ drivers/net/ethernet/airoha/airoha_ppe.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+

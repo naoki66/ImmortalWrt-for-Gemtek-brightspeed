@@ -1,0 +1,5 @@
+make: Entering directory '/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/linux-6.18.60'
+make[1]: Entering directory '/home/builder/xr1710g-stock-hardware-checks/kernel'
+  CC [M]  phy-airoha-pcie.o
+make[1]: Leaving directory '/home/builder/xr1710g-stock-hardware-checks/kernel'
+make: Leaving directory '/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/linux-6.18.60'

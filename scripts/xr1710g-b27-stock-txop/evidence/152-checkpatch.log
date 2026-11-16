@@ -1,0 +1,5 @@
+total: 0 errors, 0 warnings, 0 checks, 276 lines checked
+
+/home/builder/immortalwrt-B13/package/kernel/mt76/patches/152-mt7996-retail-dynamic-ba-wtbl-lock.patch has no obvious style problems and is ready for submission.
+
+NOTE: Ignored message types: FILE_PATH_CHANGES
