@@ -1,0 +1,19 @@
+Subject: net: airoha: bound RX consumption to posted descriptors
+
+Dropped packets and incomplete scatter chains do not increase the packet
+budget. Stop when the posted ring is exhausted so a stale DONE bit on the
+unposted sentinel cannot cause repeated DMA synchronization and recycling.
+
+---
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -993,7 +993,8 @@
+ 	int qid = q - &q->qdma->q_rx[0], done = 0;
+ 	struct airoha_eth *eth = q->qdma->eth;
+ 
+-	while (done < budget) {
++	/* The unposted sentinel may retain DONE from an earlier ring turn. */
++	while (done < budget && q->queued > 0) {
+ 		struct airoha_queue_entry *e = &q->entry[q->tail];
+ 		struct airoha_qdma_desc *desc = &q->desc[q->tail];
+ 		u32 hash, reason, msg0, msg1, desc_ctrl;
