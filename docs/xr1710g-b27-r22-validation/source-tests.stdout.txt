@@ -1,0 +1,28 @@
+=== interval-window-tests.py (exit 0) ===
+scenario=0 recovered_avg_len=800 rx_bytes=800000 missing=0
+scenario=1 recovered_avg_len=800 rx_bytes=800000 missing=1
+scenario=2 recovered_avg_len=800 rx_bytes=800000 missing=1
+scenario=3 recovered_avg_len=800 rx_bytes=800000 missing=0
+scenario=4 recovered_avg_len=800 rx_bytes=800000 missing=1
+scenario=5 recovered_avg_len=800 rx_bytes=800000 missing=1
+scenario=6 recovered_avg_len=800 rx_bytes=800000 missing=1
+scenario=7 recovered_avg_len=800 rx_bytes=800000 missing=1
+scenario=8 recovered_avg_len=800 rx_bytes=800000 missing=1
+scenario=9 recovered_avg_len=800 rx_bytes=800000 missing=0
+
+PASS existing event/collect regressions
+
+=== stat-query-send-worker-tests.py (exit 0) ===
+PASS 81 actual C cases: per-tag send masks, read-clear rebase, automatic recovery, optional PER, peer isolation, no global shutdown
+
+PASS 9 actual worker cases: no-interface, stopped, running, failure, rebase, automatic recovery, reset; no global policy shutdown
+
+
+=== ppp-authfile-tests.py (exit 0) ===
+PASS 11 setup/failure cases; transient retry and shell syntax
+
+=== ppp-discovery-tests.py (exit 0) ===
+{"status": "PASS", "results": [{"test": "offer-grid", "output": "{\"cases\":10368,\"unsafe_cases\":0,\"categories\":[0,0,0,0,0,0,0]}\n", "generated_source_sha256": "dfbadf575008194ff6b33c54de363cef6274644eb86068e77d13f0e11f214e9b"}, {"test": "ac-name-boundaries", "output": "PASS boundary cases 2998\n", "generated_source_sha256": "c3fe76f46edcde23a9d38845e85d687c35627a15d8974007678b1046dfd03437"}], "input_sources": [{"path": "/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/ppp-default/ppp-2.5.4/pppd/plugins/pppoe/common.c", "sha256": "9ded2dd3271971637de6afd2baa6c75150c912e2527f762b07d8175fec843ae7"}, {"path": "/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/ppp-default/ppp-2.5.4/pppd/plugins/pppoe/discovery.c", "sha256": "6b1f4e4c9ebda2105dfff88381e3f2c9bd8310aad04c3927a436dfaea4c4bbf5"}, {"path": "/home/builder/immortalwrt-B13/build_dir/target-aarch64_cortex-a53_musl/linux-airoha_an7581/ppp-default/ppp-2.5.4/pppd/plugins/pppoe/if.c", "sha256": "d57e7e7cc3315510a49c99f9ab268e214de0cc757b4a4d466a99ae01f4b50ee5"}], "limits": ["Complete selected functions with real PPP headers; send/recv/select/clock/logging are modeled.", "The strlcpy fallback deliberately scans to NUL, so reverting R28 remains detectable under ASan.", "Synthetic offer and length inputs; no ISP or user-symptom proof."]}
+
+=== ap-mu-edca-tests.py (exit 0) ===
+PASS 60 cases; actual hostapd IE -> beacon callback, actual AP cfg -> mt7996 conf_tx zero-MU reproduction, branch correction, malformed IE and lifecycle

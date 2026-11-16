@@ -1,0 +1,626 @@
+{
+  "build_verified": true,
+  "runtime_verified": false,
+  "upstream_commit": "9a70b25731dc64822dcb24cf9a7dbe7a84ed1ba1",
+  "source_commit": "4184aa261aac40c0364f867676e4339d4b5e4271",
+  "baseline_B16_commit": "fc7acb843e146b925c5b807090940259b3fa2e0f",
+  "version": "20261116-B27-r22-upstream-glass-zhcn",
+  "npu_policy": {
+    "wlan_npu_default": true,
+    "compiled_npu_enable_initialized_data": true,
+    "compiled_initializer_byte": 1,
+    "hw_rro_version": "V3 for MT7996",
+    "symbol_record": [
+      "0000000000000000",
+      "0000000000000001",
+      "d",
+      "npu_enable"
+    ],
+    "module_parameter_permission": "0444",
+    "wired_npu_enabled": true,
+    "runtime_verified": false
+  },
+  "cpu_policy": {
+    "control": "boot firmware CPU clock; Linux DVFS disabled, matching upstream",
+    "direct_pll": false,
+    "linux_cpufreq_enabled": false,
+    "cpu_pm_domain_compiled": false,
+    "smc_driver_source_retained": true,
+    "smc_driver_active": false,
+    "cpu_source_sha256": "f3cd6e5972d03782a440d65d97556d7519110d5feaf08ec1f376d304031c5a80"
+  },
+  "pcie_policy": {
+    "primary": "Gen3 x2",
+    "secondary": "Gen2 x1",
+    "idac_coarse_range": [
+      1,
+      7
+    ],
+    "calibration_logging": true,
+    "secondary_stock_analog_init": true,
+    "board_opt_in": "airoha,pcie-analog-init",
+    "retail_rx_kflow": true,
+    "retail_kflow_property": "gemtek,xr1710g-retail-rx-kflow",
+    "runtime_verified": false
+  },
+  "driver_policy": {
+    "package_release": 21,
+    "leading_mt76_union_layout_preserved": true,
+    "leading_union_compile_time_assertions": true,
+    "registration_reset_guard": true,
+    "bus_master_after_radio_reset": true,
+    "shutdown_radio_reset": false,
+    "shutdown_bus_master_clear": true,
+    "channel_mib_deadline_seconds": 5,
+    "aer_callbacks_added": false,
+    "thermal_query_deadline_seconds": 3,
+    "thermal_success_cache_seconds": 5,
+    "thermal_error_backoff_seconds": 30,
+    "thermal_read_timeout_resets_chip": false,
+    "thermal_reset_guard": true,
+    "thermal_cache_separate_spinlock": true,
+    "thermal_cache_precedes_device_mutex": true,
+    "thermal_cache_recovery_invalidation": true,
+    "thermal_query_generation_guard": true,
+    "thermal_read_only_diagnostics": true,
+    "thermal_response_length_check": true,
+    "vendor_thermal_adc_debug_opt_in": true,
+    "adc_request_tag": "0x0d",
+    "adc_response_tag": 5,
+    "adc_query_permission": "0200",
+    "adc_snapshot_permission": "0400",
+    "adc_debug_snapshot_read_triggers_query": false,
+    "hwmon_temperature_source": "vendor ADC action 0 CurrentTemperature",
+    "hwmon_units": "millidegrees Celsius",
+    "adc_automatic_polling": false,
+    "adc_on_hwmon_read": true,
+    "adc_hwmon_action": 0,
+    "adc_hwmon_expected_records": 1,
+    "adc_tag0_fallback": false,
+    "adc_replaces_hwmon": true,
+    "adc_action0_protocol_verified_on_B10": true,
+    "adc_action1_valid_temperature_verified": false,
+    "runtime_verified": false,
+    "yyh_npu_poll_and_txfree_candidate": true,
+    "yyh_reference": "9e44788d769164dc9f691670add71dc466d99a4c",
+    "runtime_throughput_fix_verified": false,
+    "yyh_txpower_refresh": true,
+    "retail_sku_backoff_table": true,
+    "retail_table_index": 3,
+    "retail_table_symbols": [
+      "Sku_04",
+      "Backoff_04"
+    ],
+    "runtime_power_table_verified": false,
+    "npu_rx_ordered_publication": true,
+    "npu_rx_capacity_unchanged": true,
+    "npu_queue_diagnostics_read_only": true,
+    "tcp_window_workaround_default_enabled": false,
+    "throughput_fix_runtime_verified": false,
+    "uplink_ofdma_2g_candidate": true,
+    "uplink_ofdma_2g_default": true,
+    "uplink_mumimo_unchanged": true,
+    "ul_ofdma_runtime_verified": false,
+    "mtk_hw_max_amsdu_num": 31,
+    "mtk_formal_patch": "0012",
+    "amsdu_throughput_fix_verified": false,
+    "stock_default_host_txop": true,
+    "stock_burst_txop": 187,
+    "stock_poll_seconds": 1,
+    "stock_native_mpdu_stat_tag": 1,
+    "stock_ap_sta_mlo_branches": true,
+    "stock_ul_vote_priority": true,
+    "stock_failed_command_retry": true,
+    "stock_default_on_xr1710g_only": true,
+    "stock_mcli_ported": false,
+    "stock_wm_wa_algorithms_ported": false,
+    "stock_complete_vendor_port": false,
+    "stock_runtime_verified": false,
+    "ba_setup_failure_unwind": true
+  },
+  "artifact_directory": "LOCAL_BUILD_ARTIFACTS",
+  "images": [
+    {
+      "image": "immortalwrt-naoki66-20261116-b27-r22-upstream-glass-zhcn-airoha-an7581-gemtek_xr1710g-squashfs-sysupgrade.itb",
+      "size": 78479683,
+      "sha256": "3c1d67e08eb9a0c056eee30a0c8d98cb4df06c6b003cdb860d6762e41bdd0cd6",
+      "supported_device": "gemtek,xr1710g",
+      "target": "airoha/an7581",
+      "metadata_and_fit_check": "passed",
+      "fit_payloads": [
+        {
+          "node": "/images/kernel-1",
+          "size": 6316085,
+          "verified_hashes": [
+            "crc32",
+            "sha1"
+          ],
+          "sha256": "c0c8b88762612c84f924e9b2c3b80a0421e3ad31d1f7347c1589fc8997263f2d"
+        },
+        {
+          "node": "/images/fdt-1",
+          "size": 93420,
+          "verified_hashes": [
+            "crc32",
+            "sha1"
+          ],
+          "sha256": "3f330bd84b27f210265bf5f6715eedcbaac3e2d0379de12acc94ef7d0e1eedcd"
+        },
+        {
+          "node": "/images/rootfs-1",
+          "size": 72060928,
+          "verified_hashes": [
+            "crc32",
+            "sha1"
+          ],
+          "sha256": "a69932f14ce036bcf9c16edb88e6cbe4e53d7ed7ef693bb45d099906f43e8211"
+        }
+      ],
+      "firmware_in_actual_image": [
+        {
+          "name": "mt7996_dsp.bin",
+          "sha256": "7c4d3854fbac6a09b511a5894dbad84c1a09327d98732ddf078fe62a472d228d",
+          "size": 192688
+        },
+        {
+          "name": "mt7996_rom_patch.bin",
+          "sha256": "12e3b4cbb49bd175f8ef9be82f2bb36af47c441a645cc0be790b1f979fbae400",
+          "size": 37216
+        },
+        {
+          "name": "mt7996_wa.bin",
+          "sha256": "06106c918866c7ae3da47b27223da17030212a1a4adcb5c23871325291d06448",
+          "size": 510064
+        },
+        {
+          "name": "mt7996_wm.bin",
+          "sha256": "99020e57ff91fdee09b833f9d35f97ff70722d0ef32fa8b02f70c8d3c6f95592",
+          "size": 2666168
+        }
+      ],
+      "drivers_in_actual_image": [
+        {
+          "path": "lib/modules/6.18.60/mt76.ko",
+          "sha256": "c11b4ecf1cc082e8dec2925b9470aa1888ed99181ea95c4e2d5292ea20eb890e",
+          "compiled_debug_sha256": "85bb5e4ffa4e9c3850805aa9ec5c989e9012e38e14dc3ef0ef6de2aad3c96bfa",
+          "strip_reproduced": true,
+          "package_binary_matches": true
+        },
+        {
+          "path": "lib/modules/6.18.60/mt76-connac-lib.ko",
+          "sha256": "e1fca2dadf185a7260296cd53150852dc489322f5d59f4625bfbb7a3929ac344",
+          "compiled_debug_sha256": "de16199331fa0cb36f4e8b8c6d7c1ef25a003357a06822927bca85f4675a488c",
+          "strip_reproduced": true,
+          "package_binary_matches": true
+        },
+        {
+          "path": "lib/modules/6.18.60/mt7996e.ko",
+          "sha256": "51f43dea0cb07d1f398f73750f0bf74aef62709e04545f90497c0c654c009b25",
+          "compiled_debug_sha256": "777a66d19294ac9ac0016a3b505303d6d162ccdec6d73a393bbaf36e283103d6",
+          "strip_reproduced": true,
+          "package_binary_matches": true
+        }
+      ],
+      "npu_firmware_v08": [
+        {
+          "path": "lib/firmware/airoha/en7581_MT7996_npu_data.bin",
+          "size": 3092,
+          "sha256": "6fd9506e399ebb309801ac2ecc74d3e10fa66731afc828c76fde8a67b2153f49",
+          "source": "https://github.com/zhengping-zhang/airoha-npu/blob/1df6a36f849ea52cadfc326ec5b583d658be630e/en7581_MT7996_npu_data.bin"
+        },
+        {
+          "path": "lib/firmware/airoha/en7581_MT7996_npu_rv32.bin",
+          "size": 125832,
+          "sha256": "7068a987bb95e89129a69de10d598f234a4400023eb23aacc8eb377e5f0fe0ea",
+          "source": "https://github.com/zhengping-zhang/airoha-npu/blob/1df6a36f849ea52cadfc326ec5b583d658be630e/en7581_MT7996_npu_rv32.bin"
+        }
+      ],
+      "npu_policy": {
+        "wlan_npu_default": true,
+        "compiled_npu_enable_initialized_data": true,
+        "compiled_initializer_byte": 1,
+        "hw_rro_version": "V3 for MT7996",
+        "symbol_record": [
+          "0000000000000000",
+          "0000000000000001",
+          "d",
+          "npu_enable"
+        ],
+        "module_parameter_permission": "0444",
+        "wired_npu_enabled": true,
+        "runtime_verified": false
+      },
+      "cpu_policy": {
+        "control": "boot firmware CPU clock; Linux DVFS disabled, matching upstream",
+        "direct_pll": false,
+        "linux_cpufreq_enabled": false,
+        "cpu_pm_domain_compiled": false,
+        "smc_driver_source_retained": true,
+        "smc_driver_active": false,
+        "cpu_source_sha256": "f3cd6e5972d03782a440d65d97556d7519110d5feaf08ec1f376d304031c5a80"
+      },
+      "pcie_policy": {
+        "primary": "Gen3 x2",
+        "secondary": "Gen2 x1",
+        "idac_coarse_range": [
+          1,
+          7
+        ],
+        "calibration_logging": true,
+        "secondary_stock_analog_init": true,
+        "board_opt_in": "airoha,pcie-analog-init",
+        "retail_rx_kflow": true,
+        "retail_kflow_property": "gemtek,xr1710g-retail-rx-kflow",
+        "runtime_verified": false
+      },
+      "driver_policy": {
+        "package_release": 21,
+        "leading_mt76_union_layout_preserved": true,
+        "leading_union_compile_time_assertions": true,
+        "registration_reset_guard": true,
+        "bus_master_after_radio_reset": true,
+        "shutdown_radio_reset": false,
+        "shutdown_bus_master_clear": true,
+        "channel_mib_deadline_seconds": 5,
+        "aer_callbacks_added": false,
+        "thermal_query_deadline_seconds": 3,
+        "thermal_success_cache_seconds": 5,
+        "thermal_error_backoff_seconds": 30,
+        "thermal_read_timeout_resets_chip": false,
+        "thermal_reset_guard": true,
+        "thermal_cache_separate_spinlock": true,
+        "thermal_cache_precedes_device_mutex": true,
+        "thermal_cache_recovery_invalidation": true,
+        "thermal_query_generation_guard": true,
+        "thermal_read_only_diagnostics": true,
+        "thermal_response_length_check": true,
+        "vendor_thermal_adc_debug_opt_in": true,
+        "adc_request_tag": "0x0d",
+        "adc_response_tag": 5,
+        "adc_query_permission": "0200",
+        "adc_snapshot_permission": "0400",
+        "adc_debug_snapshot_read_triggers_query": false,
+        "hwmon_temperature_source": "vendor ADC action 0 CurrentTemperature",
+        "hwmon_units": "millidegrees Celsius",
+        "adc_automatic_polling": false,
+        "adc_on_hwmon_read": true,
+        "adc_hwmon_action": 0,
+        "adc_hwmon_expected_records": 1,
+        "adc_tag0_fallback": false,
+        "adc_replaces_hwmon": true,
+        "adc_action0_protocol_verified_on_B10": true,
+        "adc_action1_valid_temperature_verified": false,
+        "runtime_verified": false,
+        "yyh_npu_poll_and_txfree_candidate": true,
+        "yyh_reference": "9e44788d769164dc9f691670add71dc466d99a4c",
+        "runtime_throughput_fix_verified": false,
+        "yyh_txpower_refresh": true,
+        "retail_sku_backoff_table": true,
+        "retail_table_index": 3,
+        "retail_table_symbols": [
+          "Sku_04",
+          "Backoff_04"
+        ],
+        "runtime_power_table_verified": false,
+        "npu_rx_ordered_publication": true,
+        "npu_rx_capacity_unchanged": true,
+        "npu_queue_diagnostics_read_only": true,
+        "tcp_window_workaround_default_enabled": false,
+        "throughput_fix_runtime_verified": false,
+        "uplink_ofdma_2g_candidate": true,
+        "uplink_ofdma_2g_default": true,
+        "uplink_mumimo_unchanged": true,
+        "ul_ofdma_runtime_verified": false,
+        "mtk_hw_max_amsdu_num": 31,
+        "mtk_formal_patch": "0012",
+        "amsdu_throughput_fix_verified": false,
+        "stock_default_host_txop": true,
+        "stock_burst_txop": 187,
+        "stock_poll_seconds": 1,
+        "stock_native_mpdu_stat_tag": 1,
+        "stock_ap_sta_mlo_branches": true,
+        "stock_ul_vote_priority": true,
+        "stock_failed_command_retry": true,
+        "stock_default_on_xr1710g_only": true,
+        "stock_mcli_ported": false,
+        "stock_wm_wa_algorithms_ported": false,
+        "stock_complete_vendor_port": false,
+        "stock_runtime_verified": false,
+        "ba_setup_failure_unwind": true
+      },
+      "dtb_npu_pool": {
+        "size": 16777216,
+        "alignment": 2097152,
+        "alloc_range_start": "0x80000000",
+        "alloc_range_end": "0xbfffffff",
+        "npu_region_names": [
+          "firmware",
+          "pkt",
+          "tx-pkt",
+          "tx-bufid",
+          "ba",
+          "dma"
+        ],
+        "i2c_driver_compatible": "mediatek,mt7621-i2c",
+        "partition_regs": {
+          "bootloader": [
+            0,
+            2097152
+          ],
+          "uenv": [
+            2097152,
+            2097152
+          ],
+          "dsd": [
+            4194304,
+            2097152
+          ],
+          "chainloader": [
+            6291456,
+            1048576
+          ],
+          "ubi": [
+            7340032,
+            460324864
+          ],
+          "reserved_bmt": [
+            467664896,
+            69206016
+          ]
+        },
+        "sha256": "3f330bd84b27f210265bf5f6715eedcbaac3e2d0379de12acc94ef7d0e1eedcd"
+      },
+      "kernel_payload": {
+        "uncompressed_sha256": "64569605fd86422188a56f148b59686c4a4d882542a1edee44020e57991fb353",
+        "matches_compiled_Image": true,
+        "npu_object_sha256": "4c9537b74b1b53d9c2ac60e293e711d4041e20accca0e9e84deac599c6d83c6c",
+        "npu_reserved_pool_reference": true,
+        "cpu_pm_domain_compiled": false,
+        "cpu_dvfs_driver_symbols_absent": true
+      }
+    },
+    {
+      "image": "immortalwrt-naoki66-20261116-b27-r22-upstream-glass-zhcn-airoha-an7581-gemtek_xr1710g-ubi-squashfs-sysupgrade.itb",
+      "size": 78480385,
+      "sha256": "98adfa7ca773f2093909a8188c922a530f8a9ee914425d948d2763b47d495203",
+      "supported_device": "gemtek,xr1710g-ubi",
+      "target": "airoha/an7581",
+      "metadata_and_fit_check": "passed",
+      "fit_payloads": [
+        {
+          "node": "/images/kernel-1",
+          "size": 6316085,
+          "verified_hashes": [
+            "crc32",
+            "sha1"
+          ],
+          "sha256": "c0c8b88762612c84f924e9b2c3b80a0421e3ad31d1f7347c1589fc8997263f2d"
+        },
+        {
+          "node": "/images/fdt-1",
+          "size": 93591,
+          "verified_hashes": [
+            "crc32",
+            "sha1"
+          ],
+          "sha256": "ed694a662e1f2082e8e31afc4b206004906375da3e042bc08c04a0b893934e31"
+        },
+        {
+          "node": "/images/rootfs-1",
+          "size": 72060928,
+          "verified_hashes": [
+            "crc32",
+            "sha1"
+          ],
+          "sha256": "a69932f14ce036bcf9c16edb88e6cbe4e53d7ed7ef693bb45d099906f43e8211"
+        }
+      ],
+      "firmware_in_actual_image": [
+        {
+          "name": "mt7996_dsp.bin",
+          "sha256": "7c4d3854fbac6a09b511a5894dbad84c1a09327d98732ddf078fe62a472d228d",
+          "size": 192688
+        },
+        {
+          "name": "mt7996_rom_patch.bin",
+          "sha256": "12e3b4cbb49bd175f8ef9be82f2bb36af47c441a645cc0be790b1f979fbae400",
+          "size": 37216
+        },
+        {
+          "name": "mt7996_wa.bin",
+          "sha256": "06106c918866c7ae3da47b27223da17030212a1a4adcb5c23871325291d06448",
+          "size": 510064
+        },
+        {
+          "name": "mt7996_wm.bin",
+          "sha256": "99020e57ff91fdee09b833f9d35f97ff70722d0ef32fa8b02f70c8d3c6f95592",
+          "size": 2666168
+        }
+      ],
+      "drivers_in_actual_image": [
+        {
+          "path": "lib/modules/6.18.60/mt76.ko",
+          "sha256": "c11b4ecf1cc082e8dec2925b9470aa1888ed99181ea95c4e2d5292ea20eb890e",
+          "compiled_debug_sha256": "85bb5e4ffa4e9c3850805aa9ec5c989e9012e38e14dc3ef0ef6de2aad3c96bfa",
+          "strip_reproduced": true,
+          "package_binary_matches": true
+        },
+        {
+          "path": "lib/modules/6.18.60/mt76-connac-lib.ko",
+          "sha256": "e1fca2dadf185a7260296cd53150852dc489322f5d59f4625bfbb7a3929ac344",
+          "compiled_debug_sha256": "de16199331fa0cb36f4e8b8c6d7c1ef25a003357a06822927bca85f4675a488c",
+          "strip_reproduced": true,
+          "package_binary_matches": true
+        },
+        {
+          "path": "lib/modules/6.18.60/mt7996e.ko",
+          "sha256": "51f43dea0cb07d1f398f73750f0bf74aef62709e04545f90497c0c654c009b25",
+          "compiled_debug_sha256": "777a66d19294ac9ac0016a3b505303d6d162ccdec6d73a393bbaf36e283103d6",
+          "strip_reproduced": true,
+          "package_binary_matches": true
+        }
+      ],
+      "npu_firmware_v08": [
+        {
+          "path": "lib/firmware/airoha/en7581_MT7996_npu_data.bin",
+          "size": 3092,
+          "sha256": "6fd9506e399ebb309801ac2ecc74d3e10fa66731afc828c76fde8a67b2153f49",
+          "source": "https://github.com/zhengping-zhang/airoha-npu/blob/1df6a36f849ea52cadfc326ec5b583d658be630e/en7581_MT7996_npu_data.bin"
+        },
+        {
+          "path": "lib/firmware/airoha/en7581_MT7996_npu_rv32.bin",
+          "size": 125832,
+          "sha256": "7068a987bb95e89129a69de10d598f234a4400023eb23aacc8eb377e5f0fe0ea",
+          "source": "https://github.com/zhengping-zhang/airoha-npu/blob/1df6a36f849ea52cadfc326ec5b583d658be630e/en7581_MT7996_npu_rv32.bin"
+        }
+      ],
+      "npu_policy": {
+        "wlan_npu_default": true,
+        "compiled_npu_enable_initialized_data": true,
+        "compiled_initializer_byte": 1,
+        "hw_rro_version": "V3 for MT7996",
+        "symbol_record": [
+          "0000000000000000",
+          "0000000000000001",
+          "d",
+          "npu_enable"
+        ],
+        "module_parameter_permission": "0444",
+        "wired_npu_enabled": true,
+        "runtime_verified": false
+      },
+      "cpu_policy": {
+        "control": "boot firmware CPU clock; Linux DVFS disabled, matching upstream",
+        "direct_pll": false,
+        "linux_cpufreq_enabled": false,
+        "cpu_pm_domain_compiled": false,
+        "smc_driver_source_retained": true,
+        "smc_driver_active": false,
+        "cpu_source_sha256": "f3cd6e5972d03782a440d65d97556d7519110d5feaf08ec1f376d304031c5a80"
+      },
+      "pcie_policy": {
+        "primary": "Gen3 x2",
+        "secondary": "Gen2 x1",
+        "idac_coarse_range": [
+          1,
+          7
+        ],
+        "calibration_logging": true,
+        "secondary_stock_analog_init": true,
+        "board_opt_in": "airoha,pcie-analog-init",
+        "retail_rx_kflow": true,
+        "retail_kflow_property": "gemtek,xr1710g-retail-rx-kflow",
+        "runtime_verified": false
+      },
+      "driver_policy": {
+        "package_release": 21,
+        "leading_mt76_union_layout_preserved": true,
+        "leading_union_compile_time_assertions": true,
+        "registration_reset_guard": true,
+        "bus_master_after_radio_reset": true,
+        "shutdown_radio_reset": false,
+        "shutdown_bus_master_clear": true,
+        "channel_mib_deadline_seconds": 5,
+        "aer_callbacks_added": false,
+        "thermal_query_deadline_seconds": 3,
+        "thermal_success_cache_seconds": 5,
+        "thermal_error_backoff_seconds": 30,
+        "thermal_read_timeout_resets_chip": false,
+        "thermal_reset_guard": true,
+        "thermal_cache_separate_spinlock": true,
+        "thermal_cache_precedes_device_mutex": true,
+        "thermal_cache_recovery_invalidation": true,
+        "thermal_query_generation_guard": true,
+        "thermal_read_only_diagnostics": true,
+        "thermal_response_length_check": true,
+        "vendor_thermal_adc_debug_opt_in": true,
+        "adc_request_tag": "0x0d",
+        "adc_response_tag": 5,
+        "adc_query_permission": "0200",
+        "adc_snapshot_permission": "0400",
+        "adc_debug_snapshot_read_triggers_query": false,
+        "hwmon_temperature_source": "vendor ADC action 0 CurrentTemperature",
+        "hwmon_units": "millidegrees Celsius",
+        "adc_automatic_polling": false,
+        "adc_on_hwmon_read": true,
+        "adc_hwmon_action": 0,
+        "adc_hwmon_expected_records": 1,
+        "adc_tag0_fallback": false,
+        "adc_replaces_hwmon": true,
+        "adc_action0_protocol_verified_on_B10": true,
+        "adc_action1_valid_temperature_verified": false,
+        "runtime_verified": false,
+        "yyh_npu_poll_and_txfree_candidate": true,
+        "yyh_reference": "9e44788d769164dc9f691670add71dc466d99a4c",
+        "runtime_throughput_fix_verified": false,
+        "yyh_txpower_refresh": true,
+        "retail_sku_backoff_table": true,
+        "retail_table_index": 3,
+        "retail_table_symbols": [
+          "Sku_04",
+          "Backoff_04"
+        ],
+        "runtime_power_table_verified": false,
+        "npu_rx_ordered_publication": true,
+        "npu_rx_capacity_unchanged": true,
+        "npu_queue_diagnostics_read_only": true,
+        "tcp_window_workaround_default_enabled": false,
+        "throughput_fix_runtime_verified": false,
+        "uplink_ofdma_2g_candidate": true,
+        "uplink_ofdma_2g_default": true,
+        "uplink_mumimo_unchanged": true,
+        "ul_ofdma_runtime_verified": false,
+        "mtk_hw_max_amsdu_num": 31,
+        "mtk_formal_patch": "0012",
+        "amsdu_throughput_fix_verified": false,
+        "stock_default_host_txop": true,
+        "stock_burst_txop": 187,
+        "stock_poll_seconds": 1,
+        "stock_native_mpdu_stat_tag": 1,
+        "stock_ap_sta_mlo_branches": true,
+        "stock_ul_vote_priority": true,
+        "stock_failed_command_retry": true,
+        "stock_default_on_xr1710g_only": true,
+        "stock_mcli_ported": false,
+        "stock_wm_wa_algorithms_ported": false,
+        "stock_complete_vendor_port": false,
+        "stock_runtime_verified": false,
+        "ba_setup_failure_unwind": true
+      },
+      "dtb_npu_pool": {
+        "size": 16777216,
+        "alignment": 2097152,
+        "alloc_range_start": "0x80000000",
+        "alloc_range_end": "0xbfffffff",
+        "npu_region_names": [
+          "firmware",
+          "pkt",
+          "tx-pkt",
+          "tx-bufid",
+          "ba",
+          "dma"
+        ],
+        "i2c_driver_compatible": "mediatek,mt7621-i2c",
+        "partition_regs": {
+          "bl2": [
+            0,
+            131072
+          ],
+          "ubi": [
+            131072,
+            0
+          ]
+        },
+        "sha256": "ed694a662e1f2082e8e31afc4b206004906375da3e042bc08c04a0b893934e31"
+      },
+      "kernel_payload": {
+        "uncompressed_sha256": "64569605fd86422188a56f148b59686c4a4d882542a1edee44020e57991fb353",
+        "matches_compiled_Image": true,
+        "npu_object_sha256": "4c9537b74b1b53d9c2ac60e293e711d4041e20accca0e9e84deac599c6d83c6c",
+        "npu_reserved_pool_reference": true,
+        "cpu_pm_domain_compiled": false,
+        "cpu_dvfs_driver_symbols_absent": true
+      }
+    }
+  ]
+}
