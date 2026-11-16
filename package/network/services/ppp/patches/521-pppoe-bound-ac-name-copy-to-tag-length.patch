@@ -1,0 +1,14 @@
+--- a/pppd/plugins/pppoe/discovery.c
++++ b/pppd/plugins/pppoe/discovery.c
+@@ -158,7 +158,10 @@
+ 	/* save a copy of the AC name if we can */
+ 	conn->actualACname = realloc(conn->actualACname, len + 1);
+ 	if (conn->actualACname)
+-	    strlcpy(conn->actualACname, (char *) data, len + 1);
++	    {
++		memcpy(conn->actualACname, data, len);
++		conn->actualACname[len] = 0;
++	    }
+ 	break;
+     case TAG_SERVICE_NAME:
+ 	pc->seenServiceName = 1;
