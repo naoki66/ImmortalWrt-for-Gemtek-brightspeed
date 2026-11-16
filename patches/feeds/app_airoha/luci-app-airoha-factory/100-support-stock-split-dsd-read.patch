@@ -1,0 +1,229 @@
+--- a/luci-app-airoha-factory/Makefile
++++ b/luci-app-airoha-factory/Makefile
+@@ -2,7 +2,7 @@
+ 
+ LUCI_NAME:=luci-app-airoha-factory
+ PKG_VERSION:=1.0.0
+-PKG_RELEASE:=3
++PKG_RELEASE:=4
+ 
+ PKG_MAINTAINER:=XR1710G Maintainer
+ PKG_LICENSE:=GPL-2.0-or-later
+--- a/luci-app-airoha-factory/root/usr/libexec/rpcd/luci.airoha_factory
++++ b/luci-app-airoha-factory/root/usr/libexec/rpcd/luci.airoha_factory
+@@ -41,6 +41,7 @@
+ # "Incompatible flash types!".
+ 
+ set -f
++. /lib/functions.sh
+ . /usr/share/libubox/jshn.sh
+ 
+ MTD_LABEL="vendor"
+@@ -58,7 +59,8 @@
+ NL='
+ '
+ 
+-case "$(board_name 2>/dev/null)" in
++BOARD_NAME="$(board_name 2>/dev/null)"
++case "$BOARD_NAME" in
+ gemtek,xr1710g-ubi)
+ 	FACTORY_LAYOUT="dsd"
+ 	UBI_WAN_OFF=108                # DSD wan_mac value in the 2 MiB main-data backup
+@@ -102,6 +104,20 @@
+ 	printf '%s\n' "$found"
+ }
+ 
++
++# The stock-partition DTS exposes DSD as its own MTD device. Offsets here
++# are relative to that device, not to the start of the NAND chip. Keep
++# legacy vendor support when that partition is actually present.
++case "$BOARD_NAME" in
++gemtek,xr1710g)
++	if ! find_mtd_dev >/dev/null; then
++		FACTORY_LAYOUT="split-dsd"
++		MTD_LABEL="dsd"
++		FACTORY_OFFSET=0
++	fi
++	;;
++esac
++
+ find_ubi_factory()
+ {
+ 	local ubidev volume d n
+@@ -143,7 +159,7 @@
+ {
+ 	local dev="$1" tmp="$2"
+ 
+-	if [ "$FACTORY_LAYOUT" = "dsd" ]; then
++	if [ "$FACTORY_LAYOUT" != "legacy" ]; then
+ 		dd if="$dev" of="$tmp" bs=65536 count=2 2>/dev/null
+ 	else
+ 		dd if="$dev" of="$tmp" bs=65536 skip=64 count=2 2>/dev/null
+@@ -374,6 +390,9 @@
+ ensure_env_conf()
+ {
+ 	local dev
++	# Split DSD has no embedded U-Boot environment. Never apply the
++	# legacy vendor offset or the mtd0 fallback to this partition.
++	[ "$FACTORY_LAYOUT" = "split-dsd" ] && return 1
+ 	if [ "$FACTORY_LAYOUT" = "dsd" ]; then
+ 		[ -r /etc/fw_env.config ] || return 1
+ 		UBOOT_ENV_CONF="/etc/fw_env.config"
+@@ -419,6 +438,8 @@
+ 	dev="$(find_factory_dev)" || {
+ 		if [ "$FACTORY_LAYOUT" = "dsd" ]; then
+ 			printf '{"error":"UBI factory volume not found"}'
++		elif [ "$FACTORY_LAYOUT" = "split-dsd" ]; then
++			printf '{"error":"dsd partition not found"}'
+ 		else
+ 			printf '{"error":"vendor partition not found"}'
+ 		fi
+@@ -426,14 +447,14 @@
+ 	}
+ 	if [ "$FACTORY_LAYOUT" = "dsd" ]; then
+ 		writable=1
+-	else
++	elif [ "$FACTORY_LAYOUT" = "legacy" ]; then
+ 		mtd_writable "$dev" && writable=1
+ 	fi
+ 
+-	tmp="$(mktemp)"
++	tmp="$(mktemp)" || { printf '{"error":"unable to create temporary file"}'; return; }
+ 	# The legacy layout stores DSD at 0x400000 in the vendor MTD partition;
+ 	# the OpenWrt U-Boot layout stores that DSD backup at offset 0 in UBI.
+-	if ! read_factory_data "$dev" "$tmp"; then
++	if ! read_factory_data "$dev" "$tmp" || [ "$(wc -c < "$tmp")" -ne "$BLOCK_SIZE" ]; then
+ 		rm -f "$tmp"
+ 		printf '{"error":"failed to read factory partition data"}'
+ 		return
+@@ -461,7 +482,9 @@
+ 	set +f; IFS="$oifs"
+ 	fields="$fields}"
+ 
+-	ubi_factory="$(find_ubi_factory 2>/dev/null)" || ubi_factory=""
++	if [ "$FACTORY_LAYOUT" != "split-dsd" ]; then
++		ubi_factory="$(find_ubi_factory 2>/dev/null)" || ubi_factory=""
++	fi
+ 	if [ -n "$ubi_factory" ]; then
+ 		ubi_wan="$(read_ubi_mac "$UBI_WAN_OFF" "$ubi_factory")"
+ 		ubi_lan="$(read_ubi_mac "$UBI_LAN_OFF" "$ubi_factory")"
+@@ -486,8 +509,8 @@
+ 
+ 	command -v fw_setenv >/dev/null 2>&1 && ensure_env_conf && env_ready=1
+ 
+-	printf '{"mtd":"%s","writable":%s,"fields":%s,"ubi":{"wan":"%s","lan":"%s"},"wan":"%s","lan":"%s","lan_derived":"%s","oui_derived":"%s","env":{"ethaddr":"%s","oui":"%s","oui_stored":%s},"env_ready":%s}\n' \
+-		"$dev" "$writable" "$fields" "$ubi_wan" "$ubi_lan" \
++	printf '{"layout":"%s","mtd":"%s","writable":%s,"fields":%s,"ubi":{"wan":"%s","lan":"%s"},"wan":"%s","lan":"%s","lan_derived":"%s","oui_derived":"%s","env":{"ethaddr":"%s","oui":"%s","oui_stored":%s},"env_ready":%s}\n' \
++		"$FACTORY_LAYOUT" "$dev" "$writable" "$fields" "$ubi_wan" "$ubi_lan" \
+ 		"$wan" "$lan" "$lan_derived" "$oui_derived" \
+ 		"$uboot_ethaddr" "$uboot_oui" "$uboot_oui_stored" "$env_ready"
+ 
+@@ -499,6 +522,14 @@
+ 	local args="$1" dev tmp orig newblk lan_auto=0 eth_auto=1 wan lan serial ethaddr
+ 	local n rem headf bodyf cr env_msg="" ubi_msg=""
+ 	local ubi_factory=""
++
++	# Reading split DSD is supported; its coordinated provisioning write
++	# path (DSD, dedicated uenv and live MAC cells) is not implemented.
++	# Reject before parsing arguments or invoking any write helper.
++	[ "$FACTORY_LAYOUT" = "split-dsd" ] && {
++		printf '{"success":false,"error":"split DSD layout is read-only in this editor"}'
++		return
++	}
+ 
+ 	json_load "$args" 2>/dev/null || { printf '{"success":false,"error":"bad arguments"}'; return; }
+ 	json_select fields
+--- a/luci-app-airoha-factory/htdocs/luci-static/resources/view/airoha_factory/factory.js
++++ b/luci-app-airoha-factory/htdocs/luci-static/resources/view/airoha_factory/factory.js
+@@ -291,6 +291,7 @@
+ 		}
+ 
+ 		var writable = !!(status.writable);
++		var splitDsd = status.layout === 'split-dsd';
+ 		this._writable = writable;
+ 
+ 		// ---- status card (compact info + prominent hint) ----
+@@ -305,11 +306,12 @@
+ 		// key hint callout — the most important message
+ 		var hintTitle = writable
+ 			? _('Write ready')
+-			: _('Requires latest U-Boot and Firmware');
++			: (splitDsd ? _('Factory data is read-only') : _('Requires latest U-Boot and Firmware'));
+ 		var hintBody = writable
+ 			? E('div', { 'class': 'fac-callout-text' },
+ 				_('All write targets are ready. You can save changes directly.'))
+-			: buildRequirementHint();
++			: (splitDsd ? E('div', { 'class': 'fac-callout-text' },
++				_('Factory data is read from the separate DSD partition. This editor supports viewing only on this layout. No U-Boot upgrade is needed to read the serial number.')) : buildRequirementHint());
+ 		statusCard.appendChild(E('div', { 'class': 'fac-callout' + (writable ? ' ok' : '') }, [
+ 			E('div', { 'class': 'fac-callout-icon' }, writable ? '✓' : '⚠'),
+ 			E('div', { 'class': 'fac-callout-body' }, [
+@@ -343,6 +345,7 @@
+ 			} else {
+ 				self._serialInput = inp;
+ 			}
++			if (!writable) inp.readOnly = true;
+ 			self._inputs[k] = inp;
+ 			stack.appendChild(E('div', { 'class': 'fac-field' }, [
+ 				E('label', { 'for': 'fac-' + k }, labelForKey(k)),
+@@ -353,7 +356,7 @@
+ 	// ---- U-Boot ethaddr: linked to WAN by default, manually overridable ----
+ 	var envEth = (this._status.env && this._status.env.ethaddr) || '';
+ 	var wanInitial = this._fields.wan_mac || '';
+-	var ethInitial = macValid(envEth) ? envEth : wanInitial;
++	var ethInitial = macValid(envEth) ? envEth : (writable ? wanInitial : '');
+ 	// if the stored ethaddr already differs from WAN it was set manually:
+ 	// pin it so typing a new WAN does not clobber it
+ 	this._ethTouched = !!(macValid(ethInitial) && macValid(wanInitial) &&
+@@ -372,6 +375,7 @@
+ 		self.refreshDerived();
+ 		self.validate();
+ 	});
++	if (!writable) ethInp.readOnly = true;
+ 	this._ethaddrInput = ethInp;
+ 	this._inputs.ethaddr = ethInp;
+ 	stack.appendChild(E('div', { 'class': 'fac-field' }, [
+@@ -389,7 +393,7 @@
+ 		var saveBtn = E('button', {
+ 			'class': 'cbi-button cbi-button-apply',
+ 			'disabled': writable ? null : 'disabled',
+-			'title': writable ? null : _('Vendor partition is read-only.'),
++			'title': writable ? null : _('Factory data is read-only'),
+ 			'click': ui.createHandlerFn(self, 'handleSave')
+ 		}, _('Save Factory Block'));
+ 
+@@ -429,11 +433,11 @@
+ 		var wan = this._wanInput.value.trim();
+ 		var lan = this._lanInput.value.trim();
+ 		var eth = this._ethaddrInput.value.trim();
+-		if (macValid(wan) && !this._lanTouched) {
++		if (this._writable && macValid(wan) && !this._lanTouched) {
+ 			lan = macPlus1(wan);
+ 			this._lanInput.value = lan;
+ 		}
+-		if (macValid(wan) && !this._ethTouched) {
++		if (this._writable && macValid(wan) && !this._ethTouched) {
+ 			eth = wan;
+ 			this._ethaddrInput.value = wan;
+ 		}
+@@ -492,7 +496,7 @@
+ 	handleSave: function() {
+ 		var self = this;
+ 		if (!this._writable) {
+-			ui.addNotification(null, E('p', _('Vendor partition is read-only. Upgrade U-Boot and firmware before writing.')));
++			ui.addNotification(null, E('p', _('Factory data is read-only')));
+ 			return;
+ 		}
+ 		if (!this.validate()) {
+--- a/luci-app-airoha-factory/po/zh_Hans/luci-app-airoha-factory.po
++++ b/luci-app-airoha-factory/po/zh_Hans/luci-app-airoha-factory.po
+@@ -141,3 +141,9 @@
+ 
+ msgid "Reload render failed"
+ msgstr "重新渲染失败"
++
++msgid "Factory data is read-only"
++msgstr "原厂数据仅供读取"
++
++msgid "Factory data is read from the separate DSD partition. This editor supports viewing only on this layout. No U-Boot upgrade is needed to read the serial number."
++msgstr "原厂数据从独立的 DSD 分区读取。此编辑器在该布局下仅支持查看，读取序列号无需升级 U-Boot。"
